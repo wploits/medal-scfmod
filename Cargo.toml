@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "graph",
+    "cfg-ir",
+    "ast-ir",
+    "lua51-lifter",
+    "cfg-test"
+]
