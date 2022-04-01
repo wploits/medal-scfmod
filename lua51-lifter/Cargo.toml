@@ -1,0 +1,15 @@
+[package]
+name = "lua51-lifter"
+version = "0.1.0"
+authors = ["Mathias Pedersen <mathias.pedersen834@gmail.com>", "Jujhar Singh <jujharsmc@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+num_enum = "0.5.6"
+nom = "7.1.0"
+clap = { version = "3.1.0", features = ["derive"] }
+anyhow = { version = "1.0.53", features = ["backtrace"] }
+cfg-ir = { path = "../cfg-ir" }
+graph = { path = "../graph", features = ["dot"] }
