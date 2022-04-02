@@ -27,10 +27,13 @@ fn main() -> anyhow::Result<()> {
     let chunk = chunk::parse(&buffer).unwrap().1;
     //println!("{:#?}", chunk);
 
-    let ir_function = Lifter::new(&chunk.main).lift_function();
+    let mut ir_function = Lifter::new(&chunk.main).lift_function()?;
     //println!("{:#?}", ir_function);
 
-    graph::dot::render_to(ir_function?.graph(), &mut std::io::stdout())?;
+    graph::dot::render_to(ir_function.graph(), &mut std::io::stdout())?;
+
+    let flow_info = cfg_ir::function::flow_info::FlowInfo::new(ir_function.graph_mut())?;
+    println!("{:#?}", flow_info);
 
     Ok(())
 }

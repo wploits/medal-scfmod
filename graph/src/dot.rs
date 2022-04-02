@@ -9,7 +9,7 @@ use super::NodeId;
 
 impl<'a> Labeller<'a, NodeId, Edge> for Graph {
     fn graph_id(&'a self) -> dot::Id<'a> {
-        dot::Id::new("cfg_ir").unwrap()
+        dot::Id::new("my_graph").unwrap()
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {

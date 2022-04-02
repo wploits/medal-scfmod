@@ -1,6 +1,7 @@
 pub mod def_use;
+pub mod flow_info;
 
-use graph::NodeId;
+use graph::{Graph, NodeId};
 use std::collections::HashMap;
 
 use crate::{
@@ -13,7 +14,7 @@ use def_use::DefUse;
 
 #[derive(Debug, Clone)]
 pub struct Function {
-    graph: graph::graph::Graph,
+    graph: Graph,
     blocks: HashMap<NodeId, BasicBlock>,
     next_value_index: ValueId,
     pub(crate) def_use: DefUse,

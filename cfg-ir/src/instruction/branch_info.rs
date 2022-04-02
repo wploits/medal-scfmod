@@ -12,7 +12,7 @@ pub(crate) trait BranchInfo {
 
     // Replaces a branch to `old` with `new`
     // Caller is responsible for correctness!
-    fn replace_branch(&mut self, old: usize, new: usize) {
+    fn replace_branch(&mut self, old: NodeId, new: NodeId) {
         for value in self.branches_mut().iter_mut() {
             if **value == old {
                 **value = new;

@@ -54,8 +54,8 @@ impl Graph {
         &self.edges
     }
 
-    pub fn entry(&self) -> Option<&NodeId> {
-        self.entry.as_ref()
+    pub fn entry(&self) -> &Option<NodeId> {
+        &self.entry
     }
 
     pub fn set_entry(&mut self, new_entry: NodeId) -> Result<()> {
