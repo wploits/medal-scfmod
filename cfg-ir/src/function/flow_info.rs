@@ -23,23 +23,33 @@ pub struct FlowInfo {
 impl FlowInfo {
     // modified dfs algorithm
     fn identify_loops(graph: &Graph) -> Result<Vec<Edge>> {
-        let entry = graph.entry().ok_or(Error::NoEntry)?;
-        let mut edges = Vec::new();
-        let mut visited = HashSet::new();
-        let mut stack = Vec::new();
-        stack.push(entry);
-        visited.insert(entry);
-        while let Some(node) = stack.pop() {
-            for &successor in graph.successors(node) {
-                if visited.insert(successor) {
-                    stack.push(successor);
+        fn dfs_visit(graph: &Graph, node: NodeId, visited: &mut HashSet<NodeId>, finished: &mut HashSet<NodeId>, back_edges: &mut Vec<Edge>) {
+            visited.insert(node);
+            for successor in graph.successors(node) {
+                if visited.contains(successor) {
+                    println!("back edge detected {} -> {}", node, *successor);
+                    back_edges.push(Edge(node, *successor));
                 } else {
-                    println!("found back edge: {} -> {}", node, successor);
-                    edges.push(Edge(node, successor));
+                    if !finished.contains(successor) {
+                        dfs_visit(graph, *successor, visited, finished, back_edges);
+                    }
                 }
             }
+
+            visited.remove(&node);
+            finished.insert(node);
         }
-        Ok(edges)
+
+        let mut visited = HashSet::new();
+        let mut finished = HashSet::new();
+        let mut back_edges = Vec::new();
+        
+        for node in graph.nodes() {
+            if !visited.contains(node) && !finished.contains(node) {
+                dfs_visit(graph, *node, &mut visited, &mut finished, &mut back_edges);
+            }
+        }
+        Ok(back_edges)
     }
 
     fn identify_break_goto(graph: &Graph, headers: &HashSet<NodeId>) -> Result<Vec<Edge>> {
@@ -49,8 +59,17 @@ impl FlowInfo {
         for &node in &preorder {
             let successors = graph.successors(node).collect::<HashSet<_>>();
             if successors.len() >= 2 {
+                let mut reachable_headers = graph.compute_dfs_preorder(node)?;
+                reachable_headers.retain(|n| headers.contains(n));
                 // a -> b
-                // TODO: if a is a header, or there is a path a -> header dom a, and there is no path b -> a, a -> b is a break/goto edge (i think?)
+                // TODO: if a is a header, or there is a path a -> header dom a, and there is no path b -> a, a -> b is a break
+                for &destination in successors {
+                    let mut destination_reachable_headers = graph.compute_dfs_preorder(destination)?;
+                    destination_reachable_headers.retain(|n| headers.contains(n));
+                    if reachable_headers != destination_reachable_headers {
+                        println!("we broke out of something");
+                    }
+                }
             }
             
         }
@@ -66,6 +85,6 @@ impl FlowInfo {
         Ok(Self {
             edges: HashMap::new(),
             loops: HashMap::new(),
-        })
+        }) 
     }
 }
