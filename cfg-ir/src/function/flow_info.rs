@@ -53,7 +53,10 @@ impl FlowInfo {
                     let mut destination_reachable_headers =
                         graph.compute_dfs_preorder(destination)?;
                     destination_reachable_headers.retain(|n| headers.contains(n));
-                    if !reachable_headers.iter().any(|header| destination_reachable_headers.contains(header)) {
+                    if !reachable_headers
+                        .iter()
+                        .any(|header| destination_reachable_headers.contains(header))
+                    {
                         edges.push(Edge(node, destination));
                     }
                 }

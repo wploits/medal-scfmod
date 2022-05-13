@@ -15,6 +15,15 @@ fn main() -> Result<()> {
         .block(block)?
         .replace_terminator(UnconditionalJump(block).into())?;
 
+    let graph = function.graph();
+    let entry = graph.entry().unwrap();
+    println!("entry: {}", entry);
+
+    println!("immediate doms: {:#?}", graph.compute_immediate_dominators(entry));
+
+    //let dominance_frontiers = graph.compute_dominance_frontiers(entry, None);
+    //println!("{:#?}", dominance_frontiers);
+
     graph::dot::render_to(function.graph(), &mut std::io::stdout())?;
 
     Ok(())

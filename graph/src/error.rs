@@ -3,8 +3,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Node {} does not exist", node)]
-    InvalidNode { node: NodeId },
+    #[error("Node {0} does not exist")]
+    InvalidNode(NodeId),
 
     #[error("No entry node has been set")]
     NoEntry,

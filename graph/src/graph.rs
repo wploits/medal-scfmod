@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use super::edge::Edge;
@@ -10,9 +11,6 @@ pub struct Graph {
     nodes: Vec<NodeId>,
     edges: Vec<Edge>,
     entry: Option<NodeId>,
-    immediate_dominators: HashMap<NodeId, NodeId>,
-    immediate_postdominators: HashMap<NodeId, NodeId>,
-    dominance_frontiers: HashMap<NodeId, HashSet<NodeId>>,
 }
 
 impl Graph {
@@ -21,9 +19,6 @@ impl Graph {
             nodes: Vec::new(),
             edges: Vec::new(),
             entry: None,
-            immediate_dominators: HashMap::new(),
-            immediate_postdominators: HashMap::new(),
-            dominance_frontiers: HashMap::new(),
         }
     }
 
@@ -40,9 +35,6 @@ impl Graph {
             nodes,
             edges,
             entry: None,
-            immediate_dominators: HashMap::new(),
-            immediate_postdominators: HashMap::new(),
-            dominance_frontiers: HashMap::new(),
         }
     }
 
@@ -61,23 +53,10 @@ impl Graph {
     pub fn set_entry(&mut self, new_entry: NodeId) -> Result<()> {
         if self.node_exists(new_entry) {
             self.entry = Some(new_entry);
-            self.update_control_flow_info()?;
             Ok(())
         } else {
-            Err(Error::InvalidNode { node: new_entry })
+            Err(Error::InvalidNode(new_entry))
         }
-    }
-
-    pub fn immediate_dominators(&self) -> &HashMap<NodeId, NodeId> {
-        &self.immediate_dominators
-    }
-
-    pub fn immediate_postdominators(&self) -> &HashMap<NodeId, NodeId> {
-        &self.immediate_postdominators
-    }
-
-    pub fn dominance_frontiers(&self) -> &HashMap<NodeId, HashSet<NodeId>> {
-        &self.dominance_frontiers
     }
 
     pub fn node_exists(&self, node: NodeId) -> bool {
@@ -108,44 +87,6 @@ impl Graph {
         )
     }
 
-    pub fn immediately_dominates(&self, dom: NodeId, node: NodeId) -> Result<bool> {
-        if self.entry.is_none() {
-            return Err(Error::NoEntry);
-        }
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
-        }
-        if !self.node_exists(dom) {
-            return Err(Error::InvalidNode { node: dom });
-        }
-
-        Ok(*self.immediate_dominators.get(&node).unwrap() == dom)
-    }
-
-    pub fn dominates(&self, dom: NodeId, node: NodeId) -> Result<bool> {
-        if self.entry.is_none() {
-            return Err(Error::NoEntry);
-        }
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
-        }
-        if !self.node_exists(dom) {
-            return Err(Error::InvalidNode { node: dom });
-        }
-
-        let mut runner = node;
-        loop {
-            if runner == dom {
-                return Ok(true);
-            }
-            if let Some(idom) = self.immediate_dominators.get(&runner) {
-                runner = *idom;
-            } else {
-                return Ok(false);
-            }
-        }
-    }
-
     pub fn path_exists(&self, from: NodeId, to: NodeId) -> Result<bool> {
         // TODO: check while computing preorder
         Ok(self.compute_dfs_preorder(from)?.contains(&to))
@@ -163,28 +104,26 @@ impl Graph {
 
     pub fn add_edge(&mut self, edge: Edge) -> Result<()> {
         if !self.node_exists(edge.0) {
-            return Err(Error::InvalidNode { node: edge.0 });
+            return Err(Error::InvalidNode(edge.0));
         }
         if !self.node_exists(edge.1) {
-            return Err(Error::InvalidNode { node: edge.1 });
+            return Err(Error::InvalidNode(edge.1));
         }
 
         self.edges.push(edge);
-        self.update_control_flow_info()?;
 
         Ok(())
     }
 
     pub fn remove_edge(&mut self, edge: Edge) -> Result<()> {
         if !self.node_exists(edge.0) {
-            return Err(Error::InvalidNode { node: edge.0 });
+            return Err(Error::InvalidNode(edge.0));
         }
         if !self.node_exists(edge.1) {
-            return Err(Error::InvalidNode { node: edge.1 });
+            return Err(Error::InvalidNode(edge.1));
         }
 
         self.edges.retain(|other_edge| edge != *other_edge);
-        self.update_control_flow_info()?;
 
         Ok(())
     }
@@ -196,7 +135,6 @@ impl Graph {
         };
 
         self.nodes.push(node);
-        self.update_control_flow_info()?;
 
         Ok(node)
     }
@@ -204,24 +142,12 @@ impl Graph {
     pub fn remove_node(&mut self, node: NodeId) -> Result<()> {
         self.nodes.retain(|other_node| *other_node != node);
         self.edges.retain(|e| e.0 != node && e.1 != node);
-        self.update_control_flow_info()?;
-
-        Ok(())
-    }
-
-    //TODO: this is really slow
-    fn update_control_flow_info(&mut self) -> Result<()> {
-        if let Some(entry) = self.entry {
-            //self.compute_immediate_dominators(entry)?;
-            //self.compute_immediate_postdominators(entry)?;
-            //self.compute_dominance_frontiers(entry)?;
-        }
         Ok(())
     }
 
     fn compute_bottom_up_dfs_preorder(&self, node: NodeId) -> Result<Vec<NodeId>> {
         if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
+            return Err(Error::InvalidNode(node));
         }
 
         let mut visited = HashSet::new();
@@ -247,7 +173,7 @@ impl Graph {
 
     pub fn compute_dfs_preorder(&self, node: NodeId) -> Result<Vec<NodeId>> {
         if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
+            return Err(Error::InvalidNode(node));
         }
 
         let mut visited: HashSet<NodeId> = HashSet::new();
@@ -271,13 +197,14 @@ impl Graph {
         Ok(order)
     }
 
-    pub fn compute_dfs_postorder(&self, node: NodeId) -> Result<Vec<NodeId>> {
+    pub fn compute_postorder(&self, node: NodeId) -> Result<(Vec<NodeId>, HashMap<NodeId, HashSet<NodeId>>)> {
         if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
+            return Err(Error::InvalidNode(node));
         }
 
         let mut visited: HashSet<NodeId> = HashSet::default();
         let mut order: Vec<NodeId> = Vec::new();
+        let mut predecessor_sets = HashMap::new();
 
         // TODO: recursive bad or smthn
         fn dfs_walk(
@@ -285,25 +212,27 @@ impl Graph {
             node: NodeId,
             visited: &mut HashSet<NodeId>,
             order: &mut Vec<NodeId>,
+            predecessor_sets: &mut HashMap<NodeId, HashSet<NodeId>>
         ) -> Result<()> {
             visited.insert(node);
-            for successor in graph.successors(node) {
-                if !visited.contains(successor) {
-                    dfs_walk(graph, *successor, visited, order)?;
+            for &successor in graph.successors(node) {
+                predecessor_sets.entry(node).or_insert_with(HashSet::new).insert(successor);
+                if !visited.contains(&successor) {
+                    dfs_walk(graph, successor, visited, order, predecessor_sets)?;
                 }
             }
             order.push(node);
             Ok(())
         }
 
-        dfs_walk(self, node, &mut visited, &mut order)?;
+        dfs_walk(self, node, &mut visited, &mut order, &mut predecessor_sets)?;
 
-        Ok(order)
+        Ok((order, predecessor_sets))
     }
 
     pub fn compute_bfs_level_order(&self, node: NodeId) -> Result<Vec<NodeId>> {
         if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
+            return Err(Error::InvalidNode(node));
         }
 
         let mut visited: HashSet<NodeId> = HashSet::new();
@@ -328,7 +257,7 @@ impl Graph {
 
     pub fn compute_bottom_up_bfs_level_order(&self, node: NodeId) -> Result<Vec<NodeId>> {
         if !self.node_exists(node) {
-            return Err(Error::InvalidNode { node });
+            return Err(Error::InvalidNode(node));
         }
 
         let mut visited: HashSet<NodeId> = HashSet::new();
@@ -351,137 +280,63 @@ impl Graph {
         Ok(order)
     }
 
-    // see figure 3 from A Simple, Fast Dominance Algorithm (Cooper, et al.) https://www.cs.rice.edu/~keith/EMBED/dom.pdf
-    fn compute_immediate_dominators(&mut self, root: NodeId) -> Result<()> {
-        self.immediate_dominators.clear();
-        let postorder = self.compute_dfs_postorder(root)?;
-        for &node in &postorder {
-            self.immediate_dominators.insert(node, node);
-        }
-        let mut changed = true;
-        while changed {
-            changed = false;
+    // thanks petgraph lol
+    pub fn compute_immediate_dominators(&self, root: NodeId) -> Result<HashMap<NodeId, NodeId>> {
+        let (postorder, predecessor_sets) = self.compute_postorder(root)?;
+        
+        let node_to_post_order_idx: HashMap<_, _> = postorder
+            .iter()
+            .enumerate()
+            .map(|(idx, &node)| (node, idx))
+            .collect();
 
-            for node in postorder.iter().skip(1).rev() {
-                let predecessors = self.predecessors(*node).cloned().collect::<Vec<_>>();
-                if !predecessors.is_empty() {
-                    let mut new_idom = *predecessors.get(0).unwrap();
-                    for other_pred in predecessors.iter().skip(1) {
-                        if self.immediate_dominators.get(other_pred).is_some() {
-                            new_idom =
-                                intersect(&mut self.immediate_dominators, *other_pred, new_idom);
-                        }
-                    }
-                    if let Some(&b) = self.immediate_dominators.get(node) {
-                        if b != new_idom {
-                            self.immediate_dominators.insert(*node, new_idom);
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        }
+        let idx_to_predecessor_vec = postorder
+            .iter()
+            .map(|node| {
+                predecessor_sets
+                    .remove(node)
+                    .map(|predecessors| {
+                        predecessors
+                            .into_iter()
+                            .map(|p| *node_to_post_order_idx.get(&p).unwrap())
+                            .collect()
+                    })
+                    .unwrap_or_else(Vec::new)
+            })
+            .collect();
+    
+        let length = postorder.len();
 
-        fn intersect(
-            dominators: &mut HashMap<NodeId, NodeId>,
-            node1: NodeId,
-            node2: NodeId,
-        ) -> NodeId {
-            let mut finger1 = node1;
-            let mut finger2 = node2;
-            while finger1 != finger2 {
-                while finger1 < finger2 {
-                    finger1 = dominators[&finger1];
-                }
-                while finger2 < finger1 {
-                    finger2 = dominators[&finger2];
-                }
-            }
-            finger1
-        }
+        const UNDEFINED: usize = std::usize::MAX;
 
-        Ok(())
+        let mut dominators = vec![UNDEFINED; length];
+        dominators[length - 1] = length - 1;
+        
+        Ok(doms)
     }
 
     fn compute_immediate_postdominators(&self, root: NodeId) -> Result<()> {
-        // TODO: finish
         todo!();
-        /*let preorder = self.compute_bottom_up_dfs_preorder(0)?;
-
-        let dfs_number: HashMap<NodeId, NodeId> = preorder
-            .iter()
-            .enumerate()
-            .map(|(number, node)| (*node, number))
-            .collect();
-
-        let graph_number = &preorder;
-
-        let mut ancestor: HashMap<NodeId, Option<NodeId>> = HashMap::new();
-        let mut label: HashMap<NodeId, NodeId> = HashMap::new();
-        for (&node, _) in self.vertices.iter() {
-            ancestor.insert(node, None);
-            label.insert(node, dfs_number[&node]);
-        }
-
-        let mut semi = HashMap::new();
-        for &node in preorder.iter().skip(1).rev() {
-            let mut min_semi = std::NodeId::MAX;
-
-            for &pred in &self.successor_map[&node] {
-                if ancestor[&pred].is_some() {
-                    compress(&mut ancestor, &mut label, pred);
-                }
-                min_semi = std::cmp::min(min_semi, label[&pred]);
-            }
-
-            semi.insert(node, min_semi);
-            label.insert(node, min_semi);
-
-            ancestor.insert(node, dfs_parent(node));
-        }
-        let semi = semi;
-
-        fn compress(
-            ancestor: &mut HashMap<NodeId, Option<NodeId>>,
-            label: &mut HashMap<NodeId, NodeId>,
-            v: NodeId,
-        ) {
-            let u = ancestor[&v].unwrap();
-            if ancestor[&u].is_some() {
-                compress(ancestor, label, u);
-                if label[&u] < label[&v] {
-                    label.insert(v, label[&u]);
-                }
-                ancestor.insert(v, ancestor[&u]);
-            }
-        }
-
-        let mut idoms = HashMap::new();
-        for &node in preorder.iter().skip(1) {
-            let mut idom = dfs_number[&dfs_parent(node).unwrap()];
-            while idom > semi[&node] {
-                idom = idoms[&idom];
-            }
-            idoms.insert(dfs_number[&node], idom);
-        }
-        let idoms = idoms;
-
-        let mut graph_idoms = HashMap::new();
-        for (node, idom) in idoms {
-            graph_idoms.insert(graph_number[node], graph_number[idom]);
-        }
-
-        Ok(graph_idoms)*/
     }
 
-    fn compute_dominance_frontiers(&mut self, root: NodeId) -> Result<()> {
+    pub fn compute_dominance_frontiers(
+        &self,
+        root: NodeId,
+        immediate_dominators: Option<Cow<HashMap<NodeId, NodeId>>>,
+    ) -> Result<HashMap<NodeId, HashSet<NodeId>>> {
+        let immediate_dominators = match immediate_dominators {
+            Some(immediate_dominators) => immediate_dominators,
+            None => Cow::Owned(self.compute_immediate_dominators(root)?),
+        };
+
         if !self.node_exists(root) {
-            return Err(Error::InvalidNode { node: root });
+            return Err(Error::InvalidNode(root));
         }
-        self.dominance_frontiers.clear();
+
+        let mut dominance_frontiers = HashMap::new();
 
         for &index in &self.nodes {
-            self.dominance_frontiers.insert(index, HashSet::new());
+            dominance_frontiers.insert(index, HashSet::new());
         }
 
         for &index in &self.nodes {
@@ -489,20 +344,17 @@ impl Graph {
             if preds.len() > 1 {
                 for pred in preds {
                     let mut runner = pred;
-                    let node_idom = *self.immediate_dominators.get(&index).unwrap();
+                    let node_idom = *immediate_dominators.get(&index).unwrap();
 
                     while runner != node_idom {
-                        self.dominance_frontiers
-                            .get_mut(&runner)
-                            .unwrap()
-                            .insert(index);
-                        runner = *self.immediate_dominators.get(&runner).unwrap();
+                        dominance_frontiers.get_mut(&runner).unwrap().insert(index);
+                        runner = *immediate_dominators.get(&runner).unwrap();
                     }
                 }
             }
         }
 
-        Ok(())
+        Ok(dominance_frontiers)
     }
 }
 
