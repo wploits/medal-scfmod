@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use anyhow::Result;
+use graph::NodeId;
 
 use super::{
     chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
@@ -18,7 +19,7 @@ use cfg_ir::{
 
 pub struct Lifter<'a> {
     function: &'a BytecodeFunction<'a>,
-    blocks: HashMap<usize, usize>,
+    blocks: HashMap<usize, NodeId>,
     lifted_function: Function,
     register_map: HashMap<usize, ValueId>,
     constant_map: HashMap<usize, Constant>,
@@ -88,7 +89,7 @@ impl<'a> Lifter<'a> {
         range.map(|v| self.get_register(v)).collect()
     }
 
-    fn convert_constant(&self, constant: &BytecodeValueId<'_>) -> Constant {
+    fn convert_constant(&self, constant: &BytecodeValueId) -> Constant {
         match constant {
             BytecodeValueId::Nil => Constant::Nil,
             BytecodeValueId::Boolean(b) => Constant::Boolean(*b),
@@ -105,11 +106,11 @@ impl<'a> Lifter<'a> {
             .clone()
     }
 
-    fn get_block(&self, insn_index: usize) -> Option<usize> {
+    fn get_block(&self, insn_index: usize) -> Option<NodeId> {
         self.blocks.get(&insn_index).cloned()
     }
 
-    fn get_register_or_constant(&mut self, index: usize, block_index: usize) -> ValueId {
+    fn get_register_or_constant(&mut self, index: usize, block_index: NodeId) -> ValueId {
         if index >= 256 {
             let constant = self.get_constant(index - 256);
             let mut builder = Builder::new(&mut self.lifted_function);
@@ -500,6 +501,8 @@ impl<'a> Lifter<'a> {
         }
 
         let mut function = self.lifted_function.clone();
+        function.graph_mut().set_entry(self.get_block(0).unwrap())?;
+
         //function.remove_unconnected_blocks().unwrap();
         Ok(function)
     }

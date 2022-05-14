@@ -1,5 +1,5 @@
 use crate::error::Result;
-use graph::{edge::Edge, error::Error, Graph, NodeId};
+use graph::{error::Error, Edge, Graph, NodeId};
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -43,15 +43,15 @@ impl FlowInfo {
     fn identify_break_goto(graph: &Graph, headers: &HashSet<NodeId>) -> Result<Vec<Edge>> {
         let entry = graph.entry().ok_or(Error::NoEntry)?;
         let mut edges = Vec::new();
-        let preorder = graph.compute_dfs_preorder(entry)?;
+        let preorder = graph.pre_order(entry)?;
         for &node in &preorder {
             let successors = graph.successors(node).collect::<HashSet<_>>();
             if successors.len() >= 2 {
-                let mut reachable_headers = graph.compute_dfs_preorder(node)?;
+                let mut reachable_headers = graph.pre_order(node)?;
                 reachable_headers.retain(|n| headers.contains(n));
                 for &destination in successors {
                     let mut destination_reachable_headers =
-                        graph.compute_dfs_preorder(destination)?;
+                        graph.pre_order(destination)?;
                     destination_reachable_headers.retain(|n| headers.contains(n));
                     if !reachable_headers
                         .iter()

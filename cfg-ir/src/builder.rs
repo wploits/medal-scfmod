@@ -1,4 +1,4 @@
-use graph::{edge::Edge, NodeId};
+use graph::{Edge, NodeId};
 
 use super::{
     block::BasicBlock,
@@ -104,7 +104,7 @@ impl<'a> BlockBuilder<'a> {
         for &successor in terminator.branches().iter() {
             self.function
                 .graph_mut()
-                .add_edge(Edge(self.block, successor))?;
+                .add_edge(Edge::new(self.block, successor))?;
         }
         self.block().terminator_mut().replace(terminator);
         Ok(self)

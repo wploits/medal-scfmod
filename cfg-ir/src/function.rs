@@ -23,18 +23,18 @@ pub struct Function {
 impl Function {
     pub fn new() -> Self {
         Self {
-            graph: graph::Graph::new(),
+            graph: Graph::new(),
             blocks: HashMap::new(),
             next_value_index: 0,
             def_use: DefUse::new(),
         }
     }
 
-    pub fn graph(&self) -> &graph::graph::Graph {
+    pub fn graph(&self) -> &Graph {
         &self.graph
     }
 
-    pub fn graph_mut(&mut self) -> &mut graph::graph::Graph {
+    pub fn graph_mut(&mut self) -> &mut Graph {
         &mut self.graph
     }
 

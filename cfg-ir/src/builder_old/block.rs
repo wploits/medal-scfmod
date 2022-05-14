@@ -483,7 +483,7 @@ impl<'a> BlockBuilder<'a> {
             .ok_or(Error::NoTerminator)?
             .replace_branch(old, new);
         self.function.graph_mut().remove_edge(Edge(self.block, old))?;
-        self.function.graph_mut().add_edge(Edge(self.block, new))?;
+        self.function.graph_mut().add_edge(Edge::new(self.block, new))?;
         Ok(self)
     }
 
@@ -569,10 +569,10 @@ impl<'a> BlockBuilder<'a> {
     ) -> Result<&mut Self> {
         self.function
             .graph_mut()
-            .add_edge(Edge(self.block, true_branch))?;
+            .add_edge(Edge::new(self.block, true_branch))?;
         self.function
             .graph_mut()
-            .add_edge(Edge(self.block, false_branch))?;
+            .add_edge(Edge::new(self.block, false_branch))?;
 
         self.seal_with(Terminator::ConditionalJump(ConditionalJump {
             condition,

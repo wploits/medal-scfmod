@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 use cfg_ir::{builder::Builder, function::Function, instruction::UnconditionalJump};
+use graph::algorithms;
 
 fn main() -> Result<()> {
     let mut function = Function::new();
@@ -19,7 +20,10 @@ fn main() -> Result<()> {
     let entry = graph.entry().unwrap();
     println!("entry: {}", entry);
 
-    println!("immediate doms: {:#?}", graph.compute_immediate_dominators(entry));
+    println!(
+        "immediate doms: {:#?}",
+        algorithms::dominators::compute_immediate_dominators(graph, entry)
+    );
 
     //let dominance_frontiers = graph.compute_dominance_frontiers(entry, None);
     //println!("{:#?}", dominance_frontiers);

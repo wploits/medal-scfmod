@@ -3,9 +3,7 @@ use std::io::Write;
 
 use dot::{GraphWalk, Labeller};
 
-use super::edge::Edge;
-use super::graph::Graph;
-use super::NodeId;
+use super::{Edge, Graph, NodeId};
 
 impl<'a> Labeller<'a, NodeId, Edge> for Graph {
     fn graph_id(&'a self) -> dot::Id<'a> {
@@ -13,7 +11,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Graph {
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
-        dot::Id::new(format!("N{}", *n)).unwrap()
+        dot::Id::new(format!("{}", *n)).unwrap()
     }
 }
 

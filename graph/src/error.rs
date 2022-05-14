@@ -8,4 +8,7 @@ pub enum Error {
 
     #[error("No entry node has been set")]
     NoEntry,
+
+    #[error("The node {0} is already in the graph")]
+    NodeExists(NodeId),
 }
