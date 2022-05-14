@@ -131,11 +131,7 @@ impl Graph {
     // same as path_exists but `from' cannot be `to'
     pub fn strict_path_exists(&self, from: NodeId, to: NodeId) -> Result<bool> {
         // TODO: check while computing preorder
-        Ok(self
-            .pre_order(from)?
-            .iter()
-            .skip(1)
-            .any(|x| *x == to))
+        Ok(self.pre_order(from)?.iter().skip(1).any(|x| *x == to))
     }
 
     pub fn add_edge(&mut self, edge: Edge) -> Result<()> {

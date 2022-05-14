@@ -50,8 +50,7 @@ impl FlowInfo {
                 let mut reachable_headers = graph.pre_order(node)?;
                 reachable_headers.retain(|n| headers.contains(n));
                 for &destination in successors {
-                    let mut destination_reachable_headers =
-                        graph.pre_order(destination)?;
+                    let mut destination_reachable_headers = graph.pre_order(destination)?;
                     destination_reachable_headers.retain(|n| headers.contains(n));
                     if !reachable_headers
                         .iter()

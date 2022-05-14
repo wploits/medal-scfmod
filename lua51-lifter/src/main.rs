@@ -28,12 +28,20 @@ fn main() -> anyhow::Result<()> {
     let chunk = chunk::parse(&buffer).unwrap().1;
     //println!("{:#?}", chunk);
 
-    let mut ir_function = Lifter::new(&chunk.main).lift_function()?;
+    let ir_function = Lifter::new(&chunk.main).lift_function()?;
     let graph = ir_function.graph();
 
     graph::dot::render_to(graph, &mut std::io::stdout())?;
-    
-    println!("{:#?}", graph::algorithms::dominators::compute_immediate_dominators(graph, graph.entry().ok_or(graph::Error::NoEntry)?)?);
+
+    println!(
+        "immediate doms: {:#?}",
+        graph::algorithms::dominators::compute_immediate_dominators(
+            graph,
+            graph.entry().ok_or(graph::Error::NoEntry)?
+        )?
+    );
+
+    graph::algorithms::flow::test(graph)?;
 
     /*let flow_info = cfg_ir::function::flow_info::FlowInfo::new(ir_function.graph_mut())?;
     println!("{:#?}", flow_info);*/
