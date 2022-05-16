@@ -1,0 +1,12 @@
+[package]
+name = "cfg-to-ast"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+graph = { path = "../graph" }
+cfg-ir = { path = "../cfg-ir" }
+ast-ir = { path = "../ast-ir" }
+thiserror = "1.0.31"
