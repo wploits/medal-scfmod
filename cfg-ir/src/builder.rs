@@ -98,7 +98,7 @@ impl<'a> BlockBuilder<'a> {
             for branch in old_terminator.branches().iter().cloned() {
                 self.function
                     .graph_mut()
-                    .remove_edge(Edge(self.block, branch))?;
+                    .remove_edge(Edge::new(self.block, branch))?;
             }
         }
         for &successor in terminator.branches().iter() {

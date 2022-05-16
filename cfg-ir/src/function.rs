@@ -1,16 +1,12 @@
-pub mod def_use;
-pub mod flow_info;
-
 use graph::{Graph, NodeId};
 use std::collections::HashMap;
 
 use crate::{
     block::BasicBlock,
+    def_use::DefUse,
     error::{Error, Result},
     value::ValueId,
 };
-
-use def_use::DefUse;
 
 #[derive(Debug, Clone)]
 pub struct Function {

@@ -3,7 +3,44 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use crate::{Error, Graph, NodeId, Result};
+use crate::{Edge, Error, Graph, NodeId, Result};
+
+pub fn dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
+    let mut dom_tree = Graph::new();
+    for vertex in graph.nodes() {
+        dom_tree.add_node_with_id(*vertex)?;
+    }
+    dom_tree.set_entry(root)?;
+
+    let idoms = compute_immediate_dominators(graph, root)?;
+    for (vertex, idom) in idoms {
+        dom_tree.add_edge(Edge::new(idom, vertex))?;
+    }
+
+    Ok(dom_tree)
+}
+
+pub fn dominators(graph: &Graph, root: NodeId) -> Result<HashMap<NodeId, HashSet<NodeId>>> {
+    if !graph.node_exists(root) {
+        return Err(Error::InvalidNode(root));
+    }
+
+    let dom_tree = dominator_tree(graph, root)?;
+    let dom_tree_pre_oder = dom_tree.pre_order()?;
+
+    let mut dominators: HashMap<NodeId, HashSet<NodeId>> = HashMap::default();
+
+    for vertex in dom_tree_pre_oder {
+        let mut doms = HashSet::default();
+        doms.insert(vertex);
+        for pred in dom_tree.predecessors(vertex) {
+            doms.extend(&dominators[pred])
+        }
+        dominators.insert(vertex, doms);
+    }
+
+    Ok(dominators)
+}
 
 pub fn compute_dominance_frontiers(
     graph: &Graph,
@@ -56,11 +93,15 @@ pub fn compute_immediate_dominators(
         return Err(Error::InvalidNode(root));
     }
 
-    let dfs = super::dfs_tree(graph, root)?.0;
-    let dfs_pre_order = dfs.pre_order(root)?;
+    let dfs = super::dfs_tree(graph, root)?;
+    let dfs_pre_order = dfs.pre_order()?;
 
+    // filter out unreachable nodes
     let preds = |n: NodeId| {
-        graph.predecessors(n).cloned().filter(|&p| dfs.node_exists(p))
+        graph
+            .predecessors(n)
+            .cloned()
+            .filter(|&p| dfs.node_exists(p))
     };
 
     let dfs_parent = |vertex| dfs.predecessors(vertex).next().cloned();

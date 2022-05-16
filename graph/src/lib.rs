@@ -7,7 +7,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[cfg(feature = "dot")]
 pub mod dot;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct NodeId(usize);
@@ -25,7 +25,7 @@ impl std::fmt::Debug for NodeId {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Edge(pub NodeId, pub NodeId);
+pub struct Edge(NodeId, NodeId);
 
 impl Edge {
     pub fn new(source: NodeId, destination: NodeId) -> Self {
@@ -123,34 +123,25 @@ impl Graph {
         )
     }
 
-    pub fn path_exists(&self, from: NodeId, to: NodeId) -> Result<bool> {
-        // TODO: check while computing preorder
-        Ok(self.pre_order(from)?.contains(&to))
-    }
-
-    // same as path_exists but `from' cannot be `to'
-    pub fn strict_path_exists(&self, from: NodeId, to: NodeId) -> Result<bool> {
-        // TODO: check while computing preorder
-        Ok(self.pre_order(from)?.iter().skip(1).any(|x| *x == to))
-    }
-
     pub fn add_edge(&mut self, edge: Edge) -> Result<()> {
-        if !self.node_exists(edge.0) {
-            return Err(Error::InvalidNode(edge.0));
+        let (source, destination) = (edge.source(), edge.destination());
+        if !self.node_exists(source) {
+            return Err(Error::InvalidNode(source));
         }
-        if !self.node_exists(edge.1) {
-            return Err(Error::InvalidNode(edge.1));
+        if !self.node_exists(destination) {
+            return Err(Error::InvalidNode(destination));
         }
         self.edges.push(edge);
         Ok(())
     }
 
     pub fn remove_edge(&mut self, edge: Edge) -> Result<()> {
-        if !self.node_exists(edge.0) {
-            return Err(Error::InvalidNode(edge.0));
+        let (source, destination) = (edge.source(), edge.destination());
+        if !self.node_exists(source) {
+            return Err(Error::InvalidNode(source));
         }
-        if !self.node_exists(edge.1) {
-            return Err(Error::InvalidNode(edge.1));
+        if !self.node_exists(destination) {
+            return Err(Error::InvalidNode(destination));
         }
         self.edges.retain(|other_edge| edge != *other_edge);
         Ok(())
@@ -205,16 +196,14 @@ impl Graph {
         Ok(order)
     }
 
-    pub fn pre_order(&self, node: NodeId) -> Result<Vec<NodeId>> {
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode(node));
-        }
+    pub fn pre_order(&self) -> Result<Vec<NodeId>> {
+        let entry = self.entry().ok_or(Error::NoEntry)?;
 
         let mut visited: HashSet<NodeId> = HashSet::new();
         let mut stack: Vec<NodeId> = Vec::new();
         let mut order: Vec<NodeId> = Vec::new();
 
-        stack.push(node);
+        stack.push(entry);
 
         while let Some(node) = stack.pop() {
             if !visited.insert(node) {
@@ -231,17 +220,11 @@ impl Graph {
         Ok(order)
     }
 
-    pub fn compute_postorder(
-        &self,
-        node: NodeId,
-    ) -> Result<(Vec<NodeId>, HashMap<NodeId, HashSet<NodeId>>)> {
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode(node));
-        }
+    pub fn post_order(&self) -> Result<Vec<NodeId>> {
+        let entry = self.entry().ok_or(Error::NoEntry)?;
 
         let mut visited: HashSet<NodeId> = HashSet::default();
         let mut order: Vec<NodeId> = Vec::new();
-        let mut predecessor_sets = HashMap::new();
 
         // TODO: recursive bad or smthn
         fn dfs_walk(
@@ -249,25 +232,20 @@ impl Graph {
             node: NodeId,
             visited: &mut HashSet<NodeId>,
             order: &mut Vec<NodeId>,
-            predecessor_sets: &mut HashMap<NodeId, HashSet<NodeId>>,
         ) -> Result<()> {
             visited.insert(node);
             for &successor in graph.successors(node) {
-                predecessor_sets
-                    .entry(node)
-                    .or_insert_with(HashSet::new)
-                    .insert(successor);
                 if !visited.contains(&successor) {
-                    dfs_walk(graph, successor, visited, order, predecessor_sets)?;
+                    dfs_walk(graph, successor, visited, order)?;
                 }
             }
             order.push(node);
             Ok(())
         }
 
-        dfs_walk(self, node, &mut visited, &mut order, &mut predecessor_sets)?;
+        dfs_walk(self, entry, &mut visited, &mut order)?;
 
-        Ok((order, predecessor_sets))
+        Ok(order)
     }
 
     pub fn compute_bfs_level_order(&self, node: NodeId) -> Result<Vec<NodeId>> {
