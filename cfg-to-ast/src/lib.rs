@@ -1,5 +1,3 @@
-//mod loop_order;
-
 use std::collections::HashSet;
 
 use cfg_ir::function::Function;
