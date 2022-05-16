@@ -1,9 +1,9 @@
 use std::collections::HashSet;
+use thiserror::Error;
 
 use cfg_ir::function::Function;
 use graph::algorithms::{back_edges, dfs_tree};
 use graph::{Graph, NodeId};
-use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {

@@ -31,8 +31,8 @@ fn main() -> anyhow::Result<()> {
     let graph = cfg.graph();
     graph::dot::render_to(graph, &mut std::io::stdout())?;
 
-    let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
-    graph::dot::render_to(&dfs, &mut std::io::stdout())?;
+    //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
+    //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
     let ast = cfg_to_ast::lift(&cfg);
     //println!("{:#?}", ast);
