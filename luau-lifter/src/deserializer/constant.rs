@@ -1,4 +1,4 @@
-use nom::number::complete::{le_f32, le_u32, le_u8};
+use nom::number::complete::{le_f64, le_u32, le_u8};
 use nom::IResult;
 use nom_leb128::leb128_usize;
 
@@ -14,7 +14,7 @@ const CONSTANT_CLOSURE: u8 = 6;
 pub enum Constant {
     Nil,
     Boolean(bool),
-    Number(f32),
+    Number(f64),
     String(usize),
     Import(usize),
     Table(Vec<usize>),
@@ -31,7 +31,7 @@ impl Constant {
                 Ok((input, Constant::Boolean(value != 0u8)))
             }
             CONSTANT_NUMBER => {
-                let (input, value) = le_f32(input)?;
+                let (input, value) = le_f64(input)?;
                 Ok((input, Constant::Number(value)))
             }
             CONSTANT_STRING => {

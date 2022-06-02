@@ -3,8 +3,8 @@ use nom::bytes::complete::take;
 use nom::IResult;
 use nom_leb128::leb128_usize;
 
-mod bytecode;
-mod chunk;
+pub mod bytecode;
+pub mod chunk;
 pub mod constant;
 pub mod function;
 mod list;

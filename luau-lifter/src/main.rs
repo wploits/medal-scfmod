@@ -9,6 +9,8 @@ use clap::Parser;
 use std::fs::File;
 use std::io::Read;
 
+use deserializer::bytecode::Bytecode;
+
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Args {
@@ -24,18 +26,21 @@ fn main() -> anyhow::Result<()> {
     input.read_exact(&mut buffer)?;
 
     let chunk = deserializer::compile(&String::from("while a true do end")).unwrap();
-    //println!("{:#?}", chunk);
 
-    let cfg = Lifter::new(&chunk).lift_function()?;
-    let graph = cfg.graph();
-    graph::dot::render_to(graph, &mut std::io::stdout())?;
+    match chunk {
+        Bytecode::Error(msg) => {
+            println!("code did not compile");
+        }
+        Bytecode::Chunk(chunk) => {
+            let cfg = Lifter::new(chunk).lift_function()?;
+            let graph = cfg.graph();
+            graph::dot::render_to(graph, &mut std::io::stdout())?;
 
-    //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
-    //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
-
-    println!("beginning lift");
-    let ast = cfg_to_ast::lift(&cfg);
-    //println!("{:#?}", ast);
+            println!("beginning lift");
+            let ast = cfg_to_ast::lift(&cfg);
+            //println!("{:#?}", ast);
+        }
+    }
 
     Ok(())
 }

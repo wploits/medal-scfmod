@@ -1,6 +1,7 @@
 use nom::bytes::complete::take;
 use nom::number::complete::le_u8;
 use nom::IResult;
+use nom::error::ErrorKind;
 
 use super::chunk::Chunk;
 
@@ -20,7 +21,8 @@ impl Bytecode {
                     input,
                     Bytecode::Error(String::from_utf8_lossy(error_msg).to_string()),
                 ))
-            }
+            },
+            1 => panic!("Unsupported bytecode version"),
             _ => {
                 let (input, chunk) = Chunk::parse(input)?;
                 Ok((input, Bytecode::Chunk(chunk)))
