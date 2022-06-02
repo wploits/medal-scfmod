@@ -266,7 +266,7 @@ impl<'a> Lifter<'a> {
 
                 BytecodeInstruction::E { op_code, e } => match op_code {
                     OpCode::LOP_JUMPX => {
-
+                        unimplemented!();
                     }
                     _ => {}
                 }

@@ -81,6 +81,7 @@ impl Function {
                     }
                 }
                 _ => {
+                    v.push(ins);
                     pc += 1;
                 }
             }
