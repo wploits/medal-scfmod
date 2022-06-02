@@ -41,15 +41,11 @@ impl Lifter {
         }
     }
 
-    fn get_function(&mut self) -> &BytecodeFunction {
-        &self.function_list[self.function]
-    }
-
     fn discover_blocks(&mut self) -> Result<()> {
         let mut builder = Builder::new(&mut self.lifted_function);
         self.blocks
             .insert(0, builder.new_block()?.mark_entry().block_id());
-        for (insn_index, insn) in self.get_function().instructions.iter().enumerate() {
+        for (insn_index, insn) in self.function_list[self.function].instructions.iter().enumerate() {
             match insn {
                 &BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                     /*OpCode::LoadBool if c != 0 => {
@@ -104,13 +100,13 @@ impl Lifter {
             BytecodeConstant::Nil => Constant::Nil,
             BytecodeConstant::Boolean(b) => Constant::Boolean(*b),
             BytecodeConstant::Number(n) => Constant::Number(*n),
-            BytecodeConstant::String(s_idx) => Constant::String(self.string_table[*s_idx]),
+            BytecodeConstant::String(s_idx) => Constant::String(self.string_table[*s_idx].clone()),
             _ => unimplemented!()
         }
     }
 
     fn get_constant(&mut self, index: usize) -> Constant {
-        let converted_constant = self.convert_constant(self.get_function().constants.get(index).unwrap());
+        let converted_constant = self.convert_constant(self.function_list[self.function].constants.get(index).unwrap());
         self.constant_map
             .entry(index)
             .or_insert(converted_constant)
@@ -147,12 +143,14 @@ impl Lifter {
     fn lift_block(&mut self, block_start: usize, block_end: usize) -> Result<()> {
         //let mut vararg_index = None;
         let mut block_index = self.get_block(block_start).unwrap();
-        for (block_instruction_index, instruction) in self.get_function().instructions[block_start..=block_end]
+        for (block_instruction_index, instruction) in 
+            self.function_list[self.function].instructions[block_start..=block_end]
             .iter()
+            .cloned()
             .enumerate()
         {
             let instruction_index = block_start + block_instruction_index;
-            match *instruction {
+            match instruction {
                 BytecodeInstruction::ABC { op_code, a, b, c, aux } => match op_code {
                     OpCode::LOP_MOVE => {
                         let (dest, source) =
@@ -275,7 +273,7 @@ impl Lifter {
             }
         }
 
-        if !Self::is_terminator(&self.get_function().instructions[block_end]) {
+        if !Self::is_terminator(&self.function_list[self.function].instructions[block_end]) {
             let branch = self.get_block(block_end + 1).unwrap();
             let mut builder = Builder::new(&mut self.lifted_function);
             builder
@@ -298,7 +296,7 @@ impl Lifter {
             .iter()
             .rev()
             .fold(
-                (self.get_function().instructions.len(), Vec::new()),
+                (self.function_list[self.function].instructions.len(), Vec::new()),
                 |(block_end, mut accumulator), &block_start| {
                     accumulator.push((block_start, block_end - 1));
 

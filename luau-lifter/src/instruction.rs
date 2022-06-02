@@ -89,7 +89,7 @@ LOP_FORGPREP, ad
 
 */
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Instruction {
     ABC {
         op_code: OpCode,

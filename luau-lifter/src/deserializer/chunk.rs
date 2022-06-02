@@ -16,6 +16,7 @@ impl Chunk {
         let (input, string_table) = parse_list(input, parse_string)?;
         let (input, functions) = parse_list(input, Function::parse)?;
         let (input, main) = leb128_usize(input)?;
+
         Ok((
             input,
             Self {
