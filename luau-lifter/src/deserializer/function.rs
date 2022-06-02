@@ -28,55 +28,69 @@ pub struct Function {
 }
 
 impl Function {
-    fn parse_instrution<'a>(input: &'a [u8]) -> IResult<&'a [u8], Instruction> {
-        let (input, ins) = Instruction::parse(input)?;
-        let op = match ins {
-            Instruction::ABC { op_code, .. } => op_code,
-            Instruction::AD { op_code, .. } => op_code,
-            Instruction::E { op_code, .. } => op_code,
-        };
+    fn parse_instructions(vec: &Vec<u32>) -> Vec<Instruction> {
+        let mut v: Vec<Instruction> = Vec::new();
+        let mut pc = 0;
 
-        // handle ops with aux values
-        match op {
-            OpCode::LOP_GETGLOBAL |
-            OpCode::LOP_SETGLOBAL |
-            OpCode::LOP_GETIMPORT |
-            OpCode::LOP_GETTABLEKS |
-            OpCode::LOP_SETTABLEKS |
-            OpCode::LOP_NAMECALL |
-            OpCode::LOP_JUMPIFEQ |
-            OpCode::LOP_JUMPIFLE |
-            OpCode::LOP_JUMPIFLT |
-            OpCode::LOP_JUMPIFNOTEQ |
-            OpCode::LOP_JUMPIFNOTLE |
-            OpCode::LOP_JUMPIFNOTLT |
-            OpCode::LOP_NEWTABLE |
-            OpCode::LOP_SETLIST |
-            OpCode::LOP_FORGLOOP |
-            OpCode::LOP_LOADKX |
-            OpCode::LOP_JUMPIFEQK |
-            OpCode::LOP_JUMPIFNOTEQK |
-            OpCode::LOP_FASTCALL2 |
-            OpCode::LOP_FASTCALL2K => {
-                let (input, aux) = le_u32(input)?;
-                match ins {
-                    Instruction::ABC { op_code, a, b, c, .. } => {
-                        Ok((input, Instruction::ABC {
-                            op_code, a, b, c, aux
-                        }))
+        loop {
+            let ins = Instruction::parse(vec[pc]).unwrap();
+            let op = match ins {
+                Instruction::ABC { op_code, .. } => op_code,
+                Instruction::AD { op_code, .. } => op_code,
+                Instruction::E { op_code, .. } => op_code,
+            };
+    
+            println!("got op: {:?}", op);
+    
+            // handle ops with aux values
+            match op {
+                OpCode::LOP_GETGLOBAL |
+                OpCode::LOP_SETGLOBAL |
+                OpCode::LOP_GETIMPORT |
+                OpCode::LOP_GETTABLEKS |
+                OpCode::LOP_SETTABLEKS |
+                OpCode::LOP_NAMECALL |
+                OpCode::LOP_JUMPIFEQ |
+                OpCode::LOP_JUMPIFLE |
+                OpCode::LOP_JUMPIFLT |
+                OpCode::LOP_JUMPIFNOTEQ |
+                OpCode::LOP_JUMPIFNOTLE |
+                OpCode::LOP_JUMPIFNOTLT |
+                OpCode::LOP_NEWTABLE |
+                OpCode::LOP_SETLIST |
+                OpCode::LOP_FORGLOOP |
+                OpCode::LOP_LOADKX |
+                OpCode::LOP_JUMPIFEQK |
+                OpCode::LOP_JUMPIFNOTEQK |
+                OpCode::LOP_FASTCALL2 |
+                OpCode::LOP_FASTCALL2K => {
+                    let aux = vec[pc + 1];
+                    pc += 2;
+                    match ins {
+                        Instruction::ABC { op_code, a, b, c, .. } => {
+                            v.push(Instruction::ABC {
+                                op_code, a, b, c, aux
+                            });
+                        }
+                        Instruction::AD { op_code, a, d, .. } => {
+                            v.push(Instruction::AD {
+                                op_code, a, d, aux
+                            });
+                        }
+                        _ => unreachable!()
                     }
-                    Instruction::AD { op_code, a, d, .. } => {
-                        Ok((input, Instruction::AD {
-                            op_code, a, d, aux
-                        }))
-                    }
-                    _ => unreachable!()
+                }
+                _ => {
+                    pc += 1;
                 }
             }
-            _ => {
-                Ok((input, ins))
+
+            if pc == vec.len() {
+                break
             }
         }
+
+        v
     }
 
     pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Self> {
@@ -84,7 +98,9 @@ impl Function {
         let (input, num_parameters) = le_u8(input)?;
         let (input, num_upvalues) = le_u8(input)?;
         let (input, is_vararg) = le_u8(input)?;
-        let (input, instructions) = parse_list(input, Function::parse_instrution)?;
+        let (input, u32_instructions) = parse_list(input, le_u32)?;
+        //let (input, instructions) = parse_list(input, Function::parse_instrution)?;
+        let instructions = Self::parse_instructions(&u32_instructions);
         let (input, constants) = parse_list(input, Constant::parse)?;
         let (input, functions) = parse_list(input, leb128_usize)?;
         let (input, line_defined) = leb128_usize(input)?;

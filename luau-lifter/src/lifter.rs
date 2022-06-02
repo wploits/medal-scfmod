@@ -18,22 +18,22 @@ use cfg_ir::{
     value::ValueId,
 };
 
-pub struct Lifter {
+pub struct Lifter<'a> {
     function: usize,
-    function_list: Vec<BytecodeFunction>,
-    string_table: Vec<String>,
+    function_list: &'a Vec<BytecodeFunction>,
+    string_table: &'a Vec<String>,
     blocks: HashMap<usize, NodeId>,
     lifted_function: Function,
     register_map: HashMap<usize, ValueId>,
     constant_map: HashMap<usize, Constant>,
 }
 
-impl Lifter {
-    pub fn new(chunk: Chunk) -> Self {
+impl<'a> Lifter<'a> {
+    pub fn new(f_list: &'a Vec<BytecodeFunction>, str_list: &'a Vec<String>, function_id: usize) -> Self {
         Lifter {
-            function: chunk.main,
-            function_list: chunk.functions,
-            string_table: chunk.string_table,
+            function: function_id,
+            function_list: f_list,
+            string_table: str_list,
             blocks: HashMap::new(),
             lifted_function: Function::new(),
             register_map: HashMap::new(),
@@ -47,7 +47,7 @@ impl Lifter {
             .insert(0, builder.new_block()?.mark_entry().block_id());
         for (insn_index, insn) in self.function_list[self.function].instructions.iter().enumerate() {
             match insn {
-                &BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
+                BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                     /*OpCode::LoadBool if c != 0 => {
                         self.blocks
                             .entry(insn_index + 2)
