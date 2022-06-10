@@ -9,3 +9,4 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0.30"
 dot = { version = "*", optional = true }
+fxhash = "0.2.1"

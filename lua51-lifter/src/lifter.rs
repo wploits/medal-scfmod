@@ -13,7 +13,7 @@ use cfg_ir::{
     builder::Builder,
     constant::Constant,
     function::Function,
-    instruction::{Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump},
+    instruction::{Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump, Return},
     value::ValueId,
 };
 
@@ -59,18 +59,17 @@ impl<'a> Lifter<'a> {
                     _ => {}
                 },
 
-                BytecodeInstruction::ABx { .. } => {}
+                &BytecodeInstruction::ABx { .. } => {}
 
-                BytecodeInstruction::AsBx { op_code, a: _, sbx } => {
-                    if matches!(*op_code, OpCode::Jump) {
-                        self.blocks
-                            .entry(insn_index + *sbx as usize - 131070)
-                            .or_insert_with(|| builder.new_block().unwrap().block_id());
-                        self.blocks
-                            .entry(insn_index + 1)
-                            .or_insert_with(|| builder.new_block().unwrap().block_id());
-                    }
-                }
+                &BytecodeInstruction::AsBx { op_code, a: _, sbx } if op_code == OpCode::Jump => {
+                    self.blocks
+                        .entry(insn_index + sbx as usize - 131070)
+                        .or_insert_with(|| builder.new_block().unwrap().block_id());
+                    self.blocks
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| builder.new_block().unwrap().block_id());
+                },
+                _ => {}
             }
         }
 
@@ -365,9 +364,9 @@ impl<'a> Lifter<'a> {
                             .unwrap()
                             .call(function, arguments, return_values, b == 0, c == 0)
                             .unwrap();
-                    }
+                    }*/
                     OpCode::Return => {
-                        let mut values = Vec::new();
+                        /*let mut values = Vec::new();
                         if b > 1 {
                             values = (a as usize..=b as usize - 2)
                                 .map(|v| self.get_register(v as usize))
@@ -385,9 +384,18 @@ impl<'a> Lifter<'a> {
                             .unwrap();
                         if instruction_index != block_end {
                             block_index = builder.new_block()?.block_id();
-                        }
+                        }*/
+                        let mut builder = Builder::new(&mut self.lifted_function);
+                        builder
+                            .block(block_index)
+                            .unwrap()
+                            .replace_terminator(Return {
+                                values: Vec::new(),
+                                variadic: false
+                            }.into())
+                            .unwrap();
                     }
-                    OpCode::VarArg => {
+                    /*OpCode::VarArg => {
                         vararg_index = Some(a as usize);
                     }*/
                     _ => {}

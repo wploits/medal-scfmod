@@ -10,3 +10,4 @@ graph = { path = "../graph" }
 cfg-ir = { path = "../cfg-ir" }
 ast-ir = { path = "../ast-ir" }
 thiserror = "1.0.31"
+fxhash = "0.2.1"

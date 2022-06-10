@@ -27,7 +27,7 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
 
     tree.add_node_with_id(root)?;
     tree.set_entry(root)?;
-    for &successor in graph.successors(root) {
+    for successor in graph.successors(root) {
         stack.push((root, successor));
     }
 
@@ -39,7 +39,7 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
         tree.add_node_with_id(index)?;
         tree.add_edge(Edge::new(pred, index))?;
 
-        for &successor in graph.successors(index) {
+        for successor in graph.successors(index) {
             stack.push((index, successor));
         }
     }
@@ -52,8 +52,8 @@ pub fn back_edges(graph: &Graph) -> Result<Vec<Edge>> {
 
     for (node, dominators) in dominators::dominators(graph, graph.entry().ok_or(Error::NoEntry)?)? {
         for successor in graph.successors(node) {
-            if dominators.contains(successor) {
-                back_edges.push(Edge::new(node, *successor));
+            if dominators.contains(&successor) {
+                back_edges.push(Edge::new(node, successor));
             }
         }
     }

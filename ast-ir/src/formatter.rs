@@ -158,14 +158,12 @@ impl Formatter {
                     self.indent();
                     self.newline();
                     self.format_block(&if_stat.then_block);
-                    if let Some(boxed_stat) = &if_stat.else_block {
-                        if let Stat::Block(else_block) = boxed_stat.as_ref() {
-                            self.unindent();
-                            self.print("else");
-                            self.indent();
-                            self.newline();
-                            self.format_block(else_block);
-                        }
+                    if let Some(else_block) = &if_stat.else_block {
+                        self.unindent();
+                        self.print("else");
+                        self.indent();
+                        self.newline();
+                        self.format_block(else_block);
                     }
                     self.unindent();
                     self.print("end");
@@ -189,6 +187,7 @@ impl Formatter {
                 Stat::Continue(_) => {
                     self.print("continue");
                 }
+                Stat::Comment(comment) => self.print(&format!("-- {}", &comment.comment)),
                 _ => {}
             }
             self.newline();

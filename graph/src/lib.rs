@@ -24,7 +24,7 @@ impl std::fmt::Debug for NodeId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Edge(NodeId, NodeId);
 
 impl Edge {
@@ -99,11 +99,11 @@ impl Graph {
         self.nodes.contains(&node)
     }
 
-    pub fn successors(&self, node: NodeId) -> impl Iterator<Item = &NodeId> + '_ {
-        self.edges.iter().filter_map(
+    pub fn successors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.edges.iter().cloned().filter_map(
             move |edge| {
                 if edge.0 == node {
-                    Some(&edge.1)
+                    Some(edge.1)
                 } else {
                     None
                 }
@@ -111,11 +111,11 @@ impl Graph {
         )
     }
 
-    pub fn predecessors(&self, node: NodeId) -> impl Iterator<Item = &NodeId> + '_ {
-        self.edges.iter().filter_map(
+    pub fn predecessors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
+        self.edges.iter().cloned().filter_map(
             move |edge| {
                 if edge.1 == node {
-                    Some(&edge.0)
+                    Some(edge.0)
                 } else {
                     None
                 }
@@ -185,7 +185,7 @@ impl Graph {
         while let Some(node) = stack.pop() {
             order.push(node);
 
-            for &predecessor in self.predecessors(node) {
+            for predecessor in self.predecessors(node) {
                 if !visited.contains(&predecessor) {
                     visited.insert(predecessor);
                     stack.push(predecessor);
@@ -212,7 +212,7 @@ impl Graph {
 
             order.push(node);
 
-            for &successor in self.successors(node) {
+            for successor in self.successors(node) {
                 stack.push(successor);
             }
         }
@@ -234,7 +234,7 @@ impl Graph {
             order: &mut Vec<NodeId>,
         ) -> Result<()> {
             visited.insert(node);
-            for &successor in graph.successors(node) {
+            for successor in graph.successors(node) {
                 if !visited.contains(&successor) {
                     dfs_walk(graph, successor, visited, order)?;
                 }
@@ -262,7 +262,7 @@ impl Graph {
         order.push(node);
 
         while let Some(node) = stack.pop() {
-            for &successor in self.successors(node) {
+            for successor in self.successors(node) {
                 if visited.insert(successor) {
                     stack.push(successor);
                     order.push(successor);
@@ -287,7 +287,7 @@ impl Graph {
         order.push(node);
 
         while let Some(node) = stack.pop() {
-            for &predecessor in self.predecessors(node) {
+            for predecessor in self.predecessors(node) {
                 if visited.insert(predecessor) {
                     stack.push(predecessor);
                     order.push(predecessor);

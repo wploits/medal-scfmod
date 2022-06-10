@@ -25,7 +25,18 @@ pub enum Stat {
     NumericFor(NumericFor),
     IterativeFor(IterativeFor),
     Repeat(Repeat),
+    Comment(Comment),
 }
+
+#[derive(Derivative)]
+#[derivative(Debug, PartialEq, Clone)]
+pub struct Comment {
+    #[derivative(PartialEq = "ignore")]
+    pub pos: Option<Pos>,
+    pub comment: String,
+}
+
+impl_node!(Comment);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
@@ -103,7 +114,7 @@ pub struct If {
     pub condition: Expr,
     // TODO: then_block here but body elsewhere?
     pub then_block: Block,
-    pub else_block: Option<Box<Stat>>,
+    pub else_block: Option<Block>,
 }
 
 impl_node!(If);
