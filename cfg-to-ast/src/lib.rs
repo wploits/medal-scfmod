@@ -3,7 +3,6 @@ use graph::algorithms::dominators::post_dominator_tree;
 
 use cfg_ir::function::Function;
 use graph::algorithms::back_edges;
-use graph::dot::render_to;
 use graph::{Edge, Graph, NodeId};
 
 use ast_ir::Block;
