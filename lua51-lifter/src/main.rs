@@ -34,7 +34,7 @@ fn main() -> anyhow::Result<()> {
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
-    let ast = cfg_to_ast::lift(&cfg);
+    cfg_to_ast::lift(&cfg);
     //println!("{:#?}", ast);
 
     Ok(())

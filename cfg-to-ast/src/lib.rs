@@ -13,6 +13,7 @@ struct Lifter<'a> {
     visited: FxHashSet<NodeId>,
     post_dom_tree: &'a Graph,
     back_edges: FxHashSet<Edge>,
+    loop_exits: FxHashSet<NodeId>,
 }
 
 impl<'a> Lifter<'a> {
@@ -32,6 +33,7 @@ impl<'a> Lifter<'a> {
             visited: FxHashSet::default(),
             post_dom_tree,
             back_edges,
+            loop_exits: FxHashSet::default(),
         }
     }
 
@@ -41,9 +43,10 @@ impl<'a> Lifter<'a> {
                 body.statements
                     .push(ast_ir::Stat::Continue(ast_ir::Continue { pos: None }));
             } else {
-                // TODO: extra checks required?
-                body.statements
-                    .push(ast_ir::Stat::Break(ast_ir::Break { pos: None }));
+                if self.loop_exits.contains(&destination) {
+                    body.statements
+                        .push(ast_ir::Stat::Break(ast_ir::Break { pos: None }));
+                }
             }
         } else {
             self.lift_block(destination, body);
@@ -80,9 +83,9 @@ impl<'a> Lifter<'a> {
         };
         body.statements.push(ast_ir::Stat::If(ast_ir::If {
             pos: None,
-            condition: ast_ir::ExprLit {
+            condition: ast_ir::Global {
                 pos: None,
-                lit: ast_ir::Lit::Boolean(true),
+                name: "__COND__".into(),
             }
             .into(),
             then_block,
@@ -153,7 +156,12 @@ impl<'a> Lifter<'a> {
                     } else if Self::block_breaks(&if_stat.then_block) {
                         while_stat.condition = Self::combine_conditions(
                             while_stat.condition.clone(),
-                            if_stat.condition.clone(),
+                            ast_ir::Unary {
+                                pos: None,
+                                op: ast_ir::UnaryOp::LogicalNot,
+                                expr: Box::new(if_stat.condition.clone()),
+                            }
+                            .into(),
                         );
                         while_stat.body = else_block.clone();
                         return true;
@@ -164,30 +172,13 @@ impl<'a> Lifter<'a> {
         false
     }
 
-    fn generate_while(while_body: Block) -> ast_ir::While {
-        let mut while_stat = ast_ir::While {
-            pos: None,
-            condition: ast_ir::ExprLit {
-                pos: None,
-                lit: ast_ir::Lit::Boolean(true),
-            }
-            .into(),
-            body: while_body,
-        };
-        loop {
-            if !Self::optimize_while(&mut while_stat) {
-                break;
-            }
-        }
-        while_stat
-    }
-
     fn lift_block(&mut self, node: NodeId, body: &mut Block) {
         self.visited.insert(node);
         if self.loop_headers.contains(&node) {
             let exit_statements = self.post_dom_tree.predecessors(node).next().map(|exit| {
                 let mut exit_body = Block::new(None);
                 if !self.visited.contains(&exit) {
+                    self.loop_exits.insert(exit);
                     self.lift_block(exit, &mut exit_body);
                 } else {
                     // really we should somehow return None here...
@@ -196,7 +187,20 @@ impl<'a> Lifter<'a> {
             });
             let mut while_body = ast_ir::Block::new(None);
             self.lift_block_internal(node, &mut while_body);
-            let while_stat = Self::generate_while(while_body);
+            let mut while_stat = ast_ir::While {
+                pos: None,
+                condition: ast_ir::ExprLit {
+                    pos: None,
+                    lit: ast_ir::Lit::Boolean(true),
+                }
+                .into(),
+                body: while_body,
+            };
+            loop {
+                if !Self::optimize_while(&mut while_stat) {
+                    break;
+                }
+            }
             body.statements.push(ast_ir::Stat::While(while_stat));
             if let Some(exit_statements) = exit_statements {
                 body.statements.extend(exit_statements.statements);
