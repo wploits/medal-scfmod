@@ -37,7 +37,6 @@ impl<'a> Lifter<'a> {
 
     fn follow_edge(&mut self, source: NodeId, destination: NodeId, body: &mut Block) {
         if self.visited.contains(&destination) {
-            println!("{} -> {}, destination already visited", source, destination);
             if self.back_edges.contains(&Edge::new(source, destination)) {
                 body.statements
                     .push(ast_ir::Stat::Continue(ast_ir::Continue { pos: None }));
@@ -110,13 +109,85 @@ impl<'a> Lifter<'a> {
         }
     }
 
+    fn block_breaks(body: &Block) -> bool {
+        let stats = body
+            .statements
+            .iter()
+            .filter(|stat| !matches!(stat, ast_ir::Stat::Comment(_)))
+            .collect::<Vec<_>>();
+        return stats.len() == 1 && matches!(stats[0], ast_ir::Stat::Break(_));
+    }
+
+    fn combine_conditions(first: ast_ir::Expr, second: ast_ir::Expr) -> ast_ir::Expr {
+        if let ast_ir::Expr::Lit(lit) = &first {
+            if lit.lit == ast_ir::Lit::Boolean(true) {
+                return second;
+            }
+        }
+        ast_ir::Binary {
+            pos: None,
+            op: ast_ir::BinaryOp::LogicalAnd,
+            lhs: Box::new(first),
+            rhs: Box::new(second),
+        }
+        .into()
+    }
+
+    fn optimize_while(while_stat: &mut ast_ir::While) -> bool {
+        let mut stats = while_stat
+            .body
+            .statements
+            .iter_mut()
+            .filter(|stat| !matches!(stat, ast_ir::Stat::Comment(_)))
+            .collect::<Vec<_>>();
+        if stats.len() == 1 {
+            if let ast_ir::Stat::If(if_stat) = stats.get_mut(0).unwrap() {
+                if let Some(else_block) = &if_stat.else_block {
+                    if Self::block_breaks(else_block) {
+                        while_stat.condition = Self::combine_conditions(
+                            while_stat.condition.clone(),
+                            if_stat.condition.clone(),
+                        );
+                        while_stat.body = if_stat.then_block.clone();
+                        return true;
+                    } else if Self::block_breaks(&if_stat.then_block) {
+                        while_stat.condition = Self::combine_conditions(
+                            while_stat.condition.clone(),
+                            if_stat.condition.clone(),
+                        );
+                        while_stat.body = else_block.clone();
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn generate_while(while_body: Block) -> ast_ir::While {
+        let mut while_stat = ast_ir::While {
+            pos: None,
+            condition: ast_ir::ExprLit {
+                pos: None,
+                lit: ast_ir::Lit::Boolean(true),
+            }
+            .into(),
+            body: while_body,
+        };
+        loop {
+            if !Self::optimize_while(&mut while_stat) {
+                break;
+            }
+        }
+        while_stat
+    }
+
     fn lift_block(&mut self, node: NodeId, body: &mut Block) {
         self.visited.insert(node);
         if self.loop_headers.contains(&node) {
             let exit_statements = self.post_dom_tree.predecessors(node).next().map(|exit| {
                 let mut exit_body = Block::new(None);
                 if !self.visited.contains(&exit) {
-                    println!("loop exit: {}", exit);
                     self.lift_block(exit, &mut exit_body);
                 } else {
                     // really we should somehow return None here...
@@ -125,15 +196,7 @@ impl<'a> Lifter<'a> {
             });
             let mut while_body = ast_ir::Block::new(None);
             self.lift_block_internal(node, &mut while_body);
-            let while_stat = ast_ir::While {
-                pos: None,
-                cond: ast_ir::ExprLit {
-                    pos: None,
-                    lit: ast_ir::Lit::Boolean(true),
-                }
-                .into(),
-                body: while_body,
-            };
+            let while_stat = Self::generate_while(while_body);
             body.statements.push(ast_ir::Stat::While(while_stat));
             if let Some(exit_statements) = exit_statements {
                 body.statements.extend(exit_statements.statements);

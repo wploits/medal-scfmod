@@ -57,6 +57,8 @@ impl Formatter {
             BinaryOp::LesserThan => self.print("<"),
             BinaryOp::LesserOrEqual => self.print("<="),
             BinaryOp::Equal => self.print("=="),
+            BinaryOp::LogicalAnd => self.print("and"),
+            BinaryOp::LogicalOr => self.print("or"),
             _ => unimplemented!(),
         };
     }
@@ -143,7 +145,7 @@ impl Formatter {
                 }
                 Stat::While(while_stat) => {
                     self.print("while ");
-                    self.format_expression(&while_stat.cond);
+                    self.format_expression(&while_stat.condition);
                     self.print(" do");
                     self.indent();
                     self.newline();

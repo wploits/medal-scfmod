@@ -13,7 +13,9 @@ use cfg_ir::{
     builder::Builder,
     constant::Constant,
     function::Function,
-    instruction::{Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump, Return},
+    instruction::{
+        Binary, BinaryOp, ConditionalJump, LoadConstant, Move, Return, UnconditionalJump,
+    },
     value::ValueId,
 };
 
@@ -68,7 +70,7 @@ impl<'a> Lifter<'a> {
                     self.blocks
                         .entry(insn_index + 1)
                         .or_insert_with(|| builder.new_block().unwrap().block_id());
-                },
+                }
                 _ => {}
             }
         }
@@ -389,10 +391,13 @@ impl<'a> Lifter<'a> {
                         builder
                             .block(block_index)
                             .unwrap()
-                            .replace_terminator(Return {
-                                values: Vec::new(),
-                                variadic: false
-                            }.into())
+                            .replace_terminator(
+                                Return {
+                                    values: Vec::new(),
+                                    variadic: false,
+                                }
+                                .into(),
+                            )
                             .unwrap();
                     }
                     /*OpCode::VarArg => {

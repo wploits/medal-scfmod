@@ -158,7 +158,7 @@ pub struct While {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
 
-    pub cond: Expr,
+    pub condition: Expr,
     pub body: Block,
 }
 
