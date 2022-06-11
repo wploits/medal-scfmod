@@ -6,7 +6,7 @@ use super::value_info::ValueInfo;
 #[derive(Debug, Clone)]
 pub struct StoreGlobal {
     pub value: ValueId,
-    pub dest: String,
+    pub name: String,
 }
 
 impl ValueInfo for StoreGlobal {
@@ -29,7 +29,7 @@ impl ValueInfo for StoreGlobal {
 
 impl fmt::Display for StoreGlobal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "_G[\"{}\"] <- {}", self.dest, self.value)
+        write!(f, "_G[\"{}\"] <- {}", self.name, self.value)
     }
 }
 

@@ -1,23 +1,37 @@
-use fxhash::FxHashSet;
-use graph::algorithms::dominators::post_dominator_tree;
+use std::rc::Rc;
+
+use cfg_ir::constant::Constant;
+use cfg_ir::instruction::{BinaryOp, Instruction, Terminator};
+use cfg_ir::value::ValueId;
+use fxhash::{FxHashMap, FxHashSet};
+use graph::algorithms::dominators::{compute_immediate_dominators, post_dominator_tree};
 
 use cfg_ir::function::Function;
 use graph::algorithms::back_edges;
+use graph::dot::render_to;
 use graph::{Edge, Graph, NodeId};
 
-use ast_ir::Block;
+use ast_ir::{Block, Local};
 
 struct Lifter<'a> {
+    cfg: &'a Function,
     graph: &'a Graph,
+    idoms: &'a FxHashMap<NodeId, NodeId>,
     loop_headers: FxHashSet<NodeId>,
     visited: FxHashSet<NodeId>,
     post_dom_tree: &'a Graph,
     back_edges: FxHashSet<Edge>,
     loop_exits: FxHashSet<NodeId>,
+    locals: FxHashMap<ValueId, Rc<Local>>,
 }
 
 impl<'a> Lifter<'a> {
-    fn new(graph: &'a Graph, post_dom_tree: &'a Graph) -> Self {
+    fn new(
+        cfg: &'a Function,
+        graph: &'a Graph,
+        idoms: &'a FxHashMap<NodeId, NodeId>,
+        post_dom_tree: &'a Graph,
+    ) -> Self {
         let back_edges = back_edges(graph)
             .unwrap()
             .iter()
@@ -28,25 +42,27 @@ impl<'a> Lifter<'a> {
             .map(|edge| edge.destination())
             .collect::<FxHashSet<_>>();
         Self {
+            cfg,
             graph,
+            idoms,
             loop_headers,
             visited: FxHashSet::default(),
             post_dom_tree,
             back_edges,
             loop_exits: FxHashSet::default(),
+            locals: FxHashMap::default(),
         }
     }
 
     fn follow_edge(&mut self, source: NodeId, destination: NodeId, body: &mut Block) {
         if self.visited.contains(&destination) {
             if self.back_edges.contains(&Edge::new(source, destination)) {
+                // uncomment for luau
+                /*body.statements
+                .push(ast_ir::Stat::Continue(ast_ir::Continue { pos: None }));*/
+            } else if self.loop_exits.contains(&destination) {
                 body.statements
-                    .push(ast_ir::Stat::Continue(ast_ir::Continue { pos: None }));
-            } else {
-                if self.loop_exits.contains(&destination) {
-                    body.statements
-                        .push(ast_ir::Stat::Break(ast_ir::Break { pos: None }));
-                }
+                    .push(ast_ir::Stat::Break(ast_ir::Break { pos: None }));
             }
         } else {
             self.lift_block(destination, body);
@@ -56,11 +72,11 @@ impl<'a> Lifter<'a> {
     fn lift_conditional(
         &mut self,
         header: NodeId,
+        condition: ValueId,
         true_branch: NodeId,
         false_branch: NodeId,
         body: &mut Block,
     ) {
-        // lua 5.1 conditionals always have an exit, except if both branches return
         let exit_statements = self.post_dom_tree.predecessors(header).next().map(|exit| {
             let mut exit_body = Block::new(None);
             if !self.visited.contains(&exit) {
@@ -72,7 +88,7 @@ impl<'a> Lifter<'a> {
         });
         let mut then_block = Block::new(None);
         self.follow_edge(header, true_branch, &mut then_block);
-        let else_block = {
+        let mut else_block = {
             let mut else_block = Block::new(None);
             self.follow_edge(header, false_branch, &mut else_block);
             if !else_block.statements.is_empty() {
@@ -81,13 +97,22 @@ impl<'a> Lifter<'a> {
                 None
             }
         };
+        let mut condition = self.get_local(condition);
+        if let Some(else_block_unwrapped) = &mut else_block {
+            if then_block.statements.is_empty() && !else_block_unwrapped.statements.is_empty() {
+                std::mem::swap(else_block_unwrapped, &mut then_block);
+                condition = ast_ir::Unary {
+                    pos: None,
+                    op: ast_ir::UnaryOp::LogicalNot,
+                    expr: condition.into(),
+                }
+                .into();
+                else_block = None;
+            }
+        }
         body.statements.push(ast_ir::Stat::If(ast_ir::If {
             pos: None,
-            condition: ast_ir::Global {
-                pos: None,
-                name: "__COND__".into(),
-            }
-            .into(),
+            condition,
             then_block,
             else_block,
         }));
@@ -96,29 +121,154 @@ impl<'a> Lifter<'a> {
         }
     }
 
+    fn get_local(&self, value: ValueId) -> ast_ir::Expr {
+        ast_ir::ExprLocal {
+            pos: None,
+            local: self.locals[&value].clone(),
+        }
+        .into()
+    }
+
+    fn convert_constant(constant: &Constant) -> ast_ir::Expr {
+        ast_ir::ExprLit {
+            pos: None,
+            lit: match constant {
+                Constant::Nil => ast_ir::Lit::Nil,
+                Constant::Boolean(b) => ast_ir::Lit::Boolean(*b),
+                Constant::Number(n) => ast_ir::Lit::Number(*n),
+                Constant::String(s) => ast_ir::Lit::String(s.clone()),
+            },
+        }
+        .into()
+    }
+
+    fn lift_instructions(&mut self, node: NodeId, body: &mut Block) {
+        for instruction in self.cfg.block(node).unwrap().instructions() {
+            match instruction {
+                Instruction::Move(move_value) => {
+                    let dest = self.get_local(move_value.dest);
+                    let source = self.get_local(move_value.source);
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest],
+                            values: vec![source],
+                        }
+                        .into(),
+                    );
+                }
+                Instruction::LoadConstant(load_constant) => {
+                    let dest = self.get_local(load_constant.dest);
+                    let constant = Self::convert_constant(&load_constant.constant);
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest],
+                            values: vec![constant],
+                        }
+                        .into(),
+                    );
+                }
+                Instruction::LoadGlobal(load_global) => {
+                    let dest = self.get_local(load_global.dest);
+                    let global = ast_ir::Global {
+                        pos: None,
+                        name: load_global.name.clone(),
+                    };
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest],
+                            values: vec![global.into()],
+                        }
+                        .into(),
+                    );
+                }
+                Instruction::StoreGlobal(store_global) => {
+                    let dest = ast_ir::Global {
+                        pos: None,
+                        name: store_global.name.clone(),
+                    };
+                    let value = self.get_local(store_global.value);
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest.into()],
+                            values: vec![value.into()],
+                        }
+                        .into(),
+                    );
+                }
+                Instruction::Binary(binary) => {
+                    let dest = self.get_local(binary.dest);
+                    let lhs = Box::new(self.get_local(binary.lhs));
+                    let rhs = Box::new(self.get_local(binary.rhs));
+                    let op = match binary.op {
+                        BinaryOp::Add => ast_ir::BinaryOp::Add,
+                        BinaryOp::Sub => ast_ir::BinaryOp::Sub,
+                        BinaryOp::Mul => ast_ir::BinaryOp::Mul,
+                        BinaryOp::Div => ast_ir::BinaryOp::Div,
+                        BinaryOp::Mod => ast_ir::BinaryOp::Mod,
+                        BinaryOp::Pow => ast_ir::BinaryOp::Pow,
+                        BinaryOp::Equal => ast_ir::BinaryOp::Equal,
+                        BinaryOp::LesserOrEqual => ast_ir::BinaryOp::LesserOrEqual,
+                        BinaryOp::LesserThan => ast_ir::BinaryOp::LesserThan,
+                    };
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest.into()],
+                            values: vec![ast_ir::Binary {
+                                pos: None,
+                                op,
+                                lhs,
+                                rhs,
+                            }
+                            .into()],
+                        }
+                        .into(),
+                    );
+                }
+                _ => println!("Skipped {:?}", instruction),
+            }
+        }
+    }
+
     fn lift_block_internal(&mut self, node: NodeId, body: &mut Block) {
-        // TODO: lift instructions
-        body.statements.push(ast_ir::Stat::Comment(ast_ir::Comment {
+        /*body.statements.push(ast_ir::Stat::Comment(ast_ir::Comment {
             pos: None,
             comment: node.to_string(),
-        }));
+        }));*/
 
-        let successors = self.graph.successors(node).collect::<Vec<_>>();
-        match successors.len() {
-            0 => {}
-            1 => self.follow_edge(node, successors[0], body),
-            2 => self.lift_conditional(node, successors[0], successors[1], body),
-            _ => panic!("unexpected number of successors"),
+        self.lift_instructions(node, body);
+
+        match self.cfg.block(node).unwrap().terminator() {
+            Some(terminator) => match terminator {
+                Terminator::UnconditionalJump(jump) => self.follow_edge(node, jump.0, body),
+                Terminator::ConditionalJump(jump) => self.lift_conditional(
+                    node,
+                    jump.condition,
+                    jump.true_branch,
+                    jump.false_branch,
+                    body,
+                ),
+                Terminator::Return(ret) => {
+                    body.statements.push(ast_ir::Stat::Return(ast_ir::Return {
+                        pos: None,
+                        values: ret
+                            .values
+                            .iter()
+                            .map(|value| self.get_local(*value))
+                            .collect(),
+                    }));
+                }
+            },
+            _ => {}
         }
     }
 
     fn block_breaks(body: &Block) -> bool {
-        let stats = body
-            .statements
-            .iter()
-            .filter(|stat| !matches!(stat, ast_ir::Stat::Comment(_)))
-            .collect::<Vec<_>>();
-        return stats.len() == 1 && matches!(stats[0], ast_ir::Stat::Break(_));
+        return body.statements.len() == 1 && matches!(body.statements[0], ast_ir::Stat::Break(_));
     }
 
     fn combine_conditions(first: ast_ir::Expr, second: ast_ir::Expr) -> ast_ir::Expr {
@@ -137,12 +287,7 @@ impl<'a> Lifter<'a> {
     }
 
     fn optimize_while(while_stat: &mut ast_ir::While) -> bool {
-        let mut stats = while_stat
-            .body
-            .statements
-            .iter_mut()
-            .filter(|stat| !matches!(stat, ast_ir::Stat::Comment(_)))
-            .collect::<Vec<_>>();
+        let stats = &mut while_stat.body.statements;
         if stats.len() == 1 {
             if let ast_ir::Stat::If(if_stat) = stats.get_mut(0).unwrap() {
                 if let Some(else_block) = &if_stat.else_block {
@@ -175,7 +320,16 @@ impl<'a> Lifter<'a> {
     fn lift_block(&mut self, node: NodeId, body: &mut Block) {
         self.visited.insert(node);
         if self.loop_headers.contains(&node) {
-            let exit_statements = self.post_dom_tree.predecessors(node).next().map(|exit| {
+            let loop_exit = self.post_dom_tree.predecessors(node).next().or_else(|| {
+                self.graph
+                    .nodes()
+                    .iter()
+                    .filter(|&&n| self.graph.successors(n).next().is_none())
+                    .filter(|&exit| self.idoms[exit] == node)
+                    .next()
+                    .cloned()
+            });
+            let exit_statements = loop_exit.map(|exit| {
                 let mut exit_body = Block::new(None);
                 if !self.visited.contains(&exit) {
                     self.loop_exits.insert(exit);
@@ -211,6 +365,15 @@ impl<'a> Lifter<'a> {
     }
 
     fn lift(&mut self, node: NodeId) -> Block {
+        self.locals.clear();
+        for value in self.cfg.values() {
+            self.locals.insert(
+                value,
+                Rc::new(Local {
+                    name: format!("l_{}", value),
+                }),
+            );
+        }
         let mut root = Block::new(None);
         self.lift_block(node, &mut root);
         root
@@ -222,7 +385,10 @@ pub fn lift(cfg: &Function) {
     let entry = graph.entry().unwrap();
 
     let post_dom_tree = post_dominator_tree(graph, entry).unwrap();
-    let mut lifter = Lifter::new(graph, &post_dom_tree);
+    let idoms = compute_immediate_dominators(graph, entry).unwrap();
+
+    render_to(&post_dom_tree, &mut std::io::stdout());
+    let mut lifter = Lifter::new(cfg, graph, &idoms, &post_dom_tree);
 
     let mut ast_function = ast_ir::Function::new();
     ast_function.body = lifter.lift(entry);

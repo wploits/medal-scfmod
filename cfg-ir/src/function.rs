@@ -60,8 +60,12 @@ impl Function {
         value
     }
 
-    pub(crate) fn value_count(&self) -> usize {
-        self.next_value_index
+    pub fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        (0..self.next_value_index).into_iter()
+    }
+
+    pub fn def_use(&self) -> &DefUse {
+        &self.def_use
     }
 }
 

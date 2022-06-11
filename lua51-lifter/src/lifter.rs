@@ -14,7 +14,8 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        Binary, BinaryOp, ConditionalJump, LoadConstant, Move, Return, UnconditionalJump,
+        Binary, BinaryOp, ConditionalJump, LoadConstant, LoadGlobal, Move, Return, StoreGlobal,
+        UnconditionalJump,
     },
     value::ValueId,
 };
@@ -146,7 +147,7 @@ impl<'a> Lifter<'a> {
     }
 
     fn lift_block(&mut self, block_start: usize, block_end: usize) -> Result<()> {
-        //let mut vararg_index = None;
+        let mut vararg_index = None;
         let mut block_index = self.get_block(block_start).unwrap();
         for (block_instruction_index, instruction) in self.function.code[block_start..=block_end]
             .iter()
@@ -165,7 +166,7 @@ impl<'a> Lifter<'a> {
                             .unwrap()
                             .push(Move { dest, source }.into());
                     }
-                    /*OpCode::LoadBool => {
+                    OpCode::LoadBool => {
                         let dest = self.get_register(a as usize);
                         if c != 0 {
                             let branch = self.get_block(instruction_index + 2).unwrap();
@@ -173,23 +174,30 @@ impl<'a> Lifter<'a> {
                             builder
                                 .block(block_index)
                                 .unwrap()
-                                .load_constant(dest, Constant::Boolean(b != 0))
-                                .unwrap()
-                                .seal_with_unconditional_jump(branch)
+                                .push(
+                                    LoadConstant {
+                                        dest,
+                                        constant: Constant::Boolean(b != 0),
+                                    }
+                                    .into(),
+                                )
+                                .replace_terminator(UnconditionalJump(branch).into())
                                 .unwrap();
                             if instruction_index != block_end {
                                 block_index = builder.new_block()?.block_id()
                             }
                         } else {
                             let mut builder = Builder::new(&mut self.lifted_function);
-                            builder
-                                .block(block_index)
-                                .unwrap()
-                                .load_constant(dest, Constant::Boolean(b != 0))
-                                .unwrap();
+                            builder.block(block_index).unwrap().push(
+                                LoadConstant {
+                                    dest,
+                                    constant: Constant::Boolean(b != 0),
+                                }
+                                .into(),
+                            );
                         }
                     }
-                    OpCode::LoadNil => {
+                    /*OpCode::LoadNil => {
                         for i in a as u16..=b {
                             let dest = self.get_register(i as usize);
                             let mut builder = Builder::new(&mut self.lifted_function);
@@ -233,7 +241,7 @@ impl<'a> Lifter<'a> {
                             .unwrap()
                             .load_table(dest)
                             .unwrap();
-                    }
+                    }*/
                     OpCode::Add
                     | OpCode::Sub
                     | OpCode::Mul
@@ -258,10 +266,9 @@ impl<'a> Lifter<'a> {
                         builder
                             .block(block_index)
                             .unwrap()
-                            .binary(dest, lhs, rhs, op)
-                            .unwrap();
+                            .push(Binary { dest, lhs, rhs, op }.into());
                     }
-                    OpCode::UnaryMinus | OpCode::Not | OpCode::Len => {
+                    /*OpCode::UnaryMinus | OpCode::Not | OpCode::Len => {
                         let (dest, value) =
                             (self.get_register(a as usize), self.get_register(b as usize));
                         let op = match op_code {
@@ -368,37 +375,29 @@ impl<'a> Lifter<'a> {
                             .unwrap();
                     }*/
                     OpCode::Return => {
-                        /*let mut values = Vec::new();
+                        let mut values = Vec::new();
                         if b > 1 {
-                            values = (a as usize..=b as usize - 2)
+                            values = (a as usize..=b as usize)
                                 .map(|v| self.get_register(v as usize))
                                 .collect();
+                            println!("{:?}", values);
                         }
                         if b == 0 {
                             assert!(vararg_index.is_some());
                             values = self.get_register_range(a as usize..vararg_index.unwrap());
                         }
                         let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .seal_with_ret(values, b == 0)
-                            .unwrap();
+                        builder.block(block_index).unwrap().replace_terminator(
+                            Return {
+                                values,
+                                variadic: b == 0,
+                            }
+                            .into(),
+                        )?;
                         if instruction_index != block_end {
                             block_index = builder.new_block()?.block_id();
-                        }*/
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .replace_terminator(
-                                Return {
-                                    values: Vec::new(),
-                                    variadic: false,
-                                }
-                                .into(),
-                            )
-                            .unwrap();
+                        }
+                        break;
                     }
                     /*OpCode::VarArg => {
                         vararg_index = Some(a as usize);
@@ -417,7 +416,7 @@ impl<'a> Lifter<'a> {
                             .unwrap()
                             .push(LoadConstant { dest, constant }.into());
                     }
-                    /*OpCode::GetGlobal => {
+                    OpCode::GetGlobal => {
                         let dest = self.get_register(a as usize);
                         let name = self.get_constant(bx as usize);
                         if let Constant::String(name) = name {
@@ -425,28 +424,20 @@ impl<'a> Lifter<'a> {
                             builder
                                 .block(block_index)
                                 .unwrap()
-                                .load_global(dest, name)
-                                .unwrap();
-                        } else {
-                            // TODO: check if VM allows non-string getglobal
-                            todo!();
+                                .push(LoadGlobal { dest, name }.into());
                         }
                     }
                     OpCode::SetGlobal => {
                         let value = self.get_register(a as usize);
-                        let dest_name = self.get_constant(bx as usize);
-                        if let Constant::String(dest_name) = dest_name {
+                        let name = self.get_constant(bx as usize);
+                        if let Constant::String(name) = name {
                             let mut builder = Builder::new(&mut self.lifted_function);
                             builder
                                 .block(block_index)
                                 .unwrap()
-                                .store_global(value, dest_name)
-                                .unwrap();
-                        } else {
-                            // TODO: check if VM allows non-string setglobal
-                            todo!();
+                                .push(StoreGlobal { name, value }.into());
                         }
-                    }*/
+                    }
                     _ => {}
                 },
 

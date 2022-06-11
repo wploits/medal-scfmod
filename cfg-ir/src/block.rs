@@ -16,6 +16,10 @@ impl BasicBlock {
         }
     }
 
+    pub fn instructions(&self) -> impl Iterator<Item = &Instruction> + '_ {
+        self.instructions.iter()
+    }
+
     pub fn terminator(&self) -> &Option<Terminator> {
         &self.terminator
     }
