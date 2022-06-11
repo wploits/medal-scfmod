@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use cfg_ir::constant::Constant;
-use cfg_ir::instruction::{BinaryOp, Instruction, Terminator};
+use cfg_ir::instruction::{BinaryOp, UnaryOp, Instruction, Terminator};
 use cfg_ir::value::ValueId;
 use fxhash::{FxHashMap, FxHashSet};
 use graph::algorithms::dominators::{compute_immediate_dominators, post_dominator_tree};
@@ -195,6 +195,28 @@ impl<'a> Lifter<'a> {
                             pos: None,
                             vars: vec![dest.into()],
                             values: vec![value.into()],
+                        }
+                        .into(),
+                    );
+                }
+                Instruction::Unary(unary) => {
+                    let dest = self.get_local(unary.dest);
+                    let expr = Box::new(self.get_local(unary.value));
+                    let op = match unary.op {
+                        UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
+                        UnaryOp::Minus => ast_ir::UnaryOp::Minus,
+                        UnaryOp::Len => ast_ir::UnaryOp::Len,
+                    };
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest.into()],
+                            values: vec![ast_ir::Unary {
+                                pos: None,
+                                op,
+                                expr,
+                            }
+                            .into()],
                         }
                         .into(),
                     );

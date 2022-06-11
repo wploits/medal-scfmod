@@ -15,7 +15,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, LoadGlobal, Move, Return, StoreGlobal,
-        UnconditionalJump,
+        UnconditionalJump, Unary, UnaryOp,
     },
     value::ValueId,
 };
@@ -197,18 +197,21 @@ impl<'a> Lifter<'a> {
                             );
                         }
                     }
-                    /*OpCode::LoadNil => {
+                    OpCode::LoadNil => {
                         for i in a as u16..=b {
                             let dest = self.get_register(i as usize);
                             let mut builder = Builder::new(&mut self.lifted_function);
                             builder
                                 .block(block_index)
                                 .unwrap()
-                                .load_constant(dest, Constant::Nil)
-                                .unwrap();
+                                .push(LoadConstant {
+                                    dest,
+                                    constant: Constant::Nil,
+                                }
+                                .into());
                         }
                     }
-                    OpCode::Index => {
+                    /*OpCode::Index => {
                         let dest = self.get_register(a as usize);
                         let object = self.get_register(b as usize);
                         let key = self.get_register_or_constant(c as usize, block_index);
@@ -268,12 +271,12 @@ impl<'a> Lifter<'a> {
                             .unwrap()
                             .push(Binary { dest, lhs, rhs, op }.into());
                     }
-                    /*OpCode::UnaryMinus | OpCode::Not | OpCode::Len => {
+                    OpCode::UnaryMinus | OpCode::Not | OpCode::Len => {
                         let (dest, value) =
                             (self.get_register(a as usize), self.get_register(b as usize));
                         let op = match op_code {
                             OpCode::UnaryMinus => UnaryOp::Minus,
-                            OpCode::Not => UnaryOp::Not,
+                            OpCode::Not => UnaryOp::LogicalNot,
                             OpCode::Len => UnaryOp::Len,
                             _ => unimplemented!(),
                         };
@@ -282,9 +285,8 @@ impl<'a> Lifter<'a> {
                         builder
                             .block(block_index)
                             .unwrap()
-                            .unary(dest, value, op)
-                            .unwrap();
-                    }*/
+                            .push(Unary { dest, value, op }.into());
+                    }
                     OpCode::Equal | OpCode::LesserThan | OpCode::LesserOrEqual => {
                         let (lhs, rhs) = (
                             self.get_register_or_constant(b as usize, block_index),
@@ -380,7 +382,6 @@ impl<'a> Lifter<'a> {
                             values = (a as usize..=(b as usize + a as usize - 2))
                                 .map(|v| self.get_register(v as usize))
                                 .collect();
-                            println!("{:?}", values);
                         }
                         if b == 0 {
                             assert!(vararg_index.is_some());

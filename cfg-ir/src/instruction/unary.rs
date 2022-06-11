@@ -6,7 +6,7 @@ use super::value_info::ValueInfo;
 #[derive(Debug, Clone)]
 pub enum UnaryOp {
     Minus,
-    Not,
+    LogicalNot,
     Len,
 }
 
@@ -14,7 +14,7 @@ impl fmt::Display for UnaryOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             UnaryOp::Minus => write!(f, "-"),
-            UnaryOp::Not => write!(f, "not"),
+            UnaryOp::LogicalNot => write!(f, "not"),
             UnaryOp::Len => write!(f, "#"),
         }
     }
