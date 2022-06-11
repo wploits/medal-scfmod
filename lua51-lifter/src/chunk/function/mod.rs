@@ -26,7 +26,6 @@ pub struct Function<'a> {
 
 impl<'a> Function<'a> {
     pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
-        println!("test");
         let (input, _) = parse_str(input)?;
         let (input, line_defined) = le_u32(input)?;
         let (input, last_line_defined) = le_u32(input)?;
