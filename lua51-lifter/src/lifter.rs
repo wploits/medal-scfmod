@@ -377,7 +377,7 @@ impl<'a> Lifter<'a> {
                     OpCode::Return => {
                         let mut values = Vec::new();
                         if b > 1 {
-                            values = (a as usize..=b as usize)
+                            values = (a as usize..=(b as usize + a as usize - 2))
                                 .map(|v| self.get_register(v as usize))
                                 .collect();
                             println!("{:?}", values);

@@ -1,9 +1,7 @@
 use nom::{combinator::*, multi::*, number::complete::*, *};
 
 use crate::{
-    chunk::function::{
-        debug::{local::*, position::*, upvalue},
-    },
+    chunk::function::debug::{local::*, position::*, upvalue},
     instruction::*,
     value::*,
 };

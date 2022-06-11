@@ -18,11 +18,5 @@ pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Chunk> {
     let (input, header) = Header::parse(input)?;
     let (input, main) = Function::parse(input)?;
 
-    Ok((
-        input,
-        Chunk {
-            header,
-            main,
-        },
-    ))
+    Ok((input, Chunk { header, main }))
 }
