@@ -120,7 +120,7 @@ impl<'a> BlockBuilder<'a> {
         for i in 0..self.block().phi_instructions.len() {
             self.function
                 .def_use
-                .unregister(&InstructionLocation(self.block, InstructionIndex::Inner(i)))
+                .unregister(&InstructionLocation(self.block, InstructionIndex::Phi(i)))
         }
         self.block_mut().phi_instructions.clear();
     }
@@ -296,7 +296,6 @@ impl<'a> InstructionBuilder<'a> {
         self.function
             .def_use
             .register(&self.instruction_location, &values_read, &values_written);
-
         Ok(())
     }
 

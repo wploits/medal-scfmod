@@ -38,7 +38,6 @@ fn main() -> anyhow::Result<()> {
     dot::render_to(&cfg, &mut std::io::stdout())?;
 
     //cfg_to_ast::lift(&cfg);
-    //println!("{:#?}", ast);
 
     Ok(())
 }

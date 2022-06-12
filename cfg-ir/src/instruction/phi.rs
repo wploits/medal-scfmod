@@ -9,7 +9,6 @@ use super::value_info::ValueInfo;
 #[derive(Debug, Clone)]
 pub struct Phi {
     pub dest: ValueId,
-    // { block: value }
     pub incoming_values: FxHashMap<NodeId, ValueId>,
 }
 

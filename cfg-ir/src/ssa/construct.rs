@@ -3,7 +3,7 @@ use std::{borrow::BorrowMut, collections::HashMap};
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
     algorithms::dominators::{
-        compute_dominance_frontiers, compute_immediate_dominators, dominator_tree,
+        compute_dominance_frontiers, dominator_tree,
     },
     Graph, NodeId,
 };
@@ -15,7 +15,7 @@ use crate::{
         location::{InstructionIndex, InstructionLocation},
         Phi,
     },
-    value::{self, ValueId},
+    value::ValueId,
 };
 
 use super::error::Error;
@@ -128,10 +128,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         for successor in function.graph().successors(node).collect::<Vec<_>>() {
             let mut builder = Builder::new(function);
             let mut block = builder.block(successor).unwrap();
-            let mut phis = block.phi_instructions().clone();
+            let phis = block.phi_instructions().clone();
             block.clear_phi_instructions();
-
-            for mut phi in phis.drain(..) {
+            
+            for mut phi in phis {
                 let old_value = phi.incoming_values[&node];
                 if let Some(value_stack) = value_stacks.get(&old_value) {
                     phi.incoming_values
@@ -142,8 +142,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             }
         }
 
-        // TODO: can we use compute_bfs_order instead?
-        // TODO: rename immediate_dominators to immediately_dominates?
         for child_block in dominator_tree.successors(node) {
             split_values(function, child_block, dominator_tree, value_stacks);
         }
@@ -200,6 +198,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         .count()
                         == 0
                     {
+                        println!("removing phi {:?}", def_use_info);
                         phis_to_remove.push((node, phi_index));
                     }
                 }
