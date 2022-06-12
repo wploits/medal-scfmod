@@ -1,5 +1,5 @@
+use fxhash::FxHashMap;
 use graph::NodeId;
-use std::collections::HashMap;
 use std::fmt;
 
 use super::super::value::ValueId;
@@ -10,7 +10,7 @@ use super::value_info::ValueInfo;
 pub struct Phi {
     pub dest: ValueId,
     // { block: value }
-    pub incoming_values: HashMap<NodeId, ValueId>,
+    pub incoming_values: FxHashMap<NodeId, ValueId>,
 }
 
 impl ValueInfo for Phi {

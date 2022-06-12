@@ -36,15 +36,20 @@ impl DefUse {
         self.values.get(&value)
     }
 
-    pub(crate) fn register<T: ValueInfo>(&mut self, location: &InstructionLocation, info: &T) {
-        for &value_read in info.values_read().iter() {
+    pub(crate) fn register(
+        &mut self,
+        location: &InstructionLocation,
+        values_read: &[ValueId],
+        values_written: &[ValueId],
+    ) {
+        for &value_read in values_read {
             self.values
                 .entry(value_read)
                 .or_insert_with(InstructionDefUse::new)
                 .reads
                 .insert(*location);
         }
-        for &value_written in info.values_written().iter() {
+        for &value_written in values_written {
             self.values
                 .entry(value_written)
                 .or_insert_with(InstructionDefUse::new)

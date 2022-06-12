@@ -37,7 +37,7 @@ use value_info::ValueInfo;
 /// A struct that represents an instruction in the IR that is not a terminator or phi.
 #[enum_dispatch(ValueInfo)]
 #[derive(Debug, Clone, EnumAsInner)]
-pub enum Instruction {
+pub enum Inner {
     Binary(Binary),
     Unary(Unary),
     LoadConstant(LoadConstant),
@@ -48,4 +48,16 @@ pub enum Instruction {
     StoreIndex(StoreIndex),
     Concat(Concat),
     Call(Call),
+}
+
+pub enum InstructionRef<'a> {
+    Phi(&'a Phi),
+    Inner(&'a Inner),
+    Terminator(&'a Terminator),
+}
+
+pub enum InstructionRefMut<'a> {
+    Phi(&'a mut Phi),
+    Inner(&'a mut Inner),
+    Terminator(&'a mut Terminator),
 }

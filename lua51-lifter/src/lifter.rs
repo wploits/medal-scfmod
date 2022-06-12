@@ -15,7 +15,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, LoadGlobal, Move, Return, StoreGlobal,
-        UnconditionalJump, Unary, UnaryOp,
+        Unary, UnaryOp, UnconditionalJump,
     },
     value::ValueId,
 };
@@ -201,14 +201,13 @@ impl<'a> Lifter<'a> {
                         for i in a as u16..=b {
                             let dest = self.get_register(i as usize);
                             let mut builder = Builder::new(&mut self.lifted_function);
-                            builder
-                                .block(block_index)
-                                .unwrap()
-                                .push(LoadConstant {
+                            builder.block(block_index).unwrap().push(
+                                LoadConstant {
                                     dest,
                                     constant: Constant::Nil,
                                 }
-                                .into());
+                                .into(),
+                            );
                         }
                     }
                     /*OpCode::Index => {

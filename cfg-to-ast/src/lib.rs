@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use cfg_ir::constant::Constant;
-use cfg_ir::instruction::{BinaryOp, UnaryOp, Instruction, Terminator};
+use cfg_ir::instruction::{BinaryOp, Inner, Terminator, UnaryOp};
+use cfg_ir::ssa;
 use cfg_ir::value::ValueId;
 use fxhash::{FxHashMap, FxHashSet};
 use graph::algorithms::dominators::{compute_immediate_dominators, post_dominator_tree};
@@ -145,7 +146,7 @@ impl<'a> Lifter<'a> {
     fn lift_instructions(&mut self, node: NodeId, body: &mut Block) {
         for instruction in self.cfg.block(node).unwrap().instructions() {
             match instruction {
-                Instruction::Move(move_value) => {
+                Inner::Move(move_value) => {
                     let dest = self.get_local(move_value.dest);
                     let source = self.get_local(move_value.source);
                     body.statements.push(
@@ -157,7 +158,7 @@ impl<'a> Lifter<'a> {
                         .into(),
                     );
                 }
-                Instruction::LoadConstant(load_constant) => {
+                Inner::LoadConstant(load_constant) => {
                     let dest = self.get_local(load_constant.dest);
                     let constant = Self::convert_constant(&load_constant.constant);
                     body.statements.push(
@@ -169,7 +170,7 @@ impl<'a> Lifter<'a> {
                         .into(),
                     );
                 }
-                Instruction::LoadGlobal(load_global) => {
+                Inner::LoadGlobal(load_global) => {
                     let dest = self.get_local(load_global.dest);
                     let global = ast_ir::Global {
                         pos: None,
@@ -184,7 +185,7 @@ impl<'a> Lifter<'a> {
                         .into(),
                     );
                 }
-                Instruction::StoreGlobal(store_global) => {
+                Inner::StoreGlobal(store_global) => {
                     let dest = ast_ir::Global {
                         pos: None,
                         name: store_global.name.clone(),
@@ -199,7 +200,7 @@ impl<'a> Lifter<'a> {
                         .into(),
                     );
                 }
-                Instruction::Unary(unary) => {
+                Inner::Unary(unary) => {
                     let dest = self.get_local(unary.dest);
                     let expr = Box::new(self.get_local(unary.value));
                     let op = match unary.op {
@@ -221,7 +222,7 @@ impl<'a> Lifter<'a> {
                         .into(),
                     );
                 }
-                Instruction::Binary(binary) => {
+                Inner::Binary(binary) => {
                     let dest = self.get_local(binary.dest);
                     let lhs = Box::new(self.get_local(binary.lhs));
                     let rhs = Box::new(self.get_local(binary.rhs));

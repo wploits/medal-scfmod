@@ -1,23 +1,23 @@
-use super::instruction::{Instruction, Phi, Terminator};
+use super::instruction::{Inner, Phi, Terminator};
 
 #[derive(Debug, Clone)]
 pub struct BasicBlock {
-    pub(crate) phis: Vec<Phi>,
-    pub(crate) instructions: Vec<Instruction>,
+    pub(crate) phi_instructions: Vec<Phi>,
+    pub(crate) inner_instructions: Vec<Inner>,
     pub(crate) terminator: Option<Terminator>,
 }
 
 impl BasicBlock {
     pub(crate) fn new() -> Self {
         Self {
-            phis: Vec::new(),
-            instructions: Vec::new(),
+            phi_instructions: Vec::new(),
+            inner_instructions: Vec::new(),
             terminator: None,
         }
     }
 
-    pub fn instructions(&self) -> impl Iterator<Item = &Instruction> + '_ {
-        self.instructions.iter()
+    pub fn instructions(&self) -> impl Iterator<Item = &Inner> + '_ {
+        self.inner_instructions.iter()
     }
 
     pub fn terminator(&self) -> &Option<Terminator> {

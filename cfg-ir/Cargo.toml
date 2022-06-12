@@ -12,3 +12,4 @@ enum_dispatch = "0.3.8"
 enum-as-inner = "0.4.0"
 graph = { path = "../graph" }
 dot = { version = "0.1.4", optional = true }
+fxhash = "0.2.1"

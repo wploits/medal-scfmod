@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Function {
     graph: Graph,
-    blocks: HashMap<NodeId, BasicBlock>,
+    pub(crate) blocks: HashMap<NodeId, BasicBlock>,
     next_value_index: ValueId,
     pub(crate) def_use: DefUse,
 }
@@ -39,13 +39,13 @@ impl Function {
     }
 
     pub fn block(&self, block: NodeId) -> Result<&BasicBlock> {
-        self.blocks.get(&block).ok_or(Error::InvalidBlock { block })
+        self.blocks.get(&block).ok_or(Error::InvalidBlock(block))
     }
 
     pub(crate) fn block_mut(&mut self, block: NodeId) -> Result<&mut BasicBlock> {
         self.blocks
             .get_mut(&block)
-            .ok_or(Error::InvalidBlock { block })
+            .ok_or(Error::InvalidBlock(block))
     }
 
     pub fn add_block(&mut self) -> Result<NodeId> {
