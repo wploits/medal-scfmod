@@ -159,25 +159,25 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     );
 
     // TODO: loop until nothing left to prune?
+    // TODO: test pruning
 
     let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
     let mut values_to_replace = HashMap::<ValueId, ValueId>::new();
 
-    for &node in function.graph().nodes() {
-        let builder = Builder::new(function);
+    for node in function.graph().nodes().clone() {
+        let mut builder = Builder::new(function);
         let block = builder.block(node).unwrap();
         for (phi_index, phi) in block
             .phi_instructions()
             .iter()
+            .cloned()
             .enumerate()
             .rev()
             .collect::<Vec<_>>()
         {
-            let mut unique = phi.incoming_values.values().cloned().collect::<Vec<_>>();
-            unique.sort_unstable();
-            unique.dedup();
+            let unique = phi.incoming_values.values().cloned().collect::<FxHashSet<_>>();
             if unique.len() == 1 {
-                let new_value = *unique.first().unwrap();
+                let new_value = *unique.iter().next().unwrap();
                 if new_value != phi.dest {
                     values_to_replace.insert(phi.dest, new_value);
                 }
@@ -207,13 +207,14 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     let mut builder = Builder::new(function);
     for (node, phi_index) in phis_to_remove {
+        println!("phi to remove: {}.{}", node, phi_index);
         let mut block = builder.block(node).unwrap();
         // TODO: dont shift phi intructions until done pruning
-        block.remove_phi(phi_index).unwrap();
+        block.remove(InstructionIndex::Phi(phi_index)).unwrap();
     }
 
-    // we dont need to worry about where to replace since ssa form
-    for &node in function.graph().nodes() {
+    // we dont need to worry about where to replace since ssa form means values will only be written to once :)
+    for node in function.graph().nodes().clone() {
         for (&old, &new) in &values_to_replace {
             let mut builder = Builder::new(function);
             let mut block = builder.block(node).unwrap();

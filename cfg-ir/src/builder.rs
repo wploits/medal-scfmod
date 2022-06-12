@@ -154,18 +154,38 @@ impl<'a> BlockBuilder<'a> {
     }
 
     pub fn remove(&mut self, instruction_index: InstructionIndex) -> Result<&mut Self> {
-        self.function.def_use.unregister(&InstructionLocation(self.block, instruction_index));
+        self.function
+            .def_use
+            .unregister(&InstructionLocation(self.block, instruction_index));
         match instruction_index {
             InstructionIndex::Phi(phi_index) => {
-                self.block_mut().phi_instructions.remove(phi_index);
-                for i in phi_index..self.block_mut().phi_instructions.len() {
-                    
+                // TODO: verify if this works
+                for i in phi_index + 1..self.block_mut().phi_instructions.len() {
+                    self.function
+                        .def_use
+                        .unregister(&InstructionLocation(self.block, InstructionIndex::Phi(i)));
                 }
-            },
+                self.block_mut().phi_instructions.remove(phi_index);
+                for (i, phi) in self
+                    .block_mut()
+                    .phi_instructions
+                    .iter()
+                    .skip(phi_index)
+                    .cloned()
+                    .enumerate()
+                    .collect::<Vec<_>>()
+                {
+                    self.function.def_use.register(
+                        &InstructionLocation(self.block, InstructionIndex::Phi(i)),
+                        &phi.values_read(),
+                        &phi.values_written(),
+                    );
+                }
+            }
             InstructionIndex::Inner(inner_index) => {
                 self.block_mut().inner_instructions.remove(inner_index);
                 todo!();
-            },
+            }
             InstructionIndex::Terminator => self.block_mut().terminator = None,
         };
         Ok(self)
