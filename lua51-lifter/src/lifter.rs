@@ -46,6 +46,10 @@ impl<'a> Lifter<'a> {
         for (insn_index, insn) in self.function.code.iter().enumerate() {
             match insn {
                 &BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
+                    OpCode::SetList if c == 0 => {
+                        // TODO: skip next instruction
+                        todo!();
+                    }
                     OpCode::LoadBool if c != 0 => {
                         self.blocks
                             .entry(insn_index + 2)
