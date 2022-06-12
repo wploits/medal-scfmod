@@ -476,6 +476,19 @@ impl<'a> Lifter<'a> {
     pub fn lift_function(&mut self) -> Result<Function> {
         self.discover_blocks()?;
 
+        let entry_block = self.blocks[&0];
+        for i in 0..self.function.maximum_stack_size {
+            let dest = self.get_register(i as usize);
+            let mut builder = Builder::new(&mut self.lifted_function);
+            builder.block(entry_block).unwrap().push(
+                LoadConstant {
+                    dest,
+                    constant: Constant::Nil,
+                }
+                .into(),
+            );
+        }
+
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();
         blocks.sort_unstable();
 
