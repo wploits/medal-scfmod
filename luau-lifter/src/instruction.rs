@@ -115,7 +115,7 @@ impl Instruction {
         let op_code = (insn & 0xFF) as u8;
 
         match op_code {
-            0 | 1 | 2 | 3 | 6 | 13..=18 | 20..=22 | 33..=53 | 55 | 63 | 65 | 66 | 68 | 70 | 73..=75 => {
+            0 | 1 | 2 | 3 | 6..=11 | 13..=18 | 20..=22 | 33..=53 | 55 | 63 | 65 | 66 | 68 | 70 | 73..=75 => {
                 let (a, b, c) = Self::parse_abc(insn);
 
                 Ok(Self::ABC {
