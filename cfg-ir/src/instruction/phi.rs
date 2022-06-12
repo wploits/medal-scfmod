@@ -35,7 +35,9 @@ impl fmt::Display for Phi {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} <- Φ({})",
+            // TODO: create a pull request for the dot repo so it doesnt escape unicode characters
+            // like our 'Φ' symbol
+            "{} <- phi({})",
             self.dest,
             self.incoming_values
                 .iter()

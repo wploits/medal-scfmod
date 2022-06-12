@@ -32,7 +32,7 @@ impl DefUse {
         }
     }
 
-    pub fn xref(&self, value: ValueId) -> Option<&InstructionDefUse> {
+    pub fn get(&self, value: ValueId) -> Option<&InstructionDefUse> {
         self.values.get(&value)
     }
 

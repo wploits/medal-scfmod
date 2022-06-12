@@ -16,6 +16,8 @@ mod load;
 mod r#move;
 mod store;
 
+use std::fmt;
+
 pub use phi::Phi;
 pub use terminator::{ConditionalJump, Return, Terminator, UnconditionalJump};
 
@@ -48,6 +50,23 @@ pub enum Inner {
     StoreIndex(StoreIndex),
     Concat(Concat),
     Call(Call),
+}
+
+impl fmt::Display for Inner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            Self::Binary(v) => write!(f, "{}", v),
+            Self::Unary(v) => write!(f, "{}", v),
+            Self::LoadConstant(v) => write!(f, "{}", v),
+            Self::LoadGlobal(v) => write!(f, "{}", v),
+            Self::LoadIndex(v) => write!(f, "{}", v),
+            Self::Move(v) => write!(f, "{}", v),
+            Self::StoreGlobal(v) => write!(f, "{}", v),
+            Self::StoreIndex(v) => write!(f, "{}", v),
+            Self::Concat(v) => write!(f, "{}", v),
+            Self::Call(v) => write!(f, "{}", v),
+        }
+    }
 }
 
 pub enum InstructionRef<'a> {

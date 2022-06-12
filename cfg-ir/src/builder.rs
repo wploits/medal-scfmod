@@ -115,6 +115,20 @@ impl<'a> BlockBuilder<'a> {
         instruction_indices
     }
 
+    // TODO: remove_instruction function that inserts nops when removing from not the end
+    pub(crate) fn clear_phi_instructions(&mut self) {
+        for i in 0..self.block().phi_instructions.len() {
+            self.function
+                .def_use
+                .unregister(&InstructionLocation(self.block, InstructionIndex::Inner(i)))
+        }
+        self.block_mut().phi_instructions.clear();
+    }
+
+    pub(crate) fn phi_instructions(&self) -> &Vec<Phi> {
+        &self.block().phi_instructions
+    }
+
     /// Push an instruction to the block.
     pub fn push(&mut self, instruction: Inner) -> &mut Self {
         let index = self.block_mut().inner_instructions.len();
@@ -127,7 +141,7 @@ impl<'a> BlockBuilder<'a> {
         self
     }
 
-    /// Push an instruction to the block.
+    /// Push a phi instruction to the block.
     pub fn push_phi(&mut self, instruction: Phi) -> &mut Self {
         let index = self.block_mut().inner_instructions.len();
         self.function.def_use.register(
@@ -137,6 +151,24 @@ impl<'a> BlockBuilder<'a> {
         );
         self.block_mut().phi_instructions.push(instruction);
         self
+    }
+
+    pub fn remove(&mut self, instruction_index: InstructionIndex) -> Result<&mut Self> {
+        self.function.def_use.unregister(&InstructionLocation(self.block, instruction_index));
+        match instruction_index {
+            InstructionIndex::Phi(phi_index) => {
+                self.block_mut().phi_instructions.remove(phi_index);
+                for i in phi_index..self.block_mut().phi_instructions.len() {
+                    
+                }
+            },
+            InstructionIndex::Inner(inner_index) => {
+                self.block_mut().inner_instructions.remove(inner_index);
+                todo!();
+            },
+            InstructionIndex::Terminator => self.block_mut().terminator = None,
+        };
+        Ok(self)
     }
 
     /// Replace the terminator of the block with the given terminator.

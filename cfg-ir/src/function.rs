@@ -12,7 +12,7 @@ use crate::{
 pub struct Function {
     graph: Graph,
     pub(crate) blocks: HashMap<NodeId, BasicBlock>,
-    next_value_index: ValueId,
+    next_value_index: usize,
     pub(crate) def_use: DefUse,
 }
 
@@ -57,11 +57,11 @@ impl Function {
     pub fn new_value(&mut self) -> ValueId {
         let value = self.next_value_index;
         self.next_value_index += 1;
-        value
+        ValueId(value)
     }
 
     pub fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        (0..self.next_value_index).into_iter()
+        (0..self.next_value_index).map(|v| ValueId(v)).into_iter()
     }
 
     pub fn def_use(&self) -> &DefUse {

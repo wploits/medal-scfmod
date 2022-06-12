@@ -4,7 +4,7 @@ mod lifter;
 mod op_code;
 mod value;
 
-use cfg_ir::ssa;
+use cfg_ir::{dot, ssa};
 use lifter::Lifter;
 
 use clap::Parser;
@@ -29,15 +29,15 @@ fn main() -> anyhow::Result<()> {
     //println!("{:#?}", chunk);
 
     let mut cfg = Lifter::new(&chunk.main).lift_function()?;
-    let graph = cfg.graph();
-    graph::dot::render_to(graph, &mut std::io::stdout())?;
+    dot::render_to(&cfg, &mut std::io::stdout())?;
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
     ssa::construct::construct(&mut cfg)?;
+    dot::render_to(&cfg, &mut std::io::stdout())?;
 
-    cfg_to_ast::lift(&cfg);
+    //cfg_to_ast::lift(&cfg);
     //println!("{:#?}", ast);
 
     Ok(())

@@ -24,6 +24,7 @@ impl std::fmt::Debug for NodeId {
     }
 }
 
+// TODO: this should be a struct with named fields
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Edge(NodeId, NodeId);
 
@@ -82,6 +83,7 @@ impl Graph {
         &self.edges
     }
 
+    // TODO: move to function, since graphs should not have a single defined entry
     pub fn entry(&self) -> &Option<NodeId> {
         &self.entry
     }
