@@ -112,7 +112,7 @@ pub struct If {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub condition: Expr,
-    // TODO: then_block here but body elsewhere?
+    // TODO: we call it 'then_block' here but 'body' elsewhere?
     pub then_block: Block,
     pub else_block: Option<Block>,
 }
