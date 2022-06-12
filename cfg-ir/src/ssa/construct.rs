@@ -27,7 +27,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         .ok_or(Error::Graph(graph::Error::NoEntry))?;
     let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, None)?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
-    println!("{:#?}", dominance_frontiers);
     let mut node_to_values_written = FxHashMap::default();
     let mut value_written_to_nodes = FxHashMap::default();
     for &node in dominance_frontiers.keys() {
@@ -198,7 +197,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         .count()
                         == 0
                     {
-                        println!("removing phi {:?}", def_use_info);
                         phis_to_remove.push((node, phi_index));
                     }
                 }
