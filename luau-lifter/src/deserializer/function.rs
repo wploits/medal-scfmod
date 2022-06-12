@@ -127,7 +127,7 @@ impl Function {
         let (input, line_info_delta) = match has_line_info {
             0 => (input, None),
             _ => {
-                let (input, line_info_delta) = parse_list_len(input, le_u8, instructions.len())?;
+                let (input, line_info_delta) = parse_list_len(input, le_u8, u32_instructions.len())?;
                 (input, Some(line_info_delta))
             }
         };
@@ -135,10 +135,14 @@ impl Function {
             0 => (input, None),
             _ => {
                 let (input, abs_line_info_delta) = parse_list_len(input, le_u32, 
-                    ((instructions.len() - 1) >> line_gap_log2.unwrap()) + 1)?;
+                    ((u32_instructions.len() - 1) >> line_gap_log2.unwrap()) + 1)?;
                 (input, Some(abs_line_info_delta))
             }
         };
+        let (input, has_debug_info) = le_u8(input)?;
+        if has_debug_info != 0 {
+            unimplemented!();
+        }
         Ok((
             input,
             Self {
