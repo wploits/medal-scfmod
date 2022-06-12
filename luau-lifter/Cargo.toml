@@ -1,0 +1,17 @@
+[package]
+name = "luau-lifter"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+num_enum = "0.5.6"
+nom = "7.1.0"
+nom-leb128 = "0.2.0"
+clap = { version = "3.1.0", features = ["derive"] }
+anyhow = { version = "1.0.53", features = ["backtrace"] }
+cfg-ir = { path = "../cfg-ir" }
+graph = { path = "../graph", features = ["dot"] }
+cfg-to-ast = { path = "../cfg-to-ast" }
+mlua = { version = "0.8.0-beta.3", features = ["luau"] }
