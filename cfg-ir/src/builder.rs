@@ -143,7 +143,7 @@ impl<'a> BlockBuilder<'a> {
 
     /// Push a phi instruction to the block.
     pub fn push_phi(&mut self, instruction: Phi) -> &mut Self {
-        let index = self.block_mut().inner_instructions.len();
+        let index = self.block_mut().phi_instructions.len();
         self.function.def_use.register(
             &InstructionLocation(self.block, InstructionIndex::Phi(index)),
             &instruction.values_read(),

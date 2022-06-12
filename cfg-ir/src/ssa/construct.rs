@@ -207,7 +207,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     let mut builder = Builder::new(function);
     for (node, phi_index) in phis_to_remove {
-        println!("phi to remove: {}.{}", node, phi_index);
         let mut block = builder.block(node).unwrap();
         // TODO: dont shift phi intructions until done pruning
         block.remove(InstructionIndex::Phi(phi_index)).unwrap();
