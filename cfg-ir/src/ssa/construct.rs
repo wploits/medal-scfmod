@@ -158,6 +158,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         &mut FxHashMap::default(),
     );
 
+    // TODO: split_values fucks DefUse
+
     // TODO: test pruning
     loop {
         let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
