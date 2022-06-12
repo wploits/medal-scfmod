@@ -35,12 +35,19 @@ impl Function {
         loop {
             let ins = Instruction::parse(vec[pc]).unwrap();
             let op = match ins {
-                Instruction::ABC { op_code, .. } => op_code,
-                Instruction::AD { op_code, .. } => op_code,
-                Instruction::E { op_code, .. } => op_code,
+                Instruction::ABC { op_code, a, b, c, aux } => {
+                    println!("{}: {:?} {} {} {} {}", pc, op_code, a, b, c, aux);
+                    op_code
+                },
+                Instruction::AD { op_code, a, d, aux } => {
+                    println!("{}: {:?} {} {} {}", pc, op_code, a, d, aux);
+                    op_code
+                },
+                Instruction::E { op_code, e } => { 
+                    println!("{}: {:?} {}", pc, op_code, e);
+                    op_code
+                },
             };
-    
-            println!("got op: {:?}", op);
     
             // handle ops with aux values
             match op {
@@ -79,6 +86,9 @@ impl Function {
                         }
                         _ => unreachable!()
                     }
+                    v.push(Instruction::ABC {
+                        op_code: OpCode::LOP_NOP, a: 0, b: 0, c: 0, aux: 0
+                    });
                 }
                 _ => {
                     v.push(ins);
