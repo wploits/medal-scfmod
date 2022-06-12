@@ -6,5 +6,6 @@ members = [
     "ast-ir",
     "lua51-lifter",
     "cfg-test",
-    "cfg-to-ast"
+    "cfg-to-ast",
+    "luau-lifter"
 ]
