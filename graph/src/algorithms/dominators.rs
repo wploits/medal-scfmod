@@ -120,16 +120,32 @@ pub fn compute_dominance_frontiers(
         return Err(Error::InvalidNode(root));
     }
 
+    let dfs = dfs_tree(graph, root)?;
+
     let mut dominance_frontiers = FxHashMap::default();
 
-    for &index in &graph.nodes {
+    for &index in dfs.nodes() {
         dominance_frontiers.insert(index, FxHashSet::default());
     }
 
-    for &index in &graph.nodes {
-        let preds = graph.predecessors(index).collect::<Vec<_>>();
+    let preds = dfs
+        .nodes()
+        .iter()
+        .map(|&n| {
+            (
+                n,
+                graph
+                    .predecessors(n)
+                    .filter(|&n| dfs.node_exists(n))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<FxHashMap<_, _>>();
+
+    for &index in dfs.nodes() {
+        let preds = &preds[&index];
         if preds.len() > 1 {
-            for pred in preds {
+            for &pred in preds {
                 let mut runner = pred;
                 let node_idom = *immediate_dominators.get(&index).unwrap();
 

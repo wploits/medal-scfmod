@@ -2,8 +2,6 @@ use std::collections::binary_heap::Iter;
 
 use graph::{Edge, NodeId};
 
-use crate::instruction::{Instruction, InstructionRef, InstructionRefMut};
-
 use super::{
     block::BasicBlock,
     error::{Error, Result},
@@ -12,7 +10,7 @@ use super::{
         branch_info::BranchInfo,
         location::{InstructionIndex, InstructionLocation},
         value_info::ValueInfo,
-        Inner, Terminator,
+        Inner, Phi, Terminator,
     },
     value::ValueId,
 };
@@ -61,7 +59,7 @@ pub struct BlockBuilder<'a> {
 
 impl<'a> BlockBuilder<'a> {
     // TODO: find a way to store a reference to the block in Self
-    fn block(&mut self) -> &BasicBlock {
+    fn block(&self) -> &BasicBlock {
         self.function.block(self.block).unwrap()
     }
 
@@ -102,7 +100,7 @@ impl<'a> BlockBuilder<'a> {
 
     pub fn instruction_indexes(&self) -> Vec<InstructionIndex> {
         let block = self.block();
-        let instruction_indices = Vec::with_capacity(
+        let mut instruction_indices = Vec::with_capacity(
             block.phi_instructions.len()
                 + block.inner_instructions.len()
                 + if block.terminator.is_some() { 1 } else { 0 },
@@ -126,6 +124,18 @@ impl<'a> BlockBuilder<'a> {
             &instruction.values_written(),
         );
         self.block_mut().inner_instructions.push(instruction);
+        self
+    }
+
+    /// Push an instruction to the block.
+    pub fn push_phi(&mut self, instruction: Phi) -> &mut Self {
+        let index = self.block_mut().inner_instructions.len();
+        self.function.def_use.register(
+            &InstructionLocation(self.block, InstructionIndex::Phi(index)),
+            &instruction.values_read(),
+            &instruction.values_written(),
+        );
+        self.block_mut().phi_instructions.push(instruction);
         self
     }
 

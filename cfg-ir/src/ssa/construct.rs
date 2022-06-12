@@ -3,7 +3,7 @@ use std::{borrow::BorrowMut, collections::HashMap};
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{algorithms::dominators::compute_dominance_frontiers, NodeId};
 
-use crate::{builder::Builder, function::Function, value::ValueId, instruction::Phi};
+use crate::{builder::Builder, function::Function, instruction::Phi, value::ValueId};
 
 use super::error::Error;
 
@@ -41,24 +41,27 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
     }
 
-    let value_to_nodes_with_phi = FxHashMap::<ValueId, FxHashSet<NodeId>>::default();
+    let mut value_to_nodes_with_phi = FxHashMap::<ValueId, FxHashSet<NodeId>>::default();
     for (&value, nodes) in &mut value_written_to_nodes {
         while let Some(node) = nodes.pop() {
             let nodes_with_phi = value_to_nodes_with_phi
                 .entry(value)
                 .or_insert_with(FxHashSet::default)
                 .borrow_mut();
-            for dominance_frontier_node in dominance_frontiers[&node] {
+            for &dominance_frontier_node in &dominance_frontiers[&node] {
                 if !nodes_with_phi.contains(&dominance_frontier_node) {
-                    let mut incoming_values = function
+                    let incoming_values = function
                         .graph()
                         .predecessors(dominance_frontier_node)
                         .map(|p| (p, value))
                         .collect::<FxHashMap<_, _>>();
-                    Builder::new(function).block(dominance_frontier_node).push_phi(Phi {
-                        dest: value,
-                        incoming_values,
-                    });
+                    Builder::new(function)
+                        .block(dominance_frontier_node)
+                        .unwrap()
+                        .push_phi(Phi {
+                            dest: value,
+                            incoming_values,
+                        });
                 }
             }
         }
