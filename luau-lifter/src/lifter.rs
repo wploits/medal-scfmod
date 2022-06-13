@@ -51,7 +51,7 @@ impl<'a> Lifter<'a> {
         for (insn_index, insn) in self.function_list[self.function].instructions.iter().enumerate() {
             match insn {
                 BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
-                    OpCode::LOP_LOADB => { // loadbool always jumps in luau
+                    OpCode::LOP_LOADB if *c != 0 => {
                         self.blocks
                             .entry(insn_index.wrapping_add(*c as usize) + 1)
                             .or_insert_with(|| builder.new_block().unwrap().block_id());
@@ -147,7 +147,7 @@ impl<'a> Lifter<'a> {
         match instruction {
             BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                 OpCode::LOP_RETURN => true,
-                OpCode::LOP_LOADB => true,
+                OpCode::LOP_LOADB if *c != 0 => true,
                 _ => false,
             },
             BytecodeInstruction::AD { op_code, .. } => match op_code {
@@ -202,6 +202,37 @@ impl<'a> Lifter<'a> {
                             .block(block_index)
                             .unwrap()
                             .push(LoadConstant { dest, constant: Constant::Nil }.into());
+                    }
+                    OpCode::LOP_LOADB => {
+                        let dest = self.get_register(a as usize);
+                        if c != 0 {
+                            let branch = self.get_block(instruction_index + c as usize + 1).unwrap();
+                            let mut builder = Builder::new(&mut self.lifted_function);
+                            builder
+                                .block(block_index)
+                                .unwrap()
+                                .push(
+                                    LoadConstant {
+                                        dest,
+                                        constant: Constant::Boolean(b != 0),
+                                    }
+                                    .into(),
+                                )
+                                .replace_terminator(UnconditionalJump(branch).into())
+                                .unwrap();
+                            if instruction_index != block_end {
+                                block_index = builder.new_block()?.block_id()
+                            }
+                        } else {
+                            let mut builder = Builder::new(&mut self.lifted_function);
+                            builder.block(block_index).unwrap().push(
+                                LoadConstant {
+                                    dest,
+                                    constant: Constant::Boolean(b != 0),
+                                }
+                                .into(),
+                            );
+                        }
                     }
                     OpCode::LOP_ADD
                     | OpCode::LOP_SUB
