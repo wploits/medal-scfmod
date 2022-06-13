@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, collections::HashMap};
+use std::{borrow::BorrowMut, collections::HashMap, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
@@ -21,6 +21,7 @@ use crate::{
 use super::error::Error;
 
 pub fn construct(function: &mut Function) -> Result<(), Error> {
+    let now = time::Instant::now();
     let entry = function
         .graph()
         .entry()
@@ -81,6 +82,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             }
         }
     }
+
+
+    let phis_inserted = now.elapsed();
+    println!("phi insertation: {:?}", phis_inserted);
 
     fn split_values(
         function: &mut Function,
@@ -148,6 +153,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         *value_stacks = old_value_stacks;
     }
 
+    let now = time::Instant::now();
+
     split_values(
         function,
         entry,
@@ -155,8 +162,12 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         &mut FxHashMap::default(),
     );
 
+    let split_values_time = now.elapsed();
+    println!("split values: {:?}", split_values_time);
+
     // TODO: split_values fucks DefUse
 
+    let now = time::Instant::now();
     // TODO: test pruning
     loop {
         let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
@@ -226,6 +237,9 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             }
         }
     }
+
+    let pruned = now.elapsed();
+    println!("pruning: {:?}", pruned);
 
     Ok(())
 }
