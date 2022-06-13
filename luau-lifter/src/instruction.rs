@@ -150,8 +150,8 @@ impl Instruction {
 
     fn parse_abc(insn: u32) -> (u8, u8, u8) {
         let a = ((insn >> 8) & 0xFF) as u8;
-        let c = ((insn >> 16) & 0xFF) as u8;
-        let b = ((insn >> 24) & 0xFF) as u8;
+        let b = ((insn >> 16) & 0xFF) as u8;
+        let c = ((insn >> 24) & 0xFF) as u8;
 
         (a, b, c)
     }
