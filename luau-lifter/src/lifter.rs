@@ -16,7 +16,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump,
-        Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex
+        Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return
     },
     value::ValueId,
 };
@@ -167,7 +167,7 @@ impl<'a> Lifter<'a> {
     }
 
     fn lift_block(&mut self, block_start: usize, block_end: usize) -> Result<()> {
-        //let mut vararg_index = None;
+        let mut vararg_index = None;
         let mut block_index = self.get_block(block_start).unwrap();
         for (block_instruction_index, instruction) in 
             self.function_list[self.function].instructions[block_start..=block_end]
@@ -286,6 +286,30 @@ impl<'a> Lifter<'a> {
                                 .unwrap()
                                 .push(StoreGlobal { name, value }.into());
                         }
+                    }
+                    OpCode::LOP_RETURN => {
+                        let mut values = Vec::new();
+                        if b > 1 {
+                            values = (a as usize..=(b as usize + a as usize - 2))
+                                .map(|v| self.get_register(v as usize))
+                                .collect();
+                        }
+                        if b == 0 {
+                            assert!(vararg_index.is_some());
+                            values = self.get_register_range(a as usize..vararg_index.unwrap());
+                        }
+                        let mut builder = Builder::new(&mut self.lifted_function);
+                        builder.block(block_index).unwrap().replace_terminator(
+                            Return {
+                                values,
+                                variadic: b == 0,
+                            }
+                            .into(),
+                        )?;
+                        if instruction_index != block_end {
+                            block_index = builder.new_block()?.block_id();
+                        }
+                        break;
                     }
                     _ => {}
                 },
