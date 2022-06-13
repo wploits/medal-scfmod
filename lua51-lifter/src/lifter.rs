@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 
 use anyhow::Result;
 use graph::NodeId;
@@ -15,7 +15,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, LoadGlobal, Move, Return, StoreGlobal,
-        Unary, UnaryOp, UnconditionalJump,
+        Unary, UnaryOp, UnconditionalJump, Concat,
     },
     value::ValueId,
 };
@@ -92,6 +92,10 @@ impl<'a> Lifter<'a> {
     }
 
     fn get_register_range(&mut self, range: Range<usize>) -> Vec<ValueId> {
+        range.map(|v| self.get_register(v)).collect()
+    }
+
+    fn get_register_incl_range(&mut self, range: RangeInclusive<usize>) -> Vec<ValueId> {
         range.map(|v| self.get_register(v)).collect()
     }
 
@@ -289,6 +293,16 @@ impl<'a> Lifter<'a> {
                             .block(block_index)
                             .unwrap()
                             .push(Unary { dest, value, op }.into());
+                    }
+                    OpCode::Concat => {
+                        let dest = self.get_register(a as usize);
+                        let values = self.get_register_incl_range(b as usize..=c as usize);
+
+                        let mut builder = Builder::new(&mut self.lifted_function);
+                        builder
+                            .block(block_index)
+                            .unwrap()
+                            .push(Concat { dest, values }.into());
                     }
                     OpCode::Equal | OpCode::LesserThan | OpCode::LesserOrEqual => {
                         let (lhs, rhs) = (

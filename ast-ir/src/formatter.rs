@@ -59,6 +59,7 @@ impl Formatter {
             BinaryOp::Equal => self.print("=="),
             BinaryOp::LogicalAnd => self.print("and"),
             BinaryOp::LogicalOr => self.print("or"),
+            BinaryOp::Concat => self.print(".."),
             _ => unimplemented!(),
         };
     }

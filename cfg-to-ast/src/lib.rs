@@ -252,6 +252,37 @@ impl<'a> Lifter<'a> {
                         .into(),
                     );
                 }
+                Inner::Concat(concat) => {
+                    assert_eq!(concat.values.len() >= 2, true, "concat doesnt value atleast 2 values");
+
+                    let dest = self.get_local(concat.dest);
+                    let mut value = ast_ir::Binary {
+                        pos: None,
+                        op: ast_ir::BinaryOp::Concat,
+                        lhs: Box::new(self.get_local(concat.values[0])),
+                        rhs: Box::new(self.get_local(concat.values[1])),
+                    }.into();
+
+                    if concat.values.len() > 2 {
+                        for val in concat.values.iter().skip(2) {
+                            value = ast_ir::Binary {
+                                pos: None,
+                                op: ast_ir::BinaryOp::Concat,
+                                lhs: Box::new(value),
+                                rhs: Box::new(self.get_local(*val)),
+                            }.into();
+                        }
+                    }
+
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![dest.into()],
+                            values: vec![value],
+                        }
+                        .into(),
+                    );
+                }
                 _ => println!("Skipped {:?}", instruction),
             }
         }
