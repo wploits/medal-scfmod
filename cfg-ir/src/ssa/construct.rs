@@ -7,13 +7,14 @@ use graph::{
 };
 
 use crate::{
+    def_use::DefUse,
     function::Function,
     instruction::{
         location::{InstructionIndex, InstructionLocation},
         value_info::ValueInfo,
         Phi,
     },
-    value::ValueId, def_use::DefUse,
+    value::ValueId,
 };
 
 use super::error::Error;
@@ -131,7 +132,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     let new_value = function.new_value();
                     value_stack.push(new_value);
 
-                    values_to_replace.entry(node).or_insert_with(Vec::new).push((written_value_index, new_value));
+                    values_to_replace
+                        .entry(node)
+                        .or_insert_with(Vec::new)
+                        .push((written_value_index, new_value));
                 } else {
                     value_stacks.insert(value, vec![value]);
                 }
@@ -140,7 +144,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             for (node, values) in values_to_replace {
                 let block = function.block_mut(node).unwrap();
                 for (written_value_index, value) in values {
-                    *block.value_info_mut(index).unwrap().values_written_mut()[written_value_index] = value;
+                    *block.value_info_mut(index).unwrap().values_written_mut()
+                        [written_value_index] = value;
                 }
             }
 
@@ -187,13 +192,12 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
         for node in function.graph().nodes().clone() {
             let block = function.block(node).unwrap();
-            for (phi_index, phi) in block
-                .phi_instructions
-                .iter()
-                .cloned()
-                .enumerate()
-            {
-                let unique = phi.incoming_values.values().cloned().collect::<FxHashSet<_>>();
+            for (phi_index, phi) in block.phi_instructions.iter().cloned().enumerate() {
+                let unique = phi
+                    .incoming_values
+                    .values()
+                    .cloned()
+                    .collect::<FxHashSet<_>>();
                 if unique.len() == 1 {
                     let new_value = *unique.iter().next().unwrap();
                     if new_value != phi.dest {
@@ -206,7 +210,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         .iter()
                         .filter(|InstructionLocation(other_node, other_instruction_index)| {
                             if *other_node == node {
-                                if let InstructionIndex::Phi(other_phi_index) = *other_instruction_index
+                                if let InstructionIndex::Phi(other_phi_index) =
+                                    *other_instruction_index
                                 {
                                     return other_phi_index != phi_index;
                                 }
@@ -228,7 +233,11 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
 
         for (node, phi_index) in phis_to_remove.into_iter().rev() {
-            function.block_mut(node).unwrap().phi_instructions.remove(phi_index);
+            function
+                .block_mut(node)
+                .unwrap()
+                .phi_instructions
+                .remove(phi_index);
         }
 
         // we dont need to worry about where to replace since ssa form means values will only be written to once :)
@@ -236,7 +245,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             for (&old, &new) in &values_to_replace {
                 let block = function.block_mut(node).unwrap();
                 for instruction_index in block.indices() {
-                    block.value_info_mut(instruction_index).unwrap().replace_values_read(old, new);
+                    block
+                        .value_info_mut(instruction_index)
+                        .unwrap()
+                        .replace_values_read(old, new);
                 }
             }
         }

@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
+    function::Function,
     instruction::{location::InstructionLocation, value_info::ValueInfo},
-    value::ValueId, function::Function,
+    value::ValueId,
 };
 
 #[derive(Debug, Clone)]
@@ -33,21 +34,23 @@ impl DefUse {
             for &index in block.indices().iter() {
                 let value_info = block.value_info(index).unwrap();
                 for value_read in value_info.values_read() {
-                    values.entry(value_read).or_insert_with(InstructionDefUse::new).reads.insert(
-                        InstructionLocation(node, index),
-                    );
+                    values
+                        .entry(value_read)
+                        .or_insert_with(InstructionDefUse::new)
+                        .reads
+                        .insert(InstructionLocation(node, index));
                 }
                 for value_written in value_info.values_written() {
-                    values.entry(value_written).or_insert_with(InstructionDefUse::new).writes.insert(
-                        InstructionLocation(node, index),
-                    );
+                    values
+                        .entry(value_written)
+                        .or_insert_with(InstructionDefUse::new)
+                        .writes
+                        .insert(InstructionLocation(node, index));
                 }
             }
         }
 
-        Self {
-            values
-        }
+        Self { values }
     }
 
     pub fn get(&self, value: ValueId) -> Option<&InstructionDefUse> {
