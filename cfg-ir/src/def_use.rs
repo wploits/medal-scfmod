@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     instruction::{location::InstructionLocation, value_info::ValueInfo},
-    value::ValueId,
+    value::ValueId, function::Function,
 };
 
 #[derive(Debug, Clone)]
@@ -26,42 +26,31 @@ pub struct DefUse {
 }
 
 impl DefUse {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(function: &Function) -> Self {
+        let mut values = HashMap::new();
+
+        for (&node, block) in function.blocks() {
+            for &index in block.indices().iter() {
+                let value_info = block.value_info(index).unwrap();
+                for value_read in value_info.values_read() {
+                    values.entry(value_read).or_insert_with(InstructionDefUse::new).reads.insert(
+                        InstructionLocation(node, index),
+                    );
+                }
+                for value_written in value_info.values_written() {
+                    values.entry(value_written).or_insert_with(InstructionDefUse::new).writes.insert(
+                        InstructionLocation(node, index),
+                    );
+                }
+            }
+        }
+
         Self {
-            values: HashMap::new(),
+            values
         }
     }
 
     pub fn get(&self, value: ValueId) -> Option<&InstructionDefUse> {
         self.values.get(&value)
-    }
-
-    pub(crate) fn register(
-        &mut self,
-        location: &InstructionLocation,
-        values_read: &[ValueId],
-        values_written: &[ValueId],
-    ) {
-        for &value_read in values_read {
-            self.values
-                .entry(value_read)
-                .or_insert_with(InstructionDefUse::new)
-                .reads
-                .insert(*location);
-        }
-        for &value_written in values_written {
-            self.values
-                .entry(value_written)
-                .or_insert_with(InstructionDefUse::new)
-                .writes
-                .insert(*location);
-        }
-    }
-
-    pub(crate) fn unregister(&mut self, location: &InstructionLocation) {
-        for value in self.values.values_mut() {
-            value.reads.remove(location);
-            value.writes.remove(location);
-        }
     }
 }

@@ -13,7 +13,7 @@ use crate::{
         value_info::ValueInfo,
         Phi,
     },
-    value::ValueId,
+    value::ValueId, def_use::DefUse,
 };
 
 use super::error::Error;
@@ -178,24 +178,20 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let split_values_time = now.elapsed();
     println!("split values: {:?}", split_values_time);
 
-    // TODO: split_values fucks DefUse
-
-    /*let now = time::Instant::now();
-    // TODO: test pruning
+    let now = time::Instant::now();
     loop {
+        let def_use = DefUse::new(function);
+
         let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
         let mut values_to_replace = HashMap::<ValueId, ValueId>::new();
 
         for node in function.graph().nodes().clone() {
-            let mut builder = Builder::new(function);
-            let block = builder.block(node).unwrap();
+            let block = function.block(node).unwrap();
             for (phi_index, phi) in block
-                .phi_instructions()
+                .phi_instructions
                 .iter()
                 .cloned()
                 .enumerate()
-                .rev()
-                .collect::<Vec<_>>()
             {
                 let unique = phi.incoming_values.values().cloned().collect::<FxHashSet<_>>();
                 if unique.len() == 1 {
@@ -204,7 +200,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         values_to_replace.insert(phi.dest, new_value);
                     }
                     phis_to_remove.push((node, phi_index));
-                } else if let Some(def_use_info) = function.def_use.get(phi.dest) {
+                } else if let Some(def_use_info) = def_use.get(phi.dest) {
                     if def_use_info
                         .reads
                         .iter()
@@ -231,28 +227,23 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             break;
         }
 
-        let mut builder = Builder::new(function);
-        for (node, phi_index) in phis_to_remove {
-            let mut block = builder.block(node).unwrap();
-            // TODO: dont re-calculate DefUse until done pruning
-            block.remove(InstructionIndex::Phi(phi_index)).unwrap();
+        for (node, phi_index) in phis_to_remove.into_iter().rev() {
+            function.block_mut(node).unwrap().phi_instructions.remove(phi_index);
         }
 
         // we dont need to worry about where to replace since ssa form means values will only be written to once :)
         for node in function.graph().nodes().clone() {
             for (&old, &new) in &values_to_replace {
-                let mut builder = Builder::new(function);
-                let mut block = builder.block(node).unwrap();
-                for instruction_index in block.instruction_indexes() {
-                    let mut instruction = block.instruction(instruction_index).unwrap();
-                    instruction.replace_values_read(old, new);
+                let block = function.block_mut(node).unwrap();
+                for instruction_index in block.indices() {
+                    block.value_info_mut(instruction_index).unwrap().replace_values_read(old, new);
                 }
             }
         }
     }
 
     let pruned = now.elapsed();
-    println!("pruning: {:?}", pruned);*/
+    println!("pruning: {:?}", pruned);
 
     Ok(())
 }
