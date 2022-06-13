@@ -408,11 +408,11 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_JUMPIF | OpCode::LOP_JUMPIFNOT => {
                         let condition = self.get_register(a as usize);
                         let (mut true_branch, mut false_branch) = (
-                            self.get_block(instruction_index + 1).unwrap(),
                             self.get_block(instruction_index.wrapping_add(d as usize) + 1).unwrap(),
+                            self.get_block(instruction_index + 1).unwrap(),
                         );
                         if matches!(op_code, OpCode::LOP_JUMPIFNOT) {
-                            //std::mem::swap(&mut true_branch, &mut false_branch);
+                            std::mem::swap(&mut true_branch, &mut false_branch);
                         }
                         let mut builder = Builder::new(&mut self.lifted_function);
                         builder.block(block_index)?.replace_terminator(
@@ -435,12 +435,12 @@ impl<'a> Lifter<'a> {
                         );
 
                         let (mut true_branch, mut false_branch) = (
-                            self.get_block(instruction_index + 1).unwrap(),
                             self.get_block(instruction_index.wrapping_add(d as usize) + 1).unwrap(),
+                            self.get_block(instruction_index + 1).unwrap(),
                         );
 
                         if matches!(op_code, OpCode::LOP_JUMPIFNOTEQ | OpCode::LOP_JUMPIFNOTLE | OpCode::LOP_JUMPIFNOTLT) {
-                            //std::mem::swap(&mut true_branch, &mut false_branch);
+                            std::mem::swap(&mut true_branch, &mut false_branch);
                         }
 
                         let op = match op_code {
