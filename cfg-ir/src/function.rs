@@ -1,19 +1,19 @@
-use graph::{Graph, NodeId};
+use graph::{Edge, Graph, NodeId};
 use std::collections::HashMap;
 
 use crate::{
     block::BasicBlock,
-    def_use::DefUse,
     error::{Error, Result},
+    instruction::{branch_info::BranchInfo, Terminator},
     value::ValueId,
 };
 
 #[derive(Debug, Clone)]
 pub struct Function {
     graph: Graph,
-    pub(crate) blocks: HashMap<NodeId, BasicBlock>,
+    blocks: HashMap<NodeId, BasicBlock>,
     next_value_index: usize,
-    pub(crate) def_use: DefUse,
+    entry: Option<NodeId>,
 }
 
 impl Function {
@@ -22,8 +22,47 @@ impl Function {
             graph: Graph::new(),
             blocks: HashMap::new(),
             next_value_index: 0,
-            def_use: DefUse::new(),
+            entry: None,
         }
+    }
+
+    pub fn entry(&self) -> &Option<NodeId> {
+        &self.entry
+    }
+
+    pub fn set_entry(&mut self, new_entry: NodeId) -> Result<()> {
+        if self.block_exists(new_entry) {
+            self.entry = Some(new_entry);
+            Ok(())
+        } else {
+            Err(Error::InvalidBlock(new_entry))
+        }
+    }
+
+    pub fn set_block_terminator(
+        &mut self,
+        block_id: NodeId,
+        new_terminator: Option<Terminator>,
+    ) -> Result<()> {
+        if !self.block_exists(block_id) {
+            return Err(Error::InvalidBlock(block_id));
+        }
+        for &edge in self
+            .graph
+            .edges()
+            .clone()
+            .iter()
+            .filter(|e| e.source == block_id)
+        {
+            self.graph.remove_edge(edge)?;
+        }
+        if let Some(new_terminator) = new_terminator {
+            for successor in new_terminator.branches() {
+                self.graph.add_edge(Edge::new(block_id, successor))?;
+            }
+            self.block_mut(block_id)?.terminator.replace(new_terminator);
+        }
+        Ok(())
     }
 
     pub fn graph(&self) -> &Graph {
@@ -42,13 +81,21 @@ impl Function {
         self.blocks.get(&block).ok_or(Error::InvalidBlock(block))
     }
 
-    pub(crate) fn block_mut(&mut self, block: NodeId) -> Result<&mut BasicBlock> {
+    pub fn block_mut(&mut self, block: NodeId) -> Result<&mut BasicBlock> {
         self.blocks
             .get_mut(&block)
             .ok_or(Error::InvalidBlock(block))
     }
 
-    pub fn add_block(&mut self) -> Result<NodeId> {
+    pub fn blocks(&self) -> &HashMap<NodeId, BasicBlock> {
+        &self.blocks
+    }
+
+    pub fn blocks_mut(&mut self) -> &mut HashMap<NodeId, BasicBlock> {
+        &mut self.blocks
+    }
+
+    pub fn new_block(&mut self) -> Result<NodeId> {
         let node = self.graph.add_node()?;
         self.blocks.insert(node, BasicBlock::new());
         Ok(node)
@@ -60,12 +107,8 @@ impl Function {
         ValueId(value)
     }
 
-    pub fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        (0..self.next_value_index).map(|v| ValueId(v)).into_iter()
-    }
-
-    pub fn def_use(&self) -> &DefUse {
-        &self.def_use
+    pub fn values(&self) -> Vec<ValueId> {
+        (0..self.next_value_index).map(|v| ValueId(v)).collect()
     }
 }
 

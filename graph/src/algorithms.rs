@@ -26,7 +26,6 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
     visited.insert(root);
 
     tree.add_node_with_id(root)?;
-    tree.set_entry(root)?;
     for successor in graph.successors(root) {
         stack.push((root, successor));
     }
@@ -47,10 +46,10 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
     Ok(tree)
 }
 
-pub fn back_edges(graph: &Graph) -> Result<Vec<Edge>> {
+pub fn back_edges(graph: &Graph, root: NodeId) -> Result<Vec<Edge>> {
     let mut back_edges = Vec::new();
 
-    for (node, dominators) in dominators::dominators(graph, graph.entry().ok_or(Error::NoEntry)?)? {
+    for (node, dominators) in dominators::dominators(graph, root)? {
         for successor in graph.successors(node) {
             if dominators.contains(&successor) {
                 back_edges.push(Edge::new(node, successor));

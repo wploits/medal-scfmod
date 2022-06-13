@@ -10,20 +10,20 @@ pub struct StoreGlobal {
 }
 
 impl ValueInfo for StoreGlobal {
-    fn values_read(&self) -> Box<[ValueId]> {
-        vec![self.value].into_boxed_slice()
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.value]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        vec![&mut self.value].into_boxed_slice()
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.value]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 }
 
@@ -41,20 +41,20 @@ pub struct StoreIndex {
 }
 
 impl ValueInfo for StoreIndex {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([self.value, self.object, self.key])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.value, self.object, self.key]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.value, &mut self.object, &mut self.key])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.value, &mut self.object, &mut self.key]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 }
 

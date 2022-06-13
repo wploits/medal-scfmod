@@ -1,5 +1,4 @@
 pub mod block;
-pub mod builder;
 pub mod constant;
 pub mod def_use;
 pub mod dot;

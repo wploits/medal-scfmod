@@ -13,20 +13,20 @@ pub struct Phi {
 }
 
 impl ValueInfo for Phi {
-    fn values_read(&self) -> Box<[ValueId]> {
+    fn values_read(&self) -> Vec<ValueId> {
         self.incoming_values.values().cloned().collect()
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([self.dest])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
         self.incoming_values.values_mut().collect()
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.dest])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 

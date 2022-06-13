@@ -11,20 +11,20 @@ pub struct LoadConstant {
 }
 
 impl ValueInfo for LoadConstant {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([self.dest])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.dest])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 
@@ -41,20 +41,20 @@ pub struct LoadGlobal {
 }
 
 impl ValueInfo for LoadGlobal {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        vec![self.dest].into_boxed_slice()
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        vec![&mut self.dest].into_boxed_slice()
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 
@@ -72,20 +72,20 @@ pub struct LoadIndex {
 }
 
 impl ValueInfo for LoadIndex {
-    fn values_read(&self) -> Box<[ValueId]> {
-        vec![self.object, self.key].into_boxed_slice()
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.object, self.key]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        vec![self.dest].into_boxed_slice()
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        vec![&mut self.object, &mut self.key].into_boxed_slice()
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.object, &mut self.key]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        vec![&mut self.dest].into_boxed_slice()
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 
@@ -101,20 +101,20 @@ pub struct LoadTable {
 }
 
 impl ValueInfo for LoadTable {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        vec![self.dest].into_boxed_slice()
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        vec![&mut self.dest].into_boxed_slice()
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 

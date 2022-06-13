@@ -21,7 +21,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
             .iter()
             .map(|inner| inner.to_string());
         let terminator_iter = block
-            .terminator
+            .terminator()
             .iter()
             .map(|terminator| terminator.to_string());
         let label = phi_iter.chain(inner_iter).chain(terminator_iter).join("\n");
@@ -43,11 +43,11 @@ impl<'a> GraphWalk<'a, NodeId, Edge> for Function {
     }
 
     fn source(&self, e: &Edge) -> NodeId {
-        e.source()
+        e.source
     }
 
     fn target(&self, e: &Edge) -> NodeId {
-        e.destination()
+        e.destination
     }
 }
 

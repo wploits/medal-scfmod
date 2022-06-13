@@ -12,30 +12,30 @@ pub struct Return {
 }
 
 impl ValueInfo for Return {
-    fn values_read(&self) -> Box<[ValueId]> {
-        self.values.clone().into_boxed_slice()
+    fn values_read(&self) -> Vec<ValueId> {
+        self.values.clone()
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
         self.values.iter_mut().collect()
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 }
 
 impl BranchInfo for Return {
-    fn branches(&self) -> Box<[NodeId]> {
-        Box::new([])
+    fn branches(&self) -> Vec<NodeId> {
+        Vec::new()
     }
 
-    fn branches_mut(&mut self) -> Box<[&mut NodeId]> {
-        Box::new([])
+    fn branches_mut(&mut self) -> Vec<&mut NodeId> {
+        Vec::new()
     }
 }
 
@@ -68,30 +68,30 @@ pub struct ConditionalJump {
 }
 
 impl ValueInfo for ConditionalJump {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([self.condition])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.condition]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.condition])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.condition]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 }
 
 impl BranchInfo for ConditionalJump {
-    fn branches(&self) -> Box<[NodeId]> {
-        Box::new([self.true_branch, self.false_branch])
+    fn branches(&self) -> Vec<NodeId> {
+        vec![self.true_branch, self.false_branch]
     }
 
-    fn branches_mut(&mut self) -> Box<[&mut NodeId]> {
-        Box::new([&mut self.true_branch, &mut self.false_branch])
+    fn branches_mut(&mut self) -> Vec<&mut NodeId> {
+        vec![&mut self.true_branch, &mut self.false_branch]
     }
 }
 
@@ -109,30 +109,30 @@ impl fmt::Display for ConditionalJump {
 pub struct UnconditionalJump(pub NodeId);
 
 impl ValueInfo for UnconditionalJump {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
     }
 }
 
 impl BranchInfo for UnconditionalJump {
-    fn branches(&self) -> Box<[NodeId]> {
-        Box::new([self.0])
+    fn branches(&self) -> Vec<NodeId> {
+        vec![self.0]
     }
 
-    fn branches_mut(&mut self) -> Box<[&mut NodeId]> {
-        Box::new([&mut self.0])
+    fn branches_mut(&mut self) -> Vec<&mut NodeId> {
+        vec![&mut self.0]
     }
 }
 

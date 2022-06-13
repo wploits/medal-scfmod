@@ -2,17 +2,15 @@ use std::{borrow::BorrowMut, collections::HashMap, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::dominators::{
-        compute_dominance_frontiers, dominator_tree,
-    },
+    algorithms::dominators::{compute_dominance_frontiers, dominator_tree},
     Graph, NodeId,
 };
 
 use crate::{
-    builder::Builder,
     function::Function,
     instruction::{
         location::{InstructionIndex, InstructionLocation},
+        value_info::ValueInfo,
         Phi,
     },
     value::ValueId,
@@ -23,31 +21,39 @@ use super::error::Error;
 pub fn construct(function: &mut Function) -> Result<(), Error> {
     let now = time::Instant::now();
     let entry = function
-        .graph()
         .entry()
         .ok_or(Error::Graph(graph::Error::NoEntry))?;
+
     let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, None)?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
     let mut node_to_values_written = FxHashMap::default();
     let mut value_written_to_nodes = FxHashMap::default();
     for &node in dominance_frontiers.keys() {
-        let mut builder = Builder::new(function);
-        let mut block = builder.block(node).unwrap();
-        for instruction_index in block.instruction_indexes() {
-            let instruction = block.instruction(instruction_index).unwrap();
-            let values_written = instruction.values_written();
-            for &value in values_written.iter() {
-                value_written_to_nodes
-                    .entry(value)
-                    .or_insert_with(Vec::new)
-                    .push(node);
-            }
-            node_to_values_written
-                .entry(node)
-                .or_insert_with(FxHashSet::<ValueId>::default)
-                .borrow_mut()
-                .extend(values_written.iter())
+        let block = function.block(node).unwrap();
+        let values_written = block
+            .phi_instructions
+            .iter()
+            .map(|phi| phi.values_written())
+            .chain(
+                block
+                    .inner_instructions
+                    .iter()
+                    .map(|inner| inner.values_written()),
+            )
+            .flatten()
+            .collect::<Vec<_>>();
+
+        for &value in &values_written {
+            value_written_to_nodes
+                .entry(value)
+                .or_insert_with(Vec::new)
+                .push(node);
         }
+        node_to_values_written
+            .entry(node)
+            .or_insert_with(FxHashSet::<ValueId>::default)
+            .borrow_mut()
+            .extend(values_written.iter())
     }
 
     let mut value_to_nodes_with_phi = FxHashMap::<ValueId, FxHashSet<NodeId>>::default();
@@ -65,13 +71,15 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                             .predecessors(dominance_frontier_node)
                             .map(|p| (p, value))
                             .collect::<FxHashMap<_, _>>();
-                        Builder::new(function)
-                            .block(dominance_frontier_node)
+                        function
+                            .block_mut(dominance_frontier_node)
                             .unwrap()
-                            .push_phi(Phi {
+                            .phi_instructions
+                            .push(Phi {
                                 dest: value,
                                 incoming_values,
                             });
+
                         nodes_with_phi.insert(dominance_frontier_node);
                         match node_to_values_written.get(&dominance_frontier_node) {
                             Some(values_written) if values_written.contains(&value) => {}
@@ -82,7 +90,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             }
         }
     }
-
 
     let phis_inserted = now.elapsed();
     println!("phi insertation: {:?}", phis_inserted);
@@ -95,54 +102,60 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     ) {
         let old_value_stacks = value_stacks.clone();
 
-        let mut builder = Builder::new(function);
-        let block = builder.block(node).unwrap();
-        for instruction_index in block.instruction_indexes() {
-            let mut builder = Builder::new(function);
-            let mut block = builder.block(node).unwrap();
-            let mut instruction = block.instruction(instruction_index).unwrap();
-
-            if !matches!(instruction_index, InstructionIndex::Phi(_)) {
-                for (read_value_index, &value) in instruction.values_read().iter().enumerate() {
+        for index in function.block_mut(node).unwrap().indices() {
+            if !matches!(index, InstructionIndex::Phi(_)) {
+                let value_info = function
+                    .block_mut(node)
+                    .unwrap()
+                    .value_info_mut(index)
+                    .unwrap();
+                for (read_value_index, &value) in value_info.values_read().iter().enumerate() {
                     if let Some(value_stack) = value_stacks.get(&value) {
-                        instruction
-                            .replace_value_read(read_value_index, *value_stack.last().unwrap())
-                            .unwrap();
+                        *value_info.values_read_mut()[read_value_index] =
+                            *value_stack.last().unwrap();
                     }
                 }
             }
 
-            for (written_value_index, &value) in instruction.values_written().iter().enumerate() {
+            let mut values_to_replace = FxHashMap::default();
+            for (written_value_index, &value) in function
+                .block_mut(node)
+                .unwrap()
+                .value_info_mut(index)
+                .unwrap()
+                .values_written()
+                .iter()
+                .enumerate()
+            {
                 if let Some(value_stack) = value_stacks.get_mut(&value) {
                     let new_value = function.new_value();
                     value_stack.push(new_value);
 
-                    let mut builder = Builder::new(function);
-                    let mut block = builder.block(node).unwrap();
-                    let mut instruction = block.instruction(instruction_index).unwrap();
-                    instruction
-                        .replace_value_written(written_value_index, new_value)
-                        .unwrap();
+                    values_to_replace.entry(node).or_insert_with(Vec::new).push((written_value_index, new_value));
                 } else {
                     value_stacks.insert(value, vec![value]);
                 }
             }
+
+            for (node, values) in values_to_replace {
+                let block = function.block_mut(node).unwrap();
+                for (written_value_index, value) in values {
+                    *block.value_info_mut(index).unwrap().values_written_mut()[written_value_index] = value;
+                }
+            }
+
+            //let values_written_replace = values_written.iter().enumerate()
         }
 
         for successor in function.graph().successors(node).collect::<Vec<_>>() {
-            let mut builder = Builder::new(function);
-            let mut block = builder.block(successor).unwrap();
-            let phis = block.phi_instructions().clone();
-            block.clear_phi_instructions();
-            
-            for mut phi in phis {
+            let block = function.block_mut(successor).unwrap();
+
+            for phi in &mut block.phi_instructions {
                 let old_value = phi.incoming_values[&node];
                 if let Some(value_stack) = value_stacks.get(&old_value) {
                     phi.incoming_values
                         .insert(node, *value_stack.last().unwrap());
                 }
-
-                block.push_phi(phi);
             }
         }
 
@@ -167,7 +180,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     // TODO: split_values fucks DefUse
 
-    let now = time::Instant::now();
+    /*let now = time::Instant::now();
     // TODO: test pruning
     loop {
         let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
@@ -239,7 +252,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     }
 
     let pruned = now.elapsed();
-    println!("pruning: {:?}", pruned);
+    println!("pruning: {:?}", pruned);*/
 
     Ok(())
 }

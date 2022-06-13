@@ -26,19 +26,17 @@ impl std::fmt::Debug for NodeId {
 
 // TODO: this should be a struct with named fields
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Edge(NodeId, NodeId);
+pub struct Edge {
+    pub source: NodeId,
+    pub destination: NodeId,
+}
 
 impl Edge {
     pub fn new(source: NodeId, destination: NodeId) -> Self {
-        Self(source, destination)
-    }
-
-    pub fn source(&self) -> NodeId {
-        self.0
-    }
-
-    pub fn destination(&self) -> NodeId {
-        self.1
+        Self {
+            source,
+            destination,
+        }
     }
 }
 
@@ -47,7 +45,6 @@ impl Edge {
 pub struct Graph {
     nodes: Vec<NodeId>,
     edges: Vec<Edge>,
-    entry: Option<NodeId>,
 }
 
 impl Graph {
@@ -55,24 +52,19 @@ impl Graph {
         Self {
             nodes: Vec::new(),
             edges: Vec::new(),
-            entry: None,
         }
     }
 
     pub fn from_edges(edges: Vec<Edge>) -> Self {
         let mut nodes = Vec::new();
         for edge in &edges {
-            nodes.push(edge.0);
-            nodes.push(edge.1);
+            nodes.push(edge.source);
+            nodes.push(edge.destination);
         }
         nodes.sort_unstable();
         nodes.dedup();
 
-        Self {
-            nodes,
-            edges,
-            entry: None,
-        }
+        Self { nodes, edges }
     }
 
     pub fn nodes(&self) -> &Vec<NodeId> {
@@ -83,67 +75,47 @@ impl Graph {
         &self.edges
     }
 
-    // TODO: move to function, since graphs should not have a single defined entry
-    pub fn entry(&self) -> &Option<NodeId> {
-        &self.entry
-    }
-
-    pub fn set_entry(&mut self, new_entry: NodeId) -> Result<()> {
-        if self.node_exists(new_entry) {
-            self.entry = Some(new_entry);
-            Ok(())
-        } else {
-            Err(Error::InvalidNode(new_entry))
-        }
-    }
-
     pub fn node_exists(&self, node: NodeId) -> bool {
         self.nodes.contains(&node)
     }
 
     pub fn successors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.edges.iter().cloned().filter_map(
-            move |edge| {
-                if edge.0 == node {
-                    Some(edge.1)
-                } else {
-                    None
-                }
-            },
-        )
+        self.edges.iter().cloned().filter_map(move |edge| {
+            if edge.source == node {
+                Some(edge.destination)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn predecessors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.edges.iter().cloned().filter_map(
-            move |edge| {
-                if edge.1 == node {
-                    Some(edge.0)
-                } else {
-                    None
-                }
-            },
-        )
+        self.edges.iter().cloned().filter_map(move |edge| {
+            if edge.destination == node {
+                Some(edge.source)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn add_edge(&mut self, edge: Edge) -> Result<()> {
-        let (source, destination) = (edge.source(), edge.destination());
-        if !self.node_exists(source) {
-            return Err(Error::InvalidNode(source));
+        if !self.node_exists(edge.source) {
+            return Err(Error::InvalidNode(edge.source));
         }
-        if !self.node_exists(destination) {
-            return Err(Error::InvalidNode(destination));
+        if !self.node_exists(edge.destination) {
+            return Err(Error::InvalidNode(edge.destination));
         }
         self.edges.push(edge);
         Ok(())
     }
 
     pub fn remove_edge(&mut self, edge: Edge) -> Result<()> {
-        let (source, destination) = (edge.source(), edge.destination());
-        if !self.node_exists(source) {
-            return Err(Error::InvalidNode(source));
+        if !self.node_exists(edge.source) {
+            return Err(Error::InvalidNode(edge.source));
         }
-        if !self.node_exists(destination) {
-            return Err(Error::InvalidNode(destination));
+        if !self.node_exists(edge.destination) {
+            return Err(Error::InvalidNode(edge.destination));
         }
         self.edges.retain(|other_edge| edge != *other_edge);
         Ok(())
@@ -168,7 +140,8 @@ impl Graph {
 
     pub fn remove_node(&mut self, node: NodeId) -> Result<()> {
         self.nodes.retain(|other_node| *other_node != node);
-        self.edges.retain(|e| e.0 != node && e.1 != node);
+        self.edges
+            .retain(|e| e.source != node && e.destination != node);
         Ok(())
     }
 
@@ -198,14 +171,16 @@ impl Graph {
         Ok(order)
     }
 
-    pub fn pre_order(&self) -> Result<Vec<NodeId>> {
-        let entry = self.entry().ok_or(Error::NoEntry)?;
+    pub fn pre_order(&self, root: NodeId) -> Result<Vec<NodeId>> {
+        if !self.node_exists(root) {
+            return Err(Error::InvalidNode(root));
+        }
 
         let mut visited: HashSet<NodeId> = HashSet::new();
         let mut stack: Vec<NodeId> = Vec::new();
         let mut order: Vec<NodeId> = Vec::new();
 
-        stack.push(entry);
+        stack.push(root);
 
         while let Some(node) = stack.pop() {
             if !visited.insert(node) {
@@ -222,8 +197,10 @@ impl Graph {
         Ok(order)
     }
 
-    pub fn post_order(&self) -> Result<Vec<NodeId>> {
-        let entry = self.entry().ok_or(Error::NoEntry)?;
+    pub fn post_order(&self, root: NodeId) -> Result<Vec<NodeId>> {
+        if !self.node_exists(root) {
+            return Err(Error::InvalidNode(root));
+        }
 
         let mut visited: HashSet<NodeId> = HashSet::default();
         let mut order: Vec<NodeId> = Vec::new();
@@ -245,7 +222,7 @@ impl Graph {
             Ok(())
         }
 
-        dfs_walk(self, entry, &mut visited, &mut order)?;
+        dfs_walk(self, root, &mut visited, &mut order)?;
 
         Ok(order)
     }

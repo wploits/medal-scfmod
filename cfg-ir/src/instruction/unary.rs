@@ -28,21 +28,21 @@ pub struct Unary {
 }
 
 impl ValueInfo for Unary {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([self.value])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.value]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([self.dest])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
     // TODO: generate using macro?
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.value])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.value]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.dest])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 

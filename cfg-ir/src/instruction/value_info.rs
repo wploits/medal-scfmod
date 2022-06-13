@@ -5,15 +5,15 @@ use crate::value::ValueId;
 // A trait implemented for instructions that read or write a value
 #[enum_dispatch]
 pub(crate) trait ValueInfo {
-    fn values_read(&self) -> Box<[ValueId]>;
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]>;
-    fn values_written(&self) -> Box<[ValueId]>;
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]>;
+    fn values_read(&self) -> Vec<ValueId>;
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId>;
+    fn values_written(&self) -> Vec<ValueId>;
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId>;
 
-    fn values(&self) -> Box<[ValueId]> {
+    fn values(&self) -> Vec<ValueId> {
         let mut res = Vec::from(self.values_read());
         res.extend(self.values_written().iter());
-        res.into_boxed_slice()
+        res
     }
 
     fn replace_values_read(&mut self, old: ValueId, new: ValueId) {

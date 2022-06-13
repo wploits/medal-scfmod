@@ -10,20 +10,20 @@ pub struct Move {
 }
 
 impl ValueInfo for Move {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([self.source])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.source]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([self.dest])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.source])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.source]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.dest])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 

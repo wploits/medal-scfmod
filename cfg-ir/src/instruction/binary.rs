@@ -45,20 +45,20 @@ pub struct Binary {
 }
 
 impl ValueInfo for Binary {
-    fn values_read(&self) -> Box<[ValueId]> {
-        Box::new([self.lhs, self.rhs])
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.lhs, self.rhs]
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([self.dest])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.lhs, &mut self.rhs])
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.lhs, &mut self.rhs]
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.dest])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 

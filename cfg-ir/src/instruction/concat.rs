@@ -10,20 +10,20 @@ pub struct Concat {
 }
 
 impl ValueInfo for Concat {
-    fn values_read(&self) -> Box<[ValueId]> {
-        self.values.clone().into_boxed_slice()
+    fn values_read(&self) -> Vec<ValueId> {
+        self.values.clone()
     }
 
-    fn values_written(&self) -> Box<[ValueId]> {
-        Box::new([self.dest])
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
     }
 
-    fn values_read_mut(&mut self) -> Box<[&mut ValueId]> {
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
         self.values.iter_mut().collect()
     }
 
-    fn values_written_mut(&mut self) -> Box<[&mut ValueId]> {
-        Box::new([&mut self.dest])
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
     }
 }
 

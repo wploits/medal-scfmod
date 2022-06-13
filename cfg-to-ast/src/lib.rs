@@ -30,17 +30,18 @@ impl<'a> Lifter<'a> {
     fn new(
         cfg: &'a Function,
         graph: &'a Graph,
+        entry: NodeId,
         idoms: &'a FxHashMap<NodeId, NodeId>,
         post_dom_tree: &'a Graph,
     ) -> Self {
-        let back_edges = back_edges(graph)
+        let back_edges = back_edges(graph, entry)
             .unwrap()
             .iter()
             .cloned()
             .collect::<FxHashSet<_>>();
         let loop_headers = back_edges
             .iter()
-            .map(|edge| edge.destination())
+            .map(|edge| edge.destination)
             .collect::<FxHashSet<_>>();
         Self {
             cfg,
@@ -144,7 +145,7 @@ impl<'a> Lifter<'a> {
     }
 
     fn lift_instructions(&mut self, node: NodeId, body: &mut Block) {
-        for instruction in self.cfg.block(node).unwrap().instructions() {
+        for instruction in &self.cfg.block(node).unwrap().inner_instructions {
             match instruction {
                 Inner::Move(move_value) => {
                     let dest = self.get_local(move_value.dest);
@@ -255,7 +256,11 @@ impl<'a> Lifter<'a> {
                     );
                 }
                 Inner::Concat(concat) => {
-                    assert_eq!(concat.values.len() >= 2, true, "concat doesnt value atleast 2 values");
+                    assert_eq!(
+                        concat.values.len() >= 2,
+                        true,
+                        "concat doesnt value atleast 2 values"
+                    );
 
                     let dest = self.get_local(concat.dest);
                     let mut value = ast_ir::Binary {
@@ -263,7 +268,8 @@ impl<'a> Lifter<'a> {
                         op: ast_ir::BinaryOp::Concat,
                         lhs: Box::new(self.get_local(concat.values[0])),
                         rhs: Box::new(self.get_local(concat.values[1])),
-                    }.into();
+                    }
+                    .into();
 
                     if concat.values.len() > 2 {
                         for val in concat.values.iter().skip(2) {
@@ -272,7 +278,8 @@ impl<'a> Lifter<'a> {
                                 op: ast_ir::BinaryOp::Concat,
                                 lhs: Box::new(value),
                                 rhs: Box::new(self.get_local(*val)),
-                            }.into();
+                            }
+                            .into();
                         }
                     }
 
@@ -298,7 +305,7 @@ impl<'a> Lifter<'a> {
 
         self.lift_instructions(node, body);
 
-        match self.cfg.block(node).unwrap().terminator() {
+        match &self.cfg.block(node).unwrap().terminator() {
             Some(terminator) => match terminator {
                 Terminator::UnconditionalJump(jump) => self.follow_edge(node, jump.0, body),
                 Terminator::ConditionalJump(jump) => self.lift_conditional(
@@ -438,13 +445,13 @@ impl<'a> Lifter<'a> {
 
 pub fn lift(cfg: &Function) {
     let graph = cfg.graph();
-    let entry = graph.entry().unwrap();
+    let entry = cfg.entry().unwrap();
 
     let post_dom_tree = post_dominator_tree(graph, entry).unwrap();
     let idoms = compute_immediate_dominators(graph, entry).unwrap();
 
     render_to(&post_dom_tree, &mut std::io::stdout());
-    let mut lifter = Lifter::new(cfg, graph, &idoms, &post_dom_tree);
+    let mut lifter = Lifter::new(cfg, graph, entry, &idoms, &post_dom_tree);
 
     let mut ast_function = ast_ir::Function::new();
     ast_function.body = lifter.lift(entry);

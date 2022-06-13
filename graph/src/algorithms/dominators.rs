@@ -10,7 +10,6 @@ pub fn dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
     for &vertex in graph.nodes() {
         dom_tree.add_node_with_id(vertex)?;
     }
-    dom_tree.set_entry(root)?;
 
     let idoms = compute_immediate_dominators(graph, root)?;
     for (vertex, idom) in idoms {
@@ -26,7 +25,7 @@ pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, FxHas
     }
 
     let dom_tree = dominator_tree(graph, root)?;
-    let dom_tree_pre_oder = dom_tree.pre_order()?;
+    let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators: FxHashMap<NodeId, FxHashSet<NodeId>> = FxHashMap::default();
 
@@ -69,7 +68,6 @@ pub fn post_dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
     for &vertex in reverse_graph.nodes() {
         dom_tree.add_node_with_id(vertex)?;
     }
-    dom_tree.set_entry(single_exit_node)?;
 
     let idoms = compute_immediate_dominators(&reverse_graph, single_exit_node)?;
     for (vertex, idom) in idoms {
@@ -90,7 +88,7 @@ pub fn post_dominators(
     }
 
     let dom_tree = post_dominator_tree(graph, root)?;
-    let dom_tree_pre_oder = dom_tree.pre_order()?;
+    let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators: FxHashMap<NodeId, FxHashSet<NodeId>> = FxHashMap::default();
 
@@ -174,7 +172,7 @@ pub fn compute_immediate_dominators(
     }
 
     let dfs = super::dfs_tree(graph, root)?;
-    let dfs_pre_order = dfs.pre_order()?;
+    let dfs_pre_order = dfs.pre_order(root)?;
 
     // filter out unreachable nodes
     let preds = |n: NodeId| graph.predecessors(n).filter(|&p| dfs.node_exists(p));
