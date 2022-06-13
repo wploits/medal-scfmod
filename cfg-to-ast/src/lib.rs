@@ -236,6 +236,8 @@ impl<'a> Lifter<'a> {
                         BinaryOp::Equal => ast_ir::BinaryOp::Equal,
                         BinaryOp::LesserOrEqual => ast_ir::BinaryOp::LesserOrEqual,
                         BinaryOp::LesserThan => ast_ir::BinaryOp::LesserThan,
+                        BinaryOp::LogicalAnd => ast_ir::BinaryOp::LogicalAnd,
+                        BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                     };
                     body.statements.push(
                         ast_ir::Assign {

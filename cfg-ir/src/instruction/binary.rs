@@ -14,6 +14,8 @@ pub enum BinaryOp {
     Equal,
     LesserOrEqual,
     LesserThan,
+    LogicalAnd,
+    LogicalOr,
 }
 
 impl fmt::Display for BinaryOp {
@@ -28,6 +30,8 @@ impl fmt::Display for BinaryOp {
             BinaryOp::Equal => write!(f, "=="),
             BinaryOp::LesserOrEqual => write!(f, "<="),
             BinaryOp::LesserThan => write!(f, "<"),
+            BinaryOp::LogicalAnd => write!(f, "and"),
+            BinaryOp::LogicalOr => write!(f, "or"),
         }
     }
 }

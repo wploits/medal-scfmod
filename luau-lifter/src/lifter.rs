@@ -16,7 +16,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump,
-        Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return, Concat
+        Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return, Concat,
     },
     value::ValueId,
 };
@@ -256,12 +256,38 @@ impl<'a> Lifter<'a> {
                                 .push(StoreGlobal { name, value }.into());
                         }
                     }
+                    OpCode::LOP_RETURN => {
+                        let mut values = Vec::new();
+                        if b > 1 {
+                            values = (a as usize..=(b as usize + a as usize - 2))
+                                .map(|v| self.get_register(v as usize))
+                                .collect();
+                        }
+                        if b == 0 {
+                            assert!(vararg_index.is_some());
+                            values = self.get_register_range(a as usize..vararg_index.unwrap());
+                        }
+                        let mut builder = Builder::new(&mut self.lifted_function);
+                        builder.block(block_index).unwrap().replace_terminator(
+                            Return {
+                                values,
+                                variadic: b == 0,
+                            }
+                            .into(),
+                        )?;
+                        if instruction_index != block_end {
+                            block_index = builder.new_block()?.block_id();
+                        }
+                        break;
+                    }
                     OpCode::LOP_ADD
                     | OpCode::LOP_SUB
                     | OpCode::LOP_MUL
                     | OpCode::LOP_DIV
                     | OpCode::LOP_MOD
-                    | OpCode::LOP_POW => {
+                    | OpCode::LOP_POW
+                    | OpCode::LOP_AND
+                    | OpCode::LOP_OR => {
                         let (dest, lhs, rhs) = (
                             self.get_register(a as usize),
                             self.get_register(b as usize),
@@ -274,6 +300,8 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_DIV => BinaryOp::Div,
                             OpCode::LOP_MOD => BinaryOp::Mod,
                             OpCode::LOP_POW => BinaryOp::Pow,
+                            OpCode::LOP_AND => BinaryOp::LogicalAnd,
+                            OpCode::LOP_OR => BinaryOp::LogicalOr,
                             _ => unreachable!(),
                         };
                         let mut builder = Builder::new(&mut self.lifted_function);
@@ -287,7 +315,9 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_MULK
                     | OpCode::LOP_DIVK
                     | OpCode::LOP_MODK
-                    | OpCode::LOP_POWK => {
+                    | OpCode::LOP_POWK
+                    | OpCode::LOP_ANDK
+                    | OpCode::LOP_ORK  => {
                         let (dest, lhs, rhs) = (
                             self.get_register(a as usize),
                             self.get_register(b as usize),
@@ -300,6 +330,8 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_DIVK => BinaryOp::Div,
                             OpCode::LOP_MODK => BinaryOp::Mod,
                             OpCode::LOP_POWK => BinaryOp::Pow,
+                            OpCode::LOP_ANDK => BinaryOp::LogicalAnd,
+                            OpCode::LOP_ORK => BinaryOp::LogicalOr,
                             _ => unreachable!(),
                         };
                         let mut builder = Builder::new(&mut self.lifted_function);
@@ -334,29 +366,15 @@ impl<'a> Lifter<'a> {
                             .unwrap()
                             .push(Unary { dest, value, op }.into());
                     }
-                    OpCode::LOP_RETURN => {
-                        let mut values = Vec::new();
-                        if b > 1 {
-                            values = (a as usize..=(b as usize + a as usize - 2))
-                                .map(|v| self.get_register(v as usize))
-                                .collect();
-                        }
-                        if b == 0 {
-                            assert!(vararg_index.is_some());
-                            values = self.get_register_range(a as usize..vararg_index.unwrap());
-                        }
+                    OpCode::LOP_LOADKX => {
+                        let dest = self.get_register(a as usize);
+                        let constant = self.get_constant(aux as usize);
+
                         let mut builder = Builder::new(&mut self.lifted_function);
-                        builder.block(block_index).unwrap().replace_terminator(
-                            Return {
-                                values,
-                                variadic: b == 0,
-                            }
-                            .into(),
-                        )?;
-                        if instruction_index != block_end {
-                            block_index = builder.new_block()?.block_id();
-                        }
-                        break;
+                        builder
+                            .block(block_index)
+                            .unwrap()
+                            .push(LoadConstant { dest, constant }.into());
                     }
                     _ => {}
                 },
