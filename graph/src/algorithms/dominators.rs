@@ -2,7 +2,7 @@ use array_tool::vec::Intersect;
 use fxhash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
-use itertools::Itertools;
+
 
 use crate::{Edge, Error, Graph, NodeId, Result};
 
@@ -10,7 +10,6 @@ use super::dfs_tree;
 
 pub fn dominator_tree(
     graph: &Graph,
-    root: NodeId,
     idoms: &FxHashMap<NodeId, NodeId>,
 ) -> Result<Graph> {
     let mut dom_tree = Graph::new();
@@ -30,7 +29,7 @@ pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, Vec<N
         return Err(Error::InvalidNode(root));
     }
 
-    let dom_tree = dominator_tree(graph, root, &compute_immediate_dominators(graph, root)?)?;
+    let dom_tree = dominator_tree(graph, &compute_immediate_dominators(graph, root)?)?;
     let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators = FxHashMap::default();

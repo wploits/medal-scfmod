@@ -126,8 +126,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                             .unwrap()
                             .value_info_mut(index)
                             .unwrap();
-                        for (read_value_index, &value) in
-                            value_info.values_read().iter().enumerate()
+                        for (read_value_index, value) in
+                            value_info.values_read().into_iter().enumerate()
                         {
                             if let Some(value_stack) = value_stacks.get(&value) {
                                 *value_info.values_read_mut()[read_value_index] =
@@ -137,13 +137,13 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     }
 
                     let mut values_to_replace = FxHashMap::default();
-                    for (written_value_index, &value) in function
+                    for (written_value_index, value) in function
                         .block_mut(node)
                         .unwrap()
                         .value_info_mut(index)
                         .unwrap()
                         .values_written()
-                        .iter()
+                        .into_iter()
                         .enumerate()
                     {
                         if let Some(value_stack) = value_stacks.get_mut(&value) {
@@ -198,7 +198,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     split_values(
         function,
         entry,
-        &mut dominator_tree(function.graph(), entry, &immediate_dominators)?,
+        &mut dominator_tree(function.graph(), &immediate_dominators)?,
     );
 
     let split_values_time = now.elapsed();
@@ -221,7 +221,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     .cloned()
                     .collect::<FxHashSet<_>>();
                 if unique.len() == 1 {
-                    let new_value = *unique.iter().next().unwrap();
+                    let new_value = unique.into_iter().next().unwrap();
                     if new_value != phi.dest {
                         values_to_replace.insert(phi.dest, new_value);
                     }
