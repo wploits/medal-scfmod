@@ -1,3 +1,4 @@
+use array_tool::vec::Intersect;
 use fxhash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
@@ -21,7 +22,7 @@ pub fn dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
     Ok(dom_tree)
 }
 
-pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, FxHashSet<NodeId>>> {
+pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, Vec<NodeId>>> {
     if !graph.node_exists(root) {
         return Err(Error::InvalidNode(root));
     }
@@ -29,11 +30,11 @@ pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, FxHas
     let dom_tree = dominator_tree(graph, root)?;
     let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
-    let mut dominators: FxHashMap<NodeId, FxHashSet<NodeId>> = FxHashMap::default();
+    let mut dominators = FxHashMap::default();
 
     for vertex in dom_tree_pre_oder {
-        let mut doms = FxHashSet::default();
-        doms.insert(vertex);
+        let mut doms = Vec::new();
+        doms.push(vertex);
         for pred in dom_tree.predecessors(vertex) {
             doms.extend(&dominators[&pred])
         }
@@ -41,6 +42,18 @@ pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, FxHas
     }
 
     Ok(dominators)
+}
+
+pub fn common_dominator(
+    dominators: &FxHashMap<NodeId, Vec<NodeId>>,
+    nodes: Vec<NodeId>,
+) -> Result<Option<NodeId>> {
+    let mut nodes_dominators_iter = nodes.iter().map(|&node| dominators[&node].clone());
+    let mut res = nodes_dominators_iter.next().unwrap();
+    for node_dominators in nodes_dominators_iter {
+        res = node_dominators.intersect(res);
+    }
+    Ok(res.first().cloned())
 }
 
 pub fn post_dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {

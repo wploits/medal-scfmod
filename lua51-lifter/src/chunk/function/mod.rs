@@ -27,8 +27,8 @@ impl<'a> Function<'a> {
         let (input, _) = parse_str(input)?;
         let (input, line_defined) = le_u32(input)?;
         let (input, last_line_defined) = le_u32(input)?;
-        let (input, upvalues_length) = le_u8(input)?;
-        let (input, parameters_length) = le_u8(input)?;
+        let (input, _upvalues_length) = le_u8(input)?;
+        let (input, _parameters_length) = le_u8(input)?;
         let (input, ellipsis_flag) = le_u8(input)?;
         let (input, maximum_stack_size) = le_u8(input)?;
         let (input, code_length) = le_u32(input)?;

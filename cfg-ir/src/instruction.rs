@@ -1,7 +1,7 @@
 pub mod location;
 
 pub(crate) mod branch_info;
-pub(crate) mod value_info;
+pub mod value_info;
 
 mod phi;
 mod terminator;
@@ -67,16 +67,4 @@ impl fmt::Display for Inner {
             Self::Call(v) => write!(f, "{}", v),
         }
     }
-}
-
-pub enum InstructionRef<'a> {
-    Phi(&'a Phi),
-    Inner(&'a Inner),
-    Terminator(&'a Terminator),
-}
-
-pub enum InstructionRefMut<'a> {
-    Phi(&'a mut Phi),
-    Inner(&'a mut Inner),
-    Terminator(&'a mut Terminator),
 }

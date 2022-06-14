@@ -4,7 +4,7 @@ use std::io::Write;
 use dot::{GraphWalk, Labeller};
 use itertools::Itertools;
 
-use graph::{Edge, Graph, NodeId};
+use graph::{Edge, NodeId};
 
 use crate::function::Function;
 

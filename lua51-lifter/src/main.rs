@@ -4,7 +4,7 @@ mod lifter;
 mod op_code;
 mod value;
 
-use cfg_ir::{dot, ssa};
+use cfg_ir::{ssa};
 use lifter::Lifter;
 
 use clap::Parser;
@@ -45,10 +45,15 @@ fn main() -> anyhow::Result<()> {
     ssa::construct::construct(&mut cfg)?;
     let ssa_constructed = now.elapsed();
     //dot::render_to(&cfg, &mut std::io::stdout())?;
-
     println!("ssa construction: {:?}", ssa_constructed);
 
-    //cfg_to_ast::lift(&cfg);
+    let now = time::Instant::now();
+    ssa::destruct::destruct(&mut cfg);
+    let ssa_destructed = now.elapsed();
+    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    println!("ssa destruction: {:?}", ssa_destructed);
+
+    cfg_to_ast::lift(&cfg);
 
     Ok(())
 }

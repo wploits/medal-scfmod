@@ -1,18 +1,24 @@
 use std::rc::Rc;
 
+
 use cfg_ir::constant::Constant;
+
+use cfg_ir::instruction::location::{InstructionIndex, InstructionLocation};
+use cfg_ir::instruction::value_info::ValueInfo;
 use cfg_ir::instruction::{BinaryOp, Inner, Terminator, UnaryOp};
-use cfg_ir::ssa;
+
 use cfg_ir::value::ValueId;
 use fxhash::{FxHashMap, FxHashSet};
 use graph::algorithms::dominators::{compute_immediate_dominators, post_dominator_tree};
 
 use cfg_ir::function::Function;
 use graph::algorithms::back_edges;
-use graph::dot::render_to;
 use graph::{Edge, Graph, NodeId};
 
 use ast_ir::{Block, Local};
+use local_declaration::LocalDeclaration;
+
+mod local_declaration;
 
 struct Lifter<'a> {
     cfg: &'a Function,
@@ -24,6 +30,7 @@ struct Lifter<'a> {
     back_edges: FxHashSet<Edge>,
     loop_exits: FxHashSet<NodeId>,
     locals: FxHashMap<ValueId, Rc<Local>>,
+    local_declarations: FxHashMap<InstructionLocation, Vec<LocalDeclaration>>,
 }
 
 impl<'a> Lifter<'a> {
@@ -43,6 +50,7 @@ impl<'a> Lifter<'a> {
             .iter()
             .map(|edge| edge.destination)
             .collect::<FxHashSet<_>>();
+        let local_declarations = local_declaration::local_declarations(cfg, entry);
         Self {
             cfg,
             graph,
@@ -53,6 +61,7 @@ impl<'a> Lifter<'a> {
             back_edges,
             loop_exits: FxHashSet::default(),
             locals: FxHashMap::default(),
+            local_declarations,
         }
     }
 
@@ -127,6 +136,7 @@ impl<'a> Lifter<'a> {
         ast_ir::ExprLocal {
             pos: None,
             local: self.locals[&value].clone(),
+            prefix: false,
         }
         .into()
     }
@@ -144,11 +154,67 @@ impl<'a> Lifter<'a> {
         .into()
     }
 
+    fn forward_declarations(
+        &self,
+        location: InstructionLocation,
+        body: &mut Block,
+    ) -> FxHashSet<ValueId> {
+        let mut normal_declarations = FxHashSet::default();
+        if let Some(declarations) = self.local_declarations.get(&location) {
+            for declaration in declarations {
+                if declaration.forward_declare {
+                    body.statements.push(
+                        ast_ir::Assign {
+                            pos: None,
+                            vars: vec![ast_ir::ExprLocal {
+                                pos: None,
+                                local: self.locals[&declaration.value].clone(),
+                                prefix: true,
+                            }
+                            .into()],
+                            values: vec![ast_ir::ExprLit {
+                                pos: None,
+                                lit: ast_ir::Lit::Nil,
+                            }
+                            .into()],
+                        }
+                        .into(),
+                    );
+                } else {
+                    normal_declarations.insert(declaration.value);
+                }
+            }
+        }
+        normal_declarations
+    }
+
     fn lift_instructions(&mut self, node: NodeId, body: &mut Block) {
-        for instruction in &self.cfg.block(node).unwrap().inner_instructions {
+        for (index, instruction) in self
+            .cfg
+            .block(node)
+            .unwrap()
+            .inner_instructions
+            .iter()
+            .enumerate()
+        {
+            let prefix_locals = self.forward_declarations(
+                InstructionLocation {
+                    node,
+                    index: InstructionIndex::Inner(index),
+                },
+                body,
+            );
+            let load_local = |value: ValueId| -> ast_ir::Expr {
+                ast_ir::ExprLocal {
+                    pos: None,
+                    local: self.locals[&value].clone(),
+                    prefix: prefix_locals.contains(&value),
+                }
+                .into()
+            };
             match instruction {
                 Inner::Move(move_value) => {
-                    let dest = self.get_local(move_value.dest);
+                    let dest = load_local(move_value.dest);
                     let source = self.get_local(move_value.source);
                     body.statements.push(
                         ast_ir::Assign {
@@ -160,7 +226,7 @@ impl<'a> Lifter<'a> {
                     );
                 }
                 Inner::LoadConstant(load_constant) => {
-                    let dest = self.get_local(load_constant.dest);
+                    let dest = load_local(load_constant.dest);
                     let constant = Self::convert_constant(&load_constant.constant);
                     body.statements.push(
                         ast_ir::Assign {
@@ -172,7 +238,7 @@ impl<'a> Lifter<'a> {
                     );
                 }
                 Inner::LoadGlobal(load_global) => {
-                    let dest = self.get_local(load_global.dest);
+                    let dest = load_local(load_global.dest);
                     let global = ast_ir::Global {
                         pos: None,
                         name: load_global.name.clone(),
@@ -202,7 +268,7 @@ impl<'a> Lifter<'a> {
                     );
                 }
                 Inner::Unary(unary) => {
-                    let dest = self.get_local(unary.dest);
+                    let dest = load_local(unary.dest);
                     let expr = Box::new(self.get_local(unary.value));
                     let op = match unary.op {
                         UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
@@ -224,7 +290,7 @@ impl<'a> Lifter<'a> {
                     );
                 }
                 Inner::Binary(binary) => {
-                    let dest = self.get_local(binary.dest);
+                    let dest = load_local(binary.dest);
                     let lhs = Box::new(self.get_local(binary.lhs));
                     let rhs = Box::new(self.get_local(binary.rhs));
                     let op = match binary.op {
@@ -256,13 +322,12 @@ impl<'a> Lifter<'a> {
                     );
                 }
                 Inner::Concat(concat) => {
-                    assert_eq!(
+                    assert!(
                         concat.values.len() >= 2,
-                        true,
-                        "concat doesnt value atleast 2 values"
+                        "concat requires at least 2 values"
                     );
 
-                    let dest = self.get_local(concat.dest);
+                    let dest = load_local(concat.dest);
                     let mut value = ast_ir::Binary {
                         pos: None,
                         op: ast_ir::BinaryOp::Concat,
@@ -272,12 +337,12 @@ impl<'a> Lifter<'a> {
                     .into();
 
                     if concat.values.len() > 2 {
-                        for val in concat.values.iter().skip(2) {
+                        for &val in concat.values.iter().skip(2) {
                             value = ast_ir::Binary {
                                 pos: None,
                                 op: ast_ir::BinaryOp::Concat,
                                 lhs: Box::new(value),
-                                rhs: Box::new(self.get_local(*val)),
+                                rhs: Box::new(self.get_local(val)),
                             }
                             .into();
                         }
@@ -304,6 +369,14 @@ impl<'a> Lifter<'a> {
         }));*/
 
         self.lift_instructions(node, body);
+
+        self.forward_declarations(
+            InstructionLocation {
+                node,
+                index: InstructionIndex::Terminator,
+            },
+            body,
+        );
 
         match &self.cfg.block(node).unwrap().terminator() {
             Some(terminator) => match terminator {
@@ -450,7 +523,7 @@ pub fn lift(cfg: &Function) {
     let post_dom_tree = post_dominator_tree(graph, entry).unwrap();
     let idoms = compute_immediate_dominators(graph, entry).unwrap();
 
-    render_to(&post_dom_tree, &mut std::io::stdout());
+    //render_to(&post_dom_tree, &mut std::io::stdout());
     let mut lifter = Lifter::new(cfg, graph, entry, &idoms, &post_dom_tree);
 
     let mut ast_function = ast_ir::Function::new();

@@ -4,7 +4,7 @@ use crate::value::ValueId;
 
 // A trait implemented for instructions that read or write a value
 #[enum_dispatch]
-pub(crate) trait ValueInfo {
+pub trait ValueInfo {
     fn values_read(&self) -> Vec<ValueId>;
     fn values_read_mut(&mut self) -> Vec<&mut ValueId>;
     fn values_written(&self) -> Vec<ValueId>;

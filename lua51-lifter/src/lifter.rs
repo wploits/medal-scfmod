@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::{Range, RangeInclusive};
 
 use anyhow::Result;
-use cfg_ir::block::BasicBlock;
+
 use cfg_ir::instruction::{Inner, Terminator};
 use graph::NodeId;
 
@@ -163,7 +163,7 @@ impl<'a> Lifter<'a> {
     ) -> Result<(Vec<Inner>, Option<Terminator>)> {
         let mut instructions = Vec::new();
         let mut terminator = None;
-        let mut vararg_index = None;
+        let vararg_index = None;
         for (block_instruction_index, instruction) in self.function.code[block_start..=block_end]
             .iter()
             .enumerate()

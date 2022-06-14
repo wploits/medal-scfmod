@@ -12,7 +12,7 @@ use crate::{
     instruction::{
         location::{InstructionIndex, InstructionLocation},
         value_info::ValueInfo,
-        Phi,
+        Phi, Move, Inner,
     },
     value::ValueId,
 };
@@ -190,10 +190,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let split_values_time = now.elapsed();
     println!("-split values: {:?}", split_values_time);
 
+    let mut def_use = DefUse::new(function);
+
     let now = time::Instant::now();
     loop {
-        let def_use = DefUse::new(function);
-
         let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
         let mut values_to_replace = HashMap::<ValueId, ValueId>::new();
 
@@ -215,17 +215,22 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     if def_use_info
                         .reads
                         .iter()
-                        .filter(|InstructionLocation(other_node, other_instruction_index)| {
-                            if *other_node == node {
-                                if let InstructionIndex::Phi(other_phi_index) =
-                                    *other_instruction_index
-                                {
-                                    return other_phi_index != phi_index;
+                        .filter(
+                            |InstructionLocation {
+                                 node: other_node,
+                                 index: other_instruction_index,
+                             }| {
+                                if *other_node == node {
+                                    if let InstructionIndex::Phi(other_phi_index) =
+                                        *other_instruction_index
+                                    {
+                                        return other_phi_index != phi_index;
+                                    }
                                 }
-                            }
 
-                            true
-                        })
+                                true
+                            },
+                        )
                         .count()
                         == 0
                     {
@@ -240,11 +245,9 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
 
         for (node, phi_index) in phis_to_remove.into_iter().rev() {
-            function
-                .block_mut(node)
-                .unwrap()
-                .phi_instructions
-                .remove(phi_index);
+            let block = function.block_mut(node).unwrap();
+            block.phi_instructions.remove(phi_index);
+            def_use.update_block(block, node);
         }
 
         // we dont need to worry about where to replace since ssa form means values will only be written to once :)
@@ -257,12 +260,33 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         .unwrap()
                         .replace_values_read(old, new);
                 }
+                def_use.update_block(block, node);
             }
         }
     }
 
     let pruned = now.elapsed();
     println!("-pruning: {:?}", pruned);
+
+    for (node, block) in function.blocks().clone() {
+        for (instruction_index, instruction) in block.inner_instructions.into_iter().enumerate().rev() {
+            if let Inner::Move(Move { dest, source }) = instruction {
+                for read_location in def_use.get(dest).unwrap().reads.clone() {
+                    let read_location_block = function.block_mut(read_location.node).unwrap();
+                    read_location_block.value_info_mut(read_location.index)
+                        .unwrap()
+                        .replace_values_read(dest, source);
+                        def_use.update_block(read_location_block, read_location.node);
+                }
+                let block = function.block_mut(node).unwrap();
+                block.inner_instructions.remove(instruction_index);
+                def_use.update_block(block, node);
+            }
+        }
+    }
+
+    let copy_elision = now.elapsed();
+    println!("copy elision: {:?}", copy_elision);
 
     Ok(())
 }
