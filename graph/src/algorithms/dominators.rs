@@ -1,6 +1,8 @@
 use fxhash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
+use itertools::Itertools;
+
 use crate::{Edge, Error, Graph, NodeId, Result};
 
 use super::dfs_tree;
@@ -215,14 +217,26 @@ pub fn compute_immediate_dominators(
     }
     let semi = semi;
 
+    // https://github.com/rust-lang/rust/blob/master/compiler/rustc_data_structures/src/graph/dominators/mod.rs#L236
+    // TODO: should we use smallvec like rust?
+    // TODO: should we use IndexVec instead of FxHashMap? (see: https://docs.rs/index_vec/latest/index_vec/)
     fn compress(
         ancestor: &mut FxHashMap<NodeId, Option<NodeId>>,
         label: &mut FxHashMap<NodeId, usize>,
         v: NodeId,
     ) {
-        let u = ancestor[&v].unwrap();
-        if ancestor[&u].is_some() {
-            compress(ancestor, label, u);
+        let mut stack = Vec::new();
+        let mut u = ancestor[&v].unwrap();
+        loop {
+            stack.push(u);
+            match ancestor[&u] {
+                Some(v) => u = v,
+                None => break,
+            }
+        }
+
+        // TODO: use array_windows when its stable
+        for (&v, &u) in stack.iter().rev().tuple_windows() {
             if label[&u] < label[&v] {
                 label.insert(v, label[&u]);
             }

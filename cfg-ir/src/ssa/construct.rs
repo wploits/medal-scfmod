@@ -1,8 +1,8 @@
-use std::{borrow::BorrowMut, collections::HashMap, time};
+use std::{borrow::{BorrowMut, Cow}, collections::HashMap, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::dominators::{compute_dominance_frontiers, dominator_tree},
+    algorithms::dominators::{compute_dominance_frontiers, dominator_tree, compute_immediate_dominators},
     Graph, NodeId,
 };
 
@@ -20,13 +20,22 @@ use crate::{
 use super::error::Error;
 
 pub fn construct(function: &mut Function) -> Result<(), Error> {
-    let now = time::Instant::now();
     let entry = function
         .entry()
         .ok_or(Error::Graph(graph::Error::NoEntry))?;
 
-    let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, None)?;
+    let now = time::Instant::now();
+    let immediate_dominators = Cow::Owned(compute_immediate_dominators(function.graph(), entry)?);
+    let imm_dom_computed = now.elapsed();
+    println!("-compute immediate dominators: {:?}", imm_dom_computed);
+
+    let now = time::Instant::now();
+    let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, Some(immediate_dominators))?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
+    let df_computed = now.elapsed();
+    println!("-compute dominance frontiers: {:?}", df_computed);
+
+    let now = time::Instant::now();
     let mut node_to_values_written = FxHashMap::default();
     let mut value_written_to_nodes = FxHashMap::default();
     for &node in dominance_frontiers.keys() {
@@ -43,7 +52,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             )
             .flatten()
             .collect::<Vec<_>>();
-
         for &value in &values_written {
             value_written_to_nodes
                 .entry(value)
@@ -91,9 +99,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             }
         }
     }
-
     let phis_inserted = now.elapsed();
-    println!("phi insertation: {:?}", phis_inserted);
+    println!("-phi insertation: {:?}", phis_inserted);
 
     fn split_values(
         function: &mut Function,
@@ -181,7 +188,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     );
 
     let split_values_time = now.elapsed();
-    println!("split values: {:?}", split_values_time);
+    println!("-split values: {:?}", split_values_time);
 
     let now = time::Instant::now();
     loop {
@@ -255,7 +262,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     }
 
     let pruned = now.elapsed();
-    println!("pruning: {:?}", pruned);
+    println!("-pruning: {:?}", pruned);
 
     Ok(())
 }

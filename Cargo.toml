@@ -8,3 +8,6 @@ members = [
     "cfg-to-ast",
     #"luau-lifter"
 ]
+
+[profile.release]
+lto = "fat"
