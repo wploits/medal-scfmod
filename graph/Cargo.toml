@@ -10,3 +10,4 @@ edition = "2021"
 thiserror = "1.0.30"
 dot = { version = "0.1.4", optional = true }
 fxhash = "0.2.1"
+array_tool = "1.0.3"

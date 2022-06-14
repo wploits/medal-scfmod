@@ -30,7 +30,7 @@ impl ValueDefUse {
 pub struct DefUse(HashMap<ValueId, ValueDefUse>);
 
 impl DefUse {
-    pub(crate) fn new(function: &Function) -> Self {
+    pub fn new(function: &Function) -> Self {
         let mut def_use = Self(HashMap::new());
         for (&node, block) in function.blocks() {
             def_use.update_block(block, node);

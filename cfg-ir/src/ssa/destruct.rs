@@ -1,7 +1,6 @@
-use crate::{
-    def_use::DefUse,
-    function::Function,
-};
+use graph::algorithms::dominators::common_dominator;
+
+use crate::{def_use::DefUse, function::Function};
 
 pub fn destruct(function: &mut Function) {
     let mut def_use = DefUse::new(function);
@@ -12,7 +11,7 @@ pub fn destruct(function: &mut Function) {
         .into_iter()
         .map(|(node, block)| (node, block.phi_instructions.len()))
     {
-        for phi_index in 0..phis {
+        for phi_index in (0..phis).rev() {
             let phi = &function.block_mut(node).unwrap().phi_instructions[phi_index];
             let dest = phi.dest;
             for incoming_value in phi.incoming_values.values().cloned().collect::<Vec<_>>() {

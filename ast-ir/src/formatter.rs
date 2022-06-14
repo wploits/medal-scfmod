@@ -87,6 +87,9 @@ impl Formatter {
     fn format_expression(&mut self, expression: &Expr) {
         match expression {
             Expr::Local(local_expr) => {
+                if local_expr.prefix {
+                    self.print("local ");
+                }
                 self.print(&local_expr.local.name);
             }
             Expr::Global(global_expr) => {
