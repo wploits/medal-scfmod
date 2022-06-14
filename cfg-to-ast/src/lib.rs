@@ -450,7 +450,7 @@ pub fn lift(cfg: &Function) {
     let post_dom_tree = post_dominator_tree(graph, entry).unwrap();
     let idoms = compute_immediate_dominators(graph, entry).unwrap();
 
-    render_to(&post_dom_tree, &mut std::io::stdout());
+    //render_to(&post_dom_tree, &mut std::io::stdout());
     let mut lifter = Lifter::new(cfg, graph, entry, &idoms, &post_dom_tree);
 
     let mut ast_function = ast_ir::Function::new();

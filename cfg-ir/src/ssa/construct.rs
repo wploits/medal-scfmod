@@ -238,12 +238,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
 
         for (node, phi_index) in phis_to_remove.into_iter().rev() {
-            let block = function
-            .block_mut(node)
-            .unwrap();
-            block
-                .phi_instructions
-                .remove(phi_index);
+            let block = function.block_mut(node).unwrap();
+            block.phi_instructions.remove(phi_index);
             def_use.update_block(block, node);
         }
 
