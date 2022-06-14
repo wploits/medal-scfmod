@@ -1,5 +1,3 @@
-use graph::algorithms::dominators::common_dominator;
-
 use crate::{def_use::DefUse, function::Function};
 
 pub fn destruct(function: &mut Function) {

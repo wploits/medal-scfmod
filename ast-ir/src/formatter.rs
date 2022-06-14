@@ -119,7 +119,7 @@ impl Formatter {
             }
             Expr::Table(table_expr) => {
                 self.print("{");
-                for (key, value) in &table_expr.pairs {
+                for (_key, _value) in &table_expr.pairs {
                     // TODO: table formatting
                     todo!();
                 }

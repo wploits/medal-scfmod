@@ -1,12 +1,12 @@
 use std::rc::Rc;
-use std::time;
+
 
 use cfg_ir::constant::Constant;
-use cfg_ir::def_use::DefUse;
+
 use cfg_ir::instruction::location::{InstructionIndex, InstructionLocation};
 use cfg_ir::instruction::value_info::ValueInfo;
 use cfg_ir::instruction::{BinaryOp, Inner, Terminator, UnaryOp};
-use cfg_ir::ssa;
+
 use cfg_ir::value::ValueId;
 use fxhash::{FxHashMap, FxHashSet};
 use graph::algorithms::dominators::{compute_immediate_dominators, post_dominator_tree};

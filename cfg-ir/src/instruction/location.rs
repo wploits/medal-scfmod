@@ -11,7 +11,7 @@ pub enum InstructionIndex {
 impl PartialOrd for InstructionIndex {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(match self {
-            InstructionIndex::Phi(i) => todo!(),
+            InstructionIndex::Phi(_i) => todo!(),
             InstructionIndex::Inner(i) => match other {
                 InstructionIndex::Phi(_) => std::cmp::Ordering::Greater,
                 InstructionIndex::Inner(j) => i.cmp(&j),
