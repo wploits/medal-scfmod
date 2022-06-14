@@ -208,11 +208,11 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     let now = time::Instant::now();
     loop {
-        let mut phis_to_remove = Vec::<(NodeId, Vec<usize>)>::new();
-        let mut values_to_replace = HashMap::<ValueId, ValueId>::new();
+        let mut phis_to_remove = Vec::new();
+        let mut values_to_replace = HashMap::new();
 
         for node in function.graph().nodes().clone() {
-            let mut phis = Vec::<usize>::new();
+            let mut phis = Vec::new();
             let block = function.block(node).unwrap();
             for (phi_index, phi) in block.phi_instructions.iter().cloned().enumerate() {
                 let unique = phi
@@ -263,9 +263,9 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             break;
         }
 
-        for (node, phi_indicies) in phis_to_remove.into_iter().rev() {
+        for (node, phi_indices) in phis_to_remove.into_iter().rev() {
             let block = function.block_mut(node).unwrap();
-            for phi_index in phi_indicies.into_iter().rev() {
+            for phi_index in phi_indices.into_iter().rev() {
                 block.phi_instructions.remove(phi_index);
             }
             // TODO: can optimize further by only updating phi nodes, if need be
