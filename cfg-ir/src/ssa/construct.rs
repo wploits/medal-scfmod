@@ -14,7 +14,7 @@ use crate::{
         value_info::ValueInfo,
         Phi, Move, Inner,
     },
-    value::ValueId,
+    value::{ValueId, self},
 };
 
 use super::error::Error;
@@ -104,78 +104,85 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     fn split_values(
         function: &mut Function,
-        node: NodeId,
+        root: NodeId,
         dominator_tree: &Graph,
-        value_stacks: &mut FxHashMap<ValueId, Vec<ValueId>>,
     ) {
-        let old_value_stacks = value_stacks.clone();
+        let mut visited = FxHashSet::<NodeId>::default();
+        let mut stack = vec![(root, FxHashMap::<ValueId, Vec<ValueId>>::default())];
 
-        for index in function.block_mut(node).unwrap().indices() {
-            if !matches!(index, InstructionIndex::Phi(_)) {
-                let value_info = function
-                    .block_mut(node)
-                    .unwrap()
-                    .value_info_mut(index)
-                    .unwrap();
-                for (read_value_index, &value) in value_info.values_read().iter().enumerate() {
-                    if let Some(value_stack) = value_stacks.get(&value) {
-                        *value_info.values_read_mut()[read_value_index] =
-                            *value_stack.last().unwrap();
+        while let Some((node, mut value_stacks)) = stack.pop() {
+            if !visited.contains(&node) {
+                visited.insert(node);
+                for index in function.block_mut(node).unwrap().indices() {
+                    if !matches!(index, InstructionIndex::Phi(_)) {
+                        let value_info = function
+                            .block_mut(node)
+                            .unwrap()
+                            .value_info_mut(index)
+                            .unwrap();
+                        for (read_value_index, &value) in value_info.values_read().iter().enumerate() {
+                            if let Some(value_stack) = value_stacks.get(&value) {
+                                *value_info.values_read_mut()[read_value_index] =
+                                    *value_stack.last().unwrap();
+                            }
+                        }
+                    }
+        
+                    let mut values_to_replace = FxHashMap::default();
+                    for (written_value_index, &value) in function
+                        .block_mut(node)
+                        .unwrap()
+                        .value_info_mut(index)
+                        .unwrap()
+                        .values_written()
+                        .iter()
+                        .enumerate()
+                    {
+                        if let Some(value_stack) = value_stacks.get_mut(&value) {
+                            let new_value = function.new_value();
+                            value_stack.push(new_value);
+        
+                            values_to_replace
+                                .entry(node)
+                                .or_insert_with(Vec::new)
+                                .push((written_value_index, new_value));
+                        } else {
+                            value_stacks.insert(value, vec![value]);
+                        }
+                    }
+        
+                    for (node, values) in values_to_replace {
+                        let block = function.block_mut(node).unwrap();
+                        for (written_value_index, value) in values {
+                            *block.value_info_mut(index).unwrap().values_written_mut()
+                                [written_value_index] = value;
+                        }
+                    }
+        
+                    //let values_written_replace = values_written.iter().enumerate()
+                }
+        
+                for successor in function.graph().successors(node).collect::<Vec<_>>() {
+                    let block = function.block_mut(successor).unwrap();
+        
+                    for phi in &mut block.phi_instructions {
+                        let old_value = phi.incoming_values[&node];
+                        if let Some(value_stack) = value_stacks.get(&old_value) {
+                            phi.incoming_values
+                                .insert(node, *value_stack.last().unwrap());
+                        }
                     }
                 }
             }
-
-            let mut values_to_replace = FxHashMap::default();
-            for (written_value_index, &value) in function
-                .block_mut(node)
-                .unwrap()
-                .value_info_mut(index)
-                .unwrap()
-                .values_written()
-                .iter()
-                .enumerate()
-            {
-                if let Some(value_stack) = value_stacks.get_mut(&value) {
-                    let new_value = function.new_value();
-                    value_stack.push(new_value);
-
-                    values_to_replace
-                        .entry(node)
-                        .or_insert_with(Vec::new)
-                        .push((written_value_index, new_value));
-                } else {
-                    value_stacks.insert(value, vec![value]);
-                }
-            }
-
-            for (node, values) in values_to_replace {
-                let block = function.block_mut(node).unwrap();
-                for (written_value_index, value) in values {
-                    *block.value_info_mut(index).unwrap().values_written_mut()
-                        [written_value_index] = value;
-                }
-            }
-
-            //let values_written_replace = values_written.iter().enumerate()
-        }
-
-        for successor in function.graph().successors(node).collect::<Vec<_>>() {
-            let block = function.block_mut(successor).unwrap();
-
-            for phi in &mut block.phi_instructions {
-                let old_value = phi.incoming_values[&node];
-                if let Some(value_stack) = value_stacks.get(&old_value) {
-                    phi.incoming_values
-                        .insert(node, *value_stack.last().unwrap());
+    
+            for child_block in dominator_tree.successors(node) {
+                if !visited.contains(&child_block) {
+                    stack.push((node, value_stacks.clone()));
+                    stack.push((child_block, value_stacks));
+                    break;
                 }
             }
         }
-
-        for child_block in dominator_tree.successors(node) {
-            split_values(function, child_block, dominator_tree, value_stacks);
-        }
-
-        *value_stacks = old_value_stacks;
     }
 
     let now = time::Instant::now();
@@ -184,7 +191,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         function,
         entry,
         &mut dominator_tree(function.graph(), entry, &immediate_dominators)?,
-        &mut FxHashMap::default(),
     );
 
     let split_values_time = now.elapsed();
