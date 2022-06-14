@@ -1,59 +1,78 @@
 use std::collections::{HashMap, HashSet};
 
+use graph::NodeId;
+
 use crate::{
-    function::Function,
-    instruction::{location::InstructionLocation, value_info::ValueInfo},
+    block::BasicBlock, function::Function, instruction::location::InstructionLocation,
     value::ValueId,
 };
 
 #[derive(Debug, Clone)]
-pub struct InstructionDefUse {
+pub struct ValueDefUse {
     pub reads: HashSet<InstructionLocation>,
     pub writes: HashSet<InstructionLocation>,
 }
 
-impl InstructionDefUse {
+impl ValueDefUse {
     fn new() -> Self {
         Self {
             reads: HashSet::new(),
             writes: HashSet::new(),
         }
     }
+
+    fn is_empty(&self) -> bool {
+        self.reads.is_empty() && self.writes.is_empty()
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct DefUse {
-    values: HashMap<ValueId, InstructionDefUse>,
-}
+pub struct DefUse(HashMap<ValueId, ValueDefUse>);
 
 impl DefUse {
     pub(crate) fn new(function: &Function) -> Self {
-        let mut values = HashMap::new();
-
+        let mut def_use = Self(HashMap::new());
         for (&node, block) in function.blocks() {
-            for &index in block.indices().iter() {
-                let value_info = block.value_info(index).unwrap();
-                for value_read in value_info.values_read() {
-                    values
-                        .entry(value_read)
-                        .or_insert_with(InstructionDefUse::new)
-                        .reads
-                        .insert(InstructionLocation(node, index));
-                }
-                for value_written in value_info.values_written() {
-                    values
-                        .entry(value_written)
-                        .or_insert_with(InstructionDefUse::new)
-                        .writes
-                        .insert(InstructionLocation(node, index));
-                }
-            }
+            def_use.update_block(block, node);
         }
-
-        Self { values }
+        def_use
     }
 
-    pub fn get(&self, value: ValueId) -> Option<&InstructionDefUse> {
-        self.values.get(&value)
+    pub fn update_block(&mut self, block: &BasicBlock, node: NodeId) {
+        for value_def_use in &mut self.0.values_mut() {
+            value_def_use.reads.retain(|location| location.node != node);
+            value_def_use
+                .writes
+                .retain(|location| location.node != node);
+        }
+        for &index in block.indices().iter() {
+            let value_info = block.value_info(index).unwrap();
+            for value_read in value_info.values_read() {
+                self.0
+                    .entry(value_read)
+                    .or_insert_with(ValueDefUse::new)
+                    .reads
+                    .insert(InstructionLocation { node, index });
+            }
+            for value_written in value_info.values_written() {
+                self.0
+                    .entry(value_written)
+                    .or_insert_with(ValueDefUse::new)
+                    .writes
+                    .insert(InstructionLocation { node, index });
+            }
+        }
+    }
+
+    pub fn remove_unused(&mut self) {
+        self.0.retain(|_, value_def_use| !value_def_use.is_empty());
+    }
+
+    pub fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.0.keys().cloned()
+    }
+
+    pub fn get(&self, value: ValueId) -> Option<&ValueDefUse> {
+        self.0.get(&value)
     }
 }

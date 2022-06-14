@@ -16,7 +16,10 @@ impl fmt::Display for InstructionIndex {
 
 // TODO: named fields
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct InstructionLocation(pub NodeId, pub InstructionIndex);
+pub struct InstructionLocation {
+    pub node: NodeId,
+    pub index: InstructionIndex,
+}
 
 impl fmt::Display for InstructionLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

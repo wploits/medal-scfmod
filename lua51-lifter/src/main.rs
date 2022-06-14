@@ -45,8 +45,13 @@ fn main() -> anyhow::Result<()> {
     ssa::construct::construct(&mut cfg)?;
     let ssa_constructed = now.elapsed();
     //dot::render_to(&cfg, &mut std::io::stdout())?;
-
     println!("ssa construction: {:?}", ssa_constructed);
+
+    let now = time::Instant::now();
+    ssa::destruct::destruct(&mut cfg);
+    let ssa_destructed = now.elapsed();
+    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    println!("ssa destruction: {:?}", ssa_destructed);
 
     //cfg_to_ast::lift(&cfg);
 

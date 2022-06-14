@@ -183,10 +183,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let split_values_time = now.elapsed();
     println!("split values: {:?}", split_values_time);
 
+    let mut def_use = DefUse::new(function);
+
     let now = time::Instant::now();
     loop {
-        let def_use = DefUse::new(function);
-
         let mut phis_to_remove = Vec::<(NodeId, usize)>::new();
         let mut values_to_replace = HashMap::<ValueId, ValueId>::new();
 
@@ -208,17 +208,22 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     if def_use_info
                         .reads
                         .iter()
-                        .filter(|InstructionLocation(other_node, other_instruction_index)| {
-                            if *other_node == node {
-                                if let InstructionIndex::Phi(other_phi_index) =
-                                    *other_instruction_index
-                                {
-                                    return other_phi_index != phi_index;
+                        .filter(
+                            |InstructionLocation {
+                                 node: other_node,
+                                 index: other_instruction_index,
+                             }| {
+                                if *other_node == node {
+                                    if let InstructionIndex::Phi(other_phi_index) =
+                                        *other_instruction_index
+                                    {
+                                        return other_phi_index != phi_index;
+                                    }
                                 }
-                            }
 
-                            true
-                        })
+                                true
+                            },
+                        )
                         .count()
                         == 0
                     {
@@ -233,11 +238,13 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
 
         for (node, phi_index) in phis_to_remove.into_iter().rev() {
-            function
-                .block_mut(node)
-                .unwrap()
+            let block = function
+            .block_mut(node)
+            .unwrap();
+            block
                 .phi_instructions
                 .remove(phi_index);
+            def_use.update_block(block, node);
         }
 
         // we dont need to worry about where to replace since ssa form means values will only be written to once :)
@@ -250,6 +257,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         .unwrap()
                         .replace_values_read(old, new);
                 }
+                def_use.update_block(block, node);
             }
         }
     }
