@@ -4,7 +4,7 @@ mod lifter;
 mod op_code;
 mod value;
 
-use cfg_ir::{ssa};
+use cfg_ir::ssa;
 use lifter::Lifter;
 
 use clap::Parser;

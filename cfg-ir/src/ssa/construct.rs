@@ -1,8 +1,14 @@
-use std::{borrow::{BorrowMut, Cow}, collections::HashMap, time};
+use std::{
+    borrow::{BorrowMut, Cow},
+    collections::HashMap,
+    time,
+};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::dominators::{compute_dominance_frontiers, dominator_tree, compute_immediate_dominators},
+    algorithms::dominators::{
+        compute_dominance_frontiers, compute_immediate_dominators, dominator_tree,
+    },
     Graph, NodeId,
 };
 
@@ -12,9 +18,9 @@ use crate::{
     instruction::{
         location::{InstructionIndex, InstructionLocation},
         value_info::ValueInfo,
-        Phi, Move, Inner,
+        Inner, Move, Phi,
     },
-    value::{ValueId},
+    value::ValueId,
 };
 
 use super::error::Error;
@@ -30,7 +36,11 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     println!("-compute immediate dominators: {:?}", imm_dom_computed);
 
     let now = time::Instant::now();
-    let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, Some(Cow::Borrowed(&immediate_dominators)))?;
+    let mut dominance_frontiers = compute_dominance_frontiers(
+        function.graph(),
+        entry,
+        Some(Cow::Borrowed(&immediate_dominators)),
+    )?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
     let df_computed = now.elapsed();
     println!("-compute dominance frontiers: {:?}", df_computed);
@@ -102,11 +112,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let phis_inserted = now.elapsed();
     println!("-phi insertation: {:?}", phis_inserted);
 
-    fn split_values(
-        function: &mut Function,
-        root: NodeId,
-        dominator_tree: &Graph,
-    ) {
+    fn split_values(function: &mut Function, root: NodeId, dominator_tree: &Graph) {
         let mut visited = FxHashSet::<NodeId>::default();
         let mut stack = vec![(root, FxHashMap::<ValueId, Vec<ValueId>>::default())];
 
@@ -120,14 +126,16 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                             .unwrap()
                             .value_info_mut(index)
                             .unwrap();
-                        for (read_value_index, &value) in value_info.values_read().iter().enumerate() {
+                        for (read_value_index, &value) in
+                            value_info.values_read().iter().enumerate()
+                        {
                             if let Some(value_stack) = value_stacks.get(&value) {
                                 *value_info.values_read_mut()[read_value_index] =
                                     *value_stack.last().unwrap();
                             }
                         }
                     }
-        
+
                     let mut values_to_replace = FxHashMap::default();
                     for (written_value_index, &value) in function
                         .block_mut(node)
@@ -141,7 +149,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         if let Some(value_stack) = value_stacks.get_mut(&value) {
                             let new_value = function.new_value();
                             value_stack.push(new_value);
-        
+
                             values_to_replace
                                 .entry(node)
                                 .or_insert_with(Vec::new)
@@ -150,7 +158,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                             value_stacks.insert(value, vec![value]);
                         }
                     }
-        
+
                     for (node, values) in values_to_replace {
                         let block = function.block_mut(node).unwrap();
                         for (written_value_index, value) in values {
@@ -158,13 +166,13 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                                 [written_value_index] = value;
                         }
                     }
-        
+
                     //let values_written_replace = values_written.iter().enumerate()
                 }
-        
+
                 for successor in function.graph().successors(node).collect::<Vec<_>>() {
                     let block = function.block_mut(successor).unwrap();
-        
+
                     for phi in &mut block.phi_instructions {
                         let old_value = phi.incoming_values[&node];
                         if let Some(value_stack) = value_stacks.get(&old_value) {
@@ -174,7 +182,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     }
                 }
             }
-    
+
             for child_block in dominator_tree.successors(node) {
                 if !visited.contains(&child_block) {
                     stack.push((node, value_stacks.clone()));
@@ -261,7 +269,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 block.phi_instructions.remove(phi_index);
             }
             // TODO: can optimize further by only updating phi nodes, if need be
-            def_use.update_block(block, node);
+            def_use.update_block_phi(block, node);
         }
 
         // we dont need to worry about where to replace since ssa form means values will only be written to once :)
@@ -284,14 +292,17 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     let now = time::Instant::now();
     for (node, block) in function.blocks().clone() {
-        for (instruction_index, instruction) in block.inner_instructions.into_iter().enumerate().rev() {
+        for (instruction_index, instruction) in
+            block.inner_instructions.into_iter().enumerate().rev()
+        {
             if let Inner::Move(Move { dest, source }) = instruction {
                 for read_location in def_use.get(dest).unwrap().reads.clone() {
                     let read_location_block = function.block_mut(read_location.node).unwrap();
-                    read_location_block.value_info_mut(read_location.index)
+                    read_location_block
+                        .value_info_mut(read_location.index)
                         .unwrap()
                         .replace_values_read(dest, source);
-                        def_use.update_block(read_location_block, read_location.node);
+                    def_use.update_block(read_location_block, read_location.node);
                 }
                 let block = function.block_mut(node).unwrap();
                 block.inner_instructions.remove(instruction_index);

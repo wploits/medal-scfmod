@@ -3,7 +3,9 @@ use std::collections::{HashMap, HashSet};
 use graph::NodeId;
 
 use crate::{
-    block::BasicBlock, function::Function, instruction::location::InstructionLocation,
+    block::BasicBlock,
+    function::Function,
+    instruction::location::{InstructionIndex, InstructionLocation},
     value::ValueId,
 };
 
@@ -36,6 +38,37 @@ impl DefUse {
             def_use.update_block(block, node);
         }
         def_use
+    }
+
+    pub fn update_block_phi(&mut self, block: &BasicBlock, node: NodeId) {
+        for value_def_use in &mut self.0.values_mut() {
+            value_def_use.reads.retain(|location| !matches!(location.index, InstructionIndex::Phi(_)) && location.node != node);
+            value_def_use
+                .writes
+                .retain(|location| location.node != node);
+        }
+        for index in block
+            .phi_instructions
+            .iter()
+            .enumerate()
+            .map(|(i, _)| InstructionIndex::Phi(i))
+        {
+            let value_info = block.value_info(index).unwrap();
+            for value_read in value_info.values_read() {
+                self.0
+                    .entry(value_read)
+                    .or_insert_with(ValueDefUse::new)
+                    .reads
+                    .insert(InstructionLocation { node, index });
+            }
+            for value_written in value_info.values_written() {
+                self.0
+                    .entry(value_written)
+                    .or_insert_with(ValueDefUse::new)
+                    .writes
+                    .insert(InstructionLocation { node, index });
+            }
+        }
     }
 
     pub fn update_block(&mut self, block: &BasicBlock, node: NodeId) {

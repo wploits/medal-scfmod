@@ -1,7 +1,5 @@
 use nom::*;
 
-
-
 use function::Function;
 use header::Header;
 

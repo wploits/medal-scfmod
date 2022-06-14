@@ -1,5 +1,5 @@
-use std::fmt;
 use graph::NodeId;
+use std::fmt;
 
 use super::{super::value::ValueId, branch_info::BranchInfo, value_info::ValueInfo};
 
@@ -42,10 +42,6 @@ impl BranchInfo for NumericFor {
 
 impl fmt::Display for NumericFor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "for {} {} {}",
-            self.limit, self.step, self.variable
-        )
+        write!(f, "for {} {} {}", self.limit, self.step, self.variable)
     }
 }
