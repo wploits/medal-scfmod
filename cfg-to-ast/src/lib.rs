@@ -166,7 +166,12 @@ impl<'a> Lifter<'a> {
                     body.statements.push(
                         ast_ir::Assign {
                             pos: None,
-                            vars: vec![self.get_local(declaration.value)],
+                            vars: vec![ast_ir::ExprLocal {
+                                pos: None,
+                                local: self.locals[&declaration.value].clone(),
+                                prefix: true,
+                            }
+                            .into()],
                             values: vec![ast_ir::ExprLit {
                                 pos: None,
                                 lit: ast_ir::Lit::Nil,
