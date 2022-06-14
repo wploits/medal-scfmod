@@ -8,14 +8,13 @@ use crate::{Edge, Error, Graph, NodeId, Result};
 
 use super::dfs_tree;
 
-pub fn dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
+pub fn dominator_tree(graph: &Graph, root: NodeId, idoms: &FxHashMap<NodeId, NodeId>) -> Result<Graph> {
     let mut dom_tree = Graph::new();
     for &vertex in graph.nodes() {
         dom_tree.add_node_with_id(vertex)?;
     }
 
-    let idoms = compute_immediate_dominators(graph, root)?;
-    for (vertex, idom) in idoms {
+    for (&vertex, &idom) in idoms {
         dom_tree.add_edge(Edge::new(idom, vertex))?;
     }
 
@@ -27,7 +26,7 @@ pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, Vec<N
         return Err(Error::InvalidNode(root));
     }
 
-    let dom_tree = dominator_tree(graph, root)?;
+    let dom_tree = dominator_tree(graph, root, &compute_immediate_dominators(graph, root)?)?;
     let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators = FxHashMap::default();
@@ -239,7 +238,7 @@ pub fn compute_immediate_dominators(
         v: NodeId,
     ) {
         let mut stack = Vec::new();
-        let mut u = ancestor[&v].unwrap();
+        let mut u = v;
         loop {
             stack.push(u);
             match ancestor[&u] {
@@ -248,12 +247,15 @@ pub fn compute_immediate_dominators(
             }
         }
 
-        // TODO: use array_windows when its stable
-        for (&v, &u) in stack.iter().rev().tuple_windows() {
-            if label[&u] < label[&v] {
-                label.insert(v, label[&u]);
+        for &v in stack.iter().rev() {
+            if let Some(u) = ancestor[&v] {
+                if let Some(x) = ancestor[&u] {
+                    if label[&u] < label[&v] {
+                        label.insert(v, label[&u]);
+                    }
+                    ancestor.insert(v, Some(x));
+                }
             }
-            ancestor.insert(v, ancestor[&u]);
         }
     }
 

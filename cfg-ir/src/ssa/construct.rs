@@ -25,12 +25,12 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         .ok_or(Error::Graph(graph::Error::NoEntry))?;
 
     let now = time::Instant::now();
-    let immediate_dominators = Cow::Owned(compute_immediate_dominators(function.graph(), entry)?);
+    let immediate_dominators = compute_immediate_dominators(function.graph(), entry)?;
     let imm_dom_computed = now.elapsed();
     println!("-compute immediate dominators: {:?}", imm_dom_computed);
 
     let now = time::Instant::now();
-    let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, Some(immediate_dominators))?;
+    let mut dominance_frontiers = compute_dominance_frontiers(function.graph(), entry, Some(Cow::Borrowed(&immediate_dominators)))?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
     let df_computed = now.elapsed();
     println!("-compute dominance frontiers: {:?}", df_computed);
@@ -183,7 +183,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     split_values(
         function,
         entry,
-        &mut dominator_tree(function.graph(), entry)?,
+        &mut dominator_tree(function.graph(), entry, &immediate_dominators)?,
         &mut FxHashMap::default(),
     );
 
@@ -268,6 +268,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let pruned = now.elapsed();
     println!("-pruning: {:?}", pruned);
 
+    let now = time::Instant::now();
     for (node, block) in function.blocks().clone() {
         for (instruction_index, instruction) in block.inner_instructions.into_iter().enumerate().rev() {
             if let Inner::Move(Move { dest, source }) = instruction {
