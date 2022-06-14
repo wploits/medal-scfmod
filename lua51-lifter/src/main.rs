@@ -4,7 +4,7 @@ mod lifter;
 mod op_code;
 mod value;
 
-use cfg_ir::{ssa};
+use cfg_ir::ssa;
 use lifter::Lifter;
 
 use clap::Parser;
@@ -53,7 +53,7 @@ fn main() -> anyhow::Result<()> {
     //dot::render_to(&cfg, &mut std::io::stdout())?;
     println!("ssa destruction: {:?}", ssa_destructed);
 
-    cfg_to_ast::lift(&cfg);
+    //cfg_to_ast::lift(&cfg);
 
     Ok(())
 }

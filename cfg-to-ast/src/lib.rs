@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-
 use cfg_ir::constant::Constant;
 
 use cfg_ir::instruction::location::{InstructionIndex, InstructionLocation};
@@ -153,21 +152,22 @@ impl<'a> Lifter<'a> {
 
         let mut do_block = Block::new(None);
         self.follow_edge(header, branch, &mut do_block);
-        
+
         let limit = self.get_local(limit);
         let step = self.get_local(step);
 
         let var = self.locals[&variable].clone();
         let variable = self.get_local(variable);
 
-        body.statements.push(ast_ir::Stat::NumericFor(ast_ir::NumericFor {
-            pos: None,
-            var: var,
-            from: variable,
-            to: limit,
-            step: Some(step),
-            body: do_block
-        }));
+        body.statements
+            .push(ast_ir::Stat::NumericFor(ast_ir::NumericFor {
+                pos: None,
+                var: var,
+                from: variable,
+                to: limit,
+                step: Some(step),
+                body: do_block,
+            }));
         if let Some(exit_statements) = exit_statements {
             body.statements.extend(exit_statements.statements);
         }
@@ -441,7 +441,9 @@ impl<'a> Lifter<'a> {
                 }
                 Terminator::NumericFor(for_loop) => self.lift_numeric_for(
                     node,
-                    for_loop.limit, for_loop.step, for_loop.variable,
+                    for_loop.limit,
+                    for_loop.step,
+                    for_loop.variable,
                     for_loop.false_branch,
                     body,
                 ),
@@ -504,9 +506,9 @@ impl<'a> Lifter<'a> {
         match &self.cfg.block(node).unwrap().terminator() {
             Some(terminator) => match terminator {
                 Terminator::NumericFor(_) => true,
-                _ => false
+                _ => false,
             },
-            _ => false
+            _ => false,
         }
     }
 
