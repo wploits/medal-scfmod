@@ -12,7 +12,7 @@ use crate::{
     instruction::{
         location::{InstructionIndex, InstructionLocation},
         value_info::ValueInfo,
-        Phi,
+        Phi, Move, Inner,
     },
     value::ValueId,
 };
@@ -260,6 +260,26 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     let pruned = now.elapsed();
     println!("pruning: {:?}", pruned);
+
+    for (node, block) in function.blocks().clone() {
+        for (instruction_index, instruction) in block.inner_instructions.into_iter().enumerate().rev() {
+            if let Inner::Move(Move { dest, source }) = instruction {
+                for read_location in def_use.get(dest).unwrap().reads.clone() {
+                    let read_location_block = function.block_mut(read_location.node).unwrap();
+                    read_location_block.value_info_mut(read_location.index)
+                        .unwrap()
+                        .replace_values_read(dest, source);
+                        def_use.update_block(read_location_block, read_location.node);
+                }
+                let block = function.block_mut(node).unwrap();
+                block.inner_instructions.remove(instruction_index);
+                def_use.update_block(block, node);
+            }
+        }
+    }
+
+    let copy_elision = now.elapsed();
+    println!("copy elision: {:?}", copy_elision);
 
     Ok(())
 }
