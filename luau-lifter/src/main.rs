@@ -44,6 +44,7 @@ fn main() -> anyhow::Result<()> {
 
             //let graph = cfg.graph();
             //graph::dot::render_to(graph, &mut std::io::stdout())?;
+            cfg_ir::dot::render_to(&cfg, &mut std::io::stdout())?;
 
             let now = time::Instant::now();
             ssa::construct::construct(&mut cfg)?;

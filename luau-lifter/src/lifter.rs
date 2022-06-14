@@ -15,7 +15,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump,
-        Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return, Concat,
+        Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return, Concat, NumericFor,
 
         Inner, Terminator
     },
@@ -75,7 +75,23 @@ impl<'a> Lifter<'a> {
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
-                    OpCode::LOP_FORNPREP | OpCode::LOP_FORNLOOP | OpCode::LOP_FORGPREP |
+                    OpCode::LOP_FORNPREP => {
+                        self.blocks
+                            .entry(insn_index)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                        self.blocks
+                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    }
+                    OpCode::LOP_FORNLOOP => {
+                        self.blocks
+                            .entry(insn_index + 1)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                        self.blocks
+                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    }
+                    OpCode::LOP_FORGPREP |
                     OpCode::LOP_FORGLOOP | OpCode::LOP_FORGPREP_INEXT | OpCode::LOP_FORGLOOP_INEXT |
                     OpCode::LOP_FORGLOOP_NEXT => { // unsure how to handle these right now
                         todo!();
@@ -164,8 +180,12 @@ impl<'a> Lifter<'a> {
                 OpCode::LOP_JUMPIFNOTLT |
                 OpCode::LOP_JUMPIFEQK | 
                 OpCode::LOP_JUMPIFNOTEQK => true,
-                OpCode::LOP_FORNPREP | OpCode::LOP_FORNLOOP | OpCode::LOP_FORGPREP |
-                OpCode::LOP_FORGLOOP | OpCode::LOP_FORGPREP_INEXT | OpCode::LOP_FORGLOOP_INEXT |
+                OpCode::LOP_FORNPREP |
+                OpCode::LOP_FORNLOOP |
+                OpCode::LOP_FORGPREP |
+                OpCode::LOP_FORGLOOP | 
+                OpCode::LOP_FORGPREP_INEXT | 
+                OpCode::LOP_FORGLOOP_INEXT |
                 OpCode::LOP_FORGLOOP_NEXT => true,
                 _ => false
             },
@@ -459,12 +479,12 @@ impl<'a> Lifter<'a> {
                         );
 
                         let (mut true_branch, mut false_branch) = (
-                            self.get_block(instruction_index + 1),
                             self.get_block(instruction_index.wrapping_add(d as usize) + 1),
+                            self.get_block(instruction_index + 1),
                         );
 
                         if matches!(op_code, OpCode::LOP_JUMPIFNOTEQ | OpCode::LOP_JUMPIFNOTLE | OpCode::LOP_JUMPIFNOTLT) {
-                            //std::mem::swap(&mut true_branch, &mut false_branch);
+                            std::mem::swap(&mut true_branch, &mut false_branch);
                         }
 
                         let op = BinaryOp::Equal;
@@ -488,6 +508,36 @@ impl<'a> Lifter<'a> {
                         );
                         if instruction_index != block_end {
                             cfg_block_id = self.lifted_function.new_block().unwrap();
+                        }
+                    }
+                    OpCode::LOP_FORNPREP => {
+                        let limit = self.get_register(a as usize);
+                        let step = self.get_register(a as usize + 1);
+                        let index = self.get_register(a as usize + 2);
+
+                        let (true_branch, false_branch) = (
+                            self.get_block(instruction_index.wrapping_add(d as usize) + 1),
+                            self.get_block(instruction_index + 1),
+                        );
+
+                        terminator = Some(
+                            NumericFor {
+                                limit, step, variable: index,
+                                true_branch,
+                                false_branch,
+                            }
+                            .into(),
+                        );
+                        if instruction_index != block_end {
+                            cfg_block_id = self.lifted_function.new_block().unwrap();
+                        }
+                    }
+                    OpCode::LOP_FORNLOOP => {
+                        let branch = self
+                            .get_block(instruction_index.wrapping_add(d as usize)); // note this doesnt +1 due to the fact we actually want to include the forprep instruction which isnt normally jumped back to
+                        terminator = Some(UnconditionalJump(branch).into());
+                        if instruction_index != block_end {
+                            cfg_block_id = self.lifted_function.new_block().unwrap()
                         }
                     }
                     _ => {}

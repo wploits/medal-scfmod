@@ -11,6 +11,7 @@ mod unary;
 
 mod call;
 mod concat;
+mod forloop;
 
 mod load;
 mod r#move;
@@ -26,6 +27,7 @@ pub use unary::{Unary, UnaryOp};
 
 pub use call::Call;
 pub use concat::Concat;
+pub use forloop::NumericFor;
 
 pub use load::{LoadConstant, LoadGlobal, LoadIndex};
 pub use r#move::Move;

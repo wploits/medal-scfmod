@@ -132,6 +132,47 @@ impl<'a> Lifter<'a> {
         }
     }
 
+    fn lift_numeric_for(
+        &mut self,
+        header: NodeId,
+        limit: ValueId,
+        step: ValueId,
+        variable: ValueId,
+        branch: NodeId,
+        body: &mut Block,
+    ) {
+        let exit_statements = self.post_dom_tree.predecessors(header).next().map(|exit| {
+            let mut exit_body = Block::new(None);
+            if !self.visited.contains(&exit) {
+                self.lift_block(exit, &mut exit_body);
+            } else {
+                // really we should somehow return None here...
+            }
+            exit_body
+        });
+
+        let mut do_block = Block::new(None);
+        self.follow_edge(header, branch, &mut do_block);
+        
+        let limit = self.get_local(limit);
+        let step = self.get_local(step);
+
+        let var = self.locals[&variable].clone();
+        let variable = self.get_local(variable);
+
+        body.statements.push(ast_ir::Stat::NumericFor(ast_ir::NumericFor {
+            pos: None,
+            var: var,
+            from: variable,
+            to: limit,
+            step: Some(step),
+            body: do_block
+        }));
+        if let Some(exit_statements) = exit_statements {
+            body.statements.extend(exit_statements.statements);
+        }
+    }
+
     fn get_local(&self, value: ValueId) -> ast_ir::Expr {
         ast_ir::ExprLocal {
             pos: None,
@@ -398,6 +439,12 @@ impl<'a> Lifter<'a> {
                             .collect(),
                     }));
                 }
+                Terminator::NumericFor(for_loop) => self.lift_numeric_for(
+                    node,
+                    for_loop.limit, for_loop.step, for_loop.variable,
+                    for_loop.false_branch,
+                    body,
+                ),
             },
             _ => {}
         }
@@ -453,9 +500,19 @@ impl<'a> Lifter<'a> {
         false
     }
 
+    fn is_for_header(&mut self, node: NodeId) -> bool {
+        match &self.cfg.block(node).unwrap().terminator() {
+            Some(terminator) => match terminator {
+                Terminator::NumericFor(_) => true,
+                _ => false
+            },
+            _ => false
+        }
+    }
+
     fn lift_block(&mut self, node: NodeId, body: &mut Block) {
         self.visited.insert(node);
-        if self.loop_headers.contains(&node) {
+        if self.loop_headers.contains(&node) && !self.is_for_header(node) {
             let loop_exit = self.post_dom_tree.predecessors(node).next().or_else(|| {
                 self.graph
                     .nodes()

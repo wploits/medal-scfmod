@@ -157,6 +157,24 @@ impl Formatter {
                     self.unindent();
                     self.print("end");
                 }
+                Stat::NumericFor(for_stat) => {
+                    self.print("for ");
+                    self.print(&for_stat.var.name);
+                    self.print(" = ");
+                    self.format_expression(&for_stat.from);
+                    self.print(", ");
+                    self.format_expression(&for_stat.to);
+                    if let Some(step_expr) = &for_stat.step {
+                        self.print(", ");
+                        self.format_expression(&step_expr);
+                    }
+                    self.print(" do");
+                    self.indent();
+                    self.newline();
+                    self.format_block(&for_stat.body);
+                    self.unindent();
+                    self.print("end");
+                }
                 Stat::If(if_stat) => {
                     self.print("if ");
                     self.format_expression(&if_stat.condition);
