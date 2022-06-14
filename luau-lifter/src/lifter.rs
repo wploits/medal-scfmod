@@ -11,12 +11,13 @@ use super::{
 };
 
 use cfg_ir::{
-    builder::Builder,
     constant::Constant,
     function::Function,
     instruction::{
         Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump,
         Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return, Concat,
+
+        Inner, Terminator
     },
     value::ValueId,
 };
@@ -45,16 +46,14 @@ impl<'a> Lifter<'a> {
     }
 
     fn discover_blocks(&mut self) -> Result<()> {
-        let mut builder = Builder::new(&mut self.lifted_function);
-        self.blocks
-            .insert(0, builder.new_block()?.mark_entry().block_id());
+        self.blocks.insert(0, self.lifted_function.new_block()?);
         for (insn_index, insn) in self.function_list[self.function].instructions.iter().enumerate() {
             match insn {
                 BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                     OpCode::LOP_LOADB if *c != 0 => {
                         self.blocks
                             .entry(insn_index.wrapping_add(*c as usize) + 1)
-                            .or_insert_with(|| builder.new_block().unwrap().block_id());
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
                     _ => {}
                 }
@@ -63,7 +62,7 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_JUMP | OpCode::LOP_JUMPBACK => {
                         self.blocks
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
-                            .or_insert_with(|| builder.new_block().unwrap().block_id());
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
                     OpCode::LOP_JUMPIF | OpCode::LOP_JUMPIFNOT | 
                     OpCode::LOP_JUMPIFEQ | OpCode::LOP_JUMPIFLE | OpCode::LOP_JUMPIFLT | 
@@ -71,10 +70,10 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_JUMPIFEQK | OpCode::LOP_JUMPIFNOTEQK => {
                         self.blocks
                             .entry(insn_index + 1)
-                            .or_insert_with(|| builder.new_block().unwrap().block_id());
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
                         self.blocks
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
-                            .or_insert_with(|| builder.new_block().unwrap().block_id());
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
                     OpCode::LOP_FORNPREP | OpCode::LOP_FORNLOOP | OpCode::LOP_FORGPREP |
                     OpCode::LOP_FORGLOOP | OpCode::LOP_FORGPREP_INEXT | OpCode::LOP_FORGLOOP_INEXT |
@@ -92,11 +91,10 @@ impl<'a> Lifter<'a> {
     }
 
     fn get_register(&mut self, index: usize) -> ValueId {
-        let mut builder = Builder::new(&mut self.lifted_function);
         *self
             .register_map
             .entry(index)
-            .or_insert_with(|| builder.new_value())
+            .or_insert_with(|| self.lifted_function.new_value())
     }
 
     fn get_register_range(&mut self, range: Range<usize>) -> Vec<ValueId> {
@@ -127,20 +125,23 @@ impl<'a> Lifter<'a> {
 
     fn get_block_constant(&mut self, index: usize, block_index: NodeId) -> ValueId {
         let constant = self.get_constant(index);
-        let mut builder = Builder::new(&mut self.lifted_function);
-        let value = builder.new_value();
-        builder.block(block_index).unwrap().push(
-            LoadConstant {
-                dest: value,
-                constant,
-            }
-            .into(),
-        );
+        let value = self.lifted_function.new_value();
+        self.lifted_function
+            .block_mut(block_index)
+            .unwrap()
+            .inner_instructions
+            .push(
+                LoadConstant {
+                    dest: value,
+                    constant,
+                }
+                .into(),
+            );
         value
     }
 
-    fn get_block(&self, insn_index: usize) -> Option<NodeId> {
-        self.blocks.get(&insn_index).cloned()
+    fn get_block(&self, insn_index: usize) -> NodeId {
+        *self.blocks.get(&insn_index).unwrap()
     }
 
     fn is_terminator(instruction: &BytecodeInstruction) -> bool {
@@ -172,9 +173,15 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn lift_block(&mut self, block_start: usize, block_end: usize) -> Result<()> {
+    fn lift_instructions(
+        &mut self, 
+        block_start: usize, 
+        block_end: usize, 
+        mut cfg_block_id: NodeId
+    ) -> Result<(Vec<Inner>, Option<Terminator>)> {
+        let mut instructions = Vec::new();
+        let mut terminator = None;
         let mut vararg_index = None;
-        let mut block_index = self.get_block(block_start).unwrap();
         for (block_instruction_index, instruction) in 
             self.function_list[self.function].instructions[block_start..=block_end]
             .iter()
@@ -186,36 +193,26 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::ABC { op_code, a, b, c, aux } => match op_code {
                     OpCode::LOP_LOADNIL => {
                         let dest = self.get_register(a as usize);
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(LoadConstant { dest, constant: Constant::Nil }.into());
+                        instructions.push(LoadConstant { dest, constant: Constant::Nil }.into());
                     }
                     OpCode::LOP_LOADB => {
                         let dest = self.get_register(a as usize);
                         if c != 0 {
-                            let branch = self.get_block(instruction_index + c as usize + 1).unwrap();
-                            let mut builder = Builder::new(&mut self.lifted_function);
-                            builder
-                                .block(block_index)
-                                .unwrap()
+                            let branch = self.get_block(instruction_index + c as usize + 1);
+                            instructions
                                 .push(
                                     LoadConstant {
                                         dest,
                                         constant: Constant::Boolean(b != 0),
                                     }
                                     .into(),
-                                )
-                                .replace_terminator(UnconditionalJump(branch).into())
-                                .unwrap();
+                                );
+                            terminator = Some(UnconditionalJump(branch).into());
                             if instruction_index != block_end {
-                                block_index = builder.new_block()?.block_id()
+                                cfg_block_id = self.lifted_function.new_block().unwrap();
                             }
                         } else {
-                            let mut builder = Builder::new(&mut self.lifted_function);
-                            builder.block(block_index).unwrap().push(
+                            instructions.push(
                                 LoadConstant {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
@@ -227,33 +224,20 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_MOVE => {
                         let (dest, source) =
                             (self.get_register(a as usize), self.get_register(b as usize));
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(Move { dest, source }.into());
+                        instructions.push(Move { dest, source }.into());
                     }
                     OpCode::LOP_GETGLOBAL => {
                         let dest = self.get_register(a as usize);
                         let name = self.get_constant(aux as usize);
                         if let Constant::String(name) = name {
-                            let mut builder = Builder::new(&mut self.lifted_function);
-                            builder
-                                .block(block_index)
-                                .unwrap()
-                                .push(LoadGlobal { dest, name }.into());
+                            instructions.push(LoadGlobal { dest, name }.into());
                         }
                     }
                     OpCode::LOP_SETGLOBAL => {
                         let value = self.get_register(a as usize);
                         let name = self.get_constant(aux as usize);
                         if let Constant::String(name) = name {
-                            let mut builder = Builder::new(&mut self.lifted_function);
-                            builder
-                                .block(block_index)
-                                .unwrap()
-                                .push(StoreGlobal { name, value }.into());
+                            instructions.push(StoreGlobal { name, value }.into());
                         }
                     }
                     OpCode::LOP_RETURN => {
@@ -267,16 +251,15 @@ impl<'a> Lifter<'a> {
                             assert!(vararg_index.is_some());
                             values = self.get_register_range(a as usize..vararg_index.unwrap());
                         }
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder.block(block_index).unwrap().replace_terminator(
+                        terminator = Some(
                             Return {
                                 values,
                                 variadic: b == 0,
                             }
                             .into(),
-                        )?;
+                        );
                         if instruction_index != block_end {
-                            block_index = builder.new_block()?.block_id();
+                            cfg_block_id = self.lifted_function.new_block().unwrap();
                         }
                         break;
                     }
@@ -304,11 +287,7 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_OR => BinaryOp::LogicalOr,
                             _ => unreachable!(),
                         };
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(Binary { dest, lhs, rhs, op }.into());
+                        instructions.push(Binary { dest, lhs, rhs, op }.into());
                     }
                     OpCode::LOP_ADDK
                     | OpCode::LOP_SUBK
@@ -321,7 +300,7 @@ impl<'a> Lifter<'a> {
                         let (dest, lhs, rhs) = (
                             self.get_register(a as usize),
                             self.get_register(b as usize),
-                            self.get_block_constant(c as usize, block_index),
+                            self.get_block_constant(c as usize, cfg_block_id),
                         );
                         let op = match op_code {
                             OpCode::LOP_ADDK => BinaryOp::Add,
@@ -334,21 +313,12 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_ORK => BinaryOp::LogicalOr,
                             _ => unreachable!(),
                         };
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(Binary { dest, lhs, rhs, op }.into());
+                        instructions.push(Binary { dest, lhs, rhs, op }.into());
                     }
                     OpCode::LOP_CONCAT => {
                         let dest = self.get_register(a as usize);
                         let values = self.get_register_incl_range(b as usize..=c as usize);
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(Concat { dest, values }.into());
+                        instructions.push(Concat { dest, values }.into());
                     }
                     OpCode::LOP_MINUS | OpCode::LOP_NOT | OpCode::LOP_LENGTH => {
                         let (dest, value) =
@@ -359,22 +329,12 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_LENGTH => UnaryOp::Len,
                             _ => unimplemented!(),
                         };
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(Unary { dest, value, op }.into());
+                        instructions.push(Unary { dest, value, op }.into());
                     }
                     OpCode::LOP_LOADKX => {
                         let dest = self.get_register(a as usize);
                         let constant = self.get_constant(aux as usize);
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(LoadConstant { dest, constant }.into());
+                        instructions.push(LoadConstant { dest, constant }.into());
                     }
                     _ => {}
                 },
@@ -383,22 +343,12 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_LOADN => {
                         let dest = self.get_register(a as usize);
                         let constant = Constant::Number(f64::from(d));
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(LoadConstant { dest, constant }.into());
+                        instructions.push(LoadConstant { dest, constant }.into());
                     }
                     OpCode::LOP_LOADK => {
                         let dest = self.get_register(a as usize);
                         let constant = self.get_constant(d as usize);
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .push(LoadConstant { dest, constant }.into());
+                        instructions.push(LoadConstant { dest, constant }.into());
                     }
                     OpCode::LOP_GETIMPORT => {
                         let dest = self.get_register(a as usize);
@@ -409,73 +359,53 @@ impl<'a> Lifter<'a> {
 
                         if count > 2 {
                             if let Constant::String(name1) = self.get_constant(id0 as usize) {
-                                let name2 = self.get_block_constant(id1 as usize, block_index);
-                                let name3 = self.get_block_constant(id2 as usize, block_index);
-                                let mut builder = Builder::new(&mut self.lifted_function);
-                                builder
-                                    .block(block_index)
-                                    .unwrap()
-                                    .push(LoadGlobal { dest, name: name1 }.into())
-                                    .push(LoadIndex { dest, object: dest, key: name2 }.into())
-                                    .push(LoadIndex { dest, object: dest, key: name3 }.into());
+                                let name2 = self.get_block_constant(id1 as usize, cfg_block_id);
+                                let name3 = self.get_block_constant(id2 as usize, cfg_block_id);
+                                instructions.push(LoadGlobal { dest, name: name1 }.into());
+                                instructions.push(LoadIndex { dest, object: dest, key: name2 }.into());
+                                instructions.push(LoadIndex { dest, object: dest, key: name3 }.into());
                             }
                         }
                         else if count > 1 {
                             if let Constant::String(name1) = self.get_constant(id0 as usize) {
-                                let name2 = self.get_block_constant(id1 as usize, block_index);
-                                let mut builder = Builder::new(&mut self.lifted_function);
-                                builder
-                                    .block(block_index)
-                                    .unwrap()
-                                    .push(LoadGlobal { dest, name: name1 }.into())
-                                    .push(LoadIndex { dest, object: dest, key: name2 }.into());
+                                let name2 = self.get_block_constant(id1 as usize, cfg_block_id);
+                                instructions.push(LoadGlobal { dest, name: name1 }.into());
+                                instructions.push(LoadIndex { dest, object: dest, key: name2 }.into());
                             }
                         }
                         else {
                             if let Constant::String(name) = self.get_constant(id0 as usize) {
-                                let mut builder = Builder::new(&mut self.lifted_function);
-                                builder
-                                    .block(block_index)
-                                    .unwrap()
-                                    .push(LoadGlobal { dest, name }.into());
+                                instructions.push(LoadGlobal { dest, name }.into());
                             }
                         }
                     }
                     OpCode::LOP_JUMP | OpCode::LOP_JUMPBACK => {
                         let branch = self
-                            .get_block(instruction_index.wrapping_add(d as usize) + 1)
-                            .unwrap();
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .replace_terminator(UnconditionalJump(branch).into())?;
+                            .get_block(instruction_index.wrapping_add(d as usize) + 1);
+                        terminator = Some(UnconditionalJump(branch).into());
                         if instruction_index != block_end {
-                            let new_block_index = builder.new_block()?.block_id();
-
-                            block_index = new_block_index
+                            cfg_block_id = self.lifted_function.new_block().unwrap()
                         }
                     }
                     OpCode::LOP_JUMPIF | OpCode::LOP_JUMPIFNOT => {
                         let condition = self.get_register(a as usize);
                         let (mut true_branch, mut false_branch) = (
-                            self.get_block(instruction_index.wrapping_add(d as usize) + 1).unwrap(),
-                            self.get_block(instruction_index + 1).unwrap(),
+                            self.get_block(instruction_index.wrapping_add(d as usize) + 1),
+                            self.get_block(instruction_index + 1),
                         );
                         if matches!(op_code, OpCode::LOP_JUMPIFNOT) {
                             std::mem::swap(&mut true_branch, &mut false_branch);
                         }
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder.block(block_index)?.replace_terminator(
+                        terminator = Some(
                             ConditionalJump {
                                 condition,
                                 true_branch,
                                 false_branch,
                             }
                             .into(),
-                        )?;
+                        );
                         if instruction_index != block_end {
-                            block_index = builder.new_block()?.block_id();
+                            cfg_block_id = self.lifted_function.new_block().unwrap();
                         }
                     }
                     OpCode::LOP_JUMPIFEQ | OpCode::LOP_JUMPIFLE | OpCode::LOP_JUMPIFLT |
@@ -486,8 +416,8 @@ impl<'a> Lifter<'a> {
                         );
 
                         let (mut true_branch, mut false_branch) = (
-                            self.get_block(instruction_index.wrapping_add(d as usize) + 1).unwrap(),
-                            self.get_block(instruction_index + 1).unwrap(),
+                            self.get_block(instruction_index.wrapping_add(d as usize) + 1),
+                            self.get_block(instruction_index + 1),
                         );
 
                         if matches!(op_code, OpCode::LOP_JUMPIFNOTEQ | OpCode::LOP_JUMPIFNOTLE | OpCode::LOP_JUMPIFNOTLT) {
@@ -500,41 +430,37 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_JUMPIFLT | OpCode::LOP_JUMPIFNOTLT => BinaryOp::LesserOrEqual,
                             _ => panic!(),
                         };
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        let condition = builder.new_value();
-                        builder
-                            .block(block_index)?
-                            .push(
-                                Binary {
-                                    dest: condition,
-                                    lhs,
-                                    rhs,
-                                    op,
-                                }
-                                .into(),
-                            )
-                            .replace_terminator(
-                                ConditionalJump {
-                                    condition,
-                                    true_branch,
-                                    false_branch,
-                                }
-                                .into(),
-                            )?;
+                        let condition = self.lifted_function.new_value();
+                        instructions.push(
+                            Binary {
+                                dest: condition,
+                                lhs,
+                                rhs,
+                                op,
+                            }
+                            .into(),
+                        );
+                        terminator = Some(
+                            ConditionalJump {
+                                condition,
+                                true_branch,
+                                false_branch,
+                            }
+                            .into(),
+                        );
                         if instruction_index != block_end {
-                            block_index = builder.new_block()?.block_id();
+                            cfg_block_id = self.lifted_function.new_block().unwrap();
                         }
                     }
                     OpCode::LOP_JUMPIFEQK | OpCode::LOP_JUMPIFNOTEQK => {
                         let (lhs, rhs) = (
                             self.get_register(a as usize),
-                            self.get_block_constant(aux as usize, block_index),
+                            self.get_block_constant(aux as usize, cfg_block_id),
                         );
 
                         let (mut true_branch, mut false_branch) = (
-                            self.get_block(instruction_index + 1).unwrap(),
-                            self.get_block(instruction_index.wrapping_add(d as usize) + 1).unwrap(),
+                            self.get_block(instruction_index + 1),
+                            self.get_block(instruction_index.wrapping_add(d as usize) + 1),
                         );
 
                         if matches!(op_code, OpCode::LOP_JUMPIFNOTEQ | OpCode::LOP_JUMPIFNOTLE | OpCode::LOP_JUMPIFNOTLT) {
@@ -542,30 +468,26 @@ impl<'a> Lifter<'a> {
                         }
 
                         let op = BinaryOp::Equal;
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        let condition = builder.new_value();
-                        builder
-                            .block(block_index)?
-                            .push(
-                                Binary {
-                                    dest: condition,
-                                    lhs,
-                                    rhs,
-                                    op,
-                                }
-                                .into(),
-                            )
-                            .replace_terminator(
-                                ConditionalJump {
-                                    condition,
-                                    true_branch,
-                                    false_branch,
-                                }
-                                .into(),
-                            )?;
+                        let condition = self.lifted_function.new_value();
+                        instructions.push(
+                            Binary {
+                                dest: condition,
+                                lhs,
+                                rhs,
+                                op,
+                            }
+                            .into(),
+                        );
+                        terminator = Some(
+                            ConditionalJump {
+                                condition,
+                                true_branch,
+                                false_branch,
+                            }
+                            .into(),
+                        );
                         if instruction_index != block_end {
-                            block_index = builder.new_block()?.block_id();
+                            cfg_block_id = self.lifted_function.new_block().unwrap();
                         }
                     }
                     _ => {}
@@ -581,15 +503,11 @@ impl<'a> Lifter<'a> {
         }
 
         if !Self::is_terminator(&self.function_list[self.function].instructions[block_end]) {
-            let branch = self.get_block(block_end + 1).unwrap();
-            let mut builder = Builder::new(&mut self.lifted_function);
-            builder
-                .block(block_index)
-                .unwrap()
-                .replace_terminator(UnconditionalJump(branch).into())?;
+            let branch = self.get_block(block_end + 1);
+            terminator = Some(UnconditionalJump(branch).into());
         }
 
-        Ok(())
+        Ok((instructions, terminator))
     }
 
     pub fn lift_function(&mut self) -> Result<Function> {
@@ -619,12 +537,20 @@ impl<'a> Lifter<'a> {
             )
             .1;
 
-        for (block_start, block_end) in block_ranges {
-            self.lift_block(block_start, block_end)?;
+        for (block_start_pc, block_end_pc) in block_ranges {
+            let cfg_block_id = self.get_block(block_start_pc);
+            let (instructions, terminator) =
+                self.lift_instructions(block_start_pc, block_end_pc, cfg_block_id)?;
+
+            let block = self.lifted_function.block_mut(cfg_block_id).unwrap();
+            block.inner_instructions.extend(instructions);
+
+            self.lifted_function
+                .set_block_terminator(cfg_block_id, terminator)?;
         }
 
         let mut function = self.lifted_function.clone();
-        function.graph_mut().set_entry(self.get_block(0).unwrap())?;
+        function.set_entry(self.get_block(0))?;
 
         //function.remove_unconnected_blocks().unwrap();
         Ok(function)
