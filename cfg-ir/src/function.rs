@@ -12,7 +12,7 @@ use crate::{
 pub struct Function {
     graph: Graph,
     blocks: FxHashMap<NodeId, BasicBlock>,
-    next_value_index: usize,
+    pub(crate) next_value_index: usize,
     entry: Option<NodeId>,
 }
 

@@ -32,7 +32,7 @@ pub struct DefUse(FxHashMap<ValueId, ValueDefUse>);
 
 impl DefUse {
     pub fn new(function: &Function) -> Self {
-        let mut def_use = Self(FxHashMap::default());
+        let mut def_use = Self(FxHashMap::with_capacity_and_hasher(function.next_value_index, Default::default()));
         for (&node, block) in function.blocks() {
             def_use.update_block(block, node);
         }

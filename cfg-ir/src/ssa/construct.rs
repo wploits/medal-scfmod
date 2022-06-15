@@ -46,7 +46,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     println!("-compute dominance frontiers: {:?}", df_computed);
 
     let now = time::Instant::now();
-    let mut node_to_values_written = FxHashMap::default();
+    let mut node_to_values_written = FxHashMap::with_capacity_and_hasher(dominance_frontiers.len(), Default::default());
     let mut value_written_to_nodes = FxHashMap::default();
     for &node in dominance_frontiers.keys() {
         let block = function.block(node).unwrap();

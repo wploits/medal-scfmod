@@ -200,8 +200,8 @@ pub fn compute_immediate_dominators(
         .collect();
     let graph_number = &dfs_pre_order;
 
-    let mut ancestor: FxHashMap<NodeId, Option<NodeId>> = FxHashMap::default();
-    let mut label: FxHashMap<NodeId, usize> = FxHashMap::default();
+    let mut ancestor: FxHashMap<NodeId, Option<NodeId>> = FxHashMap::with_capacity_and_hasher(graph.nodes().len(), Default::default());
+    let mut label: FxHashMap<NodeId, usize> = FxHashMap::with_capacity_and_hasher(graph.nodes().len(), Default::default());
     for &vertex in graph.nodes() {
         if let Some(&vertex_label) = dfs_number.get(&vertex) {
             ancestor.insert(vertex, None);
