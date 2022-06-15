@@ -53,15 +53,14 @@ impl DefUse {
             .enumerate()
             .map(|(i, _)| InstructionIndex::Phi(i))
         {
-            let value_info = block.value_info(index).unwrap();
-            for value_read in value_info.values_read() {
+            for value_read in block.values_read(index) {
                 self.0
                     .entry(value_read)
                     .or_insert_with(ValueDefUse::new)
                     .reads
                     .insert(InstructionLocation { node, index });
             }
-            for value_written in value_info.values_written() {
+            for value_written in block.values_written(index) {
                 self.0
                     .entry(value_written)
                     .or_insert_with(ValueDefUse::new)
@@ -79,15 +78,14 @@ impl DefUse {
                 .retain(|location| location.node != node);
         }
         for &index in block.indices().iter() {
-            let value_info = block.value_info(index).unwrap();
-            for value_read in value_info.values_read() {
+            for value_read in block.values_read(index) {
                 self.0
                     .entry(value_read)
                     .or_insert_with(ValueDefUse::new)
                     .reads
                     .insert(InstructionLocation { node, index });
             }
-            for value_written in value_info.values_written() {
+            for value_written in block.values_written(index) {
                 self.0
                     .entry(value_written)
                     .or_insert_with(ValueDefUse::new)

@@ -121,16 +121,13 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 visited.insert(node);
                 for index in function.block_mut(node).unwrap().indices() {
                     if !matches!(index, InstructionIndex::Phi(_)) {
-                        let value_info = function
-                            .block_mut(node)
-                            .unwrap()
-                            .value_info_mut(index)
-                            .unwrap();
+                        let block = function
+                            .block_mut(node).unwrap();
                         for (read_value_index, value) in
-                            value_info.values_read().into_iter().enumerate()
+                            block.values_read(index).into_iter().enumerate()
                         {
                             if let Some(value_stack) = value_stacks.get(&value) {
-                                *value_info.values_read_mut()[read_value_index] =
+                                *block.values_read_mut(index)[read_value_index] =
                                     *value_stack.last().unwrap();
                             }
                         }
@@ -140,9 +137,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     for (written_value_index, value) in function
                         .block_mut(node)
                         .unwrap()
-                        .value_info_mut(index)
-                        .unwrap()
-                        .values_written()
+                        .values_written(index)
                         .into_iter()
                         .enumerate()
                     {
@@ -162,7 +157,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     for (node, values) in values_to_replace {
                         let block = function.block_mut(node).unwrap();
                         for (written_value_index, value) in values {
-                            *block.value_info_mut(index).unwrap().values_written_mut()
+                            *block.values_written_mut(index)
                                 [written_value_index] = value;
                         }
                     }
@@ -278,9 +273,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 let block = function.block_mut(node).unwrap();
                 for instruction_index in block.indices() {
                     block
-                        .value_info_mut(instruction_index)
-                        .unwrap()
-                        .replace_values_read(old, new);
+                        .replace_values_read(instruction_index, old, new);
                 }
                 def_use.update_block(block, node);
             }
@@ -299,9 +292,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 for read_location in def_use.get(dest).unwrap().reads.clone() {
                     let read_location_block = function.block_mut(read_location.node).unwrap();
                     read_location_block
-                        .value_info_mut(read_location.index)
-                        .unwrap()
-                        .replace_values_read(dest, source);
+                        .replace_values_read(read_location.index, dest, source);
                     def_use.update_block(read_location_block, read_location.node);
                 }
                 let block = function.block_mut(node).unwrap();

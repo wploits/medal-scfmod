@@ -1,4 +1,4 @@
-use crate::instruction::value_info::ValueInfo;
+use crate::{instruction::value_info::ValueInfo, value::ValueId};
 
 use super::instruction::{location::InstructionIndex, Inner, Phi, Terminator};
 
@@ -40,7 +40,55 @@ impl BasicBlock {
             .collect()
     }
 
-    pub(crate) fn value_info(&self, index: InstructionIndex) -> Option<&dyn ValueInfo> {
+    pub fn values_written(&self, index: InstructionIndex) -> Vec<ValueId> {
+        match index {
+            InstructionIndex::Phi(i) => self.phi_instructions.get(i).unwrap().values_written(),
+            InstructionIndex::Inner(i) => self.inner_instructions.get(i).unwrap().values_written(),
+            InstructionIndex::Terminator => self.terminator.as_ref().unwrap().values_written()
+        }
+    }
+
+    pub fn values_written_mut(&mut self, index: InstructionIndex) -> Vec<&mut ValueId> {
+        match index {
+            InstructionIndex::Phi(i) => self.phi_instructions.get_mut(i).unwrap().values_written_mut(),
+            InstructionIndex::Inner(i) => self.inner_instructions.get_mut(i).unwrap().values_written_mut(),
+            InstructionIndex::Terminator => self.terminator.as_mut().unwrap().values_written_mut()
+        }
+    }
+
+    pub fn values_read(&self, index: InstructionIndex) -> Vec<ValueId> {
+        match index {
+            InstructionIndex::Phi(i) => self.phi_instructions.get(i).unwrap().values_read(),
+            InstructionIndex::Inner(i) => self.inner_instructions.get(i).unwrap().values_read(),
+            InstructionIndex::Terminator => self.terminator.as_ref().unwrap().values_read()
+        }
+    }
+
+    pub fn values_read_mut(&mut self, index: InstructionIndex) -> Vec<&mut ValueId> {
+        match index {
+            InstructionIndex::Phi(i) => self.phi_instructions.get_mut(i).unwrap().values_read_mut(),
+            InstructionIndex::Inner(i) => self.inner_instructions.get_mut(i).unwrap().values_read_mut(),
+            InstructionIndex::Terminator => self.terminator.as_mut().unwrap().values_read_mut()
+        }
+    }
+
+    pub fn replace_values_read(&mut self, index: InstructionIndex, old: ValueId, new: ValueId) {
+        match index {
+            InstructionIndex::Phi(i) => self.phi_instructions.get_mut(i).unwrap().replace_values_read(old, new),
+            InstructionIndex::Inner(i) => self.inner_instructions.get_mut(i).unwrap().replace_values_read(old, new),
+            InstructionIndex::Terminator => self.terminator.as_mut().unwrap().replace_values_read(old, new)
+        }
+    }
+
+    pub fn replace_values(&mut self, index: InstructionIndex, old: ValueId, new: ValueId) {
+        match index {
+            InstructionIndex::Phi(i) => self.phi_instructions.get_mut(i).unwrap().replace_values(old, new),
+            InstructionIndex::Inner(i) => self.inner_instructions.get_mut(i).unwrap().replace_values(old, new),
+            InstructionIndex::Terminator => self.terminator.as_mut().unwrap().replace_values(old, new)
+        }
+    }
+    
+    /*pub(crate) fn value_info(&self, index: InstructionIndex) -> Option<&dyn ValueInfo> {
         match index {
             InstructionIndex::Phi(i) => self.phi_instructions.get(i).map(|phi| phi as _),
             InstructionIndex::Inner(i) => self.inner_instructions.get(i).map(|inner| inner as _),
@@ -60,5 +108,5 @@ impl BasicBlock {
                 self.terminator.as_mut().map(|terminator| terminator as _)
             }
         }
-    }
+    }*/
 }
