@@ -1,4 +1,4 @@
-use std::{collections::HashSet, rc::Rc};
+use std::rc::Rc;
 
 use cfg_ir::{
     constant::Constant,
@@ -7,13 +7,13 @@ use cfg_ir::{
     value::ValueId,
 };
 use fxhash::FxHashMap;
-use graph::{algorithms::dominators::post_dominator_tree, NodeId};
+use graph::NodeId;
 
 fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr) -> ast_ir::Assign {
     ast_ir::Assign {
         pos: None,
         vars: vec![local.into()],
-        values: vec![value.into()],
+        values: vec![value],
     }
 }
 
@@ -85,13 +85,13 @@ impl<'a> Lifter<'a> {
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
                     assign_local(
-                        self.local(load_constant.dest).into(),
+                        self.local(load_constant.dest),
                         constant(&load_constant.constant).into(),
                     )
                     .into(),
                 ),
                 Inner::Move(mov) => body.statements.push(
-                    assign_local(self.local(mov.dest).into(), self.local(mov.source).into()).into(),
+                    assign_local(self.local(mov.dest), self.local(mov.source).into()).into(),
                 ),
                 _ => {}
             }

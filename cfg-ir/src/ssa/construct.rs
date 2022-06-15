@@ -119,8 +119,9 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     println!("-phi insertation: {:?}", phis_inserted);
 
     fn split_values(function: &mut Function, root: NodeId, dominator_tree: &Graph) {
-        let mut visited = FxHashSet::<NodeId>::default();
-        let mut stack = vec![(root, Rc::new(FxHashMap::<ValueId, Vec<ValueId>>::default()))];
+        let mut visited = FxHashSet::default();
+        // TODO: can we use smallvec here?
+        let mut stack = vec![(root, Rc::new(FxHashMap::<_, Vec<_>>::default()))];
 
         while let Some((node, mut value_stacks)) = stack.pop() {
             if !visited.contains(&node) {
