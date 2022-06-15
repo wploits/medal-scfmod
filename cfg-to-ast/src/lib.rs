@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::time;
 
 use cfg_ir::constant::Constant;
 
@@ -50,7 +51,10 @@ impl<'a> Lifter<'a> {
             .iter()
             .map(|edge| edge.destination)
             .collect::<FxHashSet<_>>();
+        let now = time::Instant::now();
         let local_declarations = local_declaration::local_declarations(cfg, entry);
+        let local_declarations_time = now.elapsed();
+        println!("local declarations: {:?}", local_declarations_time);
         Self {
             cfg,
             graph,
@@ -478,6 +482,7 @@ impl<'a> Lifter<'a> {
                 if let Some(else_block) = &if_stat.else_block {
                     if Self::block_breaks(else_block) {
                         while_stat.condition = Self::combine_conditions(
+                            // TODO: find a way to do this without cloning
                             while_stat.condition.clone(),
                             if_stat.condition.clone(),
                         );
@@ -485,6 +490,7 @@ impl<'a> Lifter<'a> {
                         return true;
                     } else if Self::block_breaks(&if_stat.then_block) {
                         while_stat.condition = Self::combine_conditions(
+                            // TODO: find a way to do this without cloning
                             while_stat.condition.clone(),
                             ast_ir::Unary {
                                 pos: None,
@@ -571,7 +577,7 @@ impl<'a> Lifter<'a> {
     }
 }
 
-pub fn lift(cfg: &Function) {
+pub fn lift(cfg: &Function) -> String {
     let graph = cfg.graph();
     let entry = cfg.entry().unwrap();
 
@@ -585,5 +591,5 @@ pub fn lift(cfg: &Function) {
     let mut ast_function = ast_ir::Function::new();
     ast_function.body = lifter.lift(entry);
 
-    println!("{}", ast_ir::formatter::format_ast(&ast_function));
+    ast_ir::formatter::format_ast(&ast_function)
 }

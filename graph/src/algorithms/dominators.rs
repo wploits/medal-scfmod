@@ -1,5 +1,8 @@
+use std::collections::{HashSet, BTreeSet};
+
 use array_tool::vec::Intersect;
 use fxhash::{FxHashMap, FxHashSet};
+use indexmap::IndexSet;
 
 use crate::{Edge, Error, Graph, NodeId, Result, algorithms::dfs_tree};
 
@@ -41,13 +44,16 @@ pub fn dominators(graph: &Graph, root: NodeId, dfs: &Graph) -> Result<FxHashMap<
 pub fn common_dominator(
     dominators: &FxHashMap<NodeId, Vec<NodeId>>,
     nodes: Vec<NodeId>,
-) -> Result<Option<NodeId>> {
-    let mut nodes_dominators_iter = nodes.iter().map(|&node| dominators[&node].clone());
-    let mut res = nodes_dominators_iter.next().unwrap();
-    for node_dominators in nodes_dominators_iter {
-        res = node_dominators.intersect(res);
+) -> Option<NodeId> {
+    let mut nodes_iter = nodes.iter();
+    let mut res =  dominators[nodes_iter.next().unwrap()].iter().cloned().collect::<IndexSet<_>>();
+    for node in nodes_iter {
+        let set = dominators[node].iter().cloned().collect::<FxHashSet<_>>();
+        res.retain(|i| set.contains(i));
     }
-    Ok(res.first().cloned())
+    // TODO: use .first() when map_first_last stabilized
+    // res.first().cloned()
+    res.into_iter().next()
 }
 
 pub fn post_dominator_tree(graph: &Graph, _root: NodeId, dfs: &Graph) -> Result<Graph> {

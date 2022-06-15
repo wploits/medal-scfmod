@@ -40,6 +40,7 @@ fn constant(constant: &Constant) -> ast_ir::ExprLit {
             Constant::Nil => ast_ir::Lit::Nil,
             Constant::Boolean(v) => ast_ir::Lit::Boolean(v),
             Constant::Number(v) => ast_ir::Lit::Number(v),
+            // TODO: Cow strings?
             Constant::String(v) => ast_ir::Lit::String(v),
         },
     }

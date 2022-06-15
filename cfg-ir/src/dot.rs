@@ -30,7 +30,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
-        dot::Id::new(format!("{}", *n)).unwrap()
+        dot::Id::new(n.to_string()).unwrap()
     }
 
     fn node_shape(&'a self, _n: &NodeId) -> Option<LabelText<'a>> {

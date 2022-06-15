@@ -11,7 +11,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Graph {
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
-        dot::Id::new(format!("{}", *n)).unwrap()
+        dot::Id::new(n.to_string()).unwrap()
     }
 }
 

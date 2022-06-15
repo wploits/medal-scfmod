@@ -42,6 +42,7 @@ impl Formatter {
             Lit::Nil => self.print("nil"),
             Lit::Boolean(b) => self.print(&b.to_string()),
             Lit::Number(n) => self.print(&n.to_string()),
+            // TODO: we could optimize this by removing format and appending '"' directly to the output, if needed
             Lit::String(s) => self.print(&format!("\"{}\"", &s.to_string())),
         }
     }
@@ -211,6 +212,7 @@ impl Formatter {
                 Stat::Continue(_) => {
                     self.print("continue");
                 }
+                // TODO: we could optimize this by removing format and appending '-- ' directly to the output, if needed
                 Stat::Comment(comment) => self.print(&format!("-- {}", &comment.comment)),
                 _ => {}
             }

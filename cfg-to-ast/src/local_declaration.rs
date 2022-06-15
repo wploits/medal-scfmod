@@ -41,7 +41,6 @@ pub(crate) fn local_declarations(
                         .map(|location| location.node)
                         .collect::<Vec<_>>(),
                 )
-                .unwrap()
                 .unwrap(),
             )
         })

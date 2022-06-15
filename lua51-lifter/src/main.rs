@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
     //dot::render_to(&cfg, &mut std::io::stdout())?;
     println!("ssa destruction: {:?}", ssa_destructed);
 
-    //cfg_to_ast::lift(&cfg);
+    cfg_to_ast::lift(&cfg);
     //cfg_to_ast::lifter::lift(&cfg);
 
     Ok(())
