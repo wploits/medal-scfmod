@@ -1,4 +1,4 @@
-use fxhash::{FxHashSet, FxHashMap};
+use fxhash::{FxHashMap, FxHashSet};
 use graph::NodeId;
 
 use crate::{
@@ -44,9 +44,9 @@ impl DefUse {
             value_def_use.reads.retain(|location| {
                 !matches!(location.index, InstructionIndex::Phi(_)) && location.node != node
             });
-            value_def_use
-                .writes
-                .retain(|location| location.node != node);
+            value_def_use.writes.retain(|location| {
+                !matches!(location.index, InstructionIndex::Phi(_)) && location.node != node
+            });
         }
         for index in block
             .phi_instructions
