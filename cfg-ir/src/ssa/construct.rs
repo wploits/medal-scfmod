@@ -70,7 +70,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
         node_to_values_written
             .entry(node)
-            .or_insert_with(FxHashSet::<ValueId>::default)
+            .or_insert_with(|| FxHashSet::<ValueId>::with_capacity_and_hasher(values_written.len(), Default::default()))
             .borrow_mut()
             .extend(values_written.iter())
     }

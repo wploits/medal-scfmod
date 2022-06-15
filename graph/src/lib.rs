@@ -149,6 +149,8 @@ impl Graph {
             return Err(Error::InvalidNode(node));
         }
 
+        // TODO: should we assume all nodes will be included in the preorder and use
+        // nodes.len() as capacity?
         let mut visited = FxHashSet::default();
         let mut stack = Vec::new();
         let mut order = Vec::new();
