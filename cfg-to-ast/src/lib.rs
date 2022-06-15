@@ -11,7 +11,7 @@ use fxhash::{FxHashMap, FxHashSet};
 use graph::algorithms::dominators::{compute_immediate_dominators, post_dominator_tree};
 
 use cfg_ir::function::Function;
-use graph::algorithms::back_edges;
+use graph::algorithms::{back_edges, dfs_tree};
 use graph::{Edge, Graph, NodeId};
 
 use ast_ir::{Block, Local};
@@ -581,8 +581,9 @@ pub fn lift(cfg: &Function) {
     let graph = cfg.graph();
     let entry = cfg.entry().unwrap();
 
-    let post_dom_tree = post_dominator_tree(graph, entry).unwrap();
-    let idoms = compute_immediate_dominators(graph, entry).unwrap();
+    let dfs = dfs_tree(graph, entry).unwrap();
+    let post_dom_tree = post_dominator_tree(graph, entry, &dfs).unwrap();
+    let idoms = compute_immediate_dominators(graph, entry, &dfs).unwrap();
 
     //render_to(&post_dom_tree, &mut std::io::stdout());
     let mut lifter = Lifter::new(cfg, graph, entry, &idoms, &post_dom_tree);

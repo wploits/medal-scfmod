@@ -6,9 +6,9 @@ use std::{
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::dominators::{
+    algorithms::{dominators::{
         compute_dominance_frontiers, compute_immediate_dominators, dominator_tree,
-    },
+    }, dfs_tree},
     Graph, NodeId,
 };
 
@@ -31,7 +31,12 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         .ok_or(Error::Graph(graph::Error::NoEntry))?;
 
     let now = time::Instant::now();
-    let immediate_dominators = compute_immediate_dominators(function.graph(), entry)?;
+    let dfs = dfs_tree(function.graph(), entry)?;
+    let dfs_computed = now.elapsed();
+    println!("-dfs tree: {:?}", dfs_computed);
+
+    let now = time::Instant::now();
+    let immediate_dominators = compute_immediate_dominators(function.graph(), entry, &dfs)?;
     let imm_dom_computed = now.elapsed();
     println!("-compute immediate dominators: {:?}", imm_dom_computed);
 
@@ -39,7 +44,8 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let mut dominance_frontiers = compute_dominance_frontiers(
         function.graph(),
         entry,
-        Some(Cow::Borrowed(&immediate_dominators)),
+        &immediate_dominators,
+        &dfs,
     )?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
     let df_computed = now.elapsed();

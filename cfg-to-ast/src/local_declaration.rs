@@ -6,7 +6,7 @@ use cfg_ir::{
 };
 use fxhash::FxHashMap;
 use graph::{
-    algorithms::dominators::{common_dominator, dominators},
+    algorithms::{dominators::{common_dominator, dominators}, dfs_tree},
     NodeId,
 };
 
@@ -23,7 +23,7 @@ pub(crate) fn local_declarations(
     let mut def_use = DefUse::new(function);
     def_use.remove_unused();
 
-    let dominators = dominators(function.graph(), root).unwrap();
+    let dominators = dominators(function.graph(), root, &dfs_tree(function.graph(), root).unwrap()).unwrap();
 
     let declaration_node = def_use
         .values()

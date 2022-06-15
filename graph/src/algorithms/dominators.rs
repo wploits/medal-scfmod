@@ -19,12 +19,12 @@ pub fn dominator_tree(graph: &Graph, idoms: &FxHashMap<NodeId, NodeId>) -> Resul
     Ok(dom_tree)
 }
 
-pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, Vec<NodeId>>> {
+pub fn dominators(graph: &Graph, root: NodeId, dfs: &Graph) -> Result<FxHashMap<NodeId, Vec<NodeId>>> {
     if !graph.node_exists(root) {
         return Err(Error::InvalidNode(root));
     }
 
-    let dom_tree = dominator_tree(graph, &compute_immediate_dominators(graph, root)?)?;
+    let dom_tree = dominator_tree(graph, &compute_immediate_dominators(graph, root, dfs)?)?;
     let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators = FxHashMap::default();
@@ -54,8 +54,7 @@ pub fn common_dominator(
     Ok(res.first().cloned())
 }
 
-pub fn post_dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
-    let dfs = dfs_tree(graph, root)?;
+pub fn post_dominator_tree(graph: &Graph, root: NodeId, dfs: &Graph) -> Result<Graph> {
     let exits = graph
         .nodes()
         .iter()
@@ -82,7 +81,7 @@ pub fn post_dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
         dom_tree.add_node_with_id(vertex)?;
     }
 
-    let idoms = compute_immediate_dominators(&reverse_graph, single_exit_node)?;
+    let idoms = compute_immediate_dominators(&reverse_graph, single_exit_node, &dfs)?;
     for (vertex, idom) in idoms {
         if idom != single_exit_node {
             dom_tree.add_edge(Edge::new(idom, vertex))?;
@@ -95,12 +94,13 @@ pub fn post_dominator_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
 pub fn post_dominators(
     graph: &Graph,
     root: NodeId,
+    dfs: &Graph,
 ) -> Result<FxHashMap<NodeId, FxHashSet<NodeId>>> {
     if !graph.node_exists(root) {
         return Err(Error::InvalidNode(root));
     }
 
-    let dom_tree = post_dominator_tree(graph, root)?;
+    let dom_tree = post_dominator_tree(graph, root, dfs)?;
     let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators: FxHashMap<NodeId, FxHashSet<NodeId>> = FxHashMap::default();
@@ -120,18 +120,12 @@ pub fn post_dominators(
 pub fn compute_dominance_frontiers(
     graph: &Graph,
     root: NodeId,
-    immediate_dominators: Option<Cow<FxHashMap<NodeId, NodeId>>>,
+    immediate_dominators: &FxHashMap<NodeId, NodeId>,
+    dfs: &Graph,
 ) -> Result<FxHashMap<NodeId, FxHashSet<NodeId>>> {
-    let immediate_dominators = match immediate_dominators {
-        Some(immediate_dominators) => immediate_dominators,
-        None => Cow::Owned(compute_immediate_dominators(graph, root)?),
-    };
-
     if !graph.node_exists(root) {
         return Err(Error::InvalidNode(root));
     }
-
-    let dfs = dfs_tree(graph, root)?;
 
     let mut dominance_frontiers = FxHashMap::default();
 
@@ -179,12 +173,12 @@ pub fn compute_dominance_frontiers(
 pub fn compute_immediate_dominators(
     graph: &Graph,
     root: NodeId,
+    dfs: &Graph,
 ) -> Result<FxHashMap<NodeId, NodeId>> {
     if !graph.node_exists(root) {
         return Err(Error::InvalidNode(root));
     }
 
-    let dfs = super::dfs_tree(graph, root)?;
     let dfs_pre_order = dfs.pre_order(root)?;
 
     // filter out unreachable nodes
