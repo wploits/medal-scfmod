@@ -43,7 +43,7 @@ pub fn destruct(function: &mut Function) {
                 .unwrap()
                 .phi_instructions
                 .remove(phi_index);
-            def_use.update_block(function.block(node).unwrap(), node);
+            def_use.update_block_phi(function.block(node).unwrap(), node);
         }
     }
 }
