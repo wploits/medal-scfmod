@@ -266,7 +266,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             for phi_index in phi_indices.into_iter().rev() {
                 block.phi_instructions.remove(phi_index);
             }
-            // TODO: can optimize further by only updating phi nodes, if need be
             def_use.update_block_phi(block, node);
         }
 

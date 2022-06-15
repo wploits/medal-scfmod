@@ -41,6 +41,7 @@ pub fn dominators(graph: &Graph, root: NodeId) -> Result<FxHashMap<NodeId, Vec<N
     Ok(dominators)
 }
 
+// TODO: https://sci-hub.se/10.1016/0196-6774(92)90063-i
 pub fn common_dominator(
     dominators: &FxHashMap<NodeId, Vec<NodeId>>,
     nodes: Vec<NodeId>,

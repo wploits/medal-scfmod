@@ -1,5 +1,4 @@
-use std::collections::{HashMap, HashSet};
-
+use fxhash::{FxHashSet, FxHashMap};
 use graph::NodeId;
 
 use crate::{
@@ -11,15 +10,15 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ValueDefUse {
-    pub reads: HashSet<InstructionLocation>,
-    pub writes: HashSet<InstructionLocation>,
+    pub reads: FxHashSet<InstructionLocation>,
+    pub writes: FxHashSet<InstructionLocation>,
 }
 
 impl ValueDefUse {
     fn new() -> Self {
         Self {
-            reads: HashSet::new(),
-            writes: HashSet::new(),
+            reads: FxHashSet::default(),
+            writes: FxHashSet::default(),
         }
     }
 
@@ -29,11 +28,11 @@ impl ValueDefUse {
 }
 
 #[derive(Debug, Clone)]
-pub struct DefUse(HashMap<ValueId, ValueDefUse>);
+pub struct DefUse(FxHashMap<ValueId, ValueDefUse>);
 
 impl DefUse {
     pub fn new(function: &Function) -> Self {
-        let mut def_use = Self(HashMap::new());
+        let mut def_use = Self(FxHashMap::default());
         for (&node, block) in function.blocks() {
             def_use.update_block(block, node);
         }
