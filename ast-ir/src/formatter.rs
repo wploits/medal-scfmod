@@ -166,7 +166,7 @@ impl Formatter {
                     self.format_expression(&for_stat.to);
                     if let Some(step_expr) = &for_stat.step {
                         self.print(", ");
-                        self.format_expression(&step_expr);
+                        self.format_expression(step_expr);
                     }
                     self.print(" do");
                     self.indent();

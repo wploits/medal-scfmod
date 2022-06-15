@@ -108,7 +108,7 @@ impl Function {
     }
 
     pub fn values(&self) -> Vec<ValueId> {
-        (0..self.next_value_index).map(|v| ValueId(v)).collect()
+        (0..self.next_value_index).map(ValueId).collect()
     }
 }
 

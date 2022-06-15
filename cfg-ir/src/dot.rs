@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::io::Write;
 
-use dot::{GraphWalk, LabelText, Labeller, Style};
+use dot::{GraphWalk, LabelText, Labeller};
 use itertools::Itertools;
 
 use graph::{Edge, NodeId};

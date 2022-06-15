@@ -1,10 +1,7 @@
 use array_tool::vec::Intersect;
 use fxhash::{FxHashMap, FxHashSet};
-use std::borrow::Cow;
 
-use crate::{Edge, Error, Graph, NodeId, Result};
-
-use super::dfs_tree;
+use crate::{Edge, Error, Graph, NodeId, Result, algorithms::dfs_tree};
 
 pub fn dominator_tree(graph: &Graph, idoms: &FxHashMap<NodeId, NodeId>) -> Result<Graph> {
     let mut dom_tree = Graph::new();
@@ -30,8 +27,7 @@ pub fn dominators(graph: &Graph, root: NodeId, dfs: &Graph) -> Result<FxHashMap<
     let mut dominators = FxHashMap::default();
 
     for vertex in dom_tree_pre_oder {
-        let mut doms = Vec::new();
-        doms.push(vertex);
+        let mut doms = vec![vertex];
         for pred in dom_tree.predecessors(vertex) {
             doms.extend(&dominators[&pred])
         }
@@ -54,14 +50,13 @@ pub fn common_dominator(
     Ok(res.first().cloned())
 }
 
-pub fn post_dominator_tree(graph: &Graph, root: NodeId, dfs: &Graph) -> Result<Graph> {
+pub fn post_dominator_tree(graph: &Graph, _root: NodeId, dfs: &Graph) -> Result<Graph> {
     let exits = graph
         .nodes()
         .iter()
         .cloned()
         .filter(|&node| graph.successors(node).next().is_none() && dfs.node_exists(node))
         .collect::<Vec<_>>();
-
     let mut reverse_graph = Graph::new();
     for &node in graph.nodes() {
         reverse_graph.add_node_with_id(node)?;
@@ -75,19 +70,16 @@ pub fn post_dominator_tree(graph: &Graph, root: NodeId, dfs: &Graph) -> Result<G
     for exit in exits {
         reverse_graph.add_edge(Edge::new(single_exit_node, exit))?;
     }
-
     let mut dom_tree = Graph::new();
     for &vertex in reverse_graph.nodes() {
         dom_tree.add_node_with_id(vertex)?;
     }
-
-    let idoms = compute_immediate_dominators(&reverse_graph, single_exit_node, &dfs)?;
+    let idoms = compute_immediate_dominators(&reverse_graph, single_exit_node, &dfs_tree(&reverse_graph, single_exit_node)?)?;
     for (vertex, idom) in idoms {
         if idom != single_exit_node {
             dom_tree.add_edge(Edge::new(idom, vertex))?;
         }
     }
-
     Ok(dom_tree)
 }
 

@@ -43,7 +43,7 @@ pub fn parse_str(input: &[u8]) -> IResult<&[u8], &str> {
 
     Ok((
         input,
-        std::str::from_utf8(&string)
+        std::str::from_utf8(string)
             .map_err(|_| nom::Err::Failure(Error::from_error_kind(input, ErrorKind::Fail)))?,
     ))
 }

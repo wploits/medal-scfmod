@@ -14,7 +14,7 @@ impl PartialOrd for InstructionIndex {
             InstructionIndex::Phi(_i) => todo!(),
             InstructionIndex::Inner(i) => match other {
                 InstructionIndex::Phi(_) => std::cmp::Ordering::Greater,
-                InstructionIndex::Inner(j) => i.cmp(&j),
+                InstructionIndex::Inner(j) => i.cmp(j),
                 InstructionIndex::Terminator => std::cmp::Ordering::Less,
             },
             InstructionIndex::Terminator => match other {

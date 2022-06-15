@@ -43,8 +43,8 @@ impl<'a> Lifter<'a> {
     fn discover_blocks(&mut self) -> Result<()> {
         self.blocks.insert(0, self.lifted_function.new_block()?);
         for (insn_index, insn) in self.function.code.iter().enumerate() {
-            match insn {
-                &BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
+            match *insn {
+                BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                     OpCode::SetList if c == 0 => {
                         // TODO: skip next instruction
                         todo!();
@@ -65,9 +65,9 @@ impl<'a> Lifter<'a> {
                     _ => {}
                 },
 
-                &BytecodeInstruction::ABx { .. } => {}
+                BytecodeInstruction::ABx { .. } => {}
 
-                &BytecodeInstruction::AsBx { op_code, a: _, sbx } if op_code == OpCode::Jump => {
+                BytecodeInstruction::AsBx { op_code, a: _, sbx } if op_code == OpCode::Jump => {
                     self.blocks
                         .entry(insn_index + sbx as usize - 131070)
                         .or_insert_with(|| self.lifted_function.new_block().unwrap());

@@ -11,7 +11,7 @@ pub trait ValueInfo {
     fn values_written_mut(&mut self) -> Vec<&mut ValueId>;
 
     fn values(&self) -> Vec<ValueId> {
-        let mut res = Vec::from(self.values_read());
+        let mut res = self.values_read();
         res.extend(self.values_written().iter());
         res
     }

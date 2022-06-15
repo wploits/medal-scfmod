@@ -1,5 +1,5 @@
 use std::{
-    borrow::{BorrowMut, Cow},
+    borrow::BorrowMut,
     rc::Rc,
     time,
 };
@@ -198,7 +198,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     split_values(
         function,
         entry,
-        &mut dominator_tree(function.graph(), &immediate_dominators)?,
+        &dominator_tree(function.graph(), &immediate_dominators)?,
     );
 
     let split_values_time = now.elapsed();

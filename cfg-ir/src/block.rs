@@ -9,6 +9,12 @@ pub struct BasicBlock {
     pub(crate) terminator: Option<Terminator>,
 }
 
+impl Default for BasicBlock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BasicBlock {
     pub fn new() -> Self {
         Self {

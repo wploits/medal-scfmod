@@ -3,7 +3,6 @@ use std::rc::Rc;
 use cfg_ir::constant::Constant;
 
 use cfg_ir::instruction::location::{InstructionIndex, InstructionLocation};
-use cfg_ir::instruction::value_info::ValueInfo;
 use cfg_ir::instruction::{BinaryOp, Inner, Terminator, UnaryOp};
 
 use cfg_ir::value::ValueId;
@@ -164,7 +163,7 @@ impl<'a> Lifter<'a> {
         body.statements
             .push(ast_ir::Stat::NumericFor(ast_ir::NumericFor {
                 pos: None,
-                var: var,
+                var,
                 from: variable,
                 to: limit,
                 step: Some(step),
@@ -305,7 +304,7 @@ impl<'a> Lifter<'a> {
                         ast_ir::Assign {
                             pos: None,
                             vars: vec![dest.into()],
-                            values: vec![value.into()],
+                            values: vec![value],
                         }
                         .into(),
                     );
@@ -321,7 +320,7 @@ impl<'a> Lifter<'a> {
                     body.statements.push(
                         ast_ir::Assign {
                             pos: None,
-                            vars: vec![dest.into()],
+                            vars: vec![dest],
                             values: vec![ast_ir::Unary {
                                 pos: None,
                                 op,
@@ -352,7 +351,7 @@ impl<'a> Lifter<'a> {
                     body.statements.push(
                         ast_ir::Assign {
                             pos: None,
-                            vars: vec![dest.into()],
+                            vars: vec![dest],
                             values: vec![ast_ir::Binary {
                                 pos: None,
                                 op,
@@ -394,7 +393,7 @@ impl<'a> Lifter<'a> {
                     body.statements.push(
                         ast_ir::Assign {
                             pos: None,
-                            vars: vec![dest.into()],
+                            vars: vec![dest],
                             values: vec![value],
                         }
                         .into(),
@@ -421,8 +420,8 @@ impl<'a> Lifter<'a> {
             body,
         );
 
-        match &self.cfg.block(node).unwrap().terminator() {
-            Some(terminator) => match terminator {
+        if let Some(terminator) = &self.cfg.block(node).unwrap().terminator() {
+            match terminator {
                 Terminator::UnconditionalJump(jump) => self.follow_edge(node, jump.0, body),
                 Terminator::ConditionalJump(jump) => self.lift_conditional(
                     node,
@@ -449,13 +448,12 @@ impl<'a> Lifter<'a> {
                     for_loop.false_branch,
                     body,
                 ),
-            },
-            _ => {}
+            }
         }
     }
 
     fn block_breaks(body: &Block) -> bool {
-        return body.statements.len() == 1 && matches!(body.statements[0], ast_ir::Stat::Break(_));
+        body.statements.len() == 1 && matches!(body.statements[0], ast_ir::Stat::Break(_))
     }
 
     fn combine_conditions(first: ast_ir::Expr, second: ast_ir::Expr) -> ast_ir::Expr {
@@ -504,14 +502,11 @@ impl<'a> Lifter<'a> {
         false
     }
 
-    fn is_for_header(&mut self, node: NodeId) -> bool {
-        match &self.cfg.block(node).unwrap().terminator() {
-            Some(terminator) => match terminator {
-                Terminator::NumericFor(_) => true,
-                _ => false,
-            },
-            _ => false,
-        }
+    fn is_for_header(&self, node: NodeId) -> bool {
+        matches!(
+            self.cfg.block(node).unwrap().terminator(),
+            Some(Terminator::NumericFor(_))
+        )
     }
 
     fn lift_block(&mut self, node: NodeId, body: &mut Block) {
@@ -522,8 +517,7 @@ impl<'a> Lifter<'a> {
                     .nodes()
                     .iter()
                     .filter(|&&n| self.graph.successors(n).next().is_none())
-                    .filter(|&exit| self.idoms[exit] == node)
-                    .next()
+                    .find(|&exit| self.idoms[exit] == node)
                     .cloned()
             });
             let exit_statements = loop_exit.map(|exit| {
