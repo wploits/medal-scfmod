@@ -243,6 +243,7 @@ dependencies = [
  "array_tool",
  "dot",
  "fxhash",
+ "indexmap",
  "itertools",
  "thiserror",
 ]
