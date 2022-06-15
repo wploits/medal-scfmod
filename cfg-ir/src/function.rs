@@ -1,5 +1,5 @@
+use fxhash::FxHashMap;
 use graph::{Edge, Graph, NodeId};
-use std::collections::HashMap;
 
 use crate::{
     block::BasicBlock,
@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Function {
     graph: Graph,
-    blocks: HashMap<NodeId, BasicBlock>,
+    blocks: FxHashMap<NodeId, BasicBlock>,
     next_value_index: usize,
     entry: Option<NodeId>,
 }
@@ -20,7 +20,7 @@ impl Function {
     pub fn new() -> Self {
         Self {
             graph: Graph::new(),
-            blocks: HashMap::new(),
+            blocks: FxHashMap::default(),
             next_value_index: 0,
             entry: None,
         }
@@ -87,11 +87,11 @@ impl Function {
             .ok_or(Error::InvalidBlock(block))
     }
 
-    pub fn blocks(&self) -> &HashMap<NodeId, BasicBlock> {
+    pub fn blocks(&self) -> &FxHashMap<NodeId, BasicBlock> {
         &self.blocks
     }
 
-    pub fn blocks_mut(&mut self) -> &mut HashMap<NodeId, BasicBlock> {
+    pub fn blocks_mut(&mut self) -> &mut FxHashMap<NodeId, BasicBlock> {
         &mut self.blocks
     }
 

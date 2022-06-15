@@ -2,12 +2,11 @@ pub mod algorithms;
 
 pub mod error;
 pub use error::Error;
+use fxhash::FxHashSet;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(feature = "dot")]
 pub mod dot;
-
-use std::collections::HashSet;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct NodeId(usize);
@@ -150,7 +149,7 @@ impl Graph {
             return Err(Error::InvalidNode(node));
         }
 
-        let mut visited = HashSet::new();
+        let mut visited = FxHashSet::default();
         let mut stack = Vec::new();
         let mut order = Vec::new();
 
@@ -176,7 +175,7 @@ impl Graph {
             return Err(Error::InvalidNode(root));
         }
 
-        let mut visited: HashSet<NodeId> = HashSet::new();
+        let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut stack: Vec<NodeId> = Vec::new();
         let mut order: Vec<NodeId> = Vec::new();
 
@@ -202,14 +201,14 @@ impl Graph {
             return Err(Error::InvalidNode(root));
         }
 
-        let mut visited: HashSet<NodeId> = HashSet::default();
+        let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut order: Vec<NodeId> = Vec::new();
 
         // TODO: recursive bad or smthn
         fn dfs_walk(
             graph: &Graph,
             node: NodeId,
-            visited: &mut HashSet<NodeId>,
+            visited: &mut FxHashSet<NodeId>,
             order: &mut Vec<NodeId>,
         ) -> Result<()> {
             visited.insert(node);
@@ -232,7 +231,7 @@ impl Graph {
             return Err(Error::InvalidNode(node));
         }
 
-        let mut visited: HashSet<NodeId> = HashSet::new();
+        let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut stack: Vec<NodeId> = Vec::new();
         let mut order: Vec<NodeId> = Vec::new();
 
@@ -257,7 +256,7 @@ impl Graph {
             return Err(Error::InvalidNode(node));
         }
 
-        let mut visited: HashSet<NodeId> = HashSet::new();
+        let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut stack: Vec<NodeId> = Vec::new();
         let mut order: Vec<NodeId> = Vec::new();
 

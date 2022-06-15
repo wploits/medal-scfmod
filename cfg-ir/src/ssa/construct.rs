@@ -1,6 +1,5 @@
 use std::{
     borrow::{BorrowMut, Cow},
-    collections::HashMap,
     rc::Rc,
     time,
 };
@@ -207,12 +206,14 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let now = time::Instant::now();
     loop {
         let mut phis_to_remove = Vec::new();
-        let mut values_to_replace = HashMap::new();
+        let mut values_to_replace = FxHashMap::default();
 
         for node in function.graph().nodes().clone() {
             let mut phis = Vec::new();
             let block = function.block(node).unwrap();
             for (phi_index, phi) in block.phi_instructions.iter().cloned().enumerate() {
+                // TODO: use Vec with sort_unstable and dedup? will use less memory
+                // we dont need fast lookup, or lookup at all
                 let unique = phi
                     .incoming_values
                     .values()

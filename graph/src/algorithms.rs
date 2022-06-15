@@ -1,6 +1,6 @@
 pub mod dominators;
 
-use std::collections::HashSet;
+use fxhash::FxHashSet;
 
 use crate::{Edge, Error, Graph, NodeId, Result};
 
@@ -22,7 +22,7 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
 
     let mut tree = Graph::new();
     let mut stack = Vec::new();
-    let mut visited = HashSet::new();
+    let mut visited = FxHashSet::default();
     visited.insert(root);
 
     tree.add_node_with_id(root)?;
