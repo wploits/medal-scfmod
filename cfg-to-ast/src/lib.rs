@@ -39,6 +39,7 @@ impl<'a> Lifter<'a> {
         cfg: &'a Function,
         graph: &'a Graph,
         entry: NodeId,
+        dfs: &'a Graph,
         idoms: &'a FxHashMap<NodeId, NodeId>,
         post_dom_tree: &'a Graph,
     ) -> Self {
@@ -52,9 +53,9 @@ impl<'a> Lifter<'a> {
             .map(|edge| edge.destination)
             .collect::<FxHashSet<_>>();
         let now = time::Instant::now();
-        let local_declarations = local_declaration::local_declarations(cfg, entry);
+        let local_declarations = local_declaration::local_declarations(cfg, entry, dfs);
         let local_declarations_time = now.elapsed();
-        println!("local declarations: {:?}", local_declarations_time);
+        println!("-local declarations: {:?}", local_declarations_time);
         Self {
             cfg,
             graph,
@@ -586,7 +587,7 @@ pub fn lift(cfg: &Function) -> String {
     let idoms = compute_immediate_dominators(graph, entry, &dfs).unwrap();
 
     //render_to(&post_dom_tree, &mut std::io::stdout());
-    let mut lifter = Lifter::new(cfg, graph, entry, &idoms, &post_dom_tree);
+    let mut lifter = Lifter::new(cfg, graph, entry, &dfs, &idoms, &post_dom_tree);
 
     let mut ast_function = ast_ir::Function::new();
     ast_function.body = lifter.lift(entry);

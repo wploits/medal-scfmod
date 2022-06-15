@@ -7,7 +7,7 @@ use cfg_ir::{
 use fxhash::FxHashMap;
 use graph::{
     algorithms::{dominators::{common_dominator, dominators}, dfs_tree},
-    NodeId,
+    NodeId, Graph,
 };
 
 #[derive(Debug, Clone)]
@@ -19,11 +19,12 @@ pub(crate) struct LocalDeclaration {
 pub(crate) fn local_declarations(
     function: &Function,
     root: NodeId,
+    dfs: &Graph,
 ) -> FxHashMap<InstructionLocation, Vec<LocalDeclaration>> {
     let mut def_use = DefUse::new(function);
     def_use.remove_unused();
 
-    let dominators = dominators(function.graph(), root, &dfs_tree(function.graph(), root).unwrap()).unwrap();
+    let dominators = dominators(function.graph(), root, dfs).unwrap();
 
     let declaration_node = def_use
         .values()
