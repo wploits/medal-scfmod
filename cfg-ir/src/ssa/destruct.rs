@@ -1,7 +1,12 @@
+use std::time;
+
 use crate::{def_use::DefUse, function::Function};
 
 pub fn destruct(function: &mut Function) {
+    let now = time::Instant::now();
     let mut def_use = DefUse::new(function);
+    let def_use_time = now.elapsed();
+    println!("-def use: {:?}", def_use_time);
 
     for (node, phis) in function
         .blocks()
