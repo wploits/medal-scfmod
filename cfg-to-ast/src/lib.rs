@@ -19,6 +19,8 @@ use local_declaration::LocalDeclaration;
 
 mod local_declaration;
 
+pub mod lifter;
+
 struct Lifter<'a> {
     cfg: &'a Function,
     graph: &'a Graph,

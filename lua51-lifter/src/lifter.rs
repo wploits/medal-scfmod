@@ -389,9 +389,6 @@ impl<'a> Lifter<'a> {
                             }
                             .into(),
                         );
-                        if instruction_index != block_end {
-                            cfg_block_id = self.lifted_function.new_block().unwrap();
-                        }
                         break;
                     }
                     /*OpCode::VarArg => {

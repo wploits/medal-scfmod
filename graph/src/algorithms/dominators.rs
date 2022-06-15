@@ -2,16 +2,11 @@ use array_tool::vec::Intersect;
 use fxhash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 
-
-
 use crate::{Edge, Error, Graph, NodeId, Result};
 
 use super::dfs_tree;
 
-pub fn dominator_tree(
-    graph: &Graph,
-    idoms: &FxHashMap<NodeId, NodeId>,
-) -> Result<Graph> {
+pub fn dominator_tree(graph: &Graph, idoms: &FxHashMap<NodeId, NodeId>) -> Result<Graph> {
     let mut dom_tree = Graph::new();
     for &vertex in graph.nodes() {
         dom_tree.add_node_with_id(vertex)?;

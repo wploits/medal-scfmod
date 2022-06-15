@@ -4,7 +4,7 @@ mod lifter;
 mod op_code;
 mod value;
 
-use cfg_ir::ssa;
+use cfg_ir::{dot, ssa};
 use lifter::Lifter;
 
 use clap::Parser;
@@ -41,19 +41,20 @@ fn main() -> anyhow::Result<()> {
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
-    let now = time::Instant::now();
+    //let now = time::Instant::now();
     ssa::construct::construct(&mut cfg)?;
-    let ssa_constructed = now.elapsed();
-    //dot::render_to(&cfg, &mut std::io::stdout())?;
-    println!("ssa construction: {:?}", ssa_constructed);
+    //let ssa_constructed = now.elapsed();
+    dot::render_to(&cfg, &mut std::io::stdout())?;
+    //println!("ssa construction: {:?}", ssa_constructed);
 
     let now = time::Instant::now();
     ssa::destruct::destruct(&mut cfg);
     let ssa_destructed = now.elapsed();
-    //dot::render_to(&cfg, &mut std::io::stdout())?;
-    println!("ssa destruction: {:?}", ssa_destructed);
+    dot::render_to(&cfg, &mut std::io::stdout())?;
+    //println!("ssa destruction: {:?}", ssa_destructed);
 
     //cfg_to_ast::lift(&cfg);
+    cfg_to_ast::lifter::lift(&cfg);
 
     Ok(())
 }

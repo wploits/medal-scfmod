@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::io::Write;
 
-use dot::{GraphWalk, Labeller};
+use dot::{GraphWalk, LabelText, Labeller, Style};
 use itertools::Itertools;
 
 use graph::{Edge, NodeId};
@@ -26,10 +26,15 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
             .map(|terminator| terminator.to_string());
         let label = phi_iter.chain(inner_iter).chain(terminator_iter).join("\n");
         dot::LabelText::LabelStr(label.into())
+            .prefix_line(dot::LabelText::LabelStr(n.to_string().into()))
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
         dot::Id::new(format!("{}", *n)).unwrap()
+    }
+
+    fn node_shape(&'a self, _n: &NodeId) -> Option<LabelText<'a>> {
+        Some(LabelText::EscStr(Cow::Borrowed("rect")))
     }
 }
 

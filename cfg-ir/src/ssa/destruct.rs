@@ -27,7 +27,11 @@ pub fn destruct(function: &mut Function) {
                         function
                             .block_mut(incoming_value_use_location.node)
                             .unwrap()
-                            .replace_values(incoming_value_use_location.index, incoming_value, dest);
+                            .replace_values(
+                                incoming_value_use_location.index,
+                                incoming_value,
+                                dest,
+                            );
                         def_use.update_block(
                             function.block(incoming_value_use_location.node).unwrap(),
                             incoming_value_use_location.node,

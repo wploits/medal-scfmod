@@ -121,8 +121,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 visited.insert(node);
                 for index in function.block_mut(node).unwrap().indices() {
                     if !matches!(index, InstructionIndex::Phi(_)) {
-                        let block = function
-                            .block_mut(node).unwrap();
+                        let block = function.block_mut(node).unwrap();
                         for (read_value_index, value) in
                             block.values_read(index).into_iter().enumerate()
                         {
@@ -157,8 +156,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     for (node, values) in values_to_replace {
                         let block = function.block_mut(node).unwrap();
                         for (written_value_index, value) in values {
-                            *block.values_written_mut(index)
-                                [written_value_index] = value;
+                            *block.values_written_mut(index)[written_value_index] = value;
                         }
                     }
 
@@ -275,8 +273,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             for (&old, &new) in &values_to_replace {
                 let block = function.block_mut(node).unwrap();
                 for instruction_index in block.indices() {
-                    block
-                        .replace_values_read(instruction_index, old, new);
+                    block.replace_values_read(instruction_index, old, new);
                 }
                 def_use.update_block(block, node);
             }
@@ -294,8 +291,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
             if let Inner::Move(Move { dest, source }) = instruction {
                 for read_location in def_use.get(dest).unwrap().reads.clone() {
                     let read_location_block = function.block_mut(read_location.node).unwrap();
-                    read_location_block
-                        .replace_values_read(read_location.index, dest, source);
+                    read_location_block.replace_values_read(read_location.index, dest, source);
                     def_use.update_block(read_location_block, read_location.node);
                 }
                 let block = function.block_mut(node).unwrap();
