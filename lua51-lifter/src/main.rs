@@ -12,6 +12,10 @@ use std::fs::File;
 use std::io::Read;
 use std::time;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Args {
@@ -20,6 +24,9 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
     let args = Args::parse();
 
     let mut input = File::open(args.file)?;
@@ -41,20 +48,20 @@ fn main() -> anyhow::Result<()> {
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
-    //let now = time::Instant::now();
+    let now = time::Instant::now();
     ssa::construct::construct(&mut cfg)?;
-    //let ssa_constructed = now.elapsed();
-    dot::render_to(&cfg, &mut std::io::stdout())?;
-    //println!("ssa construction: {:?}", ssa_constructed);
+    let ssa_constructed = now.elapsed();
+    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    println!("ssa construction: {:?}", ssa_constructed);
 
     let now = time::Instant::now();
     ssa::destruct::destruct(&mut cfg);
     let ssa_destructed = now.elapsed();
-    dot::render_to(&cfg, &mut std::io::stdout())?;
-    //println!("ssa destruction: {:?}", ssa_destructed);
+    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    println!("ssa destruction: {:?}", ssa_destructed);
 
     //cfg_to_ast::lift(&cfg);
-    cfg_to_ast::lifter::lift(&cfg);
+    //cfg_to_ast::lifter::lift(&cfg);
 
     Ok(())
 }

@@ -14,3 +14,7 @@ anyhow = { version = "1.0.53", features = ["backtrace"] }
 cfg-ir = { path = "../cfg-ir" }
 graph = { path = "../graph", features = ["dot"] }
 cfg-to-ast = { path = "../cfg-to-ast" }
+dhat = "0.3.0"
+
+[features]
+dhat-heap = []
