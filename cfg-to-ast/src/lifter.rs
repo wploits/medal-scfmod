@@ -1,9 +1,10 @@
 use std::{collections::HashSet, rc::Rc};
 
 use cfg_ir::{
+    constant::Constant,
     function::Function,
     instruction::{ConditionalJump, Inner, Terminator},
-    value::ValueId, constant::Constant,
+    value::ValueId,
 };
 use fxhash::FxHashMap;
 use graph::{algorithms::dominators::post_dominator_tree, NodeId};
@@ -82,7 +83,13 @@ impl<'a> Lifter<'a> {
 
         for instruction in &block.inner_instructions {
             match instruction {
-                Inner::LoadConstant(load_constant) => body.statements.push(assign_local(self.local(load_constant.dest).into(), constant(&load_constant.constant).into()).into()),
+                Inner::LoadConstant(load_constant) => body.statements.push(
+                    assign_local(
+                        self.local(load_constant.dest).into(),
+                        constant(&load_constant.constant).into(),
+                    )
+                    .into(),
+                ),
                 Inner::Move(mov) => body.statements.push(
                     assign_local(self.local(mov.dest).into(), self.local(mov.source).into()).into(),
                 ),

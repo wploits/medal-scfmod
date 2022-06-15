@@ -1,7 +1,8 @@
 use std::{
     borrow::{BorrowMut, Cow},
     collections::HashMap,
-    time, rc::Rc,
+    rc::Rc,
+    time,
 };
 
 use fxhash::{FxHashMap, FxHashSet};
@@ -142,7 +143,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     {
                         if value_stacks.contains_key(&value) {
                             let new_value = function.new_value();
-                            Rc::make_mut(&mut value_stacks).get_mut(&value).unwrap().push(new_value);
+                            Rc::make_mut(&mut value_stacks)
+                                .get_mut(&value)
+                                .unwrap()
+                                .push(new_value);
 
                             values_to_replace
                                 .entry(node)
