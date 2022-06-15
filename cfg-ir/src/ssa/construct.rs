@@ -1,7 +1,7 @@
 use std::{
     borrow::{BorrowMut, Cow},
     collections::HashMap,
-    time,
+    time, rc::Rc,
 };
 
 use fxhash::{FxHashMap, FxHashSet};
@@ -114,7 +114,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
 
     fn split_values(function: &mut Function, root: NodeId, dominator_tree: &Graph) {
         let mut visited = FxHashSet::<NodeId>::default();
-        let mut stack = vec![(root, FxHashMap::<ValueId, Vec<ValueId>>::default())];
+        let mut stack = vec![(root, Rc::new(FxHashMap::<ValueId, Vec<ValueId>>::default()))];
 
         while let Some((node, mut value_stacks)) = stack.pop() {
             if !visited.contains(&node) {
@@ -140,16 +140,16 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                         .into_iter()
                         .enumerate()
                     {
-                        if let Some(value_stack) = value_stacks.get_mut(&value) {
+                        if value_stacks.contains_key(&value) {
                             let new_value = function.new_value();
-                            value_stack.push(new_value);
+                            Rc::make_mut(&mut value_stacks).get_mut(&value).unwrap().push(new_value);
 
                             values_to_replace
                                 .entry(node)
                                 .or_insert_with(Vec::new)
                                 .push((written_value_index, new_value));
                         } else {
-                            value_stacks.insert(value, vec![value]);
+                            Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
                         }
                     }
 
@@ -159,8 +159,6 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                             *block.values_written_mut(index)[written_value_index] = value;
                         }
                     }
-
-                    //let values_written_replace = values_written.iter().enumerate()
                 }
 
                 for successor in function.graph().successors(node).collect::<Vec<_>>() {
