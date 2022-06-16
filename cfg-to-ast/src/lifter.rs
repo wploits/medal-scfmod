@@ -3,7 +3,7 @@ use std::rc::Rc;
 use cfg_ir::{
     constant::Constant,
     function::Function,
-    instruction::{ConditionalJump, Inner, Terminator},
+    instruction::{ConditionalJump, Inner, Return, Terminator},
     value::ValueId,
 };
 use fxhash::{FxHashMap, FxHashSet};
@@ -29,11 +29,8 @@ fn if_statement(condition: ast_ir::ExprLocal) -> ast_ir::If {
     }
 }
 
-fn return_statement() -> ast_ir::Return {
-    ast_ir::Return {
-        pos: None,
-        values: Vec::new(),
-    }
+fn return_statement(values: Vec<ast_ir::Expr>) -> ast_ir::Return {
+    ast_ir::Return { pos: None, values }
 }
 
 fn while_statement(condition: ast_ir::Expr, body: ast_ir::Block) -> ast_ir::While {
@@ -128,7 +125,9 @@ impl<'a> Lifter<'a> {
                 .statements
                 .push(if_statement(self.local(*condition)).into()),
             Some(Terminator::NumericFor { .. }) => panic!(),
-            Some(Terminator::Return { .. }) => body.statements.push(return_statement().into()),
+            Some(Terminator::Return(Return { values, .. })) => body.statements.push(
+                return_statement(values.iter().map(|&v| self.local(v).into()).collect()).into(),
+            ),
             None => panic!("block has no terminator"),
         }
 
@@ -177,7 +176,10 @@ impl<'a> Lifter<'a> {
             .collect::<FxHashSet<_>>();
         let post_dom_tree =
             post_dominator_tree(graph, root, &dfs_tree(graph, root).unwrap()).unwrap();
-        let loop_exits = loop_headers.iter().filter_map(|&n| post_dom_tree.predecessors(n).next()).collect::<FxHashSet<_>>();
+        let loop_exits = loop_headers
+            .iter()
+            .filter_map(|&n| post_dom_tree.predecessors(n).next())
+            .collect::<FxHashSet<_>>();
         println!("loop exits: {:?}", loop_exits);
         let mut blocks = self
             .function
@@ -204,7 +206,14 @@ impl<'a> Lifter<'a> {
                 node,
                 match successors.len() {
                     0 => Link::None,
-                    1 => Self::edge(&mut stack, &visited, &stops, &loop_exits, node, successors[0]),
+                    1 => Self::edge(
+                        &mut stack,
+                        &visited,
+                        &stops,
+                        &loop_exits,
+                        node,
+                        successors[0],
+                    ),
                     2 => {
                         let mut has_else = true;
                         let exit = post_dom_tree.predecessors(node).next();
@@ -264,17 +273,23 @@ impl<'a> Lifter<'a> {
                     });
                     let if_stat = {
                         let statement = blocks
-                        .get_mut(&node)
-                        .unwrap()
-                        .statements
-                        .last_mut()
-                        .unwrap();
-                        if let Some(if_stat) = statement
-                            .as_if_mut()
-                        {
+                            .get_mut(&node)
+                            .unwrap()
+                            .statements
+                            .last_mut()
+                            .unwrap();
+                        if let Some(if_stat) = statement.as_if_mut() {
                             if_stat
                         } else {
-                            statement.as_while_mut().unwrap().body.statements.first_mut().unwrap().as_if_mut().unwrap()
+                            statement
+                                .as_while_mut()
+                                .unwrap()
+                                .body
+                                .statements
+                                .first_mut()
+                                .unwrap()
+                                .as_if_mut()
+                                .unwrap()
                         }
                     };
                     if_stat
@@ -306,7 +321,11 @@ impl<'a> Lifter<'a> {
                         .statements
                         .extend(block.statements.into_iter());
                 }
-                Link::Break => blocks.get_mut(&node).unwrap().statements.push(break_statement().into()),
+                Link::Break => blocks
+                    .get_mut(&node)
+                    .unwrap()
+                    .statements
+                    .push(break_statement().into()),
                 _ => {}
             }
         }
