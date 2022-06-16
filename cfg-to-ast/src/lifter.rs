@@ -12,6 +12,8 @@ use graph::{
     NodeId,
 };
 
+mod optimizer;
+
 fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr) -> ast_ir::Assign {
     ast_ir::Assign {
         pos: None,
@@ -322,13 +324,13 @@ impl<'a> Lifter<'a> {
                         Link::Break => vec![break_statement().into()],
                         _ => panic!(),
                     });
-                    let if_stat = {
-                        let statement = blocks
+                    let statement = blocks
                             .get_mut(&node)
                             .unwrap()
                             .statements
                             .last_mut()
                             .unwrap();
+                    let if_stat = {
                         if let Some(if_stat) = statement.as_if_mut() {
                             if_stat
                         } else {
@@ -358,6 +360,9 @@ impl<'a> Lifter<'a> {
                                 .statements
                                 .extend(else_statements.into_iter());
                         }
+                    }
+                    if let Some(while_stat) = statement.as_while_mut() {
+                        optimizer::optimize_while(while_stat);
                     }
                     if let Some(exit) = exit {
                         let block = blocks.remove(exit).unwrap();
