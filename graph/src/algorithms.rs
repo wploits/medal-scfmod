@@ -51,7 +51,11 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
 pub fn back_edges(graph: &Graph, root: NodeId) -> Result<Vec<Edge>> {
     let mut back_edges = Vec::new();
 
-    for (node, dominators) in dominators::dominators(graph, root, &compute_immediate_dominators(graph, root, &dfs_tree(graph, root)?)?)? {
+    for (node, dominators) in dominators::dominators(
+        graph,
+        root,
+        &compute_immediate_dominators(graph, root, &dfs_tree(graph, root)?)?,
+    )? {
         for successor in graph.successors(node) {
             if dominators.contains(&successor) {
                 back_edges.push(Edge::new(node, successor));

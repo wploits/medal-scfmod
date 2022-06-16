@@ -6,10 +6,11 @@ use super::{
 };
 
 use derivative::Derivative;
+use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 
 #[enum_dispatch]
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, EnumAsInner)]
 pub enum Stat {
     Block(Block),
     Assign(Assign),

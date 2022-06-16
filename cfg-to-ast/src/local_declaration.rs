@@ -6,8 +6,11 @@ use cfg_ir::{
 };
 use fxhash::FxHashMap;
 use graph::{
-    algorithms::{dominators::{common_dominator, dominators, dominator_tree}, dfs_tree},
-    NodeId, Graph,
+    algorithms::{
+        dfs_tree,
+        dominators::{common_dominator, dominator_tree, dominators},
+    },
+    Graph, NodeId,
 };
 
 #[derive(Debug, Clone)]

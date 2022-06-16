@@ -1,10 +1,10 @@
-use std::collections::{HashSet, BTreeSet};
+use std::collections::{BTreeSet, HashSet};
 
 use array_tool::vec::Intersect;
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 
-use crate::{Edge, Error, Graph, NodeId, Result, algorithms::dfs_tree};
+use crate::{algorithms::dfs_tree, Edge, Error, Graph, NodeId, Result};
 
 pub fn dominator_tree(graph: &Graph, idoms: &FxHashMap<NodeId, NodeId>) -> Result<Graph> {
     let mut dom_tree = Graph::new();
@@ -19,7 +19,11 @@ pub fn dominator_tree(graph: &Graph, idoms: &FxHashMap<NodeId, NodeId>) -> Resul
     Ok(dom_tree)
 }
 
-pub fn dominators(graph: &Graph, root: NodeId, idoms: &FxHashMap<NodeId, NodeId>) -> Result<FxHashMap<NodeId, Vec<NodeId>>> {
+pub fn dominators(
+    graph: &Graph,
+    root: NodeId,
+    idoms: &FxHashMap<NodeId, NodeId>,
+) -> Result<FxHashMap<NodeId, Vec<NodeId>>> {
     if !graph.node_exists(root) {
         return Err(Error::InvalidNode(root));
     }
@@ -46,7 +50,10 @@ pub fn common_dominator(
     nodes: Vec<NodeId>,
 ) -> Option<NodeId> {
     let mut nodes_iter = nodes.iter();
-    let mut res =  dominators[nodes_iter.next().unwrap()].iter().cloned().collect::<IndexSet<_>>();
+    let mut res = dominators[nodes_iter.next().unwrap()]
+        .iter()
+        .cloned()
+        .collect::<IndexSet<_>>();
     for node in nodes_iter {
         let set = dominators[node].iter().cloned().collect::<FxHashSet<_>>();
         res.retain(|i| set.contains(i));
@@ -80,7 +87,11 @@ pub fn post_dominator_tree(graph: &Graph, _root: NodeId, dfs: &Graph) -> Result<
     for &vertex in reverse_graph.nodes() {
         dom_tree.add_node_with_id(vertex)?;
     }
-    let idoms = compute_immediate_dominators(&reverse_graph, single_exit_node, &dfs_tree(&reverse_graph, single_exit_node)?)?;
+    let idoms = compute_immediate_dominators(
+        &reverse_graph,
+        single_exit_node,
+        &dfs_tree(&reverse_graph, single_exit_node)?,
+    )?;
     for (vertex, idom) in idoms {
         if idom != single_exit_node {
             dom_tree.add_edge(Edge::new(idom, vertex))?;
@@ -192,8 +203,10 @@ pub fn compute_immediate_dominators(
         .collect();
     let graph_number = &dfs_pre_order;
 
-    let mut ancestor: FxHashMap<NodeId, Option<NodeId>> = FxHashMap::with_capacity_and_hasher(graph.nodes().len(), Default::default());
-    let mut label: FxHashMap<NodeId, usize> = FxHashMap::with_capacity_and_hasher(graph.nodes().len(), Default::default());
+    let mut ancestor: FxHashMap<NodeId, Option<NodeId>> =
+        FxHashMap::with_capacity_and_hasher(graph.nodes().len(), Default::default());
+    let mut label: FxHashMap<NodeId, usize> =
+        FxHashMap::with_capacity_and_hasher(graph.nodes().len(), Default::default());
     for &vertex in graph.nodes() {
         if let Some(&vertex_label) = dfs_number.get(&vertex) {
             ancestor.insert(vertex, None);

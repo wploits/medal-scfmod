@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use cfg_ir::{
     constant::Constant,
@@ -7,7 +7,10 @@ use cfg_ir::{
     value::ValueId,
 };
 use fxhash::{FxHashMap, FxHashSet};
-use graph::{NodeId, algorithms::{dominators::post_dominator_tree, dfs_tree}};
+use graph::{
+    algorithms::{dfs_tree, dominators::post_dominator_tree},
+    NodeId,
+};
 
 fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr) -> ast_ir::Assign {
     ast_ir::Assign {
@@ -49,8 +52,7 @@ fn constant(constant: &Constant) -> ast_ir::ExprLit {
 #[derive(Debug)]
 enum Link {
     Extend(NodeId),
-    If(NodeId, Option<NodeId>, Option<NodeId>),
-    Break,
+    If(Box<Link>, Option<Box<Link>>, Option<NodeId>),
     None,
 }
 
@@ -100,9 +102,9 @@ impl<'a> Lifter<'a> {
                     )
                     .into(),
                 ),
-                Inner::Move(mov) => body.statements.push(
-                    assign_local(self.local(mov.dest), self.local(mov.source).into()).into(),
-                ),
+                Inner::Move(mov) => body
+                    .statements
+                    .push(assign_local(self.local(mov.dest), self.local(mov.source).into()).into()),
                 _ => {}
             }
         }
@@ -120,7 +122,13 @@ impl<'a> Lifter<'a> {
         body
     }
 
-    fn edge(stack: &mut Vec<NodeId>, visited: &mut FxHashSet<NodeId>, stops: &FxHashSet<NodeId>, node: NodeId, target: NodeId) -> Link {
+    fn edge(
+        stack: &mut Vec<NodeId>,
+        visited: &mut Vec<NodeId>,
+        stops: &FxHashSet<NodeId>,
+        node: NodeId,
+        target: NodeId,
+    ) -> Link {
         if !stops.contains(&target) {
             if !visited.contains(&target) {
                 stack.push(target);
@@ -137,7 +145,8 @@ impl<'a> Lifter<'a> {
         let mut ast_function = ast_ir::Function::new();
 
         let graph = self.function.graph();
-        let post_dom_tree = post_dominator_tree(graph, root, &dfs_tree(graph, root).unwrap()).unwrap();
+        let post_dom_tree =
+            post_dominator_tree(graph, root, &dfs_tree(graph, root).unwrap()).unwrap();
 
         let mut blocks = self
             .function
@@ -147,39 +156,112 @@ impl<'a> Lifter<'a> {
             .map(|&n| (n, self.lift_block(n)))
             .collect::<FxHashMap<_, _>>();
 
-        let mut linking = FxHashMap::default();
+        let mut links = FxHashMap::default();
 
         let mut stack = vec![root];
-        let mut visited = FxHashSet::default();
+        let mut visited = Vec::new();
         let mut stops = FxHashSet::default();
 
         while let Some(node) = stack.pop() {
-            assert!(visited.insert(node));
+            assert!(!visited.contains(&node));
+            visited.push(node);
 
-            println!("visiting: {}", node);
+            //println!("visiting: {}", node);
 
             let successors = self.function.graph().successors(node).collect::<Vec<_>>();
-            linking.insert(node, match successors.len() {
-                0 => Link::None,
-                1 => 
-                     Self::edge(&mut stack, &mut visited, &stops, node, successors[0]),
-                2 => {
-                    if let Some(exit) = post_dom_tree.predecessors(node).next() {
-                        assert!(!visited.contains(&exit));
-                        stack.push(exit);
-                        stops.insert(exit);
-                        Self::edge(&mut stack, &mut visited, &stops, node, successors[0]);
-                        Self::edge(&mut stack, &mut visited, &stops, node, successors[1]);
-                        Link::If(successors[0], Some(successors[1]), Some(exit))
-                    } else {
-                        todo!()
+            links.insert(
+                node,
+                match successors.len() {
+                    0 => Link::None,
+                    1 => Self::edge(&mut stack, &mut visited, &stops, node, successors[0]),
+                    2 => {
+                        if let Some(exit) = post_dom_tree.predecessors(node).next() {
+                            assert!(!visited.contains(&exit));
+                            stack.push(exit);
+                            stops.insert(exit);
+                            Link::If(
+                                Box::new(Self::edge(
+                                    &mut stack,
+                                    &mut visited,
+                                    &stops,
+                                    node,
+                                    successors[0],
+                                )),
+                                Some(Box::new(Self::edge(
+                                    &mut stack,
+                                    &mut visited,
+                                    &stops,
+                                    node,
+                                    successors[1],
+                                ))),
+                                Some(exit),
+                            )
+                        } else {
+                            todo!()
+                        }
                     }
+                    _ => panic!("too many successors"),
                 },
-                _ => panic!("too many successors")
-            });
+            );
         }
 
-        println!("{:#?}", linking);
+        for (node, link) in visited.iter().rev().map(|&n| (n, &links[&n])) {
+            println!("{}", node);
+            match link {
+                Link::If(true_branch, false_branch, exit) => {
+                    let then_statements = match **true_branch {
+                        Link::Extend(target) => {
+                            blocks.remove(&target).unwrap().statements.into_iter()
+                        }
+                        _ => panic!(),
+                    };
+                    let else_statements = false_branch.as_ref().map(|link| match **link {
+                        Link::Extend(target) => blocks.remove(&target).unwrap().statements,
+                        _ => panic!(),
+                    });
+                    let if_stat = blocks
+                        .get_mut(&node)
+                        .unwrap()
+                        .statements
+                        .last_mut()
+                        .unwrap()
+                        .as_if_mut()
+                        .unwrap();
+                    if_stat
+                        .then_block
+                        .statements
+                        .extend(then_statements.into_iter());
+                    if let Some(else_statements) = else_statements {
+                        if_stat
+                            .else_block
+                            .as_mut()
+                            .unwrap()
+                            .statements
+                            .extend(else_statements.into_iter());
+                    }
+                    if let Some(exit) = exit {
+                        let block = blocks.remove(exit).unwrap();
+                        blocks
+                            .get_mut(&node)
+                            .unwrap()
+                            .statements
+                            .extend(block.statements.into_iter());
+                    }
+                }
+                Link::Extend(target) => {
+                    let block = blocks.remove(target).unwrap();
+                    blocks
+                        .get_mut(&node)
+                        .unwrap()
+                        .statements
+                        .extend(block.statements.into_iter());
+                }
+                _ => {}
+            }
+        }
+
+        ast_function.body = blocks.remove(&root).unwrap();
+        println!("{}", ast_ir::formatter::format_ast(&ast_function));
 
         ast_function
     }
@@ -191,37 +273,4 @@ pub fn lift(function: &Function) {
 
     let mut lifter = Lifter::new(function);
     let ast_function = lifter.lift(entry);
-
-    //println!("{}", ast_ir::formatter::format_ast(&ast_function));
-
-    /*let post_dom_tree = post_dominator_tree(graph, entry).unwrap();
-
-    let mut visited = HashSet::new();
-    let mut stack = vec![entry];
-    while let Some(node) = stack.pop() {
-        if !visited.insert(node) {
-            continue;
-        }
-        println!("visiting: {}", node);
-
-        let successors = graph.successors(node).collect::<Vec<_>>();
-
-        // Conditional
-        if successors.len() == 2 {
-            let exit = post_dom_tree.predecessors(node).next();
-            if let Some(exit) = exit {
-                for next in successors {
-                    stack.push(next);
-                }
-                stack.push(exit);
-                continue;
-            }
-
-            println!("exit: {:?}", exit);
-        } else {
-            for next in successors {
-                stack.push(next);
-            }
-        }
-    }*/
 }

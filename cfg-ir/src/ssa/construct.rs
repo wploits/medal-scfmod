@@ -1,14 +1,11 @@
-use std::{
-    borrow::BorrowMut,
-    rc::Rc,
-    time,
-};
+use std::{borrow::BorrowMut, rc::Rc, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::{dominators::{
-        compute_dominance_frontiers, compute_immediate_dominators, dominator_tree,
-    }, dfs_tree},
+    algorithms::{
+        dfs_tree,
+        dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
+    },
     Graph, NodeId,
 };
 
@@ -41,18 +38,15 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     println!("-compute immediate dominators: {:?}", imm_dom_computed);
 
     let now = time::Instant::now();
-    let mut dominance_frontiers = compute_dominance_frontiers(
-        function.graph(),
-        entry,
-        &immediate_dominators,
-        &dfs,
-    )?;
+    let mut dominance_frontiers =
+        compute_dominance_frontiers(function.graph(), entry, &immediate_dominators, &dfs)?;
     dominance_frontiers.retain(|_, f| !f.is_empty());
     let df_computed = now.elapsed();
     println!("-compute dominance frontiers: {:?}", df_computed);
 
     let now = time::Instant::now();
-    let mut node_to_values_written = FxHashMap::with_capacity_and_hasher(dominance_frontiers.len(), Default::default());
+    let mut node_to_values_written =
+        FxHashMap::with_capacity_and_hasher(dominance_frontiers.len(), Default::default());
     let mut value_written_to_nodes = FxHashMap::default();
     for &node in dominance_frontiers.keys() {
         let block = function.block(node).unwrap();
@@ -76,7 +70,12 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
         }
         node_to_values_written
             .entry(node)
-            .or_insert_with(|| FxHashSet::<ValueId>::with_capacity_and_hasher(values_written.len(), Default::default()))
+            .or_insert_with(|| {
+                FxHashSet::<ValueId>::with_capacity_and_hasher(
+                    values_written.len(),
+                    Default::default(),
+                )
+            })
             .borrow_mut()
             .extend(values_written.iter())
     }
