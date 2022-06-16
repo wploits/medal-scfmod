@@ -248,7 +248,7 @@ impl<'a> Lifter<'a> {
 
             //println!("visiting: {}", node);
 
-            let successors = self.function.graph().successors(node).collect::<Vec<_>>();
+            let mut successors = self.function.graph().successors(node).collect::<Vec<_>>();
             links.insert(
                 node,
                 match successors.len() {
@@ -265,12 +265,17 @@ impl<'a> Lifter<'a> {
                         let mut has_else = true;
                         let exit = post_dom_tree.predecessors(node).next();
                         if let Some(exit) = exit {
-                            assert!(successors[0] != exit);
+                            assert!(successors[0] != successors[1]);
                             stack.push(exit);
                             stops.insert(exit);
 
-                            if successors[1] == exit && !loop_exits.contains(&exit) {
-                                has_else = false;
+                            if !loop_exits.contains(&exit) {
+                                if successors[0] == exit {
+                                    successors.swap(0, 1);
+                                }
+                                 if successors[1] == exit {
+                                    has_else = false;
+                                }
                             }
                         }
                         Link::If(
@@ -307,8 +312,9 @@ impl<'a> Lifter<'a> {
                 Link::If(true_branch, false_branch, exit) => {
                     let then_statements = match **true_branch {
                         Link::Extend(target) => {
-                            blocks.remove(&target).unwrap().statements.into_iter()
+                            blocks.remove(&target).unwrap().statements
                         }
+                        Link::Break => vec![break_statement().into()],
                         _ => panic!(),
                     };
                     let else_statements = false_branch.as_ref().map(|link| match **link {
