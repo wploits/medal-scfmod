@@ -159,7 +159,7 @@ impl<'a> Lifter<'a> {
         &mut self,
         block_start: usize,
         block_end: usize,
-        mut cfg_block_id: NodeId,
+        cfg_block_id: NodeId,
     ) -> Result<(Vec<Inner>, Option<Terminator>)> {
         let mut instructions = Vec::new();
         let mut terminator = None;

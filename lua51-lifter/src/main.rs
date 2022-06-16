@@ -61,10 +61,11 @@ fn main() -> anyhow::Result<()> {
     println!("ssa destruction: {:?}", ssa_destructed);
 
     let now = time::Instant::now();
-    //println!("{}", cfg_to_ast::lift(&cfg));
+    let output = cfg_to_ast::lift(&cfg);
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
-    cfg_to_ast::lifter::lift(&cfg);
+
+    println!("{}", output);
 
     Ok(())
 }

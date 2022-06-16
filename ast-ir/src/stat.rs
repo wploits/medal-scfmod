@@ -75,6 +75,7 @@ pub struct Assign {
     pub pos: Option<Pos>,
     pub vars: Vec<Expr>,
     pub values: Vec<Expr>,
+    pub local_prefix: bool,
 }
 
 impl_node!(Assign);

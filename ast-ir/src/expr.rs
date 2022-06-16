@@ -127,7 +127,6 @@ pub struct ExprLocal {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub local: Rc<Local>,
-    pub prefix: bool,
 }
 
 impl_expr!(ExprLocal, false);

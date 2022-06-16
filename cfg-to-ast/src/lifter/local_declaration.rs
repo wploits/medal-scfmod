@@ -6,20 +6,17 @@ use cfg_ir::{
 };
 use fxhash::FxHashMap;
 use graph::{
-    algorithms::{
-        dfs_tree,
-        dominators::{common_dominator, dominator_tree, dominators},
-    },
-    Graph, NodeId,
+    algorithms::dominators::{common_dominator, dominators},
+    NodeId,
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct LocalDeclaration {
-    pub(crate) value: ValueId,
-    pub(crate) forward_declare: bool,
+pub(super) struct LocalDeclaration {
+    pub(super) value: ValueId,
+    pub(super) forward_declare: bool,
 }
 
-pub(crate) fn local_declarations(
+pub(super) fn local_declarations(
     function: &Function,
     root: NodeId,
     idoms: &FxHashMap<NodeId, NodeId>,

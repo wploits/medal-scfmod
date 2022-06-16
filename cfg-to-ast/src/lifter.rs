@@ -3,22 +3,30 @@ use std::rc::Rc;
 use cfg_ir::{
     constant::Constant,
     function::Function,
-    instruction::{ConditionalJump, Inner, Return, Terminator},
+    instruction::{
+        location::{InstructionIndex, InstructionLocation},
+        ConditionalJump, Inner, Return, Terminator,
+    },
     value::ValueId,
 };
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::{back_edges, dfs_tree, dominators::post_dominator_tree},
+    algorithms::{
+        back_edges, dfs_tree,
+        dominators::{compute_immediate_dominators, post_dominator_tree},
+    },
     NodeId,
 };
 
+mod local_declaration;
 mod optimizer;
 
-fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr) -> ast_ir::Assign {
+fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr, local_prefix: bool) -> ast_ir::Assign {
     ast_ir::Assign {
         pos: None,
         vars: vec![local.into()],
         values: vec![value],
+        local_prefix
     }
 }
 
@@ -27,6 +35,7 @@ fn assign_locals(locals: Vec<ast_ir::ExprLocal>, values: Vec<ast_ir::Expr>) -> a
         pos: None,
         vars: locals.into_iter().map(|v| v.into()).collect(),
         values,
+        local_prefix: false,
     }
 }
 
@@ -113,38 +122,51 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn local(&mut self, value: ValueId) -> ast_ir::ExprLocal {
+    fn local(&self, value: ValueId) -> ast_ir::ExprLocal {
         ast_ir::ExprLocal {
             pos: None,
             local: self.locals[&value].clone(),
-            prefix: false,
         }
     }
 
-    fn lift_block(&mut self, node: NodeId, is_while: bool) -> ast_ir::Block {
+    fn lift_block(
+        &mut self,
+        node: NodeId,
+        local_prefixes: &FxHashMap<InstructionLocation, Vec<ValueId>>,
+        forward_declarations: &FxHashSet<ValueId>,
+        is_while: bool,
+    ) -> ast_ir::Block {
         let mut body = ast_ir::Block::new(None);
 
         let block = self.function.block(node).unwrap();
 
-        for instruction in &block.inner_instructions {
+        for (index, instruction) in block.inner_instructions.iter().enumerate() {
+            let assign_local = |local, expr| {
+                assign_local(
+                    self.local(local),
+                    expr,
+                    local_prefixes
+                        .get(&InstructionLocation {
+                            node,
+                            index: InstructionIndex::Inner(index),
+                        })
+                        .map(|values| values.contains(&local))
+                        .unwrap_or(false),
+                )
+            };
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
-                    assign_local(
-                        self.local(load_constant.dest),
-                        constant(&load_constant.constant).into(),
-                    )
-                    .into(),
+                    assign_local(load_constant.dest, constant(&load_constant.constant).into())
+                        .into(),
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
-                    assign_local(
-                        self.local(load_global.dest),
-                        global(load_global.name.clone()).into(),
-                    )
-                    .into(),
+                    assign_local(load_global.dest, global(load_global.name.clone()).into()).into(),
                 ),
-                Inner::Move(mov) => body
+                Inner::Move(mov) => {
+                    body
                     .statements
-                    .push(assign_local(self.local(mov.dest), self.local(mov.source).into()).into()),
+                    .push(assign_local(mov.dest, self.local(mov.source).into()).into())
+                },
                 Inner::Call(call) => {
                     let function = self.local(call.function).into();
                     let return_values = call
@@ -196,7 +218,7 @@ impl<'a> Lifter<'a> {
         visited: &[NodeId],
         stops: &FxHashSet<NodeId>,
         loop_exits: &FxHashSet<NodeId>,
-        node: NodeId,
+        _node: NodeId,
         target: NodeId,
     ) -> Link {
         if !stops.contains(&target) {
@@ -223,19 +245,50 @@ impl<'a> Lifter<'a> {
             .iter()
             .map(|edge| edge.destination)
             .collect::<FxHashSet<_>>();
-        let post_dom_tree =
-            post_dominator_tree(graph, root, &dfs_tree(graph, root).unwrap()).unwrap();
+
+        let dfs = dfs_tree(graph, root).unwrap();
+
+        let post_dom_tree = post_dominator_tree(graph, root, &dfs).unwrap();
         let loop_exits = loop_headers
             .iter()
             .filter_map(|&n| post_dom_tree.predecessors(n).next())
             .collect::<FxHashSet<_>>();
+
+        let idoms = compute_immediate_dominators(graph, root, &dfs).unwrap();
+
+        let local_declarations = local_declaration::local_declarations(self.function, root, &idoms);
+        let local_prefixes = local_declarations
+            .iter()
+            .map(|(&location, declarations)| {
+                (
+                    location,
+                    declarations.iter().filter_map(|declaration| {
+                        if !declaration.forward_declare {
+                            Some(declaration.value)
+                        } else {
+                            None
+                        }
+                    }).collect(),
+                )
+            })
+            .collect();
 
         let mut blocks = self
             .function
             .graph()
             .nodes()
             .iter()
-            .map(|&n| (n, self.lift_block(n, loop_headers.contains(&n))))
+            .map(|&n| {
+                (
+                    n,
+                    self.lift_block(
+                        n,
+                        &local_prefixes,
+                        &FxHashSet::default(),
+                        loop_headers.contains(&n),
+                    ),
+                )
+            })
             .collect::<FxHashMap<_, _>>();
 
         let mut links = FxHashMap::default();
@@ -389,16 +442,12 @@ impl<'a> Lifter<'a> {
         }
 
         ast_function.body = blocks.remove(&root).unwrap();
-        println!("{}", ast_ir::formatter::format_ast(&ast_function));
-
         ast_function
     }
 }
 
-pub fn lift(function: &Function) {
+pub fn lift(function: &Function) -> ast_ir::Function {
     let entry = function.entry().unwrap();
-    let graph = function.graph();
-
     let mut lifter = Lifter::new(function);
-    let ast_function = lifter.lift(entry);
+    lifter.lift(entry)
 }
