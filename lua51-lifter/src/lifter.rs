@@ -3,7 +3,7 @@ use std::ops::{Range, RangeInclusive};
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{Inner, Terminator};
+use cfg_ir::instruction::{Call, Inner, Terminator};
 use graph::NodeId;
 
 use super::{
@@ -188,9 +188,6 @@ impl<'a> Lifter<'a> {
                                 .into(),
                             );
                             terminator = Some(UnconditionalJump(branch).into());
-                            if instruction_index != block_end {
-                                cfg_block_id = self.lifted_function.new_block().unwrap();
-                            }
                         } else {
                             instructions.push(
                                 LoadConstant {
@@ -325,10 +322,6 @@ impl<'a> Lifter<'a> {
                             }
                             .into(),
                         );
-
-                        if instruction_index != block_end {
-                            cfg_block_id = self.lifted_function.new_block().unwrap();
-                        }
                     }
                     OpCode::Test => {
                         let condition = self.get_register_or_constant(a as usize, cfg_block_id);
@@ -347,11 +340,8 @@ impl<'a> Lifter<'a> {
                             }
                             .into(),
                         );
-                        if instruction_index != block_end {
-                            cfg_block_id = self.lifted_function.new_block().unwrap();
-                        }
                     }
-                    /*OpCode::Call | OpCode::TailCall => {
+                    OpCode::Call | OpCode::TailCall => {
                         let function = self.get_register(a as usize);
                         let mut arguments = (a as u16 + 1..a as u16 + b)
                             .map(|v| self.get_register(v as usize))
@@ -364,13 +354,18 @@ impl<'a> Lifter<'a> {
                             arguments =
                                 self.get_register_range(a as usize + 1..vararg_index.unwrap());
                         }
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .call(function, arguments, return_values, b == 0, c == 0)
-                            .unwrap();
-                    }*/
+
+                        instructions.push(
+                            Call {
+                                function,
+                                arguments,
+                                variadic_arguments: b == 0,
+                                return_values,
+                                variadic_return: c == 0,
+                            }
+                            .into(),
+                        );
+                    }
                     OpCode::Return => {
                         let mut values = Vec::new();
                         if b > 1 {
@@ -425,9 +420,6 @@ impl<'a> Lifter<'a> {
                     if matches!(op_code, OpCode::Jump) {
                         let branch = self.get_block(instruction_index + sbx as usize - 131070);
                         terminator = Some(UnconditionalJump(branch).into());
-                        if instruction_index != block_end {
-                            cfg_block_id = self.lifted_function.new_block().unwrap()
-                        }
                     }
                 }
             }

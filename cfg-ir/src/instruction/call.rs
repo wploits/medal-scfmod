@@ -14,7 +14,9 @@ pub struct Call {
 
 impl ValueInfo for Call {
     fn values_read(&self) -> Vec<ValueId> {
-        self.arguments.clone()
+        let mut read = self.arguments.clone();
+        read.push(self.function);
+        read
     }
 
     fn values_written(&self) -> Vec<ValueId> {
@@ -22,7 +24,9 @@ impl ValueInfo for Call {
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
-        self.arguments.iter_mut().collect()
+        let mut read = self.arguments.iter_mut().collect::<Vec<_>>();
+        read.push(&mut self.function);
+        read
     }
 
     fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
@@ -34,12 +38,18 @@ impl fmt::Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} <- {{}}",
+            "{} <- {}({})",
             self.return_values
                 .iter()
                 .map(|v| v.to_string())
-                .collect::<Vec<String>>()
+                .collect::<Vec<_>>()
                 .join(", "),
+            self.function,
+            self.arguments
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     }
 }

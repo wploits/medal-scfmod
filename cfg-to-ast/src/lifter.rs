@@ -20,6 +20,14 @@ fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr) -> ast_ir::Assign
     }
 }
 
+fn assign_locals(locals: Vec<ast_ir::ExprLocal>, values: Vec<ast_ir::Expr>) -> ast_ir::Assign {
+    ast_ir::Assign {
+        pos: None,
+        vars: locals.into_iter().map(|v| v.into()).collect(),
+        values,
+    }
+}
+
 fn if_statement(condition: ast_ir::ExprLocal) -> ast_ir::If {
     ast_ir::If {
         pos: None,
@@ -55,6 +63,19 @@ fn constant(constant: &Constant) -> ast_ir::ExprLit {
             // TODO: Cow strings?
             Constant::String(v) => ast_ir::Lit::String(v),
         },
+    }
+}
+
+fn global(name: String) -> ast_ir::Global {
+    ast_ir::Global { pos: None, name }
+}
+
+fn call_expression(value: ast_ir::Expr, arguments: Vec<ast_ir::Expr>) -> ast_ir::Call {
+    ast_ir::Call {
+        pos: None,
+        arguments,
+        value: Box::new(value),
+        is_self: false,
     }
 }
 
@@ -112,9 +133,35 @@ impl<'a> Lifter<'a> {
                     )
                     .into(),
                 ),
+                Inner::LoadGlobal(load_global) => body.statements.push(
+                    assign_local(
+                        self.local(load_global.dest),
+                        global(load_global.name.clone()).into(),
+                    )
+                    .into(),
+                ),
                 Inner::Move(mov) => body
                     .statements
                     .push(assign_local(self.local(mov.dest), self.local(mov.source).into()).into()),
+                Inner::Call(call) => {
+                    let function = self.local(call.function).into();
+                    let return_values = call
+                        .return_values
+                        .iter()
+                        .map(|&v| self.local(v))
+                        .collect::<Vec<_>>();
+                    let arguments = call
+                        .arguments
+                        .iter()
+                        .map(|&v| self.local(v).into())
+                        .collect::<Vec<_>>();
+                    let call_expr = call_expression(function, arguments);
+                    body.statements.push(if return_values.is_empty() {
+                        call_expr.into()
+                    } else {
+                        assign_locals(return_values, vec![call_expr.into()]).into()
+                    });
+                }
                 _ => {}
             }
         }
@@ -144,7 +191,7 @@ impl<'a> Lifter<'a> {
 
     fn edge(
         stack: &mut Vec<NodeId>,
-        visited: &Vec<NodeId>,
+        visited: &[NodeId],
         stops: &FxHashSet<NodeId>,
         loop_exits: &FxHashSet<NodeId>,
         node: NodeId,
@@ -180,7 +227,7 @@ impl<'a> Lifter<'a> {
             .iter()
             .filter_map(|&n| post_dom_tree.predecessors(n).next())
             .collect::<FxHashSet<_>>();
-        println!("loop exits: {:?}", loop_exits);
+
         let mut blocks = self
             .function
             .graph()
@@ -255,8 +302,6 @@ impl<'a> Lifter<'a> {
             );
         }
 
-        println!("links: {:?}", links);
-
         for (node, link) in visited.iter().rev().map(|&n| (n, &links[&n])) {
             match link {
                 Link::If(true_branch, false_branch, exit) => {
@@ -297,12 +342,16 @@ impl<'a> Lifter<'a> {
                         .statements
                         .extend(then_statements.into_iter());
                     if let Some(else_statements) = else_statements {
-                        if_stat
-                            .else_block
-                            .as_mut()
-                            .unwrap()
-                            .statements
-                            .extend(else_statements.into_iter());
+                        if else_statements.is_empty() {
+                            if_stat.else_block = None;
+                        } else {
+                            if_stat
+                                .else_block
+                                .as_mut()
+                                .unwrap()
+                                .statements
+                                .extend(else_statements.into_iter());
+                        }
                     }
                     if let Some(exit) = exit {
                         let block = blocks.remove(exit).unwrap();
