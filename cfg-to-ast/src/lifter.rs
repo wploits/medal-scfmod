@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, rc::Rc};
+use std::rc::Rc;
 
 use cfg_ir::{
     constant::Constant,
@@ -8,7 +8,7 @@ use cfg_ir::{
 };
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
-    algorithms::{dfs_tree, dominators::post_dominator_tree},
+    algorithms::{back_edges, dfs_tree, dominators::post_dominator_tree},
     NodeId,
 };
 
@@ -36,6 +36,18 @@ fn return_statement() -> ast_ir::Return {
     }
 }
 
+fn while_statement(condition: ast_ir::Expr, body: ast_ir::Block) -> ast_ir::While {
+    ast_ir::While {
+        pos: None,
+        condition,
+        body,
+    }
+}
+
+fn break_statement() -> ast_ir::Break {
+    ast_ir::Break { pos: None }
+}
+
 fn constant(constant: &Constant) -> ast_ir::ExprLit {
     ast_ir::ExprLit {
         pos: None,
@@ -53,6 +65,7 @@ fn constant(constant: &Constant) -> ast_ir::ExprLit {
 enum Link {
     Extend(NodeId),
     If(Box<Link>, Option<Box<Link>>, Option<NodeId>),
+    Break,
     None,
 }
 
@@ -88,7 +101,7 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn lift_block(&mut self, node: NodeId) -> ast_ir::Block {
+    fn lift_block(&mut self, node: NodeId, is_while: bool) -> ast_ir::Block {
         let mut body = ast_ir::Block::new(None);
 
         let block = self.function.block(node).unwrap();
@@ -119,13 +132,22 @@ impl<'a> Lifter<'a> {
             None => panic!("block has no terminator"),
         }
 
-        body
+        if is_while {
+            let mut new_body = ast_ir::Block::new(None);
+            new_body
+                .statements
+                .push(while_statement(constant(&Constant::Boolean(true)).into(), body).into());
+            new_body
+        } else {
+            body
+        }
     }
 
     fn edge(
         stack: &mut Vec<NodeId>,
-        visited: &mut Vec<NodeId>,
+        visited: &Vec<NodeId>,
         stops: &FxHashSet<NodeId>,
+        loop_exits: &FxHashSet<NodeId>,
         node: NodeId,
         target: NodeId,
     ) -> Link {
@@ -136,6 +158,8 @@ impl<'a> Lifter<'a> {
             } else {
                 Link::None
             }
+        } else if loop_exits.contains(&target) {
+            Link::Break
         } else {
             Link::None
         }
@@ -145,15 +169,22 @@ impl<'a> Lifter<'a> {
         let mut ast_function = ast_ir::Function::new();
 
         let graph = self.function.graph();
+
+        let loop_headers = back_edges(graph, root)
+            .unwrap()
+            .iter()
+            .map(|edge| edge.destination)
+            .collect::<FxHashSet<_>>();
         let post_dom_tree =
             post_dominator_tree(graph, root, &dfs_tree(graph, root).unwrap()).unwrap();
-
+        let loop_exits = loop_headers.iter().filter_map(|&n| post_dom_tree.predecessors(n).next()).collect::<FxHashSet<_>>();
+        println!("loop exits: {:?}", loop_exits);
         let mut blocks = self
             .function
             .graph()
             .nodes()
             .iter()
-            .map(|&n| (n, self.lift_block(n)))
+            .map(|&n| (n, self.lift_block(n, loop_headers.contains(&n))))
             .collect::<FxHashMap<_, _>>();
 
         let mut links = FxHashMap::default();
@@ -173,40 +204,51 @@ impl<'a> Lifter<'a> {
                 node,
                 match successors.len() {
                     0 => Link::None,
-                    1 => Self::edge(&mut stack, &mut visited, &stops, node, successors[0]),
+                    1 => Self::edge(&mut stack, &visited, &stops, &loop_exits, node, successors[0]),
                     2 => {
-                        if let Some(exit) = post_dom_tree.predecessors(node).next() {
-                            assert!(!visited.contains(&exit));
+                        let mut has_else = true;
+                        let exit = post_dom_tree.predecessors(node).next();
+                        if let Some(exit) = exit {
+                            assert!(successors[0] != exit);
                             stack.push(exit);
                             stops.insert(exit);
-                            Link::If(
-                                Box::new(Self::edge(
-                                    &mut stack,
-                                    &mut visited,
-                                    &stops,
-                                    node,
-                                    successors[0],
-                                )),
+
+                            if successors[1] == exit && !loop_exits.contains(&exit) {
+                                has_else = false;
+                            }
+                        }
+                        Link::If(
+                            Box::new(Self::edge(
+                                &mut stack,
+                                &visited,
+                                &stops,
+                                &loop_exits,
+                                node,
+                                successors[0],
+                            )),
+                            if has_else {
                                 Some(Box::new(Self::edge(
                                     &mut stack,
-                                    &mut visited,
+                                    &visited,
                                     &stops,
+                                    &loop_exits,
                                     node,
                                     successors[1],
-                                ))),
-                                Some(exit),
-                            )
-                        } else {
-                            todo!()
-                        }
+                                )))
+                            } else {
+                                None
+                            },
+                            exit,
+                        )
                     }
                     _ => panic!("too many successors"),
                 },
             );
         }
 
+        println!("links: {:?}", links);
+
         for (node, link) in visited.iter().rev().map(|&n| (n, &links[&n])) {
-            println!("{}", node);
             match link {
                 Link::If(true_branch, false_branch, exit) => {
                     let then_statements = match **true_branch {
@@ -217,16 +259,24 @@ impl<'a> Lifter<'a> {
                     };
                     let else_statements = false_branch.as_ref().map(|link| match **link {
                         Link::Extend(target) => blocks.remove(&target).unwrap().statements,
+                        Link::Break => vec![break_statement().into()],
                         _ => panic!(),
                     });
-                    let if_stat = blocks
+                    let if_stat = {
+                        let statement = blocks
                         .get_mut(&node)
                         .unwrap()
                         .statements
                         .last_mut()
-                        .unwrap()
-                        .as_if_mut()
                         .unwrap();
+                        if let Some(if_stat) = statement
+                            .as_if_mut()
+                        {
+                            if_stat
+                        } else {
+                            statement.as_while_mut().unwrap().body.statements.first_mut().unwrap().as_if_mut().unwrap()
+                        }
+                    };
                     if_stat
                         .then_block
                         .statements
@@ -256,6 +306,7 @@ impl<'a> Lifter<'a> {
                         .statements
                         .extend(block.statements.into_iter());
                 }
+                Link::Break => blocks.get_mut(&node).unwrap().statements.push(break_statement().into()),
                 _ => {}
             }
         }

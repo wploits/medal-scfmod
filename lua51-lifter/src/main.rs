@@ -57,11 +57,11 @@ fn main() -> anyhow::Result<()> {
     let now = time::Instant::now();
     ssa::destruct::destruct(&mut cfg);
     let ssa_destructed = now.elapsed();
-    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    dot::render_to(&cfg, &mut std::io::stdout())?;
     println!("ssa destruction: {:?}", ssa_destructed);
 
     let now = time::Instant::now();
-    //cfg_to_ast::lift(&cfg);
+    //println!("{}", cfg_to_ast::lift(&cfg));
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
     cfg_to_ast::lifter::lift(&cfg);
