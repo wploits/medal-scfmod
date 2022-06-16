@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::ops::{Range, RangeInclusive};
+use std::rc::Rc;
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{Call, Inner, Terminator};
+use cfg_ir::instruction::{Call, Inner, Terminator, Closure};
 use graph::NodeId;
 
 use super::{
@@ -25,6 +26,7 @@ pub struct Lifter<'a> {
     function: &'a BytecodeFunction<'a>,
     blocks: HashMap<usize, NodeId>,
     lifted_function: Function,
+    closures: Vec<Option<Rc<Function>>>,
     register_map: HashMap<usize, ValueId>,
     constant_map: HashMap<usize, Constant>,
 }
@@ -35,6 +37,7 @@ impl<'a> Lifter<'a> {
             function,
             blocks: HashMap::new(),
             lifted_function: Function::new(),
+            closures: vec![None; function.closures.len()],
             register_map: HashMap::new(),
             constant_map: HashMap::new(),
         }
@@ -412,10 +415,26 @@ impl<'a> Lifter<'a> {
                         if let Constant::String(name) = name {
                             instructions.push(StoreGlobal { name, value }.into());
                         }
+                    },
+                    OpCode::Closure => {
+                        let dest = self.get_register(a as usize);
+
+                        let child = if let Some(child) = &self.closures[bx as usize] { child.clone() } else {
+                            let child = Lifter::new(&self.function.closures[bx as usize]).lift_function().map(Rc::new)?;
+                            self.closures[bx as usize] = Some(child.clone());
+                            child
+                        };
+
+                        instructions.push(Inner::Closure(Closure {
+                            dest,
+                            function: child,
+                        }));
                     }
                     _ => {}
                 },
 
+                // TODO: BytecodeInstruction::AsBx { OpCode::Return, a, sbx, }, etc.
+                // so can be in same order as OpCode enum :)
                 BytecodeInstruction::AsBx { op_code, sbx, .. } => {
                     if matches!(op_code, OpCode::Jump) {
                         let branch = self.get_block(instruction_index + sbx as usize - 131070);

@@ -13,6 +13,7 @@ mod call;
 mod concat;
 mod forloop;
 
+mod closure;
 mod load;
 mod r#move;
 mod store;
@@ -29,6 +30,7 @@ pub use call::Call;
 pub use concat::Concat;
 pub use forloop::NumericFor;
 
+pub use closure::Closure;
 pub use load::{LoadConstant, LoadGlobal, LoadIndex};
 pub use r#move::Move;
 pub use store::{StoreGlobal, StoreIndex};
@@ -52,6 +54,7 @@ pub enum Inner {
     StoreIndex(StoreIndex),
     Concat(Concat),
     Call(Call),
+    Closure(Closure),
 }
 
 impl fmt::Display for Inner {
@@ -67,6 +70,7 @@ impl fmt::Display for Inner {
             Self::StoreIndex(v) => write!(f, "{}", v),
             Self::Concat(v) => write!(f, "{}", v),
             Self::Call(v) => write!(f, "{}", v),
+            Self::Closure(v) => write!(f, "{}", v),
         }
     }
 }
