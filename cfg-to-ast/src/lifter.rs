@@ -275,7 +275,7 @@ impl<'a> Lifter<'a> {
                                 if successors[0] == exit {
                                     successors.swap(0, 1);
                                 }
-                                 if successors[1] == exit {
+                                if successors[1] == exit {
                                     has_else = false;
                                 }
                             }
@@ -313,9 +313,7 @@ impl<'a> Lifter<'a> {
             match link {
                 Link::If(true_branch, false_branch, exit) => {
                     let then_statements = match **true_branch {
-                        Link::Extend(target) => {
-                            blocks.remove(&target).unwrap().statements
-                        }
+                        Link::Extend(target) => blocks.remove(&target).unwrap().statements,
                         Link::Break => vec![break_statement().into()],
                         _ => panic!(),
                     };
@@ -325,11 +323,11 @@ impl<'a> Lifter<'a> {
                         _ => panic!(),
                     });
                     let statement = blocks
-                            .get_mut(&node)
-                            .unwrap()
-                            .statements
-                            .last_mut()
-                            .unwrap();
+                        .get_mut(&node)
+                        .unwrap()
+                        .statements
+                        .last_mut()
+                        .unwrap();
                     let if_stat = {
                         if let Some(if_stat) = statement.as_if_mut() {
                             if_stat
