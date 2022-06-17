@@ -495,7 +495,6 @@ impl<'a> Lifter<'a> {
             .collect::<FxHashSet<_>>();
 
         let idoms = compute_immediate_dominators(graph, root, &dfs).unwrap();
-        println!("idoms {:#?}", idoms);
 
         let local_declarations = local_declaration::local_declarations(self.function, root, &idoms);
 
@@ -530,9 +529,6 @@ impl<'a> Lifter<'a> {
         let mut stack = vec![root];
         let mut visited = Vec::new();
         let mut stops = FxHashSet::default();
-
-        println!("loop headers {:#?}", loop_headers);
-        println!("loop exits {:#?}", loop_exits);
 
         while let Some(node) = stack.pop() {
             //println!("visiting: {}", node);
@@ -646,8 +642,6 @@ impl<'a> Lifter<'a> {
                 },
             );
         }
-
-        println!("{:#?}", links);
 
         fn build_link(
             node: NodeId,
