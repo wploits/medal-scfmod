@@ -45,10 +45,10 @@ impl DefUse {
     pub fn update_block_phi(&mut self, block: &BasicBlock, node: NodeId) {
         for value_def_use in &mut self.0.values_mut() {
             value_def_use.reads.retain(|location| {
-                !matches!(location.index, InstructionIndex::Phi(_)) && location.node != node
+                !(matches!(location.index, InstructionIndex::Phi(_)) && location.node == node)
             });
             value_def_use.writes.retain(|location| {
-                !matches!(location.index, InstructionIndex::Phi(_)) && location.node != node
+                !(matches!(location.index, InstructionIndex::Phi(_)) && location.node == node)
             });
         }
         for index in block

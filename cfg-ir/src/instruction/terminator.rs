@@ -5,7 +5,7 @@ use std::fmt;
 
 use super::{super::value::ValueId, branch_info::BranchInfo, value_info::ValueInfo};
 
-use super::forloop::NumericFor;
+use super::forloop::{NumericForEnter, NumericForLoop};
 
 #[derive(Debug, Clone)]
 pub struct Return {
@@ -150,7 +150,8 @@ pub enum Terminator {
     Return(Return),
     ConditionalJump(ConditionalJump),
     UnconditionalJump(UnconditionalJump),
-    NumericFor(NumericFor),
+    NumericForEnter(NumericForEnter),
+    NumericForLoop(NumericForLoop),
 }
 
 impl fmt::Display for Terminator {
@@ -159,7 +160,8 @@ impl fmt::Display for Terminator {
             Terminator::Return(x) => x.fmt(f),
             Terminator::ConditionalJump(x) => x.fmt(f),
             Terminator::UnconditionalJump(x) => x.fmt(f),
-            Terminator::NumericFor(x) => x.fmt(f),
+            Terminator::NumericForEnter(x) => x.fmt(f),
+            Terminator::NumericForLoop(x) => x.fmt(f),
         }
     }
 }

@@ -28,7 +28,7 @@ pub use unary::{Unary, UnaryOp};
 
 pub use call::Call;
 pub use concat::Concat;
-pub use forloop::NumericFor;
+pub use forloop::{NumericForEnter, NumericForLoop};
 
 pub use closure::Closure;
 pub use load::{LoadConstant, LoadGlobal, LoadIndex};

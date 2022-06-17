@@ -5,7 +5,9 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{Call, Closure, Inner, LoadIndex, StoreIndex, Terminator};
+use cfg_ir::instruction::{
+    Call, Closure, Inner, LoadIndex, NumericForEnter, NumericForLoop, StoreIndex, Terminator,
+};
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -224,26 +226,14 @@ impl<'a> Lifter<'a> {
                         let object = self.get_register(b as usize);
                         let key = self.get_register_or_constant(c as usize, cfg_block_id);
 
-                        instructions.push(
-                            LoadIndex {
-                                dest,
-                                object,
-                                key
-                            }.into()
-                        );
+                        instructions.push(LoadIndex { dest, object, key }.into());
                     }
                     OpCode::NewIndex => {
                         let object = self.get_register(a as usize);
                         let key = self.get_register_or_constant(b as usize, cfg_block_id);
                         let value = self.get_register_or_constant(c as usize, cfg_block_id);
 
-                        instructions.push(
-                            StoreIndex {
-                                value,
-                                object,
-                                key
-                            }.into()
-                        );
+                        instructions.push(StoreIndex { value, object, key }.into());
                     }
                     /*OpCode::NewTable => {
                         let dest = self.get_register(a as usize);
@@ -362,8 +352,7 @@ impl<'a> Lifter<'a> {
                             .collect::<Vec<_>>();
                         if b == 0 {
                             assert!(top_index.is_some());
-                            arguments =
-                                self.get_register_range(a as usize + 1..top_index.unwrap());
+                            arguments = self.get_register_range(a as usize + 1..top_index.unwrap());
                         }
                         if c == 0 {
                             top_index = Some(a as usize);
@@ -402,7 +391,7 @@ impl<'a> Lifter<'a> {
                     /*OpCode::VarArg => {
                         vararg_index = Some(a as usize);
                     }*/
-                    _ => {}
+                    _ => unreachable!(),
                 },
 
                 BytecodeInstruction::ABx { op_code, a, bx } => match op_code {
@@ -444,17 +433,65 @@ impl<'a> Lifter<'a> {
                             function: child,
                         }));
                     }
-                    OpCode::ForPrep => {}
-                    OpCode::ForLoop => {}
-                    _ => {}
+                    _ => unreachable!(),
                 },
 
-                // TODO: BytecodeInstruction::AsBx { OpCode::Return, a, sbx, }, etc.
+                // TODO: BytecodeInstruction::AsBx { OpCode::Jump, a, sbx, }, etc.
                 // so can be in same order as OpCode enum :)
-                BytecodeInstruction::AsBx { op_code, sbx, .. } => {
-                    if matches!(op_code, OpCode::Jump) {
-                        let branch = self.get_block(instruction_index + sbx as usize - 131070);
-                        terminator = Some(UnconditionalJump(branch).into());
+                BytecodeInstruction::AsBx { op_code, a, sbx } => {
+                    match op_code {
+                        OpCode::ForPrep => {
+                            let init = self.get_register(a as usize);
+                            let variable = self.get_register(a as usize + 3);
+                            let successor_node = self.get_block(instruction_index + sbx as usize - 131070);
+                            let true_branch = self
+                                .lifted_function
+                                .block(successor_node)
+                                .unwrap()
+                                .terminator()
+                                .as_ref()
+                                .map(|t| {
+                                    if let Terminator::NumericForLoop(n) = t {
+                                        n
+                                    } else {
+                                        unreachable!()
+                                    }
+                                })
+                                .unwrap()
+                                .true_branch;
+                            terminator = Some(
+                                NumericForEnter {
+                                    variable,
+                                    init,
+                                    node: true_branch,
+                                }
+                                .into(),
+                            );
+                        }
+                        OpCode::ForLoop => {
+                            let limit = self.get_register(a as usize + 1);
+                            let step = self.get_register(a as usize + 2);
+                            let variable = self.get_register(a as usize + 3);
+                            // TODO: why isnt this just + sbx?
+                            let true_branch =
+                                self.get_block(instruction_index + sbx as usize - 131070);
+                            let false_branch = self.get_block(instruction_index + 1);
+                            terminator = Some(
+                                NumericForLoop {
+                                    variable,
+                                    limit,
+                                    step,
+                                    true_branch,
+                                    false_branch,
+                                }
+                                .into(),
+                            )
+                        }
+                        OpCode::Jump => {
+                            let branch = self.get_block(instruction_index + sbx as usize - 131070);
+                            terminator = Some(UnconditionalJump(branch).into());
+                        }
+                        _ => unreachable!(),
                     }
                 }
             }

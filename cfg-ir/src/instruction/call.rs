@@ -36,14 +36,20 @@ impl ValueInfo for Call {
 
 impl fmt::Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if !self.return_values.is_empty() {
+            write!(
+                f,
+                "{} <- ",
+                self.return_values
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )?;
+        }
         write!(
             f,
-            "{} <- {}({})",
-            self.return_values
-                .iter()
-                .map(|v| v.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
+            "{}({})",
             self.function,
             self.arguments
                 .iter()

@@ -405,7 +405,8 @@ impl<'a> Lifter<'a> {
             Some(Terminator::ConditionalJump(ConditionalJump { condition, .. })) => body
                 .statements
                 .push(if_statement(self.local(condition)).into()),
-            Some(Terminator::NumericFor { .. }) => panic!(),
+            Some(Terminator::NumericForEnter { .. }) => panic!(),
+            Some(Terminator::NumericForLoop { .. }) => panic!(),
             Some(Terminator::Return(return_stat)) => {
                 let mut return_values = return_stat.values.iter().map(|v| self.local(v).into()).collect::<Vec<_>>();
                 if return_stat.variadic {
