@@ -16,7 +16,7 @@ use graph::{
         back_edges, dfs_tree,
         dominators::{compute_immediate_dominators, post_dominator_tree},
     },
-    NodeId,
+    NodeId, Edge,
 };
 use local_declaration::Declaration;
 
@@ -75,6 +75,17 @@ fn while_statement<'a>(condition: ast_ir::Expr<'a>, body: ast_ir::Block<'a>) -> 
     }
 }
 
+fn numeric_for_statement<'a>(var: Rc<ast_ir::Local>, from: ast_ir::Expr<'a>, to: ast_ir::Expr<'a>, step: ast_ir::Expr<'a>, body: ast_ir::Block<'a>) -> ast_ir::NumericFor<'a> {
+    ast_ir::NumericFor {
+        pos: None,
+        var,
+        from,
+        to,
+        step: Some(step),
+        body,
+    }
+}
+
 fn break_statement() -> ast_ir::Break {
     ast_ir::Break { pos: None }
 }
@@ -93,6 +104,13 @@ fn constant<'a>(constant: &'a Constant) -> ast_ir::ExprLit<'a> {
 
 fn global(name: &str) -> ast_ir::Global {
     ast_ir::Global { pos: None, name: Cow::Borrowed(name) }
+}
+
+fn local_expression(local: Rc<ast_ir::Local>) -> ast_ir::ExprLocal {
+    ast_ir::ExprLocal {
+        pos: None,
+        local,
+    }
 }
 
 fn call_expression<'a>(value: ast_ir::Expr<'a>, arguments: Vec<ast_ir::Expr<'a>>) -> ast_ir::Call<'a> {
@@ -161,6 +179,13 @@ enum Link {
 
 #[derive(Debug)]
 enum Loop {
+    NumericFor{
+        loop_exit: NodeId,
+        var: Rc<ast_ir::Local>,
+        from: Rc<ast_ir::Local>,
+        to: Rc<ast_ir::Local>,
+        step: Rc<ast_ir::Local>,
+    },
     While(NodeId),
 }
 
@@ -405,8 +430,8 @@ impl<'a> Lifter<'a> {
             Some(Terminator::ConditionalJump(ConditionalJump { condition, .. })) => body
                 .statements
                 .push(if_statement(self.local(condition)).into()),
-            Some(Terminator::NumericForEnter { .. }) => panic!(),
-            Some(Terminator::NumericForLoop { .. }) => panic!(),
+            Some(Terminator::NumericForEnter { .. }) => {},
+            Some(Terminator::NumericForLoop { .. }) => {},
             Some(Terminator::Return(return_stat)) => {
                 let mut return_values = return_stat.values.iter().map(|v| self.local(v).into()).collect::<Vec<_>>();
                 if return_stat.variadic {
@@ -450,8 +475,13 @@ impl<'a> Lifter<'a> {
 
         let graph = self.function.graph();
 
-        let loop_headers = back_edges(graph, root)
-            .unwrap()
+        let back_edges = back_edges(graph, root).unwrap();
+        let mut back_edges_map = FxHashMap::with_capacity_and_hasher(back_edges.len(), Default::default());
+        for &Edge {source, destination} in &back_edges {
+            back_edges_map.entry(source).or_insert_with(FxHashSet::default).insert(destination);
+        }
+
+        let loop_headers = back_edges
             .iter()
             .map(|edge| edge.destination)
             .collect::<FxHashSet<_>>();
@@ -465,6 +495,7 @@ impl<'a> Lifter<'a> {
             .collect::<FxHashSet<_>>();
 
         let idoms = compute_immediate_dominators(graph, root, &dfs).unwrap();
+        println!("idoms {:#?}", idoms);
 
         let local_declarations = local_declaration::local_declarations(self.function, root, &idoms);
 
@@ -500,6 +531,9 @@ impl<'a> Lifter<'a> {
         let mut visited = Vec::new();
         let mut stops = FxHashSet::default();
 
+        println!("loop headers {:#?}", loop_headers);
+        println!("loop exits {:#?}", loop_exits);
+
         while let Some(node) = stack.pop() {
             //println!("visiting: {}", node);
             assert!(!visited.contains(&node));
@@ -507,15 +541,46 @@ impl<'a> Lifter<'a> {
 
             // todo: for loops
             if loop_headers.contains(&node) {
-                if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
-                    assert!(!visited.contains(&loop_exit));
-                    loops.insert(node, Loop::While(loop_exit));
-                    stops.insert(loop_exit);
-                    stack.push(loop_exit);
+                let predecessors = self.function.graph().predecessors(node).collect::<Vec<_>>();
+                let mut done = false;
+                if predecessors.len() == 2 {
+                    let mut num_for_loop = None;
+                    let mut num_for_entry = None;
+                    for predecessor_node in predecessors {
+                        match self.function.block(predecessor_node).unwrap().terminator().as_ref().unwrap() {
+                            Terminator::NumericForEnter(e) => num_for_entry = Some(e.clone()),
+                            Terminator::NumericForLoop(l) => num_for_loop = Some((predecessor_node, l.clone())),
+                            _ => break,
+                        }
+                    }
+
+                    if num_for_loop.is_some() && num_for_entry.is_some() {
+                        let (loop_exit, num_for_loop) = num_for_loop.unwrap();
+                        let num_for_entry = num_for_entry.unwrap();
+                        assert!(!visited.contains(&loop_exit));
+
+                        loops.insert(node, Loop::NumericFor{ loop_exit, var: self.locals[&num_for_loop.variable].clone(), from: self.locals[&num_for_entry.init].clone(), to: self.locals[&num_for_loop.limit].clone(), step: self.locals[&num_for_loop.step].clone() });
+                        stops.insert(loop_exit);
+                        stack.push(loop_exit);
+                        done = true;
+                    }
+                }
+
+                if !done {
+                    if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
+                        assert!(!visited.contains(&loop_exit));
+                        loops.insert(node, Loop::While(loop_exit));
+                        stops.insert(loop_exit);
+                        stack.push(loop_exit);
+                    }
                 }
             }
 
             let mut successors = self.function.graph().successors(node).collect::<Vec<_>>();
+            // remove back edges
+            if let Some(node_back_edges) = back_edges_map.get(&node) {
+                successors.retain(|s| !node_back_edges.contains(s))
+            }
             links.insert(
                 node,
                 match successors.len() {
@@ -666,6 +731,15 @@ impl<'a> Lifter<'a> {
                             .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
                         blocks.insert(node, new_block);
                     }
+                    Loop::NumericFor { loop_exit, var, from, to, step } => {
+                        let mut new_block = ast_ir::Block::new(None);
+                        let num_for_stat = numeric_for_statement(var.clone(), Expr::Local(local_expression(from.clone())), Expr::Local(local_expression(to.clone())), Expr::Local(local_expression(step.clone())), blocks.remove(&node).unwrap());
+                        new_block.statements.push(num_for_stat.into());
+                        new_block
+                            .statements
+                            .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
+                        blocks.insert(node, new_block);
+                    },
                 }
             }
         }
