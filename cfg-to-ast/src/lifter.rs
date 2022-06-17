@@ -433,7 +433,7 @@ impl<'a> Lifter<'a> {
                         let mut exit = post_dom_tree.predecessors(node).next();
                         if let Some(exit_node) = exit {
                             assert!(successors[0] != successors[1]);
-                            if !stops.contains(&exit_node) {
+                            if !stops.contains(&exit_node) && !visited.contains(&exit_node) {
                                 stops.insert(exit_node);
                                 if !loop_exits.contains(&exit_node) {
                                     if successors[0] == exit_node {
@@ -481,6 +481,8 @@ impl<'a> Lifter<'a> {
                 },
             );
         }
+
+        println!("{:#?}", links);
 
         fn build_link(
             node: NodeId,

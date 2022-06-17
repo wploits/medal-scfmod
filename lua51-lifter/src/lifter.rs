@@ -70,7 +70,7 @@ impl<'a> Lifter<'a> {
 
                 BytecodeInstruction::ABx { .. } => {}
 
-                BytecodeInstruction::AsBx { op_code, a: _, sbx } if op_code == OpCode::Jump => {
+                BytecodeInstruction::AsBx { op_code, a: _, sbx } if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) => {
                     self.blocks
                         .entry(insn_index + sbx as usize - 131070)
                         .or_insert_with(|| self.lifted_function.new_block().unwrap());
@@ -145,16 +145,16 @@ impl<'a> Lifter<'a> {
     fn is_terminator(instruction: &BytecodeInstruction) -> bool {
         match instruction {
             BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
-                OpCode::Equal
-                | OpCode::LesserThan
-                | OpCode::LesserOrEqual
-                | OpCode::Test
-                | OpCode::Return => true,
                 OpCode::LoadBool => *c != 0,
-                _ => false,
-            },
+                _ => matches!(op_code,
+                    OpCode::Equal
+                    | OpCode::LesserThan
+                    | OpCode::LesserOrEqual
+                    | OpCode::Test
+                    | OpCode::Return),
+            }
             BytecodeInstruction::ABx { .. } => false,
-            BytecodeInstruction::AsBx { op_code, .. } => matches!(op_code, OpCode::Jump),
+            BytecodeInstruction::AsBx { op_code, .. } => matches!(op_code, OpCode::Jump | OpCode::ForPrep | OpCode::ForLoop),
         }
     }
 
@@ -433,6 +433,12 @@ impl<'a> Lifter<'a> {
                             dest,
                             function: child,
                         }));
+                    }
+                    OpCode::ForPrep => {
+                        
+                    }
+                    OpCode::ForLoop => {
+                        
                     }
                     _ => {}
                 },
