@@ -1,4 +1,4 @@
-use fxhash::{FxHashMap, FxHashSet};
+use fxhash::FxHashMap;
 use graph::{Edge, Graph, NodeId};
 
 use crate::{
