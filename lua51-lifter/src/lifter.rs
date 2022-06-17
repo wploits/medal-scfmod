@@ -4,14 +4,6 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
-use graph::NodeId;
-
-use super::{
-    chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
-    op_code::OpCode, value::ValueId as BytecodeValueId,
-};
-
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -20,6 +12,13 @@ use cfg_ir::{
         StoreGlobal, Unary, UnaryOp, UnconditionalJump,
     },
     value::ValueId,
+};
+use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
+use graph::NodeId;
+
+use super::{
+    chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
+    op_code::OpCode, value::ValueId as BytecodeValueId,
 };
 
 pub struct Lifter<'a> {
@@ -33,10 +32,12 @@ pub struct Lifter<'a> {
 
 impl<'a> Lifter<'a> {
     pub fn new(function: &'a BytecodeFunction<'_>) -> Self {
+        let num_params = function.num_params as usize;
+
         Lifter {
             function,
             blocks: HashMap::new(),
-            lifted_function: Function::new(),
+            lifted_function: Function::new(num_params),
             closures: vec![None; function.closures.len()],
             register_map: HashMap::new(),
             constant_map: HashMap::new(),
@@ -134,7 +135,7 @@ impl<'a> Lifter<'a> {
                         dest: value,
                         constant,
                     }
-                    .into(),
+                        .into(),
                 );
             value
         } else {
@@ -188,7 +189,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
                                 }
-                                .into(),
+                                    .into(),
                             );
                             terminator = Some(UnconditionalJump(branch).into());
                         } else {
@@ -197,7 +198,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
                                 }
-                                .into(),
+                                    .into(),
                             );
                         }
                     }
@@ -209,7 +210,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Nil,
                                 }
-                                .into(),
+                                    .into(),
                             );
                         }
                     }
@@ -315,7 +316,7 @@ impl<'a> Lifter<'a> {
                                 rhs,
                                 op,
                             }
-                            .into(),
+                                .into(),
                         );
                         terminator = Some(
                             ConditionalJump {
@@ -323,7 +324,7 @@ impl<'a> Lifter<'a> {
                                 true_branch,
                                 false_branch,
                             }
-                            .into(),
+                                .into(),
                         );
                     }
                     OpCode::Test => {
@@ -341,7 +342,7 @@ impl<'a> Lifter<'a> {
                                 true_branch,
                                 false_branch,
                             }
-                            .into(),
+                                .into(),
                         );
                     }
                     OpCode::Call | OpCode::TailCall => {
@@ -366,7 +367,7 @@ impl<'a> Lifter<'a> {
                                 return_values,
                                 variadic_return: c == 0,
                             }
-                            .into(),
+                                .into(),
                         );
                     }
                     OpCode::Return => {
@@ -385,7 +386,7 @@ impl<'a> Lifter<'a> {
                                 values,
                                 variadic: b == 0,
                             }
-                            .into(),
+                                .into(),
                         );
                         break;
                     }

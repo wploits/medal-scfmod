@@ -1,16 +1,17 @@
+use std::fs::File;
+use std::io::Read;
+use std::time;
+
+use clap::Parser;
+
+use cfg_ir::{dot, ssa};
+use lifter::Lifter;
+
 mod chunk;
 mod instruction;
 mod lifter;
 mod op_code;
 mod value;
-
-use cfg_ir::{dot, ssa};
-use lifter::Lifter;
-
-use clap::Parser;
-use std::fs::File;
-use std::io::Read;
-use std::time;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -25,7 +26,7 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     #[cfg(feature = "dhat-heap")]
-    let _profiler = dhat::Profiler::new_heap();
+        let _profiler = dhat::Profiler::new_heap();
 
     let args = Args::parse();
 

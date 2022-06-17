@@ -209,6 +209,19 @@ impl<'a> Lifter<'a> {
             .collect::<FxHashSet<_>>()
     }
 
+    fn lift_closure(&self, function: &cfg_ir::function::Function) -> ast_ir::Closure {
+        let args = function.locals.iter()
+            .map(|v| Rc::new(ast_ir::Local { name: v.to_string() }))
+            .collect();
+
+        ast_ir::Closure {
+            pos: None,
+            self_: None,
+            args,
+            block: lift(function).body,
+        }
+    }
+
     fn lift_block(
         &mut self,
         node: NodeId,
@@ -294,6 +307,12 @@ impl<'a> Lifter<'a> {
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
                         ).into());
+                }
+                Inner::Closure(closure) => {
+                    let dest = &closure.dest;
+                    let closure = self.lift_closure(closure.function.as_ref()).into();
+
+                    body.statements.push(assign_local(dest, closure).into());
                 }
                 _ => {}
             }

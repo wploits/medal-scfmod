@@ -20,6 +20,7 @@ pub struct Function<'a> {
     pub positions: Option<Vec<Position>>,
     pub locals: Option<Vec<Local<'a>>>,
     pub upvalues: Option<Vec<&'a str>>,
+    pub num_params: u8,
 }
 
 impl<'a> Function<'a> {
@@ -28,7 +29,7 @@ impl<'a> Function<'a> {
         let (input, line_defined) = le_u32(input)?;
         let (input, last_line_defined) = le_u32(input)?;
         let (input, _upvalues_length) = le_u8(input)?;
-        let (input, _parameters_length) = le_u8(input)?;
+        let (input, num_params) = le_u8(input)?;
         let (input, ellipsis_flag) = le_u8(input)?;
         let (input, maximum_stack_size) = le_u8(input)?;
         let (input, code_length) = le_u32(input)?;
@@ -54,6 +55,7 @@ impl<'a> Function<'a> {
                 positions,
                 locals,
                 upvalues,
+                num_params,
             },
         ))
     }
