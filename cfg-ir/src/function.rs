@@ -12,6 +12,7 @@ use crate::{
 pub struct Function<'cfg> {
     graph: Graph,
     blocks: FxHashMap<NodeId, BasicBlock<'cfg>>,
+    pub parameters: Vec<ValueId>,
     pub(crate) next_value_index: usize,
     entry: Option<NodeId>,
 }
@@ -21,6 +22,7 @@ impl<'cfg> Function<'cfg> {
         Self {
             graph: Graph::new(),
             blocks: FxHashMap::default(),
+            parameters: Vec::new(),
             next_value_index: 0,
             entry: None,
         }

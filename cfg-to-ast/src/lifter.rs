@@ -7,7 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator,
+        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Return, Terminator, UnaryOp,
     },
     value::ValueId,
 };
@@ -22,6 +22,15 @@ use local_declaration::Declaration;
 
 mod local_declaration;
 mod optimizer;
+
+fn assign(global: ast_ir::Global, values: Vec<Expr>) -> ast_ir::Assign {
+    ast_ir::Assign {
+        pos: None,
+        vars: vec![global.into()],
+        values,
+        local_prefix: false,
+    }
+}
 
 fn assign_local(
     local: ast_ir::ExprLocal,
@@ -124,7 +133,7 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
                 lhs: Box::new(lhs),
                 rhs,
             }
-            .into(),
+                .into(),
             op,
         )
     }
@@ -132,6 +141,14 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
     let lhs = v.remove(0);
 
     _binary_expression_fold(v, lhs, op)
+}
+
+fn unary_expression(value: Expr, op: ast_ir::UnaryOp) -> ast_ir::Unary {
+    ast_ir::Unary {
+        pos: None,
+        op,
+        expr: Box::new(value),
+    }
 }
 
 #[derive(Debug)]
@@ -187,12 +204,11 @@ impl<'a> Lifter<'a> {
         if let Some(declarations) = local_declarations.get(&index) {
             let forward_declarations = declarations
                 .iter()
-                .filter_map(|declaration| {
-                    if let &Declaration::Forward(value) = declaration {
+                .filter_map(|declaration| match declaration {
+                    Declaration::Forward(value) if !self.function.parameters.contains(value) => {
                         Some(value)
-                    } else {
-                        None
                     }
+                    _ => None,
                 })
                 .collect::<FxHashSet<_>>();
             for value in forward_declarations {
@@ -215,15 +231,33 @@ impl<'a> Lifter<'a> {
         }
     }
 
+    fn lift_closure(&self, function: &cfg_ir::function::Function) -> ast_ir::Closure {
+        let args = function
+            .parameters
+            .iter()
+            .map(|v| {
+                Rc::new(ast_ir::Local {
+                    name: v.to_string(),
+                })
+            })
+            .collect();
+
+        ast_ir::Closure {
+            pos: None,
+            self_: None,
+            args,
+            block: lift(function).body,
+        }
+    }
+
     fn lift_block(
         &mut self,
         node: NodeId,
         local_declarations: FxHashMap<InstructionIndex, &Vec<Declaration>>,
     ) -> ast_ir::Block<'a> {
         let mut body = ast_ir::Block::new(None);
-
         let block = self.function.block(node).unwrap();
-
+        let mut variadic_expr = None;
         for (index, instruction) in block.inner_instructions.iter().enumerate() {
             let local_prefixes = self.handle_instruction_declarations(
                 InstructionIndex::Inner(index),
@@ -241,7 +275,7 @@ impl<'a> Lifter<'a> {
                         &load_constant.dest,
                         constant(&load_constant.constant).into(),
                     )
-                    .into(),
+                        .into(),
                 ),
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
@@ -263,9 +297,22 @@ impl<'a> Lifter<'a> {
                                 BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                             },
                         )
-                        .into(),
+                            .into(),
                     )
-                    .into(),
+                        .into(),
+                ),
+                Inner::Unary(unary) => body.statements.push(
+                    assign_local(
+                        &unary.dest,
+                        unary_expression(
+                            self.local(&unary.value).into(),
+                            match unary.op {
+                                UnaryOp::Minus => ast_ir::UnaryOp::Minus,
+                                UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
+                                UnaryOp::Len => ast_ir::UnaryOp::Len,
+                            },
+                        ).into(),
+                    ).into()
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
                     assign_local(&load_global.dest, global(&load_global.name).into()).into(),
@@ -273,6 +320,15 @@ impl<'a> Lifter<'a> {
                 Inner::Move(mov) => body
                     .statements
                     .push(assign_local(&mov.dest, self.local(&mov.source).into()).into()),
+                Inner::StoreGlobal(store_global) => body.statements.push(
+                    assign(
+                        ast_ir::Global {
+                            pos: None,
+                            name: store_global.name.clone(),
+                        },
+                        vec![self.local(&store_global.value).into()],
+                    ).into()
+                ),
                 Inner::Call(call) => {
                     let function = self.local(&call.function).into();
                     let return_values = call
@@ -280,17 +336,25 @@ impl<'a> Lifter<'a> {
                         .iter()
                         .map(|v| self.local(v))
                         .collect::<Vec<_>>();
-                    let arguments = call
+                    let mut arguments = call
                         .arguments
                         .iter()
                         .map(|v| self.local(v).into())
                         .collect::<Vec<_>>();
+                    if call.variadic_arguments {
+                        assert!(variadic_expr.is_some());
+                        arguments.push(variadic_expr.take().unwrap());
+                    }
                     let call_expr = call_expression(function, arguments);
-                    body.statements.push(if return_values.is_empty() {
-                        call_expr.into()
+                    if call.variadic_return {
+                        variadic_expr = Some(call_expr.into());
                     } else {
-                        assign_locals(return_values, vec![call_expr.into()]).into()
-                    });
+                        body.statements.push(if return_values.is_empty() {
+                            call_expr.into()
+                        } else {
+                            assign_locals(return_values, vec![call_expr.into()]).into()
+                        });
+                    }
                 }
                 Inner::Concat(concat) => {
                     let operands: Vec<_> =
@@ -301,8 +365,14 @@ impl<'a> Lifter<'a> {
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
                         )
-                        .into(),
+                            .into(),
                     );
+                }
+                Inner::Closure(closure) => {
+                    let dest = &closure.dest;
+                    let closure = self.lift_closure(closure.function.as_ref()).into();
+
+                    body.statements.push(assign_local(dest, closure).into());
                 }
                 _ => {}
             }
@@ -314,9 +384,16 @@ impl<'a> Lifter<'a> {
                 .statements
                 .push(if_statement(self.local(condition)).into()),
             Some(Terminator::NumericFor { .. }) => panic!(),
-            Some(Terminator::Return(Return { values, .. })) => body.statements.push(
-                return_statement(values.iter().map(|v| self.local(v).into()).collect()).into(),
-            ),
+            Some(Terminator::Return(return_stat)) => {
+                let mut return_values = return_stat.values.iter().map(|v| self.local(v).into()).collect::<Vec<_>>();
+                if return_stat.variadic {
+                    assert!(variadic_expr.is_some());
+                    return_values.push(variadic_expr.take().unwrap());
+                }
+                body.statements.push(
+                    return_statement(return_values).into(),
+                );
+            }
             None => panic!("block has no terminator"),
         }
 
@@ -433,7 +510,7 @@ impl<'a> Lifter<'a> {
                         let mut exit = post_dom_tree.predecessors(node).next();
                         if let Some(exit_node) = exit {
                             assert!(successors[0] != successors[1]);
-                            if !stops.contains(&exit_node) {
+                            if !stops.contains(&exit_node) && !visited.contains(&exit_node) {
                                 stops.insert(exit_node);
                                 if !loop_exits.contains(&exit_node) {
                                     if successors[0] == exit_node {
@@ -481,6 +558,8 @@ impl<'a> Lifter<'a> {
                 },
             );
         }
+
+        println!("{:#?}", links);
 
         fn build_link(
             node: NodeId,

@@ -6,13 +6,6 @@ use std::rc::Rc;
 use anyhow::Result;
 
 use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
-use graph::NodeId;
-
-use super::{
-    chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
-    op_code::OpCode, value::ValueId as BytecodeValueId,
-};
-
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -21,6 +14,12 @@ use cfg_ir::{
         StoreGlobal, Unary, UnaryOp, UnconditionalJump,
     },
     value::ValueId,
+};
+use graph::NodeId;
+
+use super::{
+    chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
+    op_code::OpCode, value::ValueId as BytecodeValueId,
 };
 
 pub struct Lifter<'a> {
@@ -34,7 +33,7 @@ pub struct Lifter<'a> {
 
 impl<'a> Lifter<'a> {
     pub fn new(function: &'a BytecodeFunction<'_>) -> Self {
-        Lifter {
+        Self {
             function,
             blocks: HashMap::new(),
             lifted_function: Function::new(),
@@ -71,7 +70,9 @@ impl<'a> Lifter<'a> {
 
                 BytecodeInstruction::ABx { .. } => {}
 
-                BytecodeInstruction::AsBx { op_code, a: _, sbx } if op_code == OpCode::Jump => {
+                BytecodeInstruction::AsBx { op_code, a: _, sbx }
+                    if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
+                {
                     self.blocks
                         .entry(insn_index + sbx as usize - 131070)
                         .or_insert_with(|| self.lifted_function.new_block().unwrap());
@@ -146,16 +147,20 @@ impl<'a> Lifter<'a> {
     fn is_terminator(instruction: &BytecodeInstruction) -> bool {
         match instruction {
             BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
-                OpCode::Equal
-                | OpCode::LesserThan
-                | OpCode::LesserOrEqual
-                | OpCode::Test
-                | OpCode::Return => true,
                 OpCode::LoadBool => *c != 0,
-                _ => false,
+                _ => matches!(
+                    op_code,
+                    OpCode::Equal
+                        | OpCode::LesserThan
+                        | OpCode::LesserOrEqual
+                        | OpCode::Test
+                        | OpCode::Return
+                ),
             },
             BytecodeInstruction::ABx { .. } => false,
-            BytecodeInstruction::AsBx { op_code, .. } => matches!(op_code, OpCode::Jump),
+            BytecodeInstruction::AsBx { op_code, .. } => {
+                matches!(op_code, OpCode::Jump | OpCode::ForPrep | OpCode::ForLoop)
+            }
         }
     }
 
@@ -167,7 +172,7 @@ impl<'a> Lifter<'a> {
     ) -> Result<(Vec<Inner<'a>>, Option<Terminator>)> {
         let mut instructions = Vec::new();
         let mut terminator = None;
-        let vararg_index = None;
+        let mut top_index = None;
         for (block_instruction_index, instruction) in self.function.code[block_start..=block_end]
             .iter()
             .enumerate()
@@ -354,11 +359,13 @@ impl<'a> Lifter<'a> {
                             .map(|v| self.get_register(v as usize))
                             .collect::<Vec<_>>();
                         if b == 0 {
-                            assert!(vararg_index.is_some());
+                            assert!(top_index.is_some());
                             arguments =
-                                self.get_register_range(a as usize + 1..vararg_index.unwrap());
+                                self.get_register_range(a as usize + 1..top_index.unwrap());
                         }
-
+                        if c == 0 {
+                            top_index = Some(a as usize);
+                        }
                         instructions.push(
                             Call {
                                 function,
@@ -378,8 +385,8 @@ impl<'a> Lifter<'a> {
                                 .collect();
                         }
                         if b == 0 {
-                            assert!(vararg_index.is_some());
-                            values = self.get_register_range(a as usize..vararg_index.unwrap());
+                            assert!(top_index.is_some());
+                            values = self.get_register_range(a as usize..top_index.unwrap());
                         }
                         terminator = Some(
                             Return {
@@ -435,6 +442,8 @@ impl<'a> Lifter<'a> {
                             function: child,
                         }));
                     }
+                    OpCode::ForPrep => {}
+                    OpCode::ForLoop => {}
                     _ => {}
                 },
 
@@ -483,6 +492,12 @@ impl<'a> Lifter<'a> {
                 },
             )
             .1;
+
+        for i in 0..self.function.num_params {
+            let parameter = self.lifted_function.new_value();
+            self.lifted_function.parameters.push(parameter);
+            self.register_map.insert(i as usize, parameter);
+        }
 
         for (block_start_pc, block_end_pc) in block_ranges {
             let cfg_block_id = self.get_block(block_start_pc);
