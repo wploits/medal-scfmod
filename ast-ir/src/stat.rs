@@ -11,21 +11,21 @@ use enum_dispatch::enum_dispatch;
 
 #[enum_dispatch]
 #[derive(Debug, PartialEq, Clone, EnumAsInner)]
-pub enum Stat {
-    Block(Block),
-    Assign(Assign),
+pub enum Stat<'ast> {
+    Block(Block<'ast>),
+    Assign(Assign<'ast>),
     Break(Break),
     Continue(Continue),
-    Return(Return),
-    If(If),
-    FuncDef(FuncDef),
-    LocalDef(LocalDef),
-    LocalFuncDef(LocalFuncDef),
-    Call(Call),
-    While(While),
-    NumericFor(NumericFor),
-    IterativeFor(IterativeFor),
-    Repeat(Repeat),
+    Return(Return<'ast>),
+    If(If<'ast>),
+    FuncDef(FuncDef<'ast>),
+    LocalDef(LocalDef<'ast>),
+    LocalFuncDef(LocalFuncDef<'ast>),
+    Call(Call<'ast>),
+    While(While<'ast>),
+    NumericFor(NumericFor<'ast>),
+    IterativeFor(IterativeFor<'ast>),
+    Repeat(Repeat<'ast>),
     Comment(Comment),
 }
 
@@ -37,32 +37,32 @@ pub struct Comment {
     pub comment: String,
 }
 
-impl_node!(Comment);
+impl_node_no_lifetime!(Comment);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Block {
+pub struct Block<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub statements: Vec<Stat>,
+    pub statements: Vec<Stat<'ast>>,
 }
 
 impl_node!(Block);
 
-impl Block {
+impl<'ast> Block<'ast> {
     pub fn new(pos: Option<Pos>) -> Self {
         Self {
             pos,
-            statements: Vec::<Stat>::new(),
+            statements: Vec::new(),
         }
     }
 
-    pub fn with_statements(pos: Option<Pos>, statements: Vec<Stat>) -> Self {
+    pub fn with_statements(pos: Option<Pos>, statements: Vec<Stat<'ast>>) -> Self {
         Self { pos, statements }
     }
 }
 
-impl Default for Block {
+impl<'ast> Default for Block<'ast> {
     fn default() -> Self {
         Self::new(None)
     }
@@ -70,11 +70,11 @@ impl Default for Block {
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Assign {
+pub struct Assign<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub vars: Vec<Expr>,
-    pub values: Vec<Expr>,
+    pub vars: Vec<Expr<'ast>>,
+    pub values: Vec<Expr<'ast>>,
     pub local_prefix: bool,
 }
 
@@ -87,7 +87,7 @@ pub struct Break {
     pub pos: Option<Pos>,
 }
 
-impl_node!(Break);
+impl_node_no_lifetime!(Break);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
@@ -96,114 +96,114 @@ pub struct Continue {
     pub pos: Option<Pos>,
 }
 
-impl_node!(Continue);
+impl_node_no_lifetime!(Continue);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Return {
+pub struct Return<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub values: Vec<Expr>,
+    pub values: Vec<Expr<'ast>>,
 }
 
 impl_node!(Return);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct If {
+pub struct If<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub condition: Expr,
+    pub condition: Expr<'ast>,
     // TODO: we call it 'then_block' here but 'body' elsewhere?
-    pub then_block: Block,
-    pub else_block: Option<Block>,
+    pub then_block: Block<'ast>,
+    pub else_block: Option<Block<'ast>>,
 }
 
 impl_node!(If);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct FuncDef {
+pub struct FuncDef<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub expr: Expr,
-    pub func_expr: Closure,
+    pub expr: Expr<'ast>,
+    pub func_expr: Closure<'ast>,
 }
 
 impl_node!(FuncDef);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct LocalDef {
+pub struct LocalDef<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub locals: Vec<Rc<Local>>,
-    pub values: Vec<Expr>,
+    pub values: Vec<Expr<'ast>>,
 }
 
 impl_node!(LocalDef);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct LocalFuncDef {
+pub struct LocalFuncDef<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub local: Rc<Local>,
-    pub func_expr: Closure,
+    pub func_expr: Closure<'ast>,
 }
 
 impl_node!(LocalFuncDef);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct While {
+pub struct While<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
 
-    pub condition: Expr,
-    pub body: Block,
+    pub condition: Expr<'ast>,
+    pub body: Block<'ast>,
 }
 
 impl_node!(While);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct NumericFor {
+pub struct NumericFor<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
 
     pub var: Rc<Local>,
 
-    pub from: Expr,
-    pub to: Expr,
-    pub step: Option<Expr>,
+    pub from: Expr<'ast>,
+    pub to: Expr<'ast>,
+    pub step: Option<Expr<'ast>>,
 
-    pub body: Block,
+    pub body: Block<'ast>,
 }
 
 impl_node!(NumericFor);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct IterativeFor {
+pub struct IterativeFor<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
 
     pub vars: Vec<Rc<Local>>,
-    pub values: Vec<Expr>,
-    pub body: Block,
+    pub values: Vec<Expr<'ast>>,
+    pub body: Block<'ast>,
 }
 
 impl_node!(IterativeFor);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Repeat {
+pub struct Repeat<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
 
-    pub body: Block,
-    pub cond: Expr,
+    pub body: Block<'ast>,
+    pub cond: Expr<'ast>,
 }
 
 impl_node!(Repeat);

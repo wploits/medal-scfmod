@@ -3,19 +3,19 @@ use crate::{instruction::value_info::ValueInfo, value::ValueId};
 use super::instruction::{location::InstructionIndex, Inner, Phi, Terminator};
 
 #[derive(Debug, Clone)]
-pub struct BasicBlock {
+pub struct BasicBlock<'cfg> {
     pub phi_instructions: Vec<Phi>,
-    pub inner_instructions: Vec<Inner>,
+    pub inner_instructions: Vec<Inner<'cfg>>,
     pub(crate) terminator: Option<Terminator>,
 }
 
-impl Default for BasicBlock {
+impl Default for BasicBlock<'_> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BasicBlock {
+impl BasicBlock<'_> {
     pub fn new() -> Self {
         Self {
             phi_instructions: Vec::new(),

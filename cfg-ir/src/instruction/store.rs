@@ -1,15 +1,16 @@
+use std::borrow::Cow;
 use std::fmt;
 
 use super::super::value::ValueId;
 use super::value_info::ValueInfo;
 
 #[derive(Debug, Clone)]
-pub struct StoreGlobal {
+pub struct StoreGlobal<'cfg> {
     pub value: ValueId,
-    pub name: String,
+    pub name: Cow<'cfg, str>,
 }
 
-impl ValueInfo for StoreGlobal {
+impl ValueInfo for StoreGlobal<'_> {
     fn values_read(&self) -> Vec<ValueId> {
         vec![self.value]
     }
@@ -27,7 +28,7 @@ impl ValueInfo for StoreGlobal {
     }
 }
 
-impl fmt::Display for StoreGlobal {
+impl fmt::Display for StoreGlobal<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "_G[\"{}\"] <- {}", self.name, self.value)
     }

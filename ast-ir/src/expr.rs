@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, borrow::Cow};
 
 use super::{stat::Block, Local, Pos};
 
@@ -6,6 +6,22 @@ use derivative::Derivative;
 use enum_dispatch::enum_dispatch;
 
 macro_rules! impl_expr {
+    ($node:ident, $side_effects:expr) => {
+        impl<'ast> super::Node for $node<'ast> {
+            fn pos(&self) -> &Option<Pos> {
+                &self.pos
+            }
+        }
+
+        impl<'ast> ExprTrait for $node<'ast> {
+            fn has_side_effects(&self) -> bool {
+                $side_effects
+            }
+        }
+    };
+}
+
+macro_rules! impl_expr_no_lifetime {
     ($node:ident, $side_effects:expr) => {
         impl super::Node for $node {
             fn pos(&self) -> &Option<Pos> {
@@ -23,13 +39,13 @@ macro_rules! impl_expr {
 
 macro_rules! impl_expr_side_effects {
     ($node:ident, $side_effects:expr) => {
-        impl super::Node for $node {
+        impl<'ast> super::Node for $node<'ast> {
             fn pos(&self) -> &Option<Pos> {
                 &self.pos
             }
         }
 
-        impl ExprTrait for $node {
+        impl<'ast> ExprTrait for $node<'ast> {
             #[allow(clippy::redundant_closure_call)]
             fn has_side_effects(&self) -> bool {
                 ($side_effects)(self)
@@ -40,18 +56,18 @@ macro_rules! impl_expr_side_effects {
 
 #[enum_dispatch]
 #[derive(Debug, PartialEq, Clone)]
-pub enum Expr {
-    Call(Call),
-    Lit(ExprLit),
+pub enum Expr<'ast> {
+    Call(Call<'ast>),
+    Lit(ExprLit<'ast>),
     Varargs(Varargs),
-    Group(Group),
-    Index(Index),
+    Group(Group<'ast>),
+    Index(Index<'ast>),
     Local(ExprLocal),
-    Global(Global),
-    Table(Table),
-    Closure(Closure),
-    Unary(Unary),
-    Binary(Binary),
+    Global(Global<'ast>),
+    Table(Table<'ast>),
+    Closure(Closure<'ast>),
+    Unary(Unary<'ast>),
+    Binary(Binary<'ast>),
 }
 
 #[enum_dispatch(Expr)]
@@ -63,30 +79,30 @@ pub trait ExprTrait {
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Call {
+pub struct Call<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub value: Box<Expr>,
-    pub arguments: Vec<Expr>,
+    pub value: Box<Expr<'ast>>,
+    pub arguments: Vec<Expr<'ast>>,
     pub is_self: bool,
 }
 
 impl_expr!(Call, true);
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Lit {
+pub enum Lit<'ast> {
     Nil,
     Boolean(bool),
     Number(f64),
-    String(String),
+    String(Cow<'ast, str>),
 }
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct ExprLit {
+pub struct ExprLit<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub lit: Lit,
+    pub lit: Lit<'ast>,
 }
 
 impl_expr!(ExprLit, false);
@@ -98,25 +114,25 @@ pub struct Varargs {
     pub pos: Option<Pos>,
 }
 
-impl_expr!(Varargs, false);
+impl_expr_no_lifetime!(Varargs, false);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Group {
+pub struct Group<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub expr: Box<Expr>,
+    pub expr: Box<Expr<'ast>>,
 }
 
 impl_expr_side_effects!(Group, |e: &Group| { e.expr.has_side_effects() });
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Index {
+pub struct Index<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub expr: Box<Expr>,
-    pub indices: Vec<Expr>,
+    pub expr: Box<Expr<'ast>>,
+    pub indices: Vec<Expr<'ast>>,
 }
 
 impl_expr!(Index, true);
@@ -129,25 +145,25 @@ pub struct ExprLocal {
     pub local: Rc<Local>,
 }
 
-impl_expr!(ExprLocal, false);
+impl_expr_no_lifetime!(ExprLocal, false);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Global {
+pub struct Global<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
-    pub name: String,
+    pub name: Cow<'ast, str>,
 }
 
 impl_expr!(Global, true);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Table {
+pub struct Table<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     // key, value
-    pub pairs: Vec<(Option<Expr>, Expr)>,
+    pub pairs: Vec<(Option<Expr<'ast>>, Expr<'ast>)>,
 }
 
 // TODO: side effects
@@ -155,12 +171,12 @@ impl_expr!(Table, true);
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Closure {
+pub struct Closure<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub self_: Option<Rc<Local>>,
     pub args: Vec<Rc<Local>>,
-    pub block: Block,
+    pub block: Block<'ast>,
 }
 
 impl_expr!(Closure, false);
@@ -178,11 +194,11 @@ pub const fn get_unary_priority() -> usize {
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Unary {
+pub struct Unary<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub op: UnaryOp,
-    pub expr: Box<Expr>,
+    pub expr: Box<Expr<'ast>>,
 }
 
 impl_expr_side_effects!(Unary, |e: &Unary| { e.expr.has_side_effects() });
@@ -237,12 +253,12 @@ pub fn get_binary_priority(binary_op: BinaryOp) -> (usize, usize) {
 
 #[derive(Derivative)]
 #[derivative(Debug, PartialEq, Clone)]
-pub struct Binary {
+pub struct Binary<'ast> {
     #[derivative(PartialEq = "ignore")]
     pub pos: Option<Pos>,
     pub op: BinaryOp,
-    pub lhs: Box<Expr>,
-    pub rhs: Box<Expr>,
+    pub lhs: Box<Expr<'ast>>,
+    pub rhs: Box<Expr<'ast>>,
 }
 
 impl_expr_side_effects!(Binary, |e: &Binary| {

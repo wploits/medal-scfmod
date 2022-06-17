@@ -8,7 +8,7 @@ use graph::{Edge, NodeId};
 
 use crate::function::Function;
 
-impl<'a> Labeller<'a, NodeId, Edge> for Function {
+impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("cfg").unwrap()
     }
@@ -38,7 +38,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
     }
 }
 
-impl<'a> GraphWalk<'a, NodeId, Edge> for Function {
+impl<'a> GraphWalk<'a, NodeId, Edge> for Function<'_> {
     fn nodes(&'a self) -> dot::Nodes<'a, NodeId> {
         Cow::Borrowed(self.graph().nodes())
     }

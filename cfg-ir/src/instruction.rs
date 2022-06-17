@@ -43,21 +43,21 @@ use value_info::ValueInfo;
 /// A struct that represents an instruction in the IR that is not a terminator or phi.
 #[enum_dispatch(ValueInfo)]
 #[derive(Debug, Clone, EnumAsInner)]
-pub enum Inner {
+pub enum Inner<'cfg> {
     Binary(Binary),
     Unary(Unary),
-    LoadConstant(LoadConstant),
-    LoadGlobal(LoadGlobal),
+    LoadConstant(LoadConstant<'cfg>),
+    LoadGlobal(LoadGlobal<'cfg>),
     LoadIndex(LoadIndex),
     Move(Move),
-    StoreGlobal(StoreGlobal),
+    StoreGlobal(StoreGlobal<'cfg>),
     StoreIndex(StoreIndex),
     Concat(Concat),
     Call(Call),
-    Closure(Closure),
+    Closure(Closure<'cfg>),
 }
 
-impl fmt::Display for Inner {
+impl fmt::Display for Inner<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             Self::Binary(v) => write!(f, "{}", v),

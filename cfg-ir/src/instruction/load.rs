@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 
 use super::super::constant::Constant;
@@ -5,12 +6,12 @@ use super::super::value::ValueId;
 use super::value_info::ValueInfo;
 
 #[derive(Debug, Clone)]
-pub struct LoadConstant {
+pub struct LoadConstant<'cfg> {
     pub dest: ValueId,
-    pub constant: Constant,
+    pub constant: Constant<'cfg>,
 }
 
-impl ValueInfo for LoadConstant {
+impl ValueInfo for LoadConstant<'_> {
     fn values_read(&self) -> Vec<ValueId> {
         vec![]
     }
@@ -28,19 +29,19 @@ impl ValueInfo for LoadConstant {
     }
 }
 
-impl fmt::Display for LoadConstant {
+impl fmt::Display for LoadConstant<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} <- {}", self.dest, self.constant)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct LoadGlobal {
+pub struct LoadGlobal<'cfg> {
     pub dest: ValueId,
-    pub name: String,
+    pub name: Cow<'cfg, str>,
 }
 
-impl ValueInfo for LoadGlobal {
+impl ValueInfo for LoadGlobal<'_> {
     fn values_read(&self) -> Vec<ValueId> {
         vec![]
     }
@@ -58,7 +59,7 @@ impl ValueInfo for LoadGlobal {
     }
 }
 
-impl fmt::Display for LoadGlobal {
+impl fmt::Display for LoadGlobal<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} <- _G[\"{}\"]", self.dest, self.name)
     }
