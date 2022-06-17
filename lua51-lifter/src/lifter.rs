@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::{Range, RangeInclusive};
 use std::rc::Rc;
@@ -25,10 +26,10 @@ use cfg_ir::{
 pub struct Lifter<'a> {
     function: &'a BytecodeFunction<'a>,
     blocks: HashMap<usize, NodeId>,
-    lifted_function: Function,
-    closures: Vec<Option<Rc<Function>>>,
+    lifted_function: Function<'a>,
+    closures: Vec<Option<Rc<Function<'a>>>>,
     register_map: HashMap<usize, ValueId>,
-    constant_map: HashMap<usize, Constant>,
+    constant_map: HashMap<usize, Constant<'a>>,
 }
 
 impl<'a> Lifter<'a> {
@@ -100,16 +101,16 @@ impl<'a> Lifter<'a> {
         range.map(|v| self.get_register(v)).collect()
     }
 
-    fn convert_constant(&self, constant: &BytecodeValueId) -> Constant {
-        match constant {
+    fn convert_constant(&self, constant: &'a BytecodeValueId) -> Constant<'a> {
+        match *constant {
             BytecodeValueId::Nil => Constant::Nil,
-            BytecodeValueId::Boolean(b) => Constant::Boolean(*b),
-            BytecodeValueId::Number(n) => Constant::Number(*n),
-            BytecodeValueId::String(s) => Constant::String(s.to_owned().to_string()),
+            BytecodeValueId::Boolean(b) => Constant::Boolean(b),
+            BytecodeValueId::Number(n) => Constant::Number(n),
+            BytecodeValueId::String(s) => Constant::String(Cow::Borrowed(s)),
         }
     }
 
-    fn get_constant(&mut self, index: usize) -> Constant {
+    fn get_constant(&mut self, index: usize) -> Constant<'a> {
         let converted_constant = self.convert_constant(self.function.constants.get(index).unwrap());
         self.constant_map
             .entry(index)
@@ -163,7 +164,7 @@ impl<'a> Lifter<'a> {
         block_start: usize,
         block_end: usize,
         cfg_block_id: NodeId,
-    ) -> Result<(Vec<Inner>, Option<Terminator>)> {
+    ) -> Result<(Vec<Inner<'a>>, Option<Terminator>)> {
         let mut instructions = Vec::new();
         let mut terminator = None;
         let vararg_index = None;
@@ -456,7 +457,7 @@ impl<'a> Lifter<'a> {
         Ok((instructions, terminator))
     }
 
-    pub fn lift_function(&mut self) -> Result<Function> {
+    pub fn lift_function(&mut self) -> Result<Function<'a>> {
         self.discover_blocks()?;
 
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();

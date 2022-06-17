@@ -5,12 +5,12 @@ use crate::{function::Function, value::ValueId};
 use super::value_info::ValueInfo;
 
 #[derive(Debug, Clone)]
-pub struct Closure {
+pub struct Closure<'cfg> {
     pub dest: ValueId,
-    pub function: Rc<Function>,
+    pub function: Rc<Function<'cfg>>,
 }
 
-impl ValueInfo for Closure {
+impl ValueInfo for Closure<'_> {
     fn values_read(&self) -> Vec<ValueId> {
         vec![]
     }
@@ -28,7 +28,7 @@ impl ValueInfo for Closure {
     }
 }
 
-impl fmt::Display for Closure {
+impl fmt::Display for Closure<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{} <- Function", self.dest)
     }

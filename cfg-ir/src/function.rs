@@ -9,14 +9,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Function {
+pub struct Function<'cfg> {
     graph: Graph,
-    blocks: FxHashMap<NodeId, BasicBlock>,
+    blocks: FxHashMap<NodeId, BasicBlock<'cfg>>,
     pub(crate) next_value_index: usize,
     entry: Option<NodeId>,
 }
 
-impl Function {
+impl<'cfg> Function<'cfg> {
     pub fn new() -> Self {
         Self {
             graph: Graph::new(),
@@ -81,7 +81,7 @@ impl Function {
         self.blocks.get(&block).ok_or(Error::InvalidBlock(block))
     }
 
-    pub fn block_mut(&mut self, block: NodeId) -> Result<&mut BasicBlock> {
+    pub fn block_mut(&mut self, block: NodeId) -> Result<&mut BasicBlock<'cfg>> {
         self.blocks
             .get_mut(&block)
             .ok_or(Error::InvalidBlock(block))
@@ -91,7 +91,7 @@ impl Function {
         &self.blocks
     }
 
-    pub fn blocks_mut(&mut self) -> &mut FxHashMap<NodeId, BasicBlock> {
+    pub fn blocks_mut(&mut self) -> &mut FxHashMap<NodeId, BasicBlock<'cfg>> {
         &mut self.blocks
     }
 
@@ -112,7 +112,7 @@ impl Function {
     }
 }
 
-impl Default for Function {
+impl Default for Function<'_> {
     fn default() -> Self {
         Self::new()
     }

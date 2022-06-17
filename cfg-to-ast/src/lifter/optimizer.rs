@@ -2,7 +2,7 @@ fn block_immediately_breaks(body: &ast_ir::Block) -> bool {
     body.statements.len() == 1 && matches!(body.statements[0], ast_ir::Stat::Break(_))
 }
 
-fn combine_conditions(first: ast_ir::Expr, second: ast_ir::Expr) -> ast_ir::Expr {
+fn combine_conditions<'ast>(first: ast_ir::Expr<'ast>, second: ast_ir::Expr<'ast>) -> ast_ir::Expr<'ast> {
     if let ast_ir::Expr::Lit(lit) = &first {
         if lit.lit == ast_ir::Lit::Boolean(true) {
             return second;

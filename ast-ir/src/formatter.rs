@@ -43,7 +43,7 @@ impl Formatter {
             Lit::Boolean(b) => self.print(&b.to_string()),
             Lit::Number(n) => self.print(&n.to_string()),
             // TODO: we could optimize this by removing format and appending '"' directly to the output, if needed
-            Lit::String(s) => self.print(&format!("\"{}\"", &s.to_string())),
+            Lit::String(s) => self.print(&format!("\"{}\"", &s)),
         }
     }
 

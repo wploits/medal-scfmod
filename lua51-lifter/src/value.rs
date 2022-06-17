@@ -43,8 +43,7 @@ pub fn parse_str(input: &[u8]) -> IResult<&[u8], &str> {
 
     Ok((
         input,
-        std::str::from_utf8(string)
-            .map_err(|_| nom::Err::Failure(Error::from_error_kind(input, ErrorKind::Fail)))?,
+        unsafe { std::str::from_utf8_unchecked(string) }
     ))
 }
 
@@ -54,7 +53,6 @@ pub fn parse_null_terminated_str(input: &[u8]) -> IResult<&[u8], &str> {
 
     Ok((
         input,
-        std::str::from_utf8(&string[..name_length as usize - 1])
-            .map_err(|_| nom::Err::Failure(Error::from_error_kind(input, ErrorKind::Fail)))?,
+        unsafe { std::str::from_utf8_unchecked(&string[..name_length as usize - 1]) }
     ))
 }

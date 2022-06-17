@@ -292,20 +292,37 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     println!("-pruning: {:?}", pruned);
 
     let now = time::Instant::now();
-    for (node, block) in function.blocks().clone() {
-        for (instruction_index, instruction) in
-            block.inner_instructions.into_iter().enumerate().rev()
-        {
-            if let Inner::Move(Move { dest, source }) = instruction {
-                for read_location in def_use.get(dest).unwrap().reads.clone() {
-                    let read_location_block = function.block_mut(read_location.node).unwrap();
-                    read_location_block.replace_values_read(read_location.index, dest, source);
-                    def_use.update_block(read_location_block, read_location.node);
+
+    let mut block_moves = Vec::new();
+    for (&node, block) in function.blocks() {
+        let moves = block
+            .inner_instructions
+            .iter()
+            .enumerate()
+            .rev()
+            .filter_map(|(i, inner)| {
+                if let Inner::Move(m) = inner {
+                    Some((i, m.clone()))
+                } else {
+                    None
                 }
-                let block = function.block_mut(node).unwrap();
-                block.inner_instructions.remove(instruction_index);
-                def_use.update_block(block, node);
+            })
+            .collect::<Vec<_>>();
+        if !moves.is_empty() {
+            block_moves.push((node, moves));
+        }
+    }
+
+    for (node, moves) in block_moves {
+        for (instruction_index, Move { dest, source }) in moves {
+            for read_location in def_use.get(dest).unwrap().reads.clone() {
+                let read_location_block = function.block_mut(read_location.node).unwrap();
+                read_location_block.replace_values_read(read_location.index, dest, source);
+                def_use.update_block(read_location_block, read_location.node);
             }
+            let block = function.block_mut(node).unwrap();
+            block.inner_instructions.remove(instruction_index);
+            def_use.update_block(block, node);
         }
     }
 

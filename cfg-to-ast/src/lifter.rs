@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, borrow::Cow};
 
 use fxhash::{FxHashMap, FxHashSet};
 
@@ -45,7 +45,7 @@ fn assign_locals(locals: Vec<ast_ir::ExprLocal>, values: Vec<ast_ir::Expr>) -> a
     }
 }
 
-fn if_statement(condition: ast_ir::ExprLocal) -> ast_ir::If {
+fn if_statement<'a>(condition: ast_ir::ExprLocal) -> ast_ir::If<'a> {
     ast_ir::If {
         pos: None,
         condition: condition.into(),
@@ -58,7 +58,7 @@ fn return_statement(values: Vec<ast_ir::Expr>) -> ast_ir::Return {
     ast_ir::Return { pos: None, values }
 }
 
-fn while_statement(condition: ast_ir::Expr, body: ast_ir::Block) -> ast_ir::While {
+fn while_statement<'a>(condition: ast_ir::Expr<'a>, body: ast_ir::Block<'a>) -> ast_ir::While<'a> {
     ast_ir::While {
         pos: None,
         condition,
@@ -70,23 +70,23 @@ fn break_statement() -> ast_ir::Break {
     ast_ir::Break { pos: None }
 }
 
-fn constant(constant: &Constant) -> ast_ir::ExprLit {
+fn constant<'a>(constant: &'a Constant) -> ast_ir::ExprLit<'a> {
     ast_ir::ExprLit {
         pos: None,
-        lit: match constant.clone() {
+        lit: match constant {
             Constant::Nil => ast_ir::Lit::Nil,
-            Constant::Boolean(v) => ast_ir::Lit::Boolean(v),
-            Constant::Number(v) => ast_ir::Lit::Number(v),
-            Constant::String(v) => ast_ir::Lit::String(v),
+            Constant::Boolean(v) => ast_ir::Lit::Boolean(*v),
+            Constant::Number(v) => ast_ir::Lit::Number(*v),
+            Constant::String(v) => ast_ir::Lit::String(Cow::Borrowed(v)),
         },
     }
 }
 
-fn global(name: String) -> ast_ir::Global {
-    ast_ir::Global { pos: None, name }
+fn global(name: &str) -> ast_ir::Global {
+    ast_ir::Global { pos: None, name: Cow::Borrowed(name) }
 }
 
-fn call_expression(value: ast_ir::Expr, arguments: Vec<ast_ir::Expr>) -> ast_ir::Call {
+fn call_expression<'a>(value: ast_ir::Expr<'a>, arguments: Vec<ast_ir::Expr<'a>>) -> ast_ir::Call<'a> {
     ast_ir::Call {
         pos: None,
         arguments,
@@ -95,11 +95,11 @@ fn call_expression(value: ast_ir::Expr, arguments: Vec<ast_ir::Expr>) -> ast_ir:
     }
 }
 
-fn binary_expression(
-    left: ast_ir::Expr,
-    right: ast_ir::Expr,
+fn binary_expression<'a>(
+    left: ast_ir::Expr<'a>,
+    right: ast_ir::Expr<'a>,
     op: ast_ir::BinaryOp,
-) -> ast_ir::Binary {
+) -> ast_ir::Binary<'a> {
     ast_ir::Binary {
         pos: None,
         lhs: Box::new(left),
@@ -109,7 +109,7 @@ fn binary_expression(
 }
 
 fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
-    fn _binary_expression_fold(mut v: Vec<Expr>, lhs: Expr, op: ast_ir::BinaryOp) -> Expr {
+    fn _binary_expression_fold<'a>(mut v: Vec<Expr<'a>>, lhs: Expr<'a>, op: ast_ir::BinaryOp) -> Expr<'a> {
         if v.is_empty() {
             return lhs;
         }
@@ -148,7 +148,7 @@ enum Loop {
 }
 
 struct Lifter<'a> {
-    function: &'a Function,
+    function: &'a Function<'a>,
     locals: FxHashMap<ValueId, Rc<ast_ir::Local>>,
 }
 
@@ -219,7 +219,7 @@ impl<'a> Lifter<'a> {
         &mut self,
         node: NodeId,
         local_declarations: FxHashMap<InstructionIndex, &Vec<Declaration>>,
-    ) -> ast_ir::Block {
+    ) -> ast_ir::Block<'a> {
         let mut body = ast_ir::Block::new(None);
 
         let block = self.function.block(node).unwrap();
@@ -232,7 +232,7 @@ impl<'a> Lifter<'a> {
             );
 
             let assign_local = |value, expr| {
-                assign_local(self.local(value), expr, local_prefixes.contains(&value))
+                assign_local(self.local(value), expr, local_prefixes.contains(value))
             };
 
             match instruction {
@@ -268,7 +268,7 @@ impl<'a> Lifter<'a> {
                     .into(),
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
-                    assign_local(&load_global.dest, global(load_global.name.clone()).into()).into(),
+                    assign_local(&load_global.dest, global(&load_global.name).into()).into(),
                 ),
                 Inner::Move(mov) => body
                     .statements
@@ -293,7 +293,7 @@ impl<'a> Lifter<'a> {
                     });
                 }
                 Inner::Concat(concat) => {
-                    let mut operands: Vec<_> =
+                    let operands: Vec<_> =
                         concat.values.iter().map(|v| self.local(v).into()).collect();
 
                     body.statements.push(
@@ -345,7 +345,7 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    pub fn lift(&mut self, root: NodeId) -> ast_ir::Function {
+    pub fn lift(&mut self, root: NodeId) -> ast_ir::Function<'a> {
         let mut ast_function = ast_ir::Function::new();
 
         let graph = self.function.graph();
@@ -401,7 +401,7 @@ impl<'a> Lifter<'a> {
         let mut stops = FxHashSet::default();
 
         while let Some(node) = stack.pop() {
-            println!("visiting: {}", node);
+            //println!("visiting: {}", node);
             assert!(!visited.contains(&node));
             visited.push(node);
 
@@ -548,7 +548,6 @@ impl<'a> Lifter<'a> {
                         .extend(block.statements.into_iter())
                 }
                 Link::None => {}
-                _ => panic!("cannot build link"),
             }
             if let Some(_loop) = loops.get(&node) {
                 match _loop {
@@ -578,7 +577,7 @@ impl<'a> Lifter<'a> {
     }
 }
 
-pub fn lift(function: &Function) -> ast_ir::Function {
+pub fn lift<'a>(function: &'a Function) -> ast_ir::Function<'a> {
     let entry = function.entry().unwrap();
     let mut lifter = Lifter::new(function);
     lifter.lift(entry)

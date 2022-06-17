@@ -1,12 +1,12 @@
 use super::stat::Block;
 
 #[derive(Debug, Default)]
-pub struct Function {
+pub struct Function<'ast> {
     pub name: Option<String>,
-    pub body: Block,
+    pub body: Block<'ast>,
 }
 
-impl Function {
+impl<'ast> Function<'ast> {
     pub fn new() -> Self {
         Self {
             name: None,
