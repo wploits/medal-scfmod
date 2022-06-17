@@ -23,7 +23,7 @@ use local_declaration::Declaration;
 mod local_declaration;
 mod optimizer;
 
-fn assign(global: ast_ir::Global, values: Vec<Expr>) -> ast_ir::Assign {
+fn assign<'a>(global: ast_ir::Global<'a>, values: Vec<Expr<'a>>) -> ast_ir::Assign<'a> {
     ast_ir::Assign {
         pos: None,
         vars: vec![global.into()],
