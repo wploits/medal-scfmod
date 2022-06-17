@@ -7,8 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        BinaryOp,
-        ConditionalJump, Inner, location::InstructionIndex, Return, Terminator,
+        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator,
     },
     value::ValueId,
 };
@@ -124,7 +123,8 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
                 op,
                 lhs: Box::new(lhs),
                 rhs,
-            }.into(),
+            }
+            .into(),
             op,
         )
     }
@@ -185,23 +185,21 @@ impl<'a> Lifter<'a> {
         body: &mut ast_ir::Block,
     ) -> FxHashSet<ValueId> {
         if let Some(declarations) = local_declarations.get(&index) {
-            let declarations = local_declarations[&index];
-
-        let forward_declarations = declarations
-            .iter()
-            .filter_map(|declaration| {
-                if let &Declaration::Forward(value) = declaration {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
-            .collect::<FxHashSet<_>>();
-        for value in forward_declarations {
-            body.statements
-                .push(assign_local(self.local(&value), constant(&Constant::Nil).into(), true).into())
-        }
-
+            let forward_declarations = declarations
+                .iter()
+                .filter_map(|declaration| {
+                    if let &Declaration::Forward(value) = declaration {
+                        Some(value)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<FxHashSet<_>>();
+            for value in forward_declarations {
+                body.statements.push(
+                    assign_local(self.local(&value), constant(&Constant::Nil).into(), true).into(),
+                )
+            }
             declarations
                 .iter()
                 .filter_map(|declaration| {
@@ -239,8 +237,11 @@ impl<'a> Lifter<'a> {
 
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
-                    assign_local(&load_constant.dest, constant(&load_constant.constant).into())
-                        .into(),
+                    assign_local(
+                        &load_constant.dest,
+                        constant(&load_constant.constant).into(),
+                    )
+                    .into(),
                 ),
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
@@ -262,9 +263,9 @@ impl<'a> Lifter<'a> {
                                 BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                             },
                         )
-                            .into(),
-                    )
                         .into(),
+                    )
+                    .into(),
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
                     assign_local(&load_global.dest, global(load_global.name.clone()).into()).into(),
@@ -292,15 +293,16 @@ impl<'a> Lifter<'a> {
                     });
                 }
                 Inner::Concat(concat) => {
-                    let mut operands: Vec<_> = concat.values.iter()
-                        .map(|v| self.local(v).into())
-                        .collect();
+                    let mut operands: Vec<_> =
+                        concat.values.iter().map(|v| self.local(v).into()).collect();
 
                     body.statements.push(
                         assign_local(
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
-                        ).into());
+                        )
+                        .into(),
+                    );
                 }
                 _ => {}
             }
@@ -557,10 +559,7 @@ impl<'a> Lifter<'a> {
                             blocks.remove(&node).unwrap(),
                         );
                         optimizer::optimize_while(&mut while_stat);
-                        new_block.statements.push(
-                            while_stat
-                            .into(),
-                        );
+                        new_block.statements.push(while_stat.into());
                         new_block
                             .statements
                             .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
