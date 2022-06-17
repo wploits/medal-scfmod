@@ -4,8 +4,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::{InstructionIndex},
-        BinaryOp, ConditionalJump, Inner, Return, Terminator,
+        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator,
     },
     value::ValueId,
 };
@@ -77,7 +76,6 @@ fn constant(constant: &Constant) -> ast_ir::ExprLit {
             Constant::Nil => ast_ir::Lit::Nil,
             Constant::Boolean(v) => ast_ir::Lit::Boolean(v),
             Constant::Number(v) => ast_ir::Lit::Number(v),
-            // TODO: Cow strings?
             Constant::String(v) => ast_ir::Lit::String(v),
         },
     }
@@ -117,6 +115,11 @@ enum Link {
     None,
 }
 
+#[derive(Debug)]
+enum Loop {
+    While(NodeId),
+}
+
 struct Lifter<'a> {
     function: &'a Function,
     locals: FxHashMap<ValueId, Rc<ast_ir::Local>>,
@@ -154,40 +157,44 @@ impl<'a> Lifter<'a> {
         local_declarations: &FxHashMap<InstructionIndex, &Vec<Declaration>>,
         body: &mut ast_ir::Block,
     ) -> FxHashSet<ValueId> {
-        let declarations = local_declarations[&index];
+        if let Some(declarations) = local_declarations.get(&index) {
+            let declarations = local_declarations[&index];
 
-        let forward_declarations = declarations
-            .iter()
-            .filter_map(|declaration| {
-                if let &Declaration::Forward(value) = declaration {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
-            .collect::<FxHashSet<_>>();
-        for value in forward_declarations {
-            body.statements
-                .push(assign_local(self.local(value), constant(&Constant::Nil).into(), true).into())
+            let forward_declarations = declarations
+                .iter()
+                .filter_map(|declaration| {
+                    if let &Declaration::Forward(value) = declaration {
+                        Some(value)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<FxHashSet<_>>();
+            for value in forward_declarations {
+                body.statements.push(
+                    assign_local(self.local(value), constant(&Constant::Nil).into(), true).into(),
+                )
+            }
+
+            declarations
+                .iter()
+                .filter_map(|declaration| {
+                    if let &Declaration::Inline(value) = declaration {
+                        Some(value)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<FxHashSet<_>>()
+        } else {
+            FxHashSet::default()
         }
-
-        declarations
-            .iter()
-            .filter_map(|declaration| {
-                if let &Declaration::Inline(value) = declaration {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
-            .collect::<FxHashSet<_>>()
     }
 
     fn lift_block(
         &mut self,
         node: NodeId,
         local_declarations: FxHashMap<InstructionIndex, &Vec<Declaration>>,
-        is_while: bool,
     ) -> ast_ir::Block {
         let mut body = ast_ir::Block::new(None);
 
@@ -274,15 +281,7 @@ impl<'a> Lifter<'a> {
             None => panic!("block has no terminator"),
         }
 
-        if is_while {
-            let mut new_body = ast_ir::Block::new(None);
-            new_body
-                .statements
-                .push(while_statement(constant(&Constant::Boolean(true)).into(), body).into());
-            new_body
-        } else {
-            body
-        }
+        body
     }
 
     fn edge(
@@ -350,23 +349,32 @@ impl<'a> Lifter<'a> {
                                 }
                             })
                             .collect(),
-                        loop_headers.contains(&n),
                     ),
                 )
             })
             .collect::<FxHashMap<_, _>>();
 
         let mut links = FxHashMap::default();
+        let mut loops = FxHashMap::default();
 
         let mut stack = vec![root];
         let mut visited = Vec::new();
         let mut stops = FxHashSet::default();
 
         while let Some(node) = stack.pop() {
+            println!("visiting: {}", node);
             assert!(!visited.contains(&node));
             visited.push(node);
 
-            //println!("visiting: {}", node);
+            // todo: for loops
+            if loop_headers.contains(&node) {
+                if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
+                    assert!(!visited.contains(&loop_exit));
+                    loops.insert(node, Loop::While(loop_exit));
+                    stops.insert(loop_exit);
+                    stack.push(loop_exit);
+                }
+            }
 
             let mut successors = self.function.graph().successors(node).collect::<Vec<_>>();
             links.insert(
@@ -383,22 +391,24 @@ impl<'a> Lifter<'a> {
                     ),
                     2 => {
                         let mut has_else = true;
-                        let exit = post_dom_tree.predecessors(node).next();
-                        if let Some(exit) = exit {
+                        let mut exit = post_dom_tree.predecessors(node).next();
+                        if let Some(exit_node) = exit {
                             assert!(successors[0] != successors[1]);
-                            stack.push(exit);
-                            stops.insert(exit);
-
-                            if !loop_exits.contains(&exit) {
-                                if successors[0] == exit {
-                                    successors.swap(0, 1);
+                            if !stops.contains(&exit_node) {
+                                stops.insert(exit_node);
+                                if !loop_exits.contains(&exit_node) {
+                                    if successors[0] == exit_node {
+                                        successors.swap(0, 1);
+                                    }
+                                    if successors[1] == exit_node {
+                                        has_else = false;
+                                    }
                                 }
-                                if successors[1] == exit {
-                                    has_else = false;
-                                }
+                            } else {
+                                exit = None;
                             }
                         }
-                        Link::If(
+                        let link = Link::If(
                             Box::new(Self::edge(
                                 &mut stack,
                                 &visited,
@@ -420,47 +430,45 @@ impl<'a> Lifter<'a> {
                                 None
                             },
                             exit,
-                        )
+                        );
+                        if let Some(exit) = exit {
+                            if !visited.contains(&exit) {
+                                stack.push(exit);
+                            }
+                        }
+                        link
                     }
                     _ => panic!("too many successors"),
                 },
             );
         }
 
-        for (node, link) in visited.iter().rev().map(|&n| (n, &links[&n])) {
+        fn build_link(
+            node: NodeId,
+            link: &Link,
+            blocks: &mut FxHashMap<NodeId, ast_ir::Block>,
+            loops: &FxHashMap<NodeId, Loop>,
+        ) {
             match link {
-                Link::If(true_branch, false_branch, exit) => {
-                    let then_statements = match **true_branch {
+                Link::If(then_link, else_link, exit) => {
+                    let then_statements = match **then_link {
                         Link::Extend(target) => blocks.remove(&target).unwrap().statements,
                         Link::Break => vec![break_statement().into()],
                         _ => panic!(),
                     };
-                    let else_statements = false_branch.as_ref().map(|link| match **link {
+                    let else_statements = else_link.as_ref().map(|link| match **link {
                         Link::Extend(target) => blocks.remove(&target).unwrap().statements,
                         Link::Break => vec![break_statement().into()],
                         _ => panic!(),
                     });
-                    let statement = blocks
+                    let if_stat = blocks
                         .get_mut(&node)
                         .unwrap()
                         .statements
                         .last_mut()
+                        .unwrap()
+                        .as_if_mut()
                         .unwrap();
-                    let if_stat = {
-                        if let Some(if_stat) = statement.as_if_mut() {
-                            if_stat
-                        } else {
-                            statement
-                                .as_while_mut()
-                                .unwrap()
-                                .body
-                                .statements
-                                .first_mut()
-                                .unwrap()
-                                .as_if_mut()
-                                .unwrap()
-                        }
-                    };
                     if_stat
                         .then_block
                         .statements
@@ -477,33 +485,56 @@ impl<'a> Lifter<'a> {
                                 .extend(else_statements.into_iter());
                         }
                     }
-                    if let Some(while_stat) = statement.as_while_mut() {
-                        optimizer::optimize_while(while_stat);
-                    }
                     if let Some(exit) = exit {
-                        let block = blocks.remove(exit).unwrap();
-                        blocks
-                            .get_mut(&node)
-                            .unwrap()
-                            .statements
-                            .extend(block.statements.into_iter());
+                        if let Some(block) = blocks.remove(exit) {
+                            blocks
+                                .get_mut(&node)
+                                .unwrap()
+                                .statements
+                                .extend(block.statements.into_iter());
+                        }
                     }
                 }
+                &Link::Break => blocks
+                    .get_mut(&node)
+                    .unwrap()
+                    .statements
+                    .push(break_statement().into()),
                 Link::Extend(target) => {
                     let block = blocks.remove(target).unwrap();
                     blocks
                         .get_mut(&node)
                         .unwrap()
                         .statements
-                        .extend(block.statements.into_iter());
+                        .extend(block.statements.into_iter())
                 }
-                Link::Break => blocks
-                    .get_mut(&node)
-                    .unwrap()
-                    .statements
-                    .push(break_statement().into()),
-                _ => {}
+                Link::None => {}
+                _ => panic!("cannot build link"),
             }
+            if let Some(_loop) = loops.get(&node) {
+                match _loop {
+                    Loop::While(loop_exit) => {
+                        let mut new_block = ast_ir::Block::new(None);
+                        let mut while_stat = while_statement(
+                            constant(&Constant::Boolean(true)).into(),
+                            blocks.remove(&node).unwrap(),
+                        );
+                        optimizer::optimize_while(&mut while_stat);
+                        new_block.statements.push(
+                            while_stat
+                            .into(),
+                        );
+                        new_block
+                            .statements
+                            .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
+                        blocks.insert(node, new_block);
+                    }
+                }
+            }
+        }
+
+        for (node, link) in visited.iter().rev().map(|&n| (n, &links[&n])) {
+            build_link(node, link, &mut blocks, &loops);
         }
 
         ast_function.body = blocks.remove(&root).unwrap();
