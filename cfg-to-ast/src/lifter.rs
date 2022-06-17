@@ -5,7 +5,7 @@ use cfg_ir::{
     function::Function,
     instruction::{
         location::{InstructionIndex, InstructionLocation},
-        ConditionalJump, Inner, Return, Terminator,
+        BinaryOp, ConditionalJump, Inner, Return, Terminator,
     },
     value::ValueId,
 };
@@ -21,12 +21,16 @@ use graph::{
 mod local_declaration;
 mod optimizer;
 
-fn assign_local(local: ast_ir::ExprLocal, value: ast_ir::Expr, local_prefix: bool) -> ast_ir::Assign {
+fn assign_local(
+    local: ast_ir::ExprLocal,
+    value: ast_ir::Expr,
+    local_prefix: bool,
+) -> ast_ir::Assign {
     ast_ir::Assign {
         pos: None,
         vars: vec![local.into()],
         values: vec![value],
-        local_prefix
+        local_prefix,
     }
 }
 
@@ -90,6 +94,19 @@ fn call_expression(value: ast_ir::Expr, arguments: Vec<ast_ir::Expr>) -> ast_ir:
     }
 }
 
+fn binary_expression(
+    left: ast_ir::Expr,
+    right: ast_ir::Expr,
+    op: ast_ir::BinaryOp,
+) -> ast_ir::Binary {
+    ast_ir::Binary {
+        pos: None,
+        lhs: Box::new(left),
+        rhs: Box::new(right),
+        op,
+    }
+}
+
 #[derive(Debug)]
 enum Link {
     Extend(NodeId),
@@ -133,7 +150,7 @@ impl<'a> Lifter<'a> {
         &mut self,
         node: NodeId,
         local_prefixes: &FxHashMap<InstructionLocation, Vec<ValueId>>,
-        forward_declarations: &FxHashSet<ValueId>,
+        _forward_declarations: &FxHashSet<ValueId>,
         is_while: bool,
     ) -> ast_ir::Block {
         let mut body = ast_ir::Block::new(None);
@@ -159,14 +176,36 @@ impl<'a> Lifter<'a> {
                     assign_local(load_constant.dest, constant(&load_constant.constant).into())
                         .into(),
                 ),
+                Inner::Binary(binary) => body.statements.push(
+                    assign_local(
+                        binary.dest,
+                        binary_expression(
+                            self.local(binary.lhs).into(),
+                            self.local(binary.rhs).into(),
+                            match binary.op {
+                                BinaryOp::Add => ast_ir::BinaryOp::Add,
+                                BinaryOp::Sub => ast_ir::BinaryOp::Sub,
+                                BinaryOp::Mul => ast_ir::BinaryOp::Mul,
+                                BinaryOp::Div => ast_ir::BinaryOp::Div,
+                                BinaryOp::Mod => ast_ir::BinaryOp::Mod,
+                                BinaryOp::Pow => ast_ir::BinaryOp::Pow,
+                                BinaryOp::Equal => ast_ir::BinaryOp::Equal,
+                                BinaryOp::LesserOrEqual => ast_ir::BinaryOp::LesserOrEqual,
+                                BinaryOp::LesserThan => ast_ir::BinaryOp::LesserThan,
+                                BinaryOp::LogicalAnd => ast_ir::BinaryOp::LogicalAnd,
+                                BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
+                            },
+                        )
+                        .into(),
+                    )
+                    .into(),
+                ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
                     assign_local(load_global.dest, global(load_global.name.clone()).into()).into(),
                 ),
-                Inner::Move(mov) => {
-                    body
+                Inner::Move(mov) => body
                     .statements
-                    .push(assign_local(mov.dest, self.local(mov.source).into()).into())
-                },
+                    .push(assign_local(mov.dest, self.local(mov.source).into()).into()),
                 Inner::Call(call) => {
                     let function = self.local(call.function).into();
                     let return_values = call
@@ -262,13 +301,16 @@ impl<'a> Lifter<'a> {
             .map(|(&location, declarations)| {
                 (
                     location,
-                    declarations.iter().filter_map(|declaration| {
-                        if !declaration.forward_declare {
-                            Some(declaration.value)
-                        } else {
-                            None
-                        }
-                    }).collect(),
+                    declarations
+                        .iter()
+                        .filter_map(|declaration| {
+                            if !declaration.forward_declare {
+                                Some(declaration.value)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
                 )
             })
             .collect();

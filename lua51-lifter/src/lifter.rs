@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{Call, Inner, Terminator, Closure};
+use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
 use graph::NodeId;
 
 use super::{
@@ -415,12 +415,16 @@ impl<'a> Lifter<'a> {
                         if let Constant::String(name) = name {
                             instructions.push(StoreGlobal { name, value }.into());
                         }
-                    },
+                    }
                     OpCode::Closure => {
                         let dest = self.get_register(a as usize);
 
-                        let child = if let Some(child) = &self.closures[bx as usize] { child.clone() } else {
-                            let child = Lifter::new(&self.function.closures[bx as usize]).lift_function().map(Rc::new)?;
+                        let child = if let Some(child) = &self.closures[bx as usize] {
+                            child.clone()
+                        } else {
+                            let child = Lifter::new(&self.function.closures[bx as usize])
+                                .lift_function()
+                                .map(Rc::new)?;
                             self.closures[bx as usize] = Some(child.clone());
                             child
                         };

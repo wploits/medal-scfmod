@@ -1,9 +1,8 @@
 use std::{fmt, rc::Rc};
 
-use crate::{value::ValueId, function::Function};
+use crate::{function::Function, value::ValueId};
 
 use super::value_info::ValueInfo;
-
 
 #[derive(Debug, Clone)]
 pub struct Closure {
