@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
+use cfg_ir::instruction::{Call, Closure, Inner, LoadIndex, StoreIndex, Terminator};
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -219,31 +219,33 @@ impl<'a> Lifter<'a> {
                             );
                         }
                     }
-                    /*OpCode::Index => {
+                    OpCode::Index => {
                         let dest = self.get_register(a as usize);
                         let object = self.get_register(b as usize);
-                        let key = self.get_register_or_constant(c as usize, block_index);
+                        let key = self.get_register_or_constant(c as usize, cfg_block_id);
 
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .load_index(dest, object, key)
-                            .unwrap();
+                        instructions.push(
+                            LoadIndex {
+                                dest,
+                                object,
+                                key
+                            }.into()
+                        );
                     }
                     OpCode::NewIndex => {
                         let object = self.get_register(a as usize);
-                        let key = self.get_register_or_constant(b as usize, block_index);
-                        let value = self.get_register_or_constant(c as usize, block_index);
+                        let key = self.get_register_or_constant(b as usize, cfg_block_id);
+                        let value = self.get_register_or_constant(c as usize, cfg_block_id);
 
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .store_index(object, key, value)
-                            .unwrap();
+                        instructions.push(
+                            StoreIndex {
+                                value,
+                                object,
+                                key
+                            }.into()
+                        );
                     }
-                    OpCode::NewTable => {
+                    /*OpCode::NewTable => {
                         let dest = self.get_register(a as usize);
 
                         let mut builder = Builder::new(&mut self.lifted_function);
