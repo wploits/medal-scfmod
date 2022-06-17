@@ -12,7 +12,7 @@ use crate::{
 pub struct Function {
     graph: Graph,
     blocks: FxHashMap<NodeId, BasicBlock>,
-    pub locals: Vec<ValueId>,
+    pub parameters: Vec<ValueId>,
     pub(crate) next_value_index: usize,
     entry: Option<NodeId>,
 }
@@ -22,12 +22,12 @@ impl Function {
         let mut result = Self {
             graph: Graph::new(),
             blocks: FxHashMap::default(),
-            locals: Vec::new(),
+            parameters: Vec::new(),
             next_value_index: 0,
             entry: None,
         };
 
-        result.locals = (0..num_params).into_iter()
+        result.parameters = (0..num_params).into_iter()
             .map(|_| result.new_value())
             .collect();
 

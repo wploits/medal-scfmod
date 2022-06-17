@@ -7,7 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator,
+        BinaryOp, ConditionalJump, Inner, Return, Terminator,
     },
     value::ValueId,
 };
@@ -124,7 +124,7 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
                 lhs: Box::new(lhs),
                 rhs,
             }
-            .into(),
+                .into(),
             op,
         )
     }
@@ -188,10 +188,9 @@ impl<'a> Lifter<'a> {
             let forward_declarations = declarations
                 .iter()
                 .filter_map(|declaration| {
-                    if let &Declaration::Forward(value) = declaration {
-                        Some(value)
-                    } else {
-                        None
+                    match declaration {
+                        Declaration::Forward(value) if !self.function.parameters.contains(value) => Some(value),
+                        _ => None,
                     }
                 })
                 .collect::<FxHashSet<_>>();
@@ -216,7 +215,7 @@ impl<'a> Lifter<'a> {
     }
 
     fn lift_closure(&self, function: &cfg_ir::function::Function) -> ast_ir::Closure {
-        let args = function.locals.iter()
+        let args = function.parameters.iter()
             .map(|v| Rc::new(ast_ir::Local { name: v.to_string() }))
             .collect();
 
@@ -254,7 +253,7 @@ impl<'a> Lifter<'a> {
                         &load_constant.dest,
                         constant(&load_constant.constant).into(),
                     )
-                    .into(),
+                        .into(),
                 ),
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
@@ -276,9 +275,9 @@ impl<'a> Lifter<'a> {
                                 BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                             },
                         )
-                        .into(),
+                            .into(),
                     )
-                    .into(),
+                        .into(),
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
                     assign_local(&load_global.dest, global(load_global.name.clone()).into()).into(),
@@ -314,7 +313,7 @@ impl<'a> Lifter<'a> {
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
                         )
-                        .into(),
+                            .into(),
                     );
                 }
                 Inner::Closure(closure) => {
