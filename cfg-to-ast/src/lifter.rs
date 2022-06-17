@@ -23,7 +23,7 @@ use local_declaration::Declaration;
 mod local_declaration;
 mod optimizer;
 
-fn assign(variable: ast_ir::Expr, values: Vec<Expr>) -> ast_ir::Assign {
+fn assign<'a>(variable: ast_ir::Expr<'a>, values: Vec<Expr<'a>>) -> ast_ir::Assign<'a> {
     ast_ir::Assign {
         pos: None,
         vars: vec![variable],
@@ -231,7 +231,7 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn lift_closure(&self, function: &cfg_ir::function::Function) -> ast_ir::Closure {
+    fn lift_closure(&self, function: &'a cfg_ir::function::Function) -> ast_ir::Closure<'a> {
         let args = function
             .parameters
             .iter()
