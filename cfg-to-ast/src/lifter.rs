@@ -23,10 +23,10 @@ use local_declaration::Declaration;
 mod local_declaration;
 mod optimizer;
 
-fn assign(global: ast_ir::Global, values: Vec<Expr>) -> ast_ir::Assign {
+fn assign(variable: ast_ir::Expr, values: Vec<Expr>) -> ast_ir::Assign {
     ast_ir::Assign {
         pos: None,
-        vars: vec![global.into()],
+        vars: vec![variable],
         values,
         local_prefix: false,
     }
@@ -317,6 +317,18 @@ impl<'a> Lifter<'a> {
                 Inner::LoadGlobal(load_global) => body.statements.push(
                     assign_local(&load_global.dest, global(load_global.name.clone()).into()).into(),
                 ),
+                Inner::LoadIndex(load_index) => body.statements.push(
+                    assign_local(
+                        &load_index.dest,
+                        Expr::Index(
+                            ast_ir::Index {
+                                pos: None,
+                                expr: Box::new(self.local(&load_index.object).into()),
+                                indices: vec![self.local(&load_index.key).into()],
+                            }
+                        ),
+                    ).into()
+                ),
                 Inner::Move(mov) => body
                     .statements
                     .push(assign_local(&mov.dest, self.local(&mov.source).into()).into()),
@@ -325,8 +337,18 @@ impl<'a> Lifter<'a> {
                         ast_ir::Global {
                             pos: None,
                             name: store_global.name.clone(),
-                        },
+                        }.into(),
                         vec![self.local(&store_global.value).into()],
+                    ).into()
+                ),
+                Inner::StoreIndex(store_index) => body.statements.push(
+                    assign(
+                        ast_ir::Index {
+                            pos: None,
+                            expr: Box::new(self.local(&store_index.object).into()),
+                            indices: vec![self.local(&store_index.key).into()],
+                        }.into(),
+                        vec![self.local(&store_index.value).into()]
                     ).into()
                 ),
                 Inner::Call(call) => {
