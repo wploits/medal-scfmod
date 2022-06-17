@@ -1,15 +1,17 @@
 use std::rc::Rc;
 
+use fxhash::{FxHashMap, FxHashSet};
+
+use ast_ir::Expr;
 use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::{InstructionIndex},
-        BinaryOp, ConditionalJump, Inner, Return, Terminator,
+        BinaryOp,
+        ConditionalJump, Inner, location::InstructionIndex, Return, Terminator,
     },
     value::ValueId,
 };
-use fxhash::{FxHashMap, FxHashSet};
 use graph::{
     algorithms::{
         back_edges, dfs_tree,
@@ -17,11 +19,10 @@ use graph::{
     },
     NodeId,
 };
+use local_declaration::Declaration;
 
 mod local_declaration;
 mod optimizer;
-
-use local_declaration::Declaration;
 
 fn assign_local(
     local: ast_ir::ExprLocal,
@@ -109,6 +110,31 @@ fn binary_expression(
     }
 }
 
+fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
+    fn _binary_expression_fold(mut v: Vec<Expr>, lhs: Expr, op: ast_ir::BinaryOp) -> Expr {
+        if v.is_empty() {
+            return lhs;
+        }
+
+        let rhs = Box::new(v.remove(0));
+
+        _binary_expression_fold(
+            v,
+            ast_ir::Binary {
+                pos: None,
+                op,
+                lhs: Box::new(lhs),
+                rhs,
+            }.into(),
+            op,
+        )
+    }
+
+    let lhs = v.remove(0);
+
+    _binary_expression_fold(v, lhs, op)
+}
+
 #[derive(Debug)]
 enum Link {
     Extend(NodeId),
@@ -141,10 +167,10 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn local(&self, value: ValueId) -> ast_ir::ExprLocal {
+    fn local(&self, value: &ValueId) -> ast_ir::ExprLocal {
         ast_ir::ExprLocal {
             pos: None,
-            local: self.locals[&value].clone(),
+            local: self.locals[value].clone(),
         }
     }
 
@@ -168,7 +194,7 @@ impl<'a> Lifter<'a> {
             .collect::<FxHashSet<_>>();
         for value in forward_declarations {
             body.statements
-                .push(assign_local(self.local(value), constant(&Constant::Nil).into(), true).into())
+                .push(assign_local(self.local(&value), constant(&Constant::Nil).into(), true).into())
         }
 
         declarations
@@ -206,15 +232,15 @@ impl<'a> Lifter<'a> {
 
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
-                    assign_local(load_constant.dest, constant(&load_constant.constant).into())
+                    assign_local(&load_constant.dest, constant(&load_constant.constant).into())
                         .into(),
                 ),
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
-                        binary.dest,
+                        &binary.dest,
                         binary_expression(
-                            self.local(binary.lhs).into(),
-                            self.local(binary.rhs).into(),
+                            self.local(&binary.lhs).into(),
+                            self.local(&binary.rhs).into(),
                             match binary.op {
                                 BinaryOp::Add => ast_ir::BinaryOp::Add,
                                 BinaryOp::Sub => ast_ir::BinaryOp::Sub,
@@ -229,27 +255,27 @@ impl<'a> Lifter<'a> {
                                 BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                             },
                         )
-                        .into(),
+                            .into(),
                     )
-                    .into(),
+                        .into(),
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
-                    assign_local(load_global.dest, global(load_global.name.clone()).into()).into(),
+                    assign_local(&load_global.dest, global(load_global.name.clone()).into()).into(),
                 ),
                 Inner::Move(mov) => body
                     .statements
-                    .push(assign_local(mov.dest, self.local(mov.source).into()).into()),
+                    .push(assign_local(&mov.dest, self.local(&mov.source).into()).into()),
                 Inner::Call(call) => {
-                    let function = self.local(call.function).into();
+                    let function = self.local(&call.function).into();
                     let return_values = call
                         .return_values
                         .iter()
-                        .map(|&v| self.local(v))
+                        .map(|v| self.local(v))
                         .collect::<Vec<_>>();
                     let arguments = call
                         .arguments
                         .iter()
-                        .map(|&v| self.local(v).into())
+                        .map(|v| self.local(v).into())
                         .collect::<Vec<_>>();
                     let call_expr = call_expression(function, arguments);
                     body.statements.push(if return_values.is_empty() {
@@ -257,6 +283,17 @@ impl<'a> Lifter<'a> {
                     } else {
                         assign_locals(return_values, vec![call_expr.into()]).into()
                     });
+                }
+                Inner::Concat(concat) => {
+                    let mut operands: Vec<_> = concat.values.iter()
+                        .map(|v| self.local(v).into())
+                        .collect();
+
+                    body.statements.push(
+                        assign_local(
+                            &concat.dest,
+                            binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
+                        ).into());
                 }
                 _ => {}
             }
@@ -266,10 +303,10 @@ impl<'a> Lifter<'a> {
             Some(Terminator::UnconditionalJump { .. }) => {}
             Some(Terminator::ConditionalJump(ConditionalJump { condition, .. })) => body
                 .statements
-                .push(if_statement(self.local(*condition)).into()),
+                .push(if_statement(self.local(condition)).into()),
             Some(Terminator::NumericFor { .. }) => panic!(),
             Some(Terminator::Return(Return { values, .. })) => body.statements.push(
-                return_statement(values.iter().map(|&v| self.local(v).into()).collect()).into(),
+                return_statement(values.iter().map(|v| self.local(v).into()).collect()).into(),
             ),
             None => panic!("block has no terminator"),
         }

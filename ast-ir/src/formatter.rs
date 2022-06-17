@@ -135,7 +135,6 @@ impl Formatter {
         for statement in &block.statements {
             match statement {
                 Stat::Assign(assign) => {
-                    assert!(assign.values.len() == 1);
                     if assign.local_prefix {
                         self.print("local ");
                     }

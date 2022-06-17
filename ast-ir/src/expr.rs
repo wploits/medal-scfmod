@@ -187,7 +187,7 @@ pub struct Unary {
 
 impl_expr_side_effects!(Unary, |e: &Unary| { e.expr.has_side_effects() });
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinaryOp {
     Add,
     Sub,
