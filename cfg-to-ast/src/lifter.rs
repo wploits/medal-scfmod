@@ -4,7 +4,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::{InstructionIndex, InstructionLocation},
+        location::{InstructionIndex},
         BinaryOp, ConditionalJump, Inner, Return, Terminator,
     },
     value::ValueId,
@@ -20,6 +20,8 @@ use graph::{
 
 mod local_declaration;
 mod optimizer;
+
+use local_declaration::Declaration;
 
 fn assign_local(
     local: ast_ir::ExprLocal,
@@ -146,11 +148,45 @@ impl<'a> Lifter<'a> {
         }
     }
 
+    fn handle_instruction_declarations(
+        &self,
+        index: InstructionIndex,
+        local_declarations: &FxHashMap<InstructionIndex, &Vec<Declaration>>,
+        body: &mut ast_ir::Block,
+    ) -> FxHashSet<ValueId> {
+        let declarations = local_declarations[&index];
+
+        let forward_declarations = declarations
+            .iter()
+            .filter_map(|declaration| {
+                if let &Declaration::Forward(value) = declaration {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .collect::<FxHashSet<_>>();
+        for value in forward_declarations {
+            body.statements
+                .push(assign_local(self.local(value), constant(&Constant::Nil).into(), true).into())
+        }
+
+        declarations
+            .iter()
+            .filter_map(|declaration| {
+                if let &Declaration::Inline(value) = declaration {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .collect::<FxHashSet<_>>()
+    }
+
     fn lift_block(
         &mut self,
         node: NodeId,
-        local_prefixes: &FxHashMap<InstructionLocation, Vec<ValueId>>,
-        _forward_declarations: &FxHashSet<ValueId>,
+        local_declarations: FxHashMap<InstructionIndex, &Vec<Declaration>>,
         is_while: bool,
     ) -> ast_ir::Block {
         let mut body = ast_ir::Block::new(None);
@@ -158,19 +194,16 @@ impl<'a> Lifter<'a> {
         let block = self.function.block(node).unwrap();
 
         for (index, instruction) in block.inner_instructions.iter().enumerate() {
-            let assign_local = |local, expr| {
-                assign_local(
-                    self.local(local),
-                    expr,
-                    local_prefixes
-                        .get(&InstructionLocation {
-                            node,
-                            index: InstructionIndex::Inner(index),
-                        })
-                        .map(|values| values.contains(&local))
-                        .unwrap_or(false),
-                )
+            let local_prefixes = self.handle_instruction_declarations(
+                InstructionIndex::Inner(index),
+                &local_declarations,
+                &mut body,
+            );
+
+            let assign_local = |value, expr| {
+                assign_local(self.local(value), expr, local_prefixes.contains(&value))
             };
+
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
                     assign_local(load_constant.dest, constant(&load_constant.constant).into())
@@ -296,24 +329,6 @@ impl<'a> Lifter<'a> {
         let idoms = compute_immediate_dominators(graph, root, &dfs).unwrap();
 
         let local_declarations = local_declaration::local_declarations(self.function, root, &idoms);
-        let local_prefixes = local_declarations
-            .iter()
-            .map(|(&location, declarations)| {
-                (
-                    location,
-                    declarations
-                        .iter()
-                        .filter_map(|declaration| {
-                            if !declaration.forward_declare {
-                                Some(declaration.value)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect(),
-                )
-            })
-            .collect();
 
         let mut blocks = self
             .function
@@ -325,8 +340,16 @@ impl<'a> Lifter<'a> {
                     n,
                     self.lift_block(
                         n,
-                        &local_prefixes,
-                        &FxHashSet::default(),
+                        local_declarations
+                            .iter()
+                            .filter_map(|(location, declarations)| {
+                                if location.node == n {
+                                    Some((location.index, declarations))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
                         loop_headers.contains(&n),
                     ),
                 )

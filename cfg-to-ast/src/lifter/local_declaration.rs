@@ -11,16 +11,16 @@ use graph::{
 };
 
 #[derive(Debug, Clone)]
-pub(super) struct LocalDeclaration {
-    pub(super) value: ValueId,
-    pub(super) forward_declare: bool,
+pub(super) enum Declaration {
+    Forward(ValueId),
+    Inline(ValueId),
 }
 
 pub(super) fn local_declarations(
     function: &Function,
     root: NodeId,
     idoms: &FxHashMap<NodeId, NodeId>,
-) -> FxHashMap<InstructionLocation, Vec<LocalDeclaration>> {
+) -> FxHashMap<InstructionLocation, Vec<Declaration>> {
     let mut def_use = DefUse::new(function);
     def_use.remove_unused();
 
@@ -59,7 +59,29 @@ pub(super) fn local_declarations(
             .filter(|(location, _)| location.node == node)
             .collect::<Vec<_>>();
         usages.sort_by(|(a, _), (b, _)| a.index.partial_cmp(&b.index).unwrap());
-        if let Some(&(location, forward_declare)) = usages.first() {
+        let (location, declaration) = usages
+            .first()
+            .map(|&(location, forward)| {
+                if forward {
+                    (location, Declaration::Forward(value))
+                } else {
+                    (location, Declaration::Inline(value))
+                }
+            })
+            .unwrap_or((
+                InstructionLocation {
+                    node,
+                    index: InstructionIndex::Terminator,
+                },
+                Declaration::Forward(value),
+            ));
+
+        declaration_location
+            .entry(location)
+            .or_insert_with(Vec::new)
+            .push(declaration);
+
+        /*if let Some(&(location, forward_declare)) = usages.first() {
             declaration_location
                 .entry(location)
                 .or_insert_with(Vec::new)
@@ -78,7 +100,7 @@ pub(super) fn local_declarations(
                     value,
                     forward_declare: true,
                 });
-        }
+        }*/
     }
 
     declaration_location
