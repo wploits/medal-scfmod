@@ -240,9 +240,8 @@ impl<'a> Lifter<'a> {
         local_declarations: FxHashMap<InstructionIndex, &Vec<Declaration>>,
     ) -> ast_ir::Block {
         let mut body = ast_ir::Block::new(None);
-
         let block = self.function.block(node).unwrap();
-
+        let mut variadic_expr = None;
         for (index, instruction) in block.inner_instructions.iter().enumerate() {
             let local_prefixes = self.handle_instruction_declarations(
                 InstructionIndex::Inner(index),
@@ -299,20 +298,28 @@ impl<'a> Lifter<'a> {
                         .iter()
                         .map(|v| self.local(v))
                         .collect::<Vec<_>>();
-                    let arguments = call
+                    let mut arguments = call
                         .arguments
                         .iter()
                         .map(|v| self.local(v).into())
                         .collect::<Vec<_>>();
+                    if call.variadic_arguments {
+                        assert!(variadic_expr.is_some());
+                        arguments.push(variadic_expr.take().unwrap());
+                    }
                     let call_expr = call_expression(function, arguments);
-                    body.statements.push(if return_values.is_empty() {
-                        call_expr.into()
+                    if call.variadic_return {
+                        variadic_expr = Some(call_expr.into());
                     } else {
-                        assign_locals(return_values, vec![call_expr.into()]).into()
-                    });
+                        body.statements.push(if return_values.is_empty() {
+                            call_expr.into()
+                        } else {
+                            assign_locals(return_values, vec![call_expr.into()]).into()
+                        });
+                    }
                 }
                 Inner::Concat(concat) => {
-                    let mut operands: Vec<_> =
+                    let operands: Vec<_> =
                         concat.values.iter().map(|v| self.local(v).into()).collect();
 
                     body.statements.push(
@@ -339,9 +346,16 @@ impl<'a> Lifter<'a> {
                 .statements
                 .push(if_statement(self.local(condition)).into()),
             Some(Terminator::NumericFor { .. }) => panic!(),
-            Some(Terminator::Return(Return { values, .. })) => body.statements.push(
-                return_statement(values.iter().map(|v| self.local(v).into()).collect()).into(),
-            ),
+            Some(Terminator::Return(return_stat)) => {
+                let mut return_values = return_stat.values.iter().map(|v| self.local(v).into()).collect::<Vec<_>>();
+                if return_stat.variadic {
+                    assert!(variadic_expr.is_some());
+                    return_values.push(variadic_expr.take().unwrap());
+                }
+                body.statements.push(
+                    return_statement(return_values).into(),
+                );
+            }
             None => panic!("block has no terminator"),
         }
 

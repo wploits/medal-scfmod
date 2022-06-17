@@ -171,7 +171,7 @@ impl<'a> Lifter<'a> {
     ) -> Result<(Vec<Inner>, Option<Terminator>)> {
         let mut instructions = Vec::new();
         let mut terminator = None;
-        let vararg_index = None;
+        let mut top_index = None;
         for (block_instruction_index, instruction) in self.function.code[block_start..=block_end]
             .iter()
             .enumerate()
@@ -358,11 +358,13 @@ impl<'a> Lifter<'a> {
                             .map(|v| self.get_register(v as usize))
                             .collect::<Vec<_>>();
                         if b == 0 {
-                            assert!(vararg_index.is_some());
+                            assert!(top_index.is_some());
                             arguments =
-                                self.get_register_range(a as usize + 1..vararg_index.unwrap());
+                                self.get_register_range(a as usize + 1..top_index.unwrap());
                         }
-
+                        if c == 0 {
+                            top_index = Some(a as usize);
+                        }
                         instructions.push(
                             Call {
                                 function,
@@ -382,8 +384,8 @@ impl<'a> Lifter<'a> {
                                 .collect();
                         }
                         if b == 0 {
-                            assert!(vararg_index.is_some());
-                            values = self.get_register_range(a as usize..vararg_index.unwrap());
+                            assert!(top_index.is_some());
+                            values = self.get_register_range(a as usize..top_index.unwrap());
                         }
                         terminator = Some(
                             Return {
