@@ -7,11 +7,10 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator,
+        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Return, Terminator,
     },
     value::ValueId,
 };
-
 use graph::{
     algorithms::{
         back_edges, dfs_tree,
@@ -125,7 +124,7 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
                 lhs: Box::new(lhs),
                 rhs,
             }
-            .into(),
+                .into(),
             op,
         )
     }
@@ -133,6 +132,14 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
     let lhs = v.remove(0);
 
     _binary_expression_fold(v, lhs, op)
+}
+
+fn unary_expression(value: Expr, op: ast_ir::UnaryOp) -> ast_ir::Unary {
+    ast_ir::Unary {
+        pos: None,
+        op,
+        expr: Box::new(value)
+    }
 }
 
 #[derive(Debug)]
@@ -260,7 +267,7 @@ impl<'a> Lifter<'a> {
                         &load_constant.dest,
                         constant(&load_constant.constant).into(),
                     )
-                    .into(),
+                        .into(),
                 ),
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
@@ -282,9 +289,22 @@ impl<'a> Lifter<'a> {
                                 BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                             },
                         )
-                        .into(),
+                            .into(),
                     )
-                    .into(),
+                        .into(),
+                ),
+                Inner::Unary(unary) => body.statements.push(
+                    assign_local(
+                        &unary.dest,
+                        unary_expression(
+                            self.local(&unary.value).into(),
+                            match unary.op {
+                                cfg_ir::instruction::UnaryOp::Minus => ast_ir::UnaryOp::Minus,
+                                cfg_ir::instruction::UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
+                                cfg_ir::instruction::UnaryOp::Len => ast_ir::UnaryOp::Len,
+                            },
+                        ).into(),
+                    ).into()
                 ),
                 Inner::LoadGlobal(load_global) => body.statements.push(
                     assign_local(&load_global.dest, global(load_global.name.clone()).into()).into(),
@@ -320,7 +340,7 @@ impl<'a> Lifter<'a> {
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
                         )
-                        .into(),
+                            .into(),
                     );
                 }
                 Inner::Closure(closure) => {
