@@ -7,7 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Return, Terminator,
+        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Return, Terminator, UnaryOp,
     },
     value::ValueId,
 };
@@ -22,6 +22,15 @@ use local_declaration::Declaration;
 
 mod local_declaration;
 mod optimizer;
+
+fn assign(global: ast_ir::Global, values: Vec<Expr>) -> ast_ir::Assign {
+    ast_ir::Assign {
+        pos: None,
+        vars: vec![global.into()],
+        values,
+        local_prefix: false,
+    }
+}
 
 fn assign_local(
     local: ast_ir::ExprLocal,
@@ -138,7 +147,7 @@ fn unary_expression(value: Expr, op: ast_ir::UnaryOp) -> ast_ir::Unary {
     ast_ir::Unary {
         pos: None,
         op,
-        expr: Box::new(value)
+        expr: Box::new(value),
     }
 }
 
@@ -299,9 +308,9 @@ impl<'a> Lifter<'a> {
                         unary_expression(
                             self.local(&unary.value).into(),
                             match unary.op {
-                                cfg_ir::instruction::UnaryOp::Minus => ast_ir::UnaryOp::Minus,
-                                cfg_ir::instruction::UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
-                                cfg_ir::instruction::UnaryOp::Len => ast_ir::UnaryOp::Len,
+                                UnaryOp::Minus => ast_ir::UnaryOp::Minus,
+                                UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
+                                UnaryOp::Len => ast_ir::UnaryOp::Len,
                             },
                         ).into(),
                     ).into()
@@ -312,6 +321,15 @@ impl<'a> Lifter<'a> {
                 Inner::Move(mov) => body
                     .statements
                     .push(assign_local(&mov.dest, self.local(&mov.source).into()).into()),
+                Inner::StoreGlobal(store_global) => body.statements.push(
+                    assign(
+                        ast_ir::Global {
+                            pos: None,
+                            name: store_global.name.clone(),
+                        },
+                        vec![self.local(&store_global.value).into()],
+                    ).into()
+                ),
                 Inner::Call(call) => {
                     let function = self.local(&call.function).into();
                     let return_values = call
