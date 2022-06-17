@@ -11,6 +11,7 @@ use cfg_ir::{
     },
     value::ValueId,
 };
+use cfg_ir::instruction::location::InstructionIndex;
 use graph::{
     algorithms::{
         back_edges, dfs_tree,
