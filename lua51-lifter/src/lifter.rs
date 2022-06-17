@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
+use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -13,7 +14,6 @@ use cfg_ir::{
     },
     value::ValueId,
 };
-use cfg_ir::instruction::{Call, Closure, Inner, Terminator};
 use graph::NodeId;
 
 use super::{
@@ -32,12 +32,10 @@ pub struct Lifter<'a> {
 
 impl<'a> Lifter<'a> {
     pub fn new(function: &'a BytecodeFunction<'_>) -> Self {
-        let num_params = function.num_params as usize;
-
-        Lifter {
+        Self {
             function,
             blocks: HashMap::new(),
-            lifted_function: Function::new(num_params),
+            lifted_function: Function::new(),
             closures: vec![None; function.closures.len()],
             register_map: HashMap::new(),
             constant_map: HashMap::new(),
@@ -71,7 +69,9 @@ impl<'a> Lifter<'a> {
 
                 BytecodeInstruction::ABx { .. } => {}
 
-                BytecodeInstruction::AsBx { op_code, a: _, sbx } if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) => {
+                BytecodeInstruction::AsBx { op_code, a: _, sbx }
+                    if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
+                {
                     self.blocks
                         .entry(insn_index + sbx as usize - 131070)
                         .or_insert_with(|| self.lifted_function.new_block().unwrap());
@@ -135,7 +135,7 @@ impl<'a> Lifter<'a> {
                         dest: value,
                         constant,
                     }
-                        .into(),
+                    .into(),
                 );
             value
         } else {
@@ -147,15 +147,19 @@ impl<'a> Lifter<'a> {
         match instruction {
             BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                 OpCode::LoadBool => *c != 0,
-                _ => matches!(op_code,
+                _ => matches!(
+                    op_code,
                     OpCode::Equal
-                    | OpCode::LesserThan
-                    | OpCode::LesserOrEqual
-                    | OpCode::Test
-                    | OpCode::Return),
-            }
+                        | OpCode::LesserThan
+                        | OpCode::LesserOrEqual
+                        | OpCode::Test
+                        | OpCode::Return
+                ),
+            },
             BytecodeInstruction::ABx { .. } => false,
-            BytecodeInstruction::AsBx { op_code, .. } => matches!(op_code, OpCode::Jump | OpCode::ForPrep | OpCode::ForLoop),
+            BytecodeInstruction::AsBx { op_code, .. } => {
+                matches!(op_code, OpCode::Jump | OpCode::ForPrep | OpCode::ForLoop)
+            }
         }
     }
 
@@ -189,7 +193,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
                                 }
-                                    .into(),
+                                .into(),
                             );
                             terminator = Some(UnconditionalJump(branch).into());
                         } else {
@@ -198,7 +202,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
                                 }
-                                    .into(),
+                                .into(),
                             );
                         }
                     }
@@ -210,7 +214,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Nil,
                                 }
-                                    .into(),
+                                .into(),
                             );
                         }
                     }
@@ -316,7 +320,7 @@ impl<'a> Lifter<'a> {
                                 rhs,
                                 op,
                             }
-                                .into(),
+                            .into(),
                         );
                         terminator = Some(
                             ConditionalJump {
@@ -324,7 +328,7 @@ impl<'a> Lifter<'a> {
                                 true_branch,
                                 false_branch,
                             }
-                                .into(),
+                            .into(),
                         );
                     }
                     OpCode::Test => {
@@ -342,7 +346,7 @@ impl<'a> Lifter<'a> {
                                 true_branch,
                                 false_branch,
                             }
-                                .into(),
+                            .into(),
                         );
                     }
                     OpCode::Call | OpCode::TailCall => {
@@ -367,7 +371,7 @@ impl<'a> Lifter<'a> {
                                 return_values,
                                 variadic_return: c == 0,
                             }
-                                .into(),
+                            .into(),
                         );
                     }
                     OpCode::Return => {
@@ -386,7 +390,7 @@ impl<'a> Lifter<'a> {
                                 values,
                                 variadic: b == 0,
                             }
-                                .into(),
+                            .into(),
                         );
                         break;
                     }
@@ -435,12 +439,8 @@ impl<'a> Lifter<'a> {
                             function: child,
                         }));
                     }
-                    OpCode::ForPrep => {
-                        
-                    }
-                    OpCode::ForLoop => {
-                        
-                    }
+                    OpCode::ForPrep => {}
+                    OpCode::ForLoop => {}
                     _ => {}
                 },
 
@@ -489,6 +489,12 @@ impl<'a> Lifter<'a> {
                 },
             )
             .1;
+
+        for i in 0..self.function.num_params {
+            let parameter = self.lifted_function.new_value();
+            self.lifted_function.parameters.push(parameter);
+            self.register_map.insert(i as usize, parameter);
+        }
 
         for (block_start_pc, block_end_pc) in block_ranges {
             let cfg_block_id = self.get_block(block_start_pc);

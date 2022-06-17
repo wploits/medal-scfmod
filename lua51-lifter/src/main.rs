@@ -26,7 +26,7 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     #[cfg(feature = "dhat-heap")]
-        let _profiler = dhat::Profiler::new_heap();
+    let _profiler = dhat::Profiler::new_heap();
 
     let args = Args::parse();
 

@@ -127,6 +127,23 @@ impl Formatter {
             Expr::Varargs(_) => {
                 self.print("...");
             }
+            Expr::Closure(closure) => {
+                self.print("function(");
+                self.print(
+                    &closure
+                        .args
+                        .iter()
+                        .map(|local| local.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+                self.print(")");
+                self.newline();
+                self.indent();
+                self.format_block(&closure.block);
+                self.unindent();
+                self.print("end");
+            }
             _ => {}
         }
     }

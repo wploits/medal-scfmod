@@ -1,4 +1,4 @@
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use graph::{Edge, Graph, NodeId};
 
 use crate::{
@@ -18,20 +18,14 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new(num_params: usize) -> Self {
-        let mut result = Self {
+    pub fn new() -> Self {
+        Self {
             graph: Graph::new(),
             blocks: FxHashMap::default(),
             parameters: Vec::new(),
             next_value_index: 0,
             entry: None,
-        };
-
-        result.parameters = (0..num_params).into_iter()
-            .map(|_| result.new_value())
-            .collect();
-
-        result
+        }
     }
 
     pub fn entry(&self) -> &Option<NodeId> {
@@ -122,6 +116,6 @@ impl Function {
 
 impl Default for Function {
     fn default() -> Self {
-        Self::new(0)
+        Self::new()
     }
 }
