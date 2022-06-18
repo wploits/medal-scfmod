@@ -486,7 +486,7 @@ impl<'a> Lifter<'a> {
 
                         let mut upvalues = Vec::with_capacity(child.num_upvalues as usize);
                         for _ in 0..child.num_upvalues {
-                            match *it.next().unwrap().1 {
+                            match *iterator.next().unwrap().1 {
                                 BytecodeInstruction::ABC { op_code: OpCode::Move, b, .. } => {
                                     upvalues.push(Upvalue::Value(self.get_register(b as usize)))
                                 },
