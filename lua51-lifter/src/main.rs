@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, rc::Rc};
 use std::io::Read;
 use std::time;
 
@@ -41,9 +41,9 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    let mut cfg = Lifter::new(&chunk.main).lift_function()?;
+    let mut cfg = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
     let lifted = now.elapsed();
-    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    dot::render_to(&cfg, &mut std::io::stdout())?;
     println!("lifting: {:?}", lifted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     let now = time::Instant::now();
     ssa::construct::construct(&mut cfg)?;
     let ssa_constructed = now.elapsed();
-    //dot::render_to(&cfg, &mut std::io::stdout())?;
+    dot::render_to(&cfg, &mut std::io::stdout())?;
     println!("ssa construction: {:?}", ssa_constructed);
 
     let now = time::Instant::now();

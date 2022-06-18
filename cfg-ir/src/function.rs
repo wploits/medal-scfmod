@@ -1,11 +1,13 @@
+use std::{rc::Rc, cell::RefCell};
+
 use fxhash::FxHashMap;
 use graph::{Edge, Graph, NodeId};
 
 use crate::{
     block::BasicBlock,
     error::{Error, Result},
-    instruction::{branch_info::BranchInfo, Terminator},
-    value::ValueId,
+    instruction::{branch_info::BranchInfo, Terminator, location::InstructionLocation},
+    value::ValueId, value_allocator::ValueAllocator,
 };
 
 #[derive(Debug, Clone)]
@@ -13,18 +15,20 @@ pub struct Function<'cfg> {
     graph: Graph,
     blocks: FxHashMap<NodeId, BasicBlock<'cfg>>,
     pub parameters: Vec<ValueId>,
-    pub(crate) next_value_index: usize,
+    pub value_allocator: Rc<RefCell<ValueAllocator>>,
+    pub upvalue_open_ranges: FxHashMap<ValueId, Vec<(InstructionLocation, InstructionLocation)>>,
     entry: Option<NodeId>,
 }
 
 impl<'cfg> Function<'cfg> {
-    pub fn new() -> Self {
+    pub fn new(value_allocator: Rc<RefCell<ValueAllocator>>) -> Self {
         Self {
             graph: Graph::new(),
             blocks: FxHashMap::default(),
             parameters: Vec::new(),
-            next_value_index: 0,
+            value_allocator,
             entry: None,
+            upvalue_open_ranges: FxHashMap::default(),
         }
     }
 
@@ -79,7 +83,7 @@ impl<'cfg> Function<'cfg> {
         self.graph.node_exists(block)
     }
 
-    pub fn block(&self, block: NodeId) -> Result<&BasicBlock> {
+    pub fn block(&self, block: NodeId) -> Result<&BasicBlock<'cfg>> {
         self.blocks.get(&block).ok_or(Error::InvalidBlock(block))
     }
 
@@ -89,7 +93,7 @@ impl<'cfg> Function<'cfg> {
             .ok_or(Error::InvalidBlock(block))
     }
 
-    pub fn blocks(&self) -> &FxHashMap<NodeId, BasicBlock> {
+    pub fn blocks(&self) -> &FxHashMap<NodeId, BasicBlock<'cfg>> {
         &self.blocks
     }
 
@@ -101,21 +105,5 @@ impl<'cfg> Function<'cfg> {
         let node = self.graph.add_node()?;
         self.blocks.insert(node, BasicBlock::new());
         Ok(node)
-    }
-
-    pub fn new_value(&mut self) -> ValueId {
-        let value = self.next_value_index;
-        self.next_value_index += 1;
-        ValueId(value)
-    }
-
-    pub fn values(&self) -> Vec<ValueId> {
-        (0..self.next_value_index).map(ValueId).collect()
-    }
-}
-
-impl Default for Function<'_> {
-    fn default() -> Self {
-        Self::new()
     }
 }

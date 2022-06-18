@@ -2,12 +2,13 @@ use std::{borrow::Cow, rc::Rc};
 
 use fxhash::{FxHashMap, FxHashSet};
 
-use ast_ir::Expr;
+use ast_ir::{Expr, ExprLocal};
 use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Terminator, UnaryOp,
+        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator, UnaryOp,
+        Upvalue,
     },
     value::ValueId,
 };
@@ -202,27 +203,22 @@ enum Loop {
     While(Option<NodeId>),
 }
 
-struct Lifter<'a> {
+struct Lifter<'a, 'b> {
     function: &'a Function<'a>,
-    locals: FxHashMap<ValueId, Rc<ast_ir::Local>>,
+    locals: &'b FxHashMap<ValueId, Rc<ast_ir::Local>>,
+    upvalues: Vec<Rc<ast_ir::Local>>,
 }
 
-impl<'a> Lifter<'a> {
-    pub fn new(function: &'a Function) -> Self {
+impl<'a, 'b> Lifter<'a, 'b> {
+    pub fn new(
+        function: &'a Function,
+        locals: &'b FxHashMap<ValueId, Rc<ast_ir::Local>>,
+        upvalues: Vec<Rc<ast_ir::Local>>,
+    ) -> Self {
         Self {
             function,
-            locals: function
-                .values()
-                .iter()
-                .map(|&v| {
-                    (
-                        v,
-                        Rc::new(ast_ir::Local {
-                            name: v.to_string(),
-                        }),
-                    )
-                })
-                .collect::<FxHashMap<_, _>>(),
+            locals,
+            upvalues,
         }
     }
 
@@ -233,7 +229,8 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn lift_closure(&self, function: &'a cfg_ir::function::Function) -> ast_ir::Closure<'a> {
+    fn lift_closure(&self, closure: &'a cfg_ir::instruction::Closure) -> ast_ir::Closure<'a> {
+        let function = closure.function.as_ref();
         let args = function
             .parameters
             .iter()
@@ -248,7 +245,19 @@ impl<'a> Lifter<'a> {
             pos: None,
             self_: None,
             args,
-            block: lift(function).body,
+            block: lift(
+                function,
+                self.locals,
+                closure
+                    .upvalues
+                    .iter()
+                    .map(|u| match u {
+                        Upvalue::Value(v) => self.locals[v].clone(),
+                        Upvalue::Upvalue(uv) => self.upvalues[*uv].clone(),
+                    })
+                    .collect(),
+            )
+            .body,
         }
     }
 
@@ -277,6 +286,33 @@ impl<'a> Lifter<'a> {
                     assign_local(
                         &load_constant.dest,
                         constant(&load_constant.constant).into(),
+                    )
+                    .into(),
+                ),
+                // TODO: upvalues[b] might be invalid in constructed bytecode
+                Inner::LoadUpvalue(load_upvalue) => body.statements.push(
+                    self::assign_local(
+                        self.local(&load_upvalue.dest),
+                        ExprLocal {
+                            pos: None,
+                            local: self.upvalues[load_upvalue.upvalue_index].clone(),
+                        }
+                        .into(),
+                        local_declarations
+                            .get(&index)
+                            .map(|values| values.contains(&load_upvalue.dest))
+                            .unwrap_or(false),
+                    )
+                    .into(),
+                ),
+                Inner::StoreUpvalue(store_upvalue) => body.statements.push(
+                    self::assign_local(
+                        ExprLocal {
+                            pos: None,
+                            local: self.upvalues[store_upvalue.upvalue_index].clone(),
+                        },
+                        self.local(&store_upvalue.value).into(),
+                        false,
                     )
                     .into(),
                 ),
@@ -411,7 +447,7 @@ impl<'a> Lifter<'a> {
                 }
                 Inner::Closure(closure) => {
                     let dest = &closure.dest;
-                    let closure = self.lift_closure(closure.function.as_ref()).into();
+                    let closure = self.lift_closure(closure).into();
 
                     body.statements.push(assign_local(dest, closure).into());
                 }
@@ -779,8 +815,32 @@ impl<'a> Lifter<'a> {
     }
 }
 
-pub fn lift<'a>(function: &'a Function) -> ast_ir::Function<'a> {
+pub fn lift<'a>(
+    function: &'a Function,
+    locals: &FxHashMap<ValueId, Rc<ast_ir::Local>>,
+    upvalues: Vec<Rc<ast_ir::Local>>,
+) -> ast_ir::Function<'a> {
     let entry = function.entry().unwrap();
-    let mut lifter = Lifter::new(function);
+
+    let mut lifter = Lifter::new(function, &locals, upvalues);
     lifter.lift(entry)
+}
+
+pub fn lift_chunk<'a>(root_function: &'a Function) -> ast_ir::Function<'a> {
+    let locals = root_function
+        .value_allocator
+        .borrow()
+        .values()
+        .iter()
+        .map(|&v| {
+            (
+                v,
+                Rc::new(ast_ir::Local {
+                    name: v.to_string(),
+                }),
+            )
+        })
+        .collect::<FxHashMap<_, _>>();
+
+    lift(root_function, &locals, Vec::new())
 }
