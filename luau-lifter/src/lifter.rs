@@ -102,6 +102,9 @@ impl<'a> Lifter<'a> {
                     }
                     OpCode::LOP_FORNLOOP => {
                         self.blocks
+                            .entry(insn_index)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                        self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
                         self.blocks
@@ -661,7 +664,7 @@ impl<'a> Lifter<'a> {
                         unimplemented!();
                     }
                     OpCode::LOP_FORNPREP => {
-                        let branch = self.get_block(instruction_index.wrapping_add(d as usize) + 1);
+                        let branch = self.get_block(instruction_index.wrapping_add(d as usize));
                         terminator = Some(UnconditionalJump(branch).into());
                     }
                     OpCode::LOP_FORNLOOP => {
