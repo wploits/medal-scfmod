@@ -5,9 +5,6 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
-use cfg_ir::instruction::{
-    Call, Closure, Inner, LoadIndex, NumericForEnter, NumericForLoop, StoreIndex, Terminator,
-};
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -17,7 +14,10 @@ use cfg_ir::{
     },
     value::ValueId,
 };
+use cfg_ir::instruction::{Call, Closure, Inner, LoadIndex, LoadTable, NumericForEnter, NumericForLoop, StoreIndex, Terminator};
 use graph::NodeId;
+
+use crate::instruction::Instruction;
 
 use super::{
     chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
@@ -73,15 +73,15 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::ABx { .. } => {}
 
                 BytecodeInstruction::AsBx { op_code, a: _, sbx }
-                    if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
-                {
-                    self.blocks
-                        .entry(insn_index + sbx as usize - 131070)
-                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                    self.blocks
-                        .entry(insn_index + 1)
-                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                }
+                if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
+                    {
+                        self.blocks
+                            .entry(insn_index + sbx as usize - 131070)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                        self.blocks
+                            .entry(insn_index + 1)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    }
                 _ => {}
             }
         }
@@ -138,7 +138,7 @@ impl<'a> Lifter<'a> {
                         dest: value,
                         constant,
                     }
-                    .into(),
+                        .into(),
                 );
             value
         } else {
@@ -175,9 +175,12 @@ impl<'a> Lifter<'a> {
         let mut instructions = Vec::new();
         let mut terminator = None;
         let mut top_index = None;
-        for (block_instruction_index, instruction) in self.function.code[block_start..=block_end]
+        let mut iterator = self.function.code[block_start..=block_end]
             .iter()
             .enumerate()
+            .peekable();
+
+        while let Some((block_instruction_index, instruction)) = iterator.next()
         {
             let instruction_index = block_start + block_instruction_index;
             match *instruction {
@@ -196,7 +199,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
                                 }
-                                .into(),
+                                    .into(),
                             );
                             terminator = Some(UnconditionalJump(branch).into());
                         } else {
@@ -205,7 +208,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Boolean(b != 0),
                                 }
-                                .into(),
+                                    .into(),
                             );
                         }
                     }
@@ -217,7 +220,7 @@ impl<'a> Lifter<'a> {
                                     dest,
                                     constant: Constant::Nil,
                                 }
-                                .into(),
+                                    .into(),
                             );
                         }
                     }
@@ -235,16 +238,47 @@ impl<'a> Lifter<'a> {
 
                         instructions.push(StoreIndex { value, object, key }.into());
                     }
-                    /*OpCode::NewTable => {
+                    OpCode::NewTable => {
                         let dest = self.get_register(a as usize);
+                        let mut elems = Vec::new();
+                        let mut store_indices = Vec::new();
+                        let mut num_records = 0;
 
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .load_table(dest)
-                            .unwrap();
-                    }*/
+                        while let Some((_, instruction)) = iterator.peek() {
+                            match (instruction.opcode(), instruction) {
+                                (OpCode::LoadConst, Instruction::ABx { op_code, a, bx }) => {
+                                    let a = *a as usize;
+                                    let dest = self.get_register(a);
+                                    let constant = self.get_constant(*bx as usize);
+
+                                    instructions.push(LoadConstant { dest, constant }.into());
+                                    elems.push(ValueId(a + num_records));
+                                }
+                                (OpCode::NewIndex, Instruction::ABC { op_code, a, b, c }) => {
+                                    let a = *a as usize;
+                                    let b = *b as usize;
+                                    let object = self.get_register(a);
+                                    let key = self.get_register_or_constant(b, cfg_block_id);
+                                    let value = self.get_register_or_constant(*c as usize, cfg_block_id);
+
+                                    store_indices.push(StoreIndex { value, object, key }.into());
+                                    num_records += 2;
+                                }
+                                (OpCode::SetList, _) => {}
+                                _ => break,
+                            }
+
+                            iterator.next();
+                        }
+
+                        instructions.push(
+                            LoadTable {
+                                dest,
+                                elems,
+                            }.into()
+                        );
+                        instructions.extend(store_indices.into_iter());
+                    }
                     OpCode::Add
                     | OpCode::Sub
                     | OpCode::Mul
@@ -313,7 +347,7 @@ impl<'a> Lifter<'a> {
                                 rhs,
                                 op,
                             }
-                            .into(),
+                                .into(),
                         );
                         terminator = Some(
                             ConditionalJump {
@@ -321,7 +355,7 @@ impl<'a> Lifter<'a> {
                                 true_branch,
                                 false_branch,
                             }
-                            .into(),
+                                .into(),
                         );
                     }
                     OpCode::Test => {
@@ -339,7 +373,7 @@ impl<'a> Lifter<'a> {
                                 true_branch,
                                 false_branch,
                             }
-                            .into(),
+                                .into(),
                         );
                     }
                     OpCode::Call | OpCode::TailCall => {
@@ -365,7 +399,7 @@ impl<'a> Lifter<'a> {
                                 return_values,
                                 variadic_return: c == 0,
                             }
-                            .into(),
+                                .into(),
                         );
                     }
                     OpCode::Return => {
@@ -384,14 +418,17 @@ impl<'a> Lifter<'a> {
                                 values,
                                 variadic: b == 0,
                             }
-                            .into(),
+                                .into(),
                         );
                         break;
                     }
                     /*OpCode::VarArg => {
                         vararg_index = Some(a as usize);
                     }*/
-                    _ => unreachable!(),
+                    pr => {
+                        println!("{:#?}", pr);
+                        panic!()
+                    }
                 },
 
                 BytecodeInstruction::ABx { op_code, a, bx } => match op_code {
@@ -465,7 +502,7 @@ impl<'a> Lifter<'a> {
                                     init,
                                     node: true_branch,
                                 }
-                                .into(),
+                                    .into(),
                             );
                         }
                         OpCode::ForLoop => {
@@ -484,7 +521,7 @@ impl<'a> Lifter<'a> {
                                     true_branch,
                                     false_branch,
                                 }
-                                .into(),
+                                    .into(),
                             )
                         }
                         OpCode::Jump => {

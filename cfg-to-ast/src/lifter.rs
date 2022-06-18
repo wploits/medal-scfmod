@@ -7,7 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Return, Terminator, UnaryOp,
+        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Terminator, UnaryOp,
     },
     value::ValueId,
 };
@@ -179,7 +179,7 @@ enum Link {
 
 #[derive(Debug)]
 enum Loop {
-    NumericFor{
+    NumericFor {
         loop_exit: NodeId,
         var: Rc<ast_ir::Local>,
         from: Rc<ast_ir::Local>,
@@ -295,13 +295,14 @@ impl<'a> Lifter<'a> {
             };
 
             match instruction {
-                Inner::LoadConstant(load_constant) => body.statements.push(
-                    assign_local(
+                Inner::LoadConstant(load_constant) => {
+                    let assign = assign_local(
                         &load_constant.dest,
                         constant(&load_constant.constant).into(),
-                    )
-                        .into(),
-                ),
+                    ).into();
+
+                    body.statements.push(assign);
+                }
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
                         &binary.dest,
@@ -345,15 +346,29 @@ impl<'a> Lifter<'a> {
                 Inner::LoadIndex(load_index) => body.statements.push(
                     assign_local(
                         &load_index.dest,
-                        Expr::Index(
-                            ast_ir::Index {
-                                pos: None,
-                                expr: Box::new(self.local(&load_index.object).into()),
-                                indices: vec![self.local(&load_index.key).into()],
-                            }
-                        ),
+                        ast_ir::Index {
+                            pos: None,
+                            expr: Box::new(self.local(&load_index.object).into()),
+                            indices: vec![self.local(&load_index.key).into()],
+                        }.into(),
                     ).into()
                 ),
+                Inner::LoadTable(load_table) => {
+                    let pairs = load_table.elems
+                        .iter()
+                        .map(|v| (None, self.local(v).into()))
+                        .collect();
+
+                    body.statements.push(
+                        assign_local(
+                            &load_table.dest,
+                            ast_ir::Table {
+                                pos: None,
+                                pairs,
+                            }.into(),
+                        ).into()
+                    );
+                }
                 Inner::Move(mov) => body
                     .statements
                     .push(assign_local(&mov.dest, self.local(&mov.source).into()).into()),
@@ -373,7 +388,7 @@ impl<'a> Lifter<'a> {
                             expr: Box::new(self.local(&store_index.object).into()),
                             indices: vec![self.local(&store_index.key).into()],
                         }.into(),
-                        vec![self.local(&store_index.value).into()]
+                        vec![self.local(&store_index.value).into()],
                     ).into()
                 ),
                 Inner::Call(call) => {
@@ -411,8 +426,7 @@ impl<'a> Lifter<'a> {
                         assign_local(
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
-                        )
-                            .into(),
+                        ).into(),
                     );
                 }
                 Inner::Closure(closure) => {
@@ -421,7 +435,6 @@ impl<'a> Lifter<'a> {
 
                     body.statements.push(assign_local(dest, closure).into());
                 }
-                _ => {}
             }
         }
 
@@ -430,8 +443,8 @@ impl<'a> Lifter<'a> {
             Some(Terminator::ConditionalJump(ConditionalJump { condition, .. })) => body
                 .statements
                 .push(if_statement(self.local(condition)).into()),
-            Some(Terminator::NumericForEnter { .. }) => {},
-            Some(Terminator::NumericForLoop { .. }) => {},
+            Some(Terminator::NumericForEnter { .. }) => {}
+            Some(Terminator::NumericForLoop { .. }) => {}
             Some(Terminator::Return(return_stat)) => {
                 let mut return_values = return_stat.values.iter().map(|v| self.local(v).into()).collect::<Vec<_>>();
                 if return_stat.variadic {
@@ -477,7 +490,7 @@ impl<'a> Lifter<'a> {
 
         let back_edges = back_edges(graph, root).unwrap();
         let mut back_edges_map = FxHashMap::with_capacity_and_hasher(back_edges.len(), Default::default());
-        for &Edge {source, destination} in &back_edges {
+        for &Edge { source, destination } in &back_edges {
             back_edges_map.entry(source).or_insert_with(FxHashSet::default).insert(destination);
         }
 
@@ -555,7 +568,7 @@ impl<'a> Lifter<'a> {
                         let num_for_entry = num_for_entry.unwrap();
                         assert!(!visited.contains(&loop_exit));
 
-                        loops.insert(node, Loop::NumericFor{ loop_exit, var: self.locals[&num_for_loop.variable].clone(), from: self.locals[&num_for_entry.init].clone(), to: self.locals[&num_for_loop.limit].clone(), step: self.locals[&num_for_loop.step].clone() });
+                        loops.insert(node, Loop::NumericFor { loop_exit, var: self.locals[&num_for_loop.variable].clone(), from: self.locals[&num_for_entry.init].clone(), to: self.locals[&num_for_loop.limit].clone(), step: self.locals[&num_for_loop.step].clone() });
                         stops.insert(loop_exit);
                         stack.push(loop_exit);
                         done = true;
@@ -733,7 +746,7 @@ impl<'a> Lifter<'a> {
                             .statements
                             .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
                         blocks.insert(node, new_block);
-                    },
+                    }
                 }
             }
         }

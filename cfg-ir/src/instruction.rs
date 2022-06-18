@@ -31,7 +31,7 @@ pub use concat::Concat;
 pub use forloop::{NumericForEnter, NumericForLoop};
 
 pub use closure::Closure;
-pub use load::{LoadConstant, LoadGlobal, LoadIndex};
+pub use load::{LoadConstant, LoadGlobal, LoadIndex, LoadTable};
 pub use r#move::Move;
 pub use store::{StoreGlobal, StoreIndex};
 
@@ -49,6 +49,7 @@ pub enum Inner<'cfg> {
     LoadConstant(LoadConstant<'cfg>),
     LoadGlobal(LoadGlobal<'cfg>),
     LoadIndex(LoadIndex),
+    LoadTable(LoadTable),
     Move(Move),
     StoreGlobal(StoreGlobal<'cfg>),
     StoreIndex(StoreIndex),
@@ -65,6 +66,7 @@ impl fmt::Display for Inner<'_> {
             Self::LoadConstant(v) => write!(f, "{}", v),
             Self::LoadGlobal(v) => write!(f, "{}", v),
             Self::LoadIndex(v) => write!(f, "{}", v),
+            Self::LoadTable(v) => write!(f, "{}", v),
             Self::Move(v) => write!(f, "{}", v),
             Self::StoreGlobal(v) => write!(f, "{}", v),
             Self::StoreIndex(v) => write!(f, "{}", v),

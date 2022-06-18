@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fmt;
 
 use super::super::constant::Constant;
@@ -99,6 +100,7 @@ impl fmt::Display for LoadIndex {
 #[derive(Debug, Clone)]
 pub struct LoadTable {
     pub dest: ValueId,
+    pub elems: Vec<ValueId>,
 }
 
 impl ValueInfo for LoadTable {
