@@ -41,18 +41,14 @@ pub fn parse_str(input: &[u8]) -> IResult<&[u8], &str> {
     let (input, name_length) = le_u32(input)?;
     let (input, string) = take(name_length as usize)(input)?;
 
-    Ok((
-        input,
-        unsafe { std::str::from_utf8_unchecked(string) }
-    ))
+    Ok((input, unsafe { std::str::from_utf8_unchecked(string) }))
 }
 
 pub fn parse_null_terminated_str(input: &[u8]) -> IResult<&[u8], &str> {
     let (input, name_length) = le_u32(input)?;
     let (input, string) = take(name_length as usize)(input)?;
 
-    Ok((
-        input,
-        unsafe { std::str::from_utf8_unchecked(&string[..name_length as usize - 1]) }
-    ))
+    Ok((input, unsafe {
+        std::str::from_utf8_unchecked(&string[..name_length as usize - 1])
+    }))
 }

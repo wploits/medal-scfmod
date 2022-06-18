@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 
+use cfg_ir::instruction::{Call, Closure, Inner, LoadIndex, NumericFor, StoreIndex, Terminator, LoadTable};
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -14,7 +15,6 @@ use cfg_ir::{
     },
     value::ValueId,
 };
-use cfg_ir::instruction::{Call, Closure, Inner, LoadIndex, LoadTable, NumericForEnter, NumericForLoop, StoreIndex, Terminator};
 use graph::NodeId;
 
 use crate::instruction::Instruction;
@@ -73,15 +73,15 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::ABx { .. } => {}
 
                 BytecodeInstruction::AsBx { op_code, a: _, sbx }
-                if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
-                    {
-                        self.blocks
-                            .entry(insn_index + sbx as usize - 131070)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                        self.blocks
-                            .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                    }
+                    if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
+                {
+                    self.blocks
+                        .entry(insn_index + sbx as usize - 131070)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    self.blocks
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                }
                 _ => {}
             }
         }
@@ -138,7 +138,7 @@ impl<'a> Lifter<'a> {
                         dest: value,
                         constant,
                     }
-                        .into(),
+                    .into(),
                 );
             value
         } else {
@@ -478,48 +478,26 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::AsBx { op_code, a, sbx } => {
                     match op_code {
                         OpCode::ForPrep => {
-                            let init = self.get_register(a as usize);
-                            let variable = self.get_register(a as usize + 3);
-                            let successor_node = self.get_block(instruction_index + sbx as usize - 131070);
-                            let true_branch = self
-                                .lifted_function
-                                .block(successor_node)
-                                .unwrap()
-                                .terminator()
-                                .as_ref()
-                                .map(|t| {
-                                    if let Terminator::NumericForLoop(n) = t {
-                                        n
-                                    } else {
-                                        unreachable!()
-                                    }
-                                })
-                                .unwrap()
-                                .true_branch;
-                            terminator = Some(
-                                NumericForEnter {
-                                    variable,
-                                    init,
-                                    node: true_branch,
-                                }
-                                    .into(),
-                            );
+                            let branch = self.get_block(instruction_index + sbx as usize - 131070);
+                            terminator = Some(UnconditionalJump(branch).into());
                         }
                         OpCode::ForLoop => {
+                            let init = self.get_register(a as usize);
                             let limit = self.get_register(a as usize + 1);
                             let step = self.get_register(a as usize + 2);
                             let variable = self.get_register(a as usize + 3);
                             // TODO: why isnt this just + sbx?
-                            let true_branch =
+                            let continue_branch =
                                 self.get_block(instruction_index + sbx as usize - 131070);
-                            let false_branch = self.get_block(instruction_index + 1);
+                            let exit_branch = self.get_block(instruction_index + 1);
                             terminator = Some(
-                                NumericForLoop {
+                                NumericFor {
                                     variable,
+                                    init,
                                     limit,
                                     step,
-                                    true_branch,
-                                    false_branch,
+                                    continue_branch,
+                                    exit_branch,
                                 }
                                     .into(),
                             )
