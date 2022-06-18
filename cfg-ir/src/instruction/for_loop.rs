@@ -23,7 +23,12 @@ impl ValueInfo for NumericFor {
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
-        vec![&mut self.limit, &mut self.init, &mut self.step, &mut self.variable]
+        vec![
+            &mut self.limit,
+            &mut self.init,
+            &mut self.step,
+            &mut self.variable,
+        ]
     }
 
     fn values_written_mut(&mut self) -> Vec<&mut ValueId> {

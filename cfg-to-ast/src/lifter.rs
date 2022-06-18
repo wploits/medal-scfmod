@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use fxhash::{FxHashMap, FxHashSet};
 
-use ast_ir::{Expr, ExprLocal};
+use ast_ir::Expr;
 use cfg_ir::{
     constant::Constant,
     function::Function,
@@ -18,7 +18,6 @@ use graph::{
     },
     Edge, NodeId,
 };
-use local_declaration::Declaration;
 
 mod local_declaration;
 mod optimizer;
@@ -234,42 +233,6 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn handle_instruction_declarations(
-        &self,
-        index: InstructionIndex,
-        local_declarations: &FxHashMap<InstructionIndex, &Vec<Declaration>>,
-        body: &mut ast_ir::Block,
-    ) -> FxHashSet<ValueId> {
-        if let Some(declarations) = local_declarations.get(&index) {
-            let forward_declarations = declarations
-                .iter()
-                .filter_map(|declaration| match declaration {
-                    Declaration::Forward(value) if !self.function.parameters.contains(value) => {
-                        Some(value)
-                    }
-                    _ => None,
-                })
-                .collect::<FxHashSet<_>>();
-            for value in forward_declarations {
-                body.statements.push(
-                    assign_local(self.local(value), constant(&Constant::Nil).into(), true).into(),
-                )
-            }
-            declarations
-                .iter()
-                .filter_map(|declaration| {
-                    if let &Declaration::Inline(value) = declaration {
-                        Some(value)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<FxHashSet<_>>()
-        } else {
-            FxHashSet::default()
-        }
-    }
-
     fn lift_closure(&self, function: &'a cfg_ir::function::Function) -> ast_ir::Closure<'a> {
         let args = function
             .parameters
@@ -292,20 +255,22 @@ impl<'a> Lifter<'a> {
     fn lift_block(
         &mut self,
         node: NodeId,
-        local_declarations: FxHashMap<InstructionIndex, &Vec<Declaration>>,
+        local_declarations: FxHashMap<usize, &Vec<ValueId>>,
     ) -> ast_ir::Block<'a> {
         let mut body = ast_ir::Block::new(None);
         let block = self.function.block(node).unwrap();
         let mut variadic_expr = None;
         for (index, instruction) in block.inner_instructions.iter().enumerate() {
-            let local_prefixes = self.handle_instruction_declarations(
-                InstructionIndex::Inner(index),
-                &local_declarations,
-                &mut body,
-            );
-
-            let assign_local =
-                |value, expr| assign_local(self.local(value), expr, local_prefixes.contains(value));
+            let assign_local = |value, expr| {
+                assign_local(
+                    self.local(value),
+                    expr,
+                    local_declarations
+                        .get(&index)
+                        .map(|values| values.contains(value))
+                        .unwrap_or(false),
+                )
+            };
 
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
@@ -551,7 +516,11 @@ impl<'a> Lifter<'a> {
                             .iter()
                             .filter_map(|(location, declarations)| {
                                 if location.node == n {
-                                    Some((location.index, declarations))
+                                    if let InstructionIndex::Inner(index) = location.index {
+                                        Some((index, declarations))
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
@@ -570,65 +539,11 @@ impl<'a> Lifter<'a> {
         let mut stops = FxHashSet::default();
 
         while let Some(node) = stack.pop() {
-            //println!("visiting: {}", node);
             assert!(!visited.contains(&node));
             visited.push(node);
 
-            // todo: for loops
-            if loop_headers.contains(&node) {
-                /*let predecessors = self.function.graph().predecessors(node).collect::<Vec<_>>();
-                let mut done = false;
-                if predecessors.len() == 2 {
-                    let mut num_for_loop = None;
-                    let mut num_for_entry = None;
-                    for predecessor_node in predecessors {
-                        match self
-                            .function
-                            .block(predecessor_node)
-                            .unwrap()
-                            .terminator()
-                            .as_ref()
-                            .unwrap()
-                        {
-                            Terminator::NumericForEnter(e) => num_for_entry = Some(e.clone()),
-                            Terminator::NumericForLoop(l) => {
-                                num_for_loop = Some((predecessor_node, l.clone()))
-                            }
-                            _ => break,
-                        }
-                    }
-
-                    if let Some((loop_exit, num_for_loop)) = num_for_loop {
-                        println!("for exit: {}", loop_exit);
-                        if let Some(num_for_entry) = num_for_entry {
-                            assert!(!visited.contains(&loop_exit));
-                            loops.insert(
-                                node,
-                                Loop::NumericFor {
-                                    loop_exit,
-                                    var: self.locals[&num_for_loop.variable].clone(),
-                                    from: self.locals[&num_for_entry.init].clone(),
-                                    to: self.locals[&num_for_loop.limit].clone(),
-                                    step: self.locals[&num_for_loop.step].clone(),
-                                },
-                            );
-                            stops.insert(loop_exit);
-                            stack.push(loop_exit);
-                            done = true;
-                        }
-                    }
-                }
-
-                if !done {
-                    if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
-                        assert!(!visited.contains(&loop_exit));
-                        loops.insert(node, Loop::While(loop_exit));
-                        stops.insert(loop_exit);
-                        stack.push(loop_exit);
-                    }
-                }*/
-
-                if self
+            if loop_headers.contains(&node)
+                && self
                     .function
                     .block(node)
                     .unwrap()
@@ -637,15 +552,14 @@ impl<'a> Lifter<'a> {
                     .unwrap()
                     .as_numeric_for()
                     .is_none()
-                {
-                    if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
-                        assert!(!visited.contains(&loop_exit));
-                        loops.insert(node, Loop::While(Some(loop_exit)));
-                        stops.insert(loop_exit);
-                        stack.push(loop_exit);
-                    } else {
-                        loops.insert(node, Loop::While(None));
-                    }
+            {
+                if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
+                    assert!(!visited.contains(&loop_exit));
+                    loops.insert(node, Loop::While(Some(loop_exit)));
+                    stops.insert(loop_exit);
+                    stack.push(loop_exit);
+                } else {
+                    loops.insert(node, Loop::While(None));
                 }
             }
 
@@ -717,8 +631,7 @@ impl<'a> Lifter<'a> {
                     Terminator::NumericFor(for_loop) => {
                         assert!(!visited.contains(&for_loop.continue_branch));
                         stack.push(for_loop.continue_branch);
-                        let exit_branch =
-                        if !visited.contains(&for_loop.exit_branch) {
+                        let exit_branch = if !visited.contains(&for_loop.exit_branch) {
                             stack.push(for_loop.exit_branch);
                             Some(for_loop.exit_branch)
                         } else {
@@ -845,25 +758,7 @@ impl<'a> Lifter<'a> {
                                 .statements
                                 .extend(blocks.remove(&loop_exit).unwrap().statements.into_iter());
                         }
-                    } /*Loop::NumericFor {
-                          loop_exit,
-                          var,
-                          from,
-                          to,
-                          step,
-                      } => {
-                          let num_for_stat = numeric_for_statement(
-                              var,
-                              local_expression(from).into(),
-                              local_expression(to).into(),
-                              local_expression(step).into(),
-                              blocks.remove(&node).unwrap(),
-                          );
-                          new_block.statements.push(num_for_stat.into());
-                          new_block
-                              .statements
-                              .extend(blocks.remove(&loop_exit).unwrap().statements.into_iter());
-                      }*/
+                    }
                 }
                 blocks.insert(node, new_block);
             }

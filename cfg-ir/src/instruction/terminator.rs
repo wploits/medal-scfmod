@@ -5,7 +5,7 @@ use std::fmt;
 
 use super::{super::value::ValueId, branch_info::BranchInfo, value_info::ValueInfo};
 
-use super::for_loop::{NumericFor};
+use super::for_loop::NumericFor;
 
 #[derive(Debug, Clone)]
 pub struct Return {
