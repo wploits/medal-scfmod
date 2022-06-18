@@ -188,7 +188,7 @@ enum Link {
     If(Box<Link>, Option<Box<Link>>, Option<NodeId>),
     Break,
     NumericFor {
-        exit_branch: NodeId,
+        exit_branch: Option<NodeId>,
         continue_branch: NodeId,
         variable: ast_ir::ExprLocal,
         init: ast_ir::ExprLocal,
@@ -448,8 +448,7 @@ impl<'a> Lifter<'a> {
             Some(Terminator::ConditionalJump(ConditionalJump { condition, .. })) => body
                 .statements
                 .push(if_statement(self.local(condition)).into()),
-            Some(Terminator::NumericForPrep { .. }) => {}
-            Some(Terminator::NumericForContinue { .. }) => {}
+            Some(Terminator::NumericFor { .. }) => {}
             Some(Terminator::Return(return_stat)) => {
                 let mut return_values = return_stat
                     .values
@@ -529,7 +528,7 @@ impl<'a> Lifter<'a> {
                     .terminator()
                     .as_ref()
                     .unwrap()
-                    .as_numeric_for_continue()
+                    .as_numeric_for()
                     .map(|for_continue| for_continue.exit_branch)
             }))
             .collect::<FxHashSet<_>>();
@@ -636,7 +635,7 @@ impl<'a> Lifter<'a> {
                     .terminator()
                     .as_ref()
                     .unwrap()
-                    .as_numeric_for_continue()
+                    .as_numeric_for()
                     .is_none()
                 {
                     if let Some(loop_exit) = post_dom_tree.predecessors(node).next() {
@@ -715,36 +714,25 @@ impl<'a> Lifter<'a> {
                         link
                     }
                     Terminator::Return(_) => Link::None,
-                    Terminator::NumericForPrep(_) => {
-                        // we want to skip over continue and just lift the bodies
-                        let mut successors = graph.successors(node);
-                        let continue_node = successors.next().unwrap();
-                        assert!(successors.next().is_none());
-                        let for_continue = self
-                            .function
-                            .block(continue_node)
-                            .unwrap()
-                            .terminator()
-                            .as_ref()
-                            .unwrap()
-                            .as_numeric_for_continue()
-                            .unwrap();
-                        let (continue_branch, exit_branch) =
-                            (for_continue.continue_branch, for_continue.exit_branch);
-                        assert!(!visited.contains(&exit_branch));
-                        assert!(!visited.contains(&continue_branch));
-                        stack.push(continue_branch);
-                        stack.push(exit_branch);
+                    Terminator::NumericFor(for_loop) => {
+                        assert!(!visited.contains(&for_loop.continue_branch));
+                        stack.push(for_loop.continue_branch);
+                        let exit_branch =
+                        if !visited.contains(&for_loop.exit_branch) {
+                            stack.push(for_loop.exit_branch);
+                            Some(for_loop.exit_branch)
+                        } else {
+                            None
+                        };
                         Link::NumericFor {
-                            continue_branch,
+                            continue_branch: for_loop.continue_branch,
                             exit_branch,
-                            variable: self.local(&for_continue.variable),
-                            init: self.local(&for_continue.init),
-                            limit: self.local(&for_continue.limit),
-                            step: self.local(&for_continue.step),
+                            variable: self.local(&for_loop.variable),
+                            init: self.local(&for_loop.init),
+                            limit: self.local(&for_loop.limit),
+                            step: self.local(&for_loop.step),
                         }
                     }
-                    Terminator::NumericForContinue(_) => Link::None,
                 },
             );
         }
@@ -822,7 +810,7 @@ impl<'a> Lifter<'a> {
                     limit,
                     step,
                 } => {
-                    let exit_body = blocks.remove(&exit_branch).unwrap();
+                    let exit_body = exit_branch.map(|exit| blocks.remove(&exit).unwrap());
                     let continue_body = blocks.remove(&continue_branch).unwrap();
                     let statements = &mut blocks.get_mut(&node).unwrap().statements;
                     statements.push(
@@ -836,7 +824,9 @@ impl<'a> Lifter<'a> {
                         }
                         .into(),
                     );
-                    statements.extend(exit_body.statements);
+                    if let Some(exit_body) = exit_body {
+                        statements.extend(exit_body.statements);
+                    }
                 }
                 Link::None => {}
             }

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use anyhow::Result;
 
 use cfg_ir::instruction::{
-    Call, Closure, Inner, LoadIndex, NumericForContinue, NumericForPrep, StoreIndex, Terminator,
+    Call, Closure, Inner, LoadIndex, NumericFor, StoreIndex, Terminator,
 };
 use cfg_ir::{
     constant::Constant,
@@ -445,16 +445,11 @@ impl<'a> Lifter<'a> {
                             let limit = self.get_register(a as usize + 1);
                             let step = self.get_register(a as usize + 2);
                             let variable = self.get_register(a as usize + 3);
-                            let continue_node =
+                            let branch  =
                                 self.get_block(instruction_index + sbx as usize - 131070);
                             terminator = Some(
-                                NumericForPrep {
-                                    variable,
-                                    init,
-                                    limit,
-                                    step,
-                                    continue_node,
-                                }
+                                UnconditionalJump(
+                                    branch)
                                 .into(),
                             );
                         }
@@ -468,7 +463,7 @@ impl<'a> Lifter<'a> {
                                 self.get_block(instruction_index + sbx as usize - 131070);
                             let exit_branch = self.get_block(instruction_index + 1);
                             terminator = Some(
-                                NumericForContinue {
+                                NumericFor {
                                     variable,
                                     init,
                                     limit,
