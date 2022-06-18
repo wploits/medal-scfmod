@@ -78,7 +78,7 @@ fn numeric_for_statement<'a>(
     var: Rc<ast_ir::Local>,
     from: ast_ir::Expr<'a>,
     to: ast_ir::Expr<'a>,
-    step: ast_ir::Expr<'a>,
+    step: Option<ast_ir::Expr<'a>>,
     body: ast_ir::Block<'a>,
 ) -> ast_ir::NumericFor<'a> {
     ast_ir::NumericFor {
@@ -86,7 +86,7 @@ fn numeric_for_statement<'a>(
         var,
         from,
         to,
-        step: Some(step),
+        step,
         body,
     }
 }
@@ -771,14 +771,7 @@ impl<'a, 'b> Lifter<'a, 'b> {
                         .unwrap_or_else(|| ast_ir::Block::new(None));
                     let statements = &mut blocks.get_mut(&node).unwrap().statements;
                     statements.push(
-                        ast_ir::NumericFor {
-                            pos: None,
-                            body: continue_body,
-                            from: init.into(),
-                            var: variable.local,
-                            step: Some(step.into()),
-                            to: limit.into(),
-                        }
+                      numeric_for_statement(variable.local, init.into(), limit.into(), Some(step.into()), continue_body)
                         .into(),
                     );
                     if let Some(exit_body) = exit_body {
