@@ -1,4 +1,4 @@
-use std::{rc::Rc, borrow::Cow};
+use std::{borrow::Cow, rc::Rc};
 
 use super::{stat::Block, Local, Pos};
 

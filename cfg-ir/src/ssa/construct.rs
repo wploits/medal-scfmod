@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, rc::Rc, time, iter};
+use std::{borrow::BorrowMut, rc::Rc, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
@@ -60,9 +60,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     .iter()
                     .map(|inner| inner.values_written()),
             )
-            .chain(
-                block.terminator.iter().map(|t| t.values_written())
-            )
+            .chain(block.terminator.iter().map(|t| t.values_written()))
             .flatten()
             .collect::<Vec<_>>();
         for &value in &values_written {
@@ -119,7 +117,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     }
     let phis_inserted = now.elapsed();
     println!("-phi insertation: {:?}", phis_inserted);
-    
+
     fn split_values(function: &mut Function, root: NodeId, dominator_tree: &Graph) {
         let mut visited = FxHashSet::default();
         // TODO: can we use smallvec here?

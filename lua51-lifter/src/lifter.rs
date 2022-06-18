@@ -6,7 +6,7 @@ use std::rc::Rc;
 use anyhow::Result;
 
 use cfg_ir::instruction::{
-    Call, Closure, Inner, LoadIndex, NumericForEnter, NumericForLoop, StoreIndex, Terminator,
+    Call, Closure, Inner, LoadIndex, NumericForContinue, NumericForPrep, StoreIndex, Terminator,
 };
 use cfg_ir::{
     constant::Constant,
@@ -442,47 +442,39 @@ impl<'a> Lifter<'a> {
                     match op_code {
                         OpCode::ForPrep => {
                             let init = self.get_register(a as usize);
+                            let limit = self.get_register(a as usize + 1);
+                            let step = self.get_register(a as usize + 2);
                             let variable = self.get_register(a as usize + 3);
-                            let successor_node = self.get_block(instruction_index + sbx as usize - 131070);
-                            let true_branch = self
-                                .lifted_function
-                                .block(successor_node)
-                                .unwrap()
-                                .terminator()
-                                .as_ref()
-                                .map(|t| {
-                                    if let Terminator::NumericForLoop(n) = t {
-                                        n
-                                    } else {
-                                        unreachable!()
-                                    }
-                                })
-                                .unwrap()
-                                .true_branch;
+                            let continue_node =
+                                self.get_block(instruction_index + sbx as usize - 131070);
                             terminator = Some(
-                                NumericForEnter {
+                                NumericForPrep {
                                     variable,
                                     init,
-                                    node: true_branch,
+                                    limit,
+                                    step,
+                                    continue_node,
                                 }
                                 .into(),
                             );
                         }
                         OpCode::ForLoop => {
+                            let init = self.get_register(a as usize);
                             let limit = self.get_register(a as usize + 1);
                             let step = self.get_register(a as usize + 2);
                             let variable = self.get_register(a as usize + 3);
                             // TODO: why isnt this just + sbx?
-                            let true_branch =
+                            let continue_branch =
                                 self.get_block(instruction_index + sbx as usize - 131070);
-                            let false_branch = self.get_block(instruction_index + 1);
+                            let exit_branch = self.get_block(instruction_index + 1);
                             terminator = Some(
-                                NumericForLoop {
+                                NumericForContinue {
                                     variable,
+                                    init,
                                     limit,
                                     step,
-                                    true_branch,
-                                    false_branch,
+                                    continue_branch,
+                                    exit_branch,
                                 }
                                 .into(),
                             )
