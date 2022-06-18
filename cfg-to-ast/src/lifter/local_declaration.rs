@@ -1,7 +1,7 @@
 use cfg_ir::{
     def_use::DefUse,
     function::Function,
-    instruction::location::{InstructionIndex, InstructionLocation},
+    instruction::location::{InstructionLocation},
     value::ValueId,
 };
 use fxhash::FxHashMap;

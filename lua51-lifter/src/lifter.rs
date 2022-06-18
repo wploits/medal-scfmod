@@ -439,10 +439,6 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::AsBx { op_code, a, sbx } => {
                     match op_code {
                         OpCode::ForPrep => {
-                            let init = self.get_register(a as usize);
-                            let limit = self.get_register(a as usize + 1);
-                            let step = self.get_register(a as usize + 2);
-                            let variable = self.get_register(a as usize + 3);
                             let branch = self.get_block(instruction_index + sbx as usize - 131070);
                             terminator = Some(UnconditionalJump(branch).into());
                         }
