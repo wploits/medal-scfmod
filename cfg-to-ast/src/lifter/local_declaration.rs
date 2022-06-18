@@ -1,8 +1,5 @@
 use cfg_ir::{
-    def_use::DefUse,
-    function::Function,
-    instruction::location::{InstructionLocation},
-    value::ValueId,
+    def_use::DefUse, function::Function, instruction::location::InstructionLocation, value::ValueId,
 };
 use fxhash::FxHashMap;
 use graph::{

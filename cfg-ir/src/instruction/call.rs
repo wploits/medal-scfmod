@@ -42,20 +42,14 @@ impl fmt::Display for Call {
             write!(
                 f,
                 "{} <- ",
-                self.return_values
-                    .iter()
-                    .map(|v| v.to_string())
-                    .join(", "),
+                self.return_values.iter().map(|v| v.to_string()).join(", "),
             )?;
         }
         write!(
             f,
             "{}({})",
             self.function,
-            self.arguments
-                .iter()
-                .map(|v| v.to_string())
-                .join(", ")
+            self.arguments.iter().map(|v| v.to_string()).join(", ")
         )
     }
 }

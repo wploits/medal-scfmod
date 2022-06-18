@@ -1,6 +1,6 @@
-use std::{fs::File, rc::Rc};
 use std::io::Read;
 use std::time;
+use std::{fs::File, rc::Rc};
 
 use clap::Parser;
 

@@ -31,9 +31,9 @@ pub use concat::Concat;
 pub use for_loop::NumericFor;
 
 pub use closure::{Closure, Upvalue};
-pub use load::{LoadConstant, LoadGlobal, LoadUpvalue, LoadIndex, LoadTable};
+pub use load::{LoadConstant, LoadGlobal, LoadIndex, LoadTable, LoadUpvalue};
 pub use r#move::Move;
-pub use store::{StoreGlobal, StoreUpvalue, StoreIndex};
+pub use store::{StoreGlobal, StoreIndex, StoreUpvalue};
 
 use super::value::ValueId;
 use enum_as_inner::EnumAsInner;

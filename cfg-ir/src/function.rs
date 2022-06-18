@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell};
+use std::{cell::RefCell, rc::Rc};
 
 use fxhash::FxHashMap;
 use graph::{Edge, Graph, NodeId};
@@ -6,8 +6,9 @@ use graph::{Edge, Graph, NodeId};
 use crate::{
     block::BasicBlock,
     error::{Error, Result},
-    instruction::{branch_info::BranchInfo, Terminator, location::InstructionLocation},
-    value::ValueId, value_allocator::ValueAllocator,
+    instruction::{branch_info::BranchInfo, location::InstructionLocation, Terminator},
+    value::ValueId,
+    value_allocator::ValueAllocator,
 };
 
 #[derive(Debug, Clone)]

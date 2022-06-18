@@ -1,5 +1,5 @@
 use graph::NodeId;
-use std::{fmt, collections::binary_heap::Iter};
+use std::{collections::binary_heap::Iter, fmt};
 
 use super::{super::value::ValueId, branch_info::BranchInfo, value_info::ValueInfo};
 
@@ -58,7 +58,6 @@ impl fmt::Display for NumericFor {
 
 #[derive(Debug, Clone)]
 pub struct IterativeFor {
-    
     pub continue_branch: NodeId,
     pub exit_branch: NodeId,
 }
