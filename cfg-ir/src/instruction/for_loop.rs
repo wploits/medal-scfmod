@@ -1,5 +1,5 @@
 use graph::NodeId;
-use std::{collections::binary_heap::Iter, fmt};
+use std::fmt;
 
 use super::{super::value::ValueId, branch_info::BranchInfo, value_info::ValueInfo};
 

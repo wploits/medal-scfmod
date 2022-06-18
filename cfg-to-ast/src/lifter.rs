@@ -7,8 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator, UnaryOp,
-        Upvalue,
+        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Terminator, UnaryOp, Upvalue,
     },
     value::ValueId,
 };
@@ -767,7 +766,9 @@ impl<'a, 'b> Lifter<'a, 'b> {
                     step,
                 } => {
                     let exit_body = exit_branch.map(|exit_node| blocks.remove(&exit_node).unwrap());
-                    let continue_body = continue_branch.map(|continue_node| blocks.remove(&continue_node).unwrap()).unwrap_or_else(|| ast_ir::Block::new(None));
+                    let continue_body = continue_branch
+                        .map(|continue_node| blocks.remove(&continue_node).unwrap())
+                        .unwrap_or_else(|| ast_ir::Block::new(None));
                     let statements = &mut blocks.get_mut(&node).unwrap().statements;
                     statements.push(
                         ast_ir::NumericFor {

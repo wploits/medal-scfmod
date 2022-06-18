@@ -1,29 +1,32 @@
-use std::borrow::Cow;
-use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::ops::{Bound, Range, RangeInclusive};
-use std::rc::Rc;
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    ops::{Bound, Range, RangeInclusive},
+    rc::Rc,
+};
 
 use anyhow::Result;
 
-use cfg_ir::instruction::location::{InstructionIndex, InstructionLocation};
-use cfg_ir::instruction::{
-    Call, Closure, Inner, LoadIndex, LoadTable, LoadUpvalue, NumericFor, StoreIndex, StoreUpvalue,
-    Terminator, Upvalue,
-};
-use cfg_ir::value_allocator::ValueAllocator;
 use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        Binary, BinaryOp, Concat, ConditionalJump, LoadConstant, LoadGlobal, Move, Return,
-        StoreGlobal, Unary, UnaryOp, UnconditionalJump,
+        location::{InstructionIndex, InstructionLocation},
+        Binary, BinaryOp, Call, Closure, Concat, ConditionalJump, Inner, LoadConstant, LoadGlobal,
+        LoadIndex, LoadTable, LoadUpvalue, Move, NumericFor, Return, StoreGlobal, StoreIndex,
+        StoreUpvalue, Terminator, Unary, UnaryOp, UnconditionalJump, Upvalue,
     },
     value::ValueId,
+    value_allocator::ValueAllocator,
 };
-use graph::algorithms::dfs_tree;
-use graph::algorithms::dominators::{common_dominator, compute_immediate_dominators, dominators};
-use graph::NodeId;
+use graph::{
+    algorithms::{
+        dfs_tree,
+        dominators::{common_dominator, compute_immediate_dominators, dominators},
+    },
+    NodeId,
+};
 
 use crate::instruction::Instruction;
 
@@ -289,7 +292,7 @@ impl<'a> Lifter<'a> {
 
                         while let Some((_, instruction)) = iterator.peek() {
                             match (instruction.opcode(), instruction) {
-                                (OpCode::LoadConst, Instruction::ABx { op_code, a, bx }) => {
+                                (OpCode::LoadConst, Instruction::ABx { a, bx, .. }) => {
                                     let a = *a as usize;
                                     let dest = self.get_register(a);
                                     let constant = self.get_constant(*bx as usize);
@@ -297,7 +300,7 @@ impl<'a> Lifter<'a> {
                                     instructions.push(LoadConstant { dest, constant }.into());
                                     elems.push(ValueId(a + num_records));
                                 }
-                                (OpCode::NewIndex, Instruction::ABC { op_code, a, b, c }) => {
+                                (OpCode::NewIndex, Instruction::ABC { a, b, c, .. }) => {
                                     let a = *a as usize;
                                     let b = *b as usize;
                                     let object = self.get_register(a);

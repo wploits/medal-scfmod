@@ -1,7 +1,6 @@
 use std::fmt;
 
-use super::super::value::ValueId;
-use super::value_info::ValueInfo;
+use super::{super::value::ValueId, value_info::ValueInfo};
 
 #[derive(Debug, Clone)]
 pub struct Move {

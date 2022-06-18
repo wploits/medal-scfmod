@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::io::Write;
+use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, Labeller};
 
