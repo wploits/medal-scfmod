@@ -1,4 +1,4 @@
-use std::{iter, ops::Deref, rc::Rc, time};
+use std::{rc::Rc, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
@@ -9,7 +9,7 @@ use graph::{
             post_dominator_tree,
         },
     },
-    Graph, NodeId,
+    NodeId,
 };
 
 use crate::{

@@ -21,10 +21,13 @@ pub struct Closure<'cfg> {
 
 impl ValueInfo for Closure<'_> {
     fn values_read(&self) -> Vec<ValueId> {
-        self.upvalues.iter().filter_map(|&u| match u {
-            Upvalue::Value(v) => Some(v),
-            Upvalue::Upvalue(_) => None,
-        }).collect::<Vec<_>>()
+        self.upvalues
+            .iter()
+            .filter_map(|&u| match u {
+                Upvalue::Value(v) => Some(v),
+                Upvalue::Upvalue(_) => None,
+            })
+            .collect::<Vec<_>>()
     }
 
     fn values_written(&self) -> Vec<ValueId> {
@@ -32,10 +35,13 @@ impl ValueInfo for Closure<'_> {
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
-        self.upvalues.iter_mut().filter_map(|u| match u {
-            Upvalue::Value(v) => Some(v),
-            Upvalue::Upvalue(_) => None,
-        }).collect::<Vec<_>>()
+        self.upvalues
+            .iter_mut()
+            .filter_map(|u| match u {
+                Upvalue::Value(v) => Some(v),
+                Upvalue::Upvalue(_) => None,
+            })
+            .collect::<Vec<_>>()
     }
 
     fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
@@ -45,6 +51,11 @@ impl ValueInfo for Closure<'_> {
 
 impl fmt::Display for Closure<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} <- Function (capturing {})", self.dest, self.upvalues.iter().map(|v| format!("{:?}", v)).join(", "))
+        write!(
+            f,
+            "{} <- Function (capturing {})",
+            self.dest,
+            self.upvalues.iter().map(|v| format!("{:?}", v)).join(", ")
+        )
     }
 }

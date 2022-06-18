@@ -2,8 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use super::super::value::ValueId;
-use super::value_info::ValueInfo;
+use super::{super::value::ValueId, value_info::ValueInfo};
 
 #[derive(Debug, Clone)]
 pub struct Call {
@@ -42,20 +41,14 @@ impl fmt::Display for Call {
             write!(
                 f,
                 "{} <- ",
-                self.return_values
-                    .iter()
-                    .map(|v| v.to_string())
-                    .join(", "),
+                self.return_values.iter().map(|v| v.to_string()).join(", "),
             )?;
         }
         write!(
             f,
             "{}({})",
             self.function,
-            self.arguments
-                .iter()
-                .map(|v| v.to_string())
-                .join(", ")
+            self.arguments.iter().map(|v| v.to_string()).join(", ")
         )
     }
 }

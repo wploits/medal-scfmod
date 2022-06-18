@@ -1,10 +1,9 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
-use super::super::constant::Constant;
-use super::super::value::ValueId;
-use super::value_info::ValueInfo;
+use super::{
+    super::{constant::Constant, value::ValueId},
+    value_info::ValueInfo,
+};
 
 #[derive(Debug, Clone)]
 pub struct LoadConstant<'cfg> {

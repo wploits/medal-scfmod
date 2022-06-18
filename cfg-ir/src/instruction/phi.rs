@@ -2,8 +2,7 @@ use fxhash::FxHashMap;
 use graph::NodeId;
 use std::fmt;
 
-use super::super::value::ValueId;
-use super::value_info::ValueInfo;
+use super::{super::value::ValueId, value_info::ValueInfo};
 
 // A pseudo instruction sometimes used when blocks merge in SSA form
 #[derive(Debug, Clone)]

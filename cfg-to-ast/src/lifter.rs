@@ -7,8 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator, UnaryOp,
-        Upvalue,
+        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Terminator, UnaryOp, Upvalue,
     },
     value::ValueId,
 };
@@ -189,7 +188,7 @@ enum Link {
     Break,
     NumericFor {
         exit_branch: Option<NodeId>,
-        continue_branch: NodeId,
+        continue_branch: Option<NodeId>,
         variable: ast_ir::ExprLocal,
         init: ast_ir::ExprLocal,
         limit: ast_ir::ExprLocal,
@@ -350,12 +349,14 @@ impl<'a, 'b> Lifter<'a, 'b> {
                                 UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
                                 UnaryOp::Len => ast_ir::UnaryOp::Len,
                             },
-                        ).into(),
-                    ).into()
+                        )
+                        .into(),
+                    )
+                    .into(),
                 ),
-                Inner::LoadGlobal(load_global) => body.statements.push(
-                    assign_local(&load_global.dest, global(&load_global.name).into()).into(),
-                ),
+                Inner::LoadGlobal(load_global) => body
+                    .statements
+                    .push(assign_local(&load_global.dest, global(&load_global.name).into()).into()),
                 Inner::LoadIndex(load_index) => body.statements.push(
                     assign_local(
                         &load_index.dest,
@@ -363,23 +364,21 @@ impl<'a, 'b> Lifter<'a, 'b> {
                             pos: None,
                             expr: Box::new(self.local(&load_index.object).into()),
                             indices: vec![self.local(&load_index.key).into()],
-                        }.into(),
-                    ).into()
+                        }
+                        .into(),
+                    )
+                    .into(),
                 ),
                 Inner::LoadTable(load_table) => {
-                    let pairs = load_table.elems
+                    let pairs = load_table
+                        .elems
                         .iter()
                         .map(|v| (None, self.local(v).into()))
                         .collect();
 
                     body.statements.push(
-                        assign_local(
-                            &load_table.dest,
-                            ast_ir::Table {
-                                pos: None,
-                                pairs,
-                            }.into(),
-                        ).into()
+                        assign_local(&load_table.dest, ast_ir::Table { pos: None, pairs }.into())
+                            .into(),
                     );
                 }
                 Inner::Move(mov) => body
@@ -390,9 +389,11 @@ impl<'a, 'b> Lifter<'a, 'b> {
                         ast_ir::Global {
                             pos: None,
                             name: store_global.name.clone(),
-                        }.into(),
+                        }
+                        .into(),
                         vec![self.local(&store_global.value).into()],
-                    ).into(),
+                    )
+                    .into(),
                 ),
                 Inner::StoreIndex(store_index) => body.statements.push(
                     assign(
@@ -666,8 +667,12 @@ impl<'a, 'b> Lifter<'a, 'b> {
                     }
                     Terminator::Return(_) => Link::None,
                     Terminator::NumericFor(for_loop) => {
-                        assert!(!visited.contains(&for_loop.continue_branch));
-                        stack.push(for_loop.continue_branch);
+                        let continue_branch = if !visited.contains(&for_loop.continue_branch) {
+                            stack.push(for_loop.continue_branch);
+                            Some(for_loop.continue_branch)
+                        } else {
+                            None
+                        };
                         let exit_branch = if !visited.contains(&for_loop.exit_branch) {
                             stack.push(for_loop.exit_branch);
                             Some(for_loop.exit_branch)
@@ -675,7 +680,7 @@ impl<'a, 'b> Lifter<'a, 'b> {
                             None
                         };
                         Link::NumericFor {
-                            continue_branch: for_loop.continue_branch,
+                            continue_branch,
                             exit_branch,
                             variable: self.local(&for_loop.variable),
                             init: self.local(&for_loop.init),
@@ -760,8 +765,10 @@ impl<'a, 'b> Lifter<'a, 'b> {
                     limit,
                     step,
                 } => {
-                    let exit_body = exit_branch.map(|exit| blocks.remove(&exit).unwrap());
-                    let continue_body = blocks.remove(&continue_branch).unwrap();
+                    let exit_body = exit_branch.map(|exit_node| blocks.remove(&exit_node).unwrap());
+                    let continue_body = continue_branch
+                        .map(|continue_node| blocks.remove(&continue_node).unwrap())
+                        .unwrap_or_else(|| ast_ir::Block::new(None));
                     let statements = &mut blocks.get_mut(&node).unwrap().statements;
                     statements.push(
                         ast_ir::NumericFor {
