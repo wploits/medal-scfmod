@@ -39,7 +39,7 @@ pub struct Lifter<'a> {
     lifted_function: Function<'a>,
     register_map: HashMap<usize, ValueId>,
     constant_map: HashMap<usize, Constant<'a>>,
-    closures: Vec<Option<Rc<Function<'a>>>>,
+    closures: HashMap<usize, Rc<Function<'a>>>,
     location_map: HashMap<usize, InstructionLocation>,
 }
 
@@ -57,7 +57,7 @@ impl<'a> Lifter<'a> {
             lifted_function: Function::new(value_allocator),
             register_map: HashMap::new(),
             constant_map: HashMap::new(),
-            closures: vec![None; f_list[function_id].functions.len()],
+            closures: HashMap::new(),
             location_map: HashMap::new(),
         }
     }
@@ -574,8 +574,8 @@ impl<'a> Lifter<'a> {
                                 _ => unreachable!(),
                             }
                         }
-                        let lifted_child = if let Some(lifted_child) = &self.closures[d as usize] {
-                            lifted_child.clone()
+                        let lifted_child = if self.closures.contains_key(&child_id) {
+                            self.closures[&child_id].clone()
                         } else {
                             let lifted_child = Lifter::new(
                                 &self.function_list,
@@ -584,7 +584,7 @@ impl<'a> Lifter<'a> {
                                 self.lifted_function.value_allocator.clone())
                                 .lift_function()
                                 .map(Rc::new)?;
-                            self.closures[d as usize] = Some(lifted_child.clone());
+                            self.closures.insert(child_id, lifted_child.clone());
                             lifted_child
                         };
 
