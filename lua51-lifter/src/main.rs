@@ -49,6 +49,8 @@ fn main() -> anyhow::Result<()> {
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
+    cfg_ir::value::ensure_write::ensure_writes(&mut cfg);
+
     let now = time::Instant::now();
     ssa::construct::construct(&mut cfg)?;
     let ssa_constructed = now.elapsed();

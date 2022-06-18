@@ -1,4 +1,4 @@
-use std::{fmt, borrow::Cow};
+use std::{borrow::Cow, fmt};
 
 // A struct that represents a constant value.
 #[derive(Debug, Clone)]

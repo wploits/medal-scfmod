@@ -3,6 +3,7 @@ pub mod location;
 pub(crate) mod branch_info;
 pub mod value_info;
 
+mod for_loop;
 mod phi;
 mod terminator;
 
@@ -11,7 +12,6 @@ mod unary;
 
 mod call;
 mod concat;
-mod forloop;
 
 mod closure;
 mod load;
@@ -28,7 +28,7 @@ pub use unary::{Unary, UnaryOp};
 
 pub use call::Call;
 pub use concat::Concat;
-pub use forloop::{NumericForEnter, NumericForLoop};
+pub use for_loop::NumericFor;
 
 pub use closure::{Closure, Upvalue};
 pub use load::{LoadConstant, LoadGlobal, LoadUpvalue, LoadIndex};

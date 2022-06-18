@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use cfg_ir::instruction::location::{InstructionLocation, InstructionIndex};
 use cfg_ir::instruction::{
-    Call, Closure, Inner, LoadIndex, NumericForEnter, NumericForLoop, StoreIndex, Terminator, LoadUpvalue, StoreUpvalue, Upvalue,
+    Call, Closure, Inner, LoadIndex, NumericFor, StoreIndex, Terminator, LoadUpvalue, StoreUpvalue, Upvalue,
 };
 use cfg_ir::value_allocator::ValueAllocator;
 use cfg_ir::{
@@ -487,48 +487,26 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::AsBx { op_code, a, sbx } => {
                     match op_code {
                         OpCode::ForPrep => {
-                            let init = self.get_register(a as usize);
-                            let variable = self.get_register(a as usize + 3);
-                            let successor_node = self.get_block(instruction_index + sbx as usize - 131070);
-                            let true_branch = self
-                                .lifted_function
-                                .block(successor_node)
-                                .unwrap()
-                                .terminator()
-                                .as_ref()
-                                .map(|t| {
-                                    if let Terminator::NumericForLoop(n) = t {
-                                        n
-                                    } else {
-                                        unreachable!()
-                                    }
-                                })
-                                .unwrap()
-                                .true_branch;
-                            terminator = Some(
-                                NumericForEnter {
-                                    variable,
-                                    init,
-                                    node: true_branch,
-                                }
-                                .into(),
-                            );
+                            let branch = self.get_block(instruction_index + sbx as usize - 131070);
+                            terminator = Some(UnconditionalJump(branch).into());
                         }
                         OpCode::ForLoop => {
+                            let init = self.get_register(a as usize);
                             let limit = self.get_register(a as usize + 1);
                             let step = self.get_register(a as usize + 2);
                             let variable = self.get_register(a as usize + 3);
                             // TODO: why isnt this just + sbx?
-                            let true_branch =
+                            let continue_branch =
                                 self.get_block(instruction_index + sbx as usize - 131070);
-                            let false_branch = self.get_block(instruction_index + 1);
+                            let exit_branch = self.get_block(instruction_index + 1);
                             terminator = Some(
-                                NumericForLoop {
+                                NumericFor {
                                     variable,
+                                    init,
                                     limit,
                                     step,
-                                    true_branch,
-                                    false_branch,
+                                    continue_branch,
+                                    exit_branch,
                                 }
                                 .into(),
                             )
