@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use nom::{error::*, number::complete::le_u32, *};
+use nom::{*, error::*, number::complete::le_u32};
 
 use crate::op_code::OpCode;
 
@@ -71,6 +71,14 @@ impl Instruction {
                 input,
                 ErrorKind::Switch,
             ))),
+        }
+    }
+
+    pub fn opcode(&self) -> OpCode {
+        *match self {
+            Instruction::ABC { op_code, .. } => op_code,
+            Instruction::ABx { op_code, .. } => op_code,
+            Instruction::AsBx { op_code, .. } => op_code,
         }
     }
 

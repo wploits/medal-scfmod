@@ -116,10 +116,22 @@ impl Formatter {
                 }
             }
             Expr::Table(table_expr) => {
+                let mut index = 0;
+
                 self.print("{");
-                for (_key, _value) in &table_expr.pairs {
-                    // TODO: table formatting
-                    todo!();
+                for (key, value) in &table_expr.pairs {
+                    if let Some(key) = key {
+                        self.format_expression(key);
+                        self.print(" = ");
+                    }
+
+                    self.format_expression(value);
+
+                    if index + 1 != table_expr.pairs.len() {
+                        self.print(", ");
+                    }
+
+                    index += 1;
                 }
                 self.print("}")
             }
