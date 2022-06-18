@@ -57,7 +57,7 @@ impl<'a> Lifter<'a> {
                             .entry(insn_index + 2)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
-                    OpCode::Equal | OpCode::LesserThan | OpCode::LesserOrEqual | OpCode::Test => {
+                    OpCode::Equal | OpCode::LesserThan | OpCode::LesserOrEqual | OpCode::Test | OpCode::TableForLoop => {
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
@@ -155,6 +155,7 @@ impl<'a> Lifter<'a> {
                         | OpCode::LesserOrEqual
                         | OpCode::Test
                         | OpCode::Return
+                        | OpCode::TableForLoop
                 ),
             },
             BytecodeInstruction::ABx { .. } => false,
@@ -233,16 +234,6 @@ impl<'a> Lifter<'a> {
 
                         instructions.push(StoreIndex { value, object, key }.into());
                     }
-                    /*OpCode::NewTable => {
-                        let dest = self.get_register(a as usize);
-
-                        let mut builder = Builder::new(&mut self.lifted_function);
-                        builder
-                            .block(block_index)
-                            .unwrap()
-                            .load_table(dest)
-                            .unwrap();
-                    }*/
                     OpCode::Add
                     | OpCode::Sub
                     | OpCode::Mul
@@ -366,6 +357,15 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                     }
+                    /*OpCode::TableForLoop => {
+                        let iterator = self.get_register(a as usize);
+                        let values = self.get_register_incl_range(a as usize..=a as usize + c as usize);
+                        terminator = Some(
+                            TableForLoop {
+
+                            }
+                        );
+                    }*/
                     OpCode::Return => {
                         let mut values = Vec::new();
                         if b > 1 {
@@ -462,7 +462,7 @@ impl<'a> Lifter<'a> {
                                 }
                                 .into(),
                             )
-                        }
+                        },
                         OpCode::Jump => {
                             let branch = self.get_block(instruction_index + sbx as usize - 131070);
                             terminator = Some(UnconditionalJump(branch).into());
