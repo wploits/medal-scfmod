@@ -94,7 +94,7 @@ impl<'a> Lifter<'a> {
                     }
                     OpCode::LOP_FORNPREP => {
                         self.blocks
-                            .entry(insn_index)
+                            .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
                         self.blocks
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
@@ -665,13 +665,18 @@ impl<'a> Lifter<'a> {
                         terminator = Some(UnconditionalJump(branch).into());
                     }
                     OpCode::LOP_FORNLOOP => {
-                        unimplemented!();
-
                         let limit = self.get_register(a as usize);
                         let step = self.get_register(a as usize + 1);
                         let init = self.get_register(a as usize + 2);
-                        let variable = self.get_register(a as usize + 3);
-                        // variable (a+3) doesnt always existin luau, figure out how to handle this?
+
+                        let (init_reg, vari_reg) = (a as usize + 2, a as usize + 3);
+                        let variable = 
+                            match self.function_list[self.function].instructions[instruction_index.wrapping_add(d as usize) + 1] {
+                                BytecodeInstruction::ABC { op_code: OpCode::LOP_MOVE, a, b, .. } 
+                                    if a as usize == vari_reg && b as usize == init_reg => self.get_register(a as usize + 3),
+                                _ => self.get_register(a as usize + 2)
+                            };
+                        
                         let continue_branch = self
                             .get_block(instruction_index.wrapping_add(d as usize) + 1);
                         let exit_branch = self.get_block(instruction_index + 1);
