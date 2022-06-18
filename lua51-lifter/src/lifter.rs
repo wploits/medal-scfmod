@@ -575,6 +575,10 @@ impl<'a> Lifter<'a> {
             terminator = Some(UnconditionalJump(branch).into());
         }
 
+        if terminator.is_some() {
+            self.location_map.insert(block_end, InstructionLocation { node: cfg_block_id, index: InstructionIndex::Terminator });
+        }
+
         Ok((instructions, terminator))
     }
 
@@ -649,6 +653,23 @@ impl<'a> Lifter<'a> {
                             }
                         }
                     },
+                    BytecodeInstruction::ABC { op_code: OpCode::Return, .. } => {
+                        let values = open_values.iter().map(|(&v, _)| v).collect::<Vec<_>>();
+                        for value in values {
+                            let open_locations = open_values.remove(&value).unwrap();
+                            let open_location = if open_locations.len() == 1 {
+                                open_locations[0]
+                            } else {
+                                // TODO: make this take an iter
+                                let node = common_dominator(&dominators, open_locations.iter().map(|l| l.node).collect::<Vec<_>>()).unwrap();
+                                InstructionLocation { node, index: InstructionIndex::Terminator }
+                            };
+                            let close_location = self.location_map[&instruction_index];
+
+                            let reg = self.get_register(value);
+                            self.lifted_function.upvalue_open_ranges.entry(reg).or_insert_with(Vec::new).push((open_location, close_location));
+                        }
+                    }
                     BytecodeInstruction::ABC { op_code: OpCode::Close, a, .. } => {
                         let values = open_values.range((Bound::Unbounded, Bound::Included(a as usize))).map(|(&v, _)| v).collect::<Vec<_>>();
                         for value in values {
