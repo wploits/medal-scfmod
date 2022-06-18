@@ -35,6 +35,36 @@ impl fmt::Display for StoreGlobal<'_> {
 }
 
 #[derive(Debug, Clone)]
+pub struct StoreUpvalue {
+    pub upvalue_index: usize,
+    pub value: ValueId,
+}
+
+impl ValueInfo for StoreUpvalue {
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![self.value]
+    }
+
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![]
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.value]
+    }
+
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
+    }
+}
+
+impl fmt::Display for StoreUpvalue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "up[{}] <- {}", self.upvalue_index, self.value)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct StoreIndex {
     pub value: ValueId,
     pub object: ValueId,

@@ -66,6 +66,36 @@ impl fmt::Display for LoadGlobal<'_> {
 }
 
 #[derive(Debug, Clone)]
+pub struct LoadUpvalue {
+    pub dest: ValueId,
+    pub upvalue_index: usize,
+}
+
+impl ValueInfo for LoadUpvalue {
+    fn values_read(&self) -> Vec<ValueId> {
+        vec![]
+    }
+
+    fn values_written(&self) -> Vec<ValueId> {
+        vec![self.dest]
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![]
+    }
+
+    fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
+        vec![&mut self.dest]
+    }
+}
+
+impl fmt::Display for LoadUpvalue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} <- up[{}]", self.dest, self.upvalue_index)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LoadIndex {
     pub dest: ValueId,
     pub object: ValueId,

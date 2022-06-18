@@ -1,10 +1,13 @@
-use std::{borrow::BorrowMut, rc::Rc, time, iter};
+use std::{iter, ops::Deref, rc::Rc, time};
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
     algorithms::{
         dfs_tree,
-        dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
+        dominators::{
+            compute_dominance_frontiers, compute_immediate_dominators, dominator_tree,
+            post_dominator_tree,
+        },
     },
     Graph, NodeId,
 };
@@ -60,9 +63,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                     .iter()
                     .map(|inner| inner.values_written()),
             )
-            .chain(
-                block.terminator.iter().map(|t| t.values_written())
-            )
+            .chain(block.terminator.iter().map(|t| t.values_written()))
             .flatten()
             .collect::<Vec<_>>();
         for &value in &values_written {
@@ -71,6 +72,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 .or_insert_with(Vec::new)
                 .push(node);
         }
+        use std::borrow::BorrowMut;
         node_to_values_written
             .entry(node)
             .or_insert_with(|| {
@@ -86,6 +88,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let mut value_to_nodes_with_phi = FxHashMap::<ValueId, FxHashSet<NodeId>>::default();
     for (&value, nodes) in &mut value_written_to_nodes {
         while let Some(node) = nodes.pop() {
+            use std::borrow::BorrowMut;
             let nodes_with_phi = value_to_nodes_with_phi
                 .entry(value)
                 .or_insert_with(FxHashSet::default)
@@ -119,90 +122,113 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     }
     let phis_inserted = now.elapsed();
     println!("-phi insertation: {:?}", phis_inserted);
-    
-    fn split_values(function: &mut Function, root: NodeId, dominator_tree: &Graph) {
-        let mut visited = FxHashSet::default();
-        // TODO: can we use smallvec here?
-        let mut stack = vec![(root, Rc::new(FxHashMap::<_, Vec<_>>::default()))];
 
-        while let Some((node, mut value_stacks)) = stack.pop() {
-            if !visited.contains(&node) {
-                visited.insert(node);
-                for index in function.block_mut(node).unwrap().indices() {
-                    if !matches!(index, InstructionIndex::Phi(_)) {
-                        let block = function.block_mut(node).unwrap();
-                        for (read_value_index, value) in
-                            block.values_read(index).into_iter().enumerate()
-                        {
-                            if let Some(value_stack) = value_stacks.get(&value) {
-                                *block.values_read_mut(index)[read_value_index] =
-                                    *value_stack.last().unwrap();
-                            }
-                        }
-                    }
-
-                    let mut values_to_replace = FxHashMap::default();
-                    for (written_value_index, value) in function
-                        .block_mut(node)
-                        .unwrap()
-                        .values_written(index)
-                        .into_iter()
-                        .enumerate()
+    let now = time::Instant::now();
+    // split values
+    let dominator_tree = dominator_tree(function.graph(), &immediate_dominators)?;
+    let post_dominator_tree = post_dominator_tree(function.graph(), entry, &dfs)?;
+    let mut visited = FxHashSet::default();
+    // TODO: can we use smallvec here?
+    let mut stack = vec![(entry, Rc::new(FxHashMap::<_, Vec<_>>::default()))];
+    while let Some((node, mut value_stacks)) = stack.pop() {
+        if !visited.contains(&node) {
+            visited.insert(node);
+            for index in function.block_mut(node).unwrap().indices() {
+                if !matches!(index, InstructionIndex::Phi(_)) {
+                    let block = function.block_mut(node).unwrap();
+                    for (read_value_index, value) in
+                        block.values_read(index).into_iter().enumerate()
                     {
-                        if value_stacks.contains_key(&value) {
-                            let new_value = function.new_value();
-                            Rc::make_mut(&mut value_stacks)
-                                .get_mut(&value)
-                                .unwrap()
-                                .push(new_value);
-
-                            values_to_replace
-                                .entry(node)
-                                .or_insert_with(Vec::new)
-                                .push((written_value_index, new_value));
-                        } else {
-                            Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
-                        }
-                    }
-
-                    for (node, values) in values_to_replace {
-                        let block = function.block_mut(node).unwrap();
-                        for (written_value_index, value) in values {
-                            *block.values_written_mut(index)[written_value_index] = value;
+                        if let Some(value_stack) = value_stacks.get(&value) {
+                            *block.values_read_mut(index)[read_value_index] =
+                                *value_stack.last().unwrap();
                         }
                     }
                 }
 
-                for successor in function.graph().successors(node).collect::<Vec<_>>() {
-                    let block = function.block_mut(successor).unwrap();
-
-                    for phi in &mut block.phi_instructions {
-                        let old_value = phi.incoming_values[&node];
-                        if let Some(value_stack) = value_stacks.get(&old_value) {
-                            phi.incoming_values
-                                .insert(node, *value_stack.last().unwrap());
+                let mut values_to_replace = FxHashMap::default();
+                for (written_value_index, value) in function
+                    .block_mut(node)
+                    .unwrap()
+                    .values_written(index)
+                    .into_iter()
+                    .enumerate()
+                {
+                    if let Some(ranges) = function.upvalue_open_ranges.get(&value) {
+                        let mut is_open = false;
+                        for &(open_location, close_location) in ranges {
+                            let a = if open_location.node == node {
+                                open_location.index < index
+                            } else {
+                                dominator_tree
+                                    .pre_order(open_location.node)?
+                                    .contains(&node)
+                            };
+                            let b = if close_location.node == node {
+                                close_location.index > index
+                            } else {
+                                post_dominator_tree
+                                    .pre_order(close_location.node)?
+                                    .contains(&node)
+                            };
+                            if a && b {
+                                is_open = true;
+                                break;
+                            }
                         }
+                        if is_open {
+                            if !value_stacks.contains_key(&value) {
+                                Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
+                            }
+                            continue;
+                        }
+                    }
+
+                    if value_stacks.contains_key(&value) {
+                        let new_value = function.value_allocator.borrow_mut().new_value();
+                        Rc::make_mut(&mut value_stacks)
+                            .get_mut(&value)
+                            .unwrap()
+                            .push(new_value);
+
+                        values_to_replace
+                            .entry(node)
+                            .or_insert_with(Vec::new)
+                            .push((written_value_index, new_value));
+                    } else {
+                        Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
+                    }
+                }
+
+                for (node, values) in values_to_replace {
+                    let block = function.block_mut(node).unwrap();
+                    for (written_value_index, value) in values {
+                        *block.values_written_mut(index)[written_value_index] = value;
                     }
                 }
             }
 
-            for child_block in dominator_tree.successors(node) {
-                if !visited.contains(&child_block) {
-                    stack.push((node, value_stacks.clone()));
-                    stack.push((child_block, value_stacks));
-                    break;
+            for successor in function.graph().successors(node).collect::<Vec<_>>() {
+                let block = function.block_mut(successor).unwrap();
+
+                for phi in &mut block.phi_instructions {
+                    let old_value = phi.incoming_values[&node];
+                    if let Some(value_stack) = value_stacks.get(&old_value) {
+                        phi.incoming_values
+                            .insert(node, *value_stack.last().unwrap());
+                    }
                 }
             }
         }
+
+        for child_block in dominator_tree.successors(node) {
+            if !visited.contains(&child_block) {
+                stack.push((node, value_stacks.clone()));
+                stack.push((child_block, value_stacks));
+                break;
+            }
+        }
     }
-
-    let now = time::Instant::now();
-
-    split_values(
-        function,
-        entry,
-        &dominator_tree(function.graph(), &immediate_dominators)?,
-    );
 
     let split_values_time = now.elapsed();
     println!("-split values: {:?}", split_values_time);

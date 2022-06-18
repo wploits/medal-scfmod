@@ -1,13 +1,13 @@
-use std::{rc::Rc, borrow::Cow};
+use std::{borrow::Cow, rc::Rc};
 
 use fxhash::{FxHashMap, FxHashSet};
 
-use ast_ir::Expr;
+use ast_ir::{Expr, ExprLocal};
 use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        BinaryOp, ConditionalJump, Inner, location::InstructionIndex, Return, Terminator, UnaryOp,
+        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Return, Terminator, UnaryOp, Upvalue,
     },
     value::ValueId,
 };
@@ -16,7 +16,7 @@ use graph::{
         back_edges, dfs_tree,
         dominators::{compute_immediate_dominators, post_dominator_tree},
     },
-    NodeId, Edge,
+    Edge, NodeId,
 };
 use local_declaration::Declaration;
 
@@ -75,7 +75,13 @@ fn while_statement<'a>(condition: ast_ir::Expr<'a>, body: ast_ir::Block<'a>) -> 
     }
 }
 
-fn numeric_for_statement<'a>(var: Rc<ast_ir::Local>, from: ast_ir::Expr<'a>, to: ast_ir::Expr<'a>, step: ast_ir::Expr<'a>, body: ast_ir::Block<'a>) -> ast_ir::NumericFor<'a> {
+fn numeric_for_statement<'a>(
+    var: Rc<ast_ir::Local>,
+    from: ast_ir::Expr<'a>,
+    to: ast_ir::Expr<'a>,
+    step: ast_ir::Expr<'a>,
+    body: ast_ir::Block<'a>,
+) -> ast_ir::NumericFor<'a> {
     ast_ir::NumericFor {
         pos: None,
         var,
@@ -103,17 +109,20 @@ fn constant<'a>(constant: &'a Constant) -> ast_ir::ExprLit<'a> {
 }
 
 fn global(name: &str) -> ast_ir::Global {
-    ast_ir::Global { pos: None, name: Cow::Borrowed(name) }
-}
-
-fn local_expression(local: Rc<ast_ir::Local>) -> ast_ir::ExprLocal {
-    ast_ir::ExprLocal {
+    ast_ir::Global {
         pos: None,
-        local,
+        name: Cow::Borrowed(name),
     }
 }
 
-fn call_expression<'a>(value: ast_ir::Expr<'a>, arguments: Vec<ast_ir::Expr<'a>>) -> ast_ir::Call<'a> {
+fn local_expression(local: Rc<ast_ir::Local>) -> ast_ir::ExprLocal {
+    ast_ir::ExprLocal { pos: None, local }
+}
+
+fn call_expression<'a>(
+    value: ast_ir::Expr<'a>,
+    arguments: Vec<ast_ir::Expr<'a>>,
+) -> ast_ir::Call<'a> {
     ast_ir::Call {
         pos: None,
         arguments,
@@ -136,7 +145,11 @@ fn binary_expression<'a>(
 }
 
 fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
-    fn _binary_expression_fold<'a>(mut v: Vec<Expr<'a>>, lhs: Expr<'a>, op: ast_ir::BinaryOp) -> Expr<'a> {
+    fn _binary_expression_fold<'a>(
+        mut v: Vec<Expr<'a>>,
+        lhs: Expr<'a>,
+        op: ast_ir::BinaryOp,
+    ) -> Expr<'a> {
         if v.is_empty() {
             return lhs;
         }
@@ -151,7 +164,7 @@ fn binary_expression_fold(mut v: Vec<Expr>, op: ast_ir::BinaryOp) -> Expr {
                 lhs: Box::new(lhs),
                 rhs,
             }
-                .into(),
+            .into(),
             op,
         )
     }
@@ -179,7 +192,7 @@ enum Link {
 
 #[derive(Debug)]
 enum Loop {
-    NumericFor{
+    NumericFor {
         loop_exit: NodeId,
         var: Rc<ast_ir::Local>,
         from: Rc<ast_ir::Local>,
@@ -189,28 +202,15 @@ enum Loop {
     While(NodeId),
 }
 
-struct Lifter<'a> {
+struct Lifter<'a, 'b> {
     function: &'a Function<'a>,
-    locals: FxHashMap<ValueId, Rc<ast_ir::Local>>,
+    locals: &'b FxHashMap<ValueId, Rc<ast_ir::Local>>,
+    upvalues: Vec<Rc<ast_ir::Local>>,
 }
 
-impl<'a> Lifter<'a> {
-    pub fn new(function: &'a Function) -> Self {
-        Self {
-            function,
-            locals: function
-                .values()
-                .iter()
-                .map(|&v| {
-                    (
-                        v,
-                        Rc::new(ast_ir::Local {
-                            name: v.to_string(),
-                        }),
-                    )
-                })
-                .collect::<FxHashMap<_, _>>(),
-        }
+impl<'a, 'b> Lifter<'a, 'b> {
+    pub fn new(function: &'a Function, locals: &'b FxHashMap<ValueId, Rc<ast_ir::Local>>, upvalues: Vec<Rc<ast_ir::Local>>) -> Self {
+        Self { function, locals, upvalues }
     }
 
     fn local(&self, value: &ValueId) -> ast_ir::ExprLocal {
@@ -238,7 +238,7 @@ impl<'a> Lifter<'a> {
                 .collect::<FxHashSet<_>>();
             for value in forward_declarations {
                 body.statements.push(
-                    assign_local(self.local(&value), constant(&Constant::Nil).into(), true).into(),
+                    assign_local(self.local(value), constant(&Constant::Nil).into(), true).into(),
                 )
             }
             declarations
@@ -256,7 +256,8 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn lift_closure(&self, function: &'a cfg_ir::function::Function) -> ast_ir::Closure<'a> {
+    fn lift_closure(&self, closure: &'a cfg_ir::instruction::Closure) -> ast_ir::Closure<'a> {
+        let function = closure.function.as_ref();
         let args = function
             .parameters
             .iter()
@@ -271,7 +272,10 @@ impl<'a> Lifter<'a> {
             pos: None,
             self_: None,
             args,
-            block: lift(function).body,
+            block: lift(function, self.locals, closure.upvalues.iter().map(|u| match u {
+                Upvalue::Value(v) => self.locals[v].clone(),
+                Upvalue::Upvalue(uv) => self.upvalues[*uv].clone()
+            }).collect()).body,
         }
     }
 
@@ -290,9 +294,8 @@ impl<'a> Lifter<'a> {
                 &mut body,
             );
 
-            let assign_local = |value, expr| {
-                assign_local(self.local(value), expr, local_prefixes.contains(value))
-            };
+            let assign_local =
+                |value, expr| assign_local(self.local(value), expr, local_prefixes.contains(value));
 
             match instruction {
                 Inner::LoadConstant(load_constant) => body.statements.push(
@@ -300,8 +303,11 @@ impl<'a> Lifter<'a> {
                         &load_constant.dest,
                         constant(&load_constant.constant).into(),
                     )
-                        .into(),
+                    .into(),
                 ),
+                // TODO: upvalues[b] might be invalid in constructed bytecode
+                Inner::LoadUpvalue(load_upvalue) => body.statements.push(self::assign_local(self.local(&load_upvalue.dest), ExprLocal { pos: None, local: self.upvalues[load_upvalue.upvalue_index].clone() }.into(), local_prefixes.contains(&load_upvalue.dest)).into()),
+                Inner::StoreUpvalue(store_upvalue) => body.statements.push(self::assign_local(ExprLocal { pos: None, local: self.upvalues[store_upvalue.upvalue_index].clone() }, self.local(&store_upvalue.value).into(), false).into()),
                 Inner::Binary(binary) => body.statements.push(
                     assign_local(
                         &binary.dest,
@@ -322,9 +328,9 @@ impl<'a> Lifter<'a> {
                                 BinaryOp::LogicalOr => ast_ir::BinaryOp::LogicalOr,
                             },
                         )
-                            .into(),
-                    )
                         .into(),
+                    )
+                    .into(),
                 ),
                 Inner::Unary(unary) => body.statements.push(
                     assign_local(
@@ -336,23 +342,24 @@ impl<'a> Lifter<'a> {
                                 UnaryOp::LogicalNot => ast_ir::UnaryOp::LogicalNot,
                                 UnaryOp::Len => ast_ir::UnaryOp::Len,
                             },
-                        ).into(),
-                    ).into()
+                        )
+                        .into(),
+                    )
+                    .into(),
                 ),
-                Inner::LoadGlobal(load_global) => body.statements.push(
-                    assign_local(&load_global.dest, global(&load_global.name).into()).into(),
-                ),
+                Inner::LoadGlobal(load_global) => body
+                    .statements
+                    .push(assign_local(&load_global.dest, global(&load_global.name).into()).into()),
                 Inner::LoadIndex(load_index) => body.statements.push(
                     assign_local(
                         &load_index.dest,
-                        Expr::Index(
-                            ast_ir::Index {
-                                pos: None,
-                                expr: Box::new(self.local(&load_index.object).into()),
-                                indices: vec![self.local(&load_index.key).into()],
-                            }
-                        ),
-                    ).into()
+                        Expr::Index(ast_ir::Index {
+                            pos: None,
+                            expr: Box::new(self.local(&load_index.object).into()),
+                            indices: vec![self.local(&load_index.key).into()],
+                        }),
+                    )
+                    .into(),
                 ),
                 Inner::Move(mov) => body
                     .statements
@@ -362,9 +369,11 @@ impl<'a> Lifter<'a> {
                         ast_ir::Global {
                             pos: None,
                             name: store_global.name.clone(),
-                        }.into(),
+                        }
+                        .into(),
                         vec![self.local(&store_global.value).into()],
-                    ).into()
+                    )
+                    .into(),
                 ),
                 Inner::StoreIndex(store_index) => body.statements.push(
                     assign(
@@ -372,9 +381,11 @@ impl<'a> Lifter<'a> {
                             pos: None,
                             expr: Box::new(self.local(&store_index.object).into()),
                             indices: vec![self.local(&store_index.key).into()],
-                        }.into(),
-                        vec![self.local(&store_index.value).into()]
-                    ).into()
+                        }
+                        .into(),
+                        vec![self.local(&store_index.value).into()],
+                    )
+                    .into(),
                 ),
                 Inner::Call(call) => {
                     let function = self.local(&call.function).into();
@@ -412,12 +423,12 @@ impl<'a> Lifter<'a> {
                             &concat.dest,
                             binary_expression_fold(operands, ast_ir::BinaryOp::Concat),
                         )
-                            .into(),
+                        .into(),
                     );
                 }
                 Inner::Closure(closure) => {
                     let dest = &closure.dest;
-                    let closure = self.lift_closure(closure.function.as_ref()).into();
+                    let closure = self.lift_closure(closure).into();
 
                     body.statements.push(assign_local(dest, closure).into());
                 }
@@ -430,17 +441,19 @@ impl<'a> Lifter<'a> {
             Some(Terminator::ConditionalJump(ConditionalJump { condition, .. })) => body
                 .statements
                 .push(if_statement(self.local(condition)).into()),
-            Some(Terminator::NumericForEnter { .. }) => {},
-            Some(Terminator::NumericForLoop { .. }) => {},
+            Some(Terminator::NumericForEnter { .. }) => {}
+            Some(Terminator::NumericForLoop { .. }) => {}
             Some(Terminator::Return(return_stat)) => {
-                let mut return_values = return_stat.values.iter().map(|v| self.local(v).into()).collect::<Vec<_>>();
+                let mut return_values = return_stat
+                    .values
+                    .iter()
+                    .map(|v| self.local(v).into())
+                    .collect::<Vec<_>>();
                 if return_stat.variadic {
                     assert!(variadic_expr.is_some());
                     return_values.push(variadic_expr.take().unwrap());
                 }
-                body.statements.push(
-                    return_statement(return_values).into(),
-                );
+                body.statements.push(return_statement(return_values).into());
             }
             None => panic!("block has no terminator"),
         }
@@ -476,9 +489,17 @@ impl<'a> Lifter<'a> {
         let graph = self.function.graph();
 
         let back_edges = back_edges(graph, root).unwrap();
-        let mut back_edges_map = FxHashMap::with_capacity_and_hasher(back_edges.len(), Default::default());
-        for &Edge {source, destination} in &back_edges {
-            back_edges_map.entry(source).or_insert_with(FxHashSet::default).insert(destination);
+        let mut back_edges_map =
+            FxHashMap::with_capacity_and_hasher(back_edges.len(), Default::default());
+        for &Edge {
+            source,
+            destination,
+        } in &back_edges
+        {
+            back_edges_map
+                .entry(source)
+                .or_insert_with(FxHashSet::default)
+                .insert(destination);
         }
 
         let loop_headers = back_edges
@@ -543,9 +564,18 @@ impl<'a> Lifter<'a> {
                     let mut num_for_loop = None;
                     let mut num_for_entry = None;
                     for predecessor_node in predecessors {
-                        match self.function.block(predecessor_node).unwrap().terminator().as_ref().unwrap() {
+                        match self
+                            .function
+                            .block(predecessor_node)
+                            .unwrap()
+                            .terminator()
+                            .as_ref()
+                            .unwrap()
+                        {
                             Terminator::NumericForEnter(e) => num_for_entry = Some(e.clone()),
-                            Terminator::NumericForLoop(l) => num_for_loop = Some((predecessor_node, l.clone())),
+                            Terminator::NumericForLoop(l) => {
+                                num_for_loop = Some((predecessor_node, l.clone()))
+                            }
                             _ => break,
                         }
                     }
@@ -555,7 +585,16 @@ impl<'a> Lifter<'a> {
                         let num_for_entry = num_for_entry.unwrap();
                         assert!(!visited.contains(&loop_exit));
 
-                        loops.insert(node, Loop::NumericFor{ loop_exit, var: self.locals[&num_for_loop.variable].clone(), from: self.locals[&num_for_entry.init].clone(), to: self.locals[&num_for_loop.limit].clone(), step: self.locals[&num_for_loop.step].clone() });
+                        loops.insert(
+                            node,
+                            Loop::NumericFor {
+                                loop_exit,
+                                var: self.locals[&num_for_loop.variable].clone(),
+                                from: self.locals[&num_for_entry.init].clone(),
+                                to: self.locals[&num_for_loop.limit].clone(),
+                                step: self.locals[&num_for_loop.step].clone(),
+                            },
+                        );
                         stops.insert(loop_exit);
                         stack.push(loop_exit);
                         done = true;
@@ -725,15 +764,27 @@ impl<'a> Lifter<'a> {
                             .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
                         blocks.insert(node, new_block);
                     }
-                    Loop::NumericFor { loop_exit, var, from, to, step } => {
+                    Loop::NumericFor {
+                        loop_exit,
+                        var,
+                        from,
+                        to,
+                        step,
+                    } => {
                         let mut new_block = ast_ir::Block::new(None);
-                        let num_for_stat = numeric_for_statement(var.clone(), Expr::Local(local_expression(from.clone())), Expr::Local(local_expression(to.clone())), Expr::Local(local_expression(step.clone())), blocks.remove(&node).unwrap());
+                        let num_for_stat = numeric_for_statement(
+                            var.clone(),
+                            Expr::Local(local_expression(from.clone())),
+                            Expr::Local(local_expression(to.clone())),
+                            Expr::Local(local_expression(step.clone())),
+                            blocks.remove(&node).unwrap(),
+                        );
                         new_block.statements.push(num_for_stat.into());
                         new_block
                             .statements
                             .extend(blocks.remove(loop_exit).unwrap().statements.into_iter());
                         blocks.insert(node, new_block);
-                    },
+                    }
                 }
             }
         }
@@ -747,8 +798,28 @@ impl<'a> Lifter<'a> {
     }
 }
 
-pub fn lift<'a>(function: &'a Function) -> ast_ir::Function<'a> {
+pub fn lift<'a>(function: &'a Function, locals: &FxHashMap<ValueId, Rc<ast_ir::Local>>, upvalues: Vec<Rc<ast_ir::Local>>) -> ast_ir::Function<'a> {
     let entry = function.entry().unwrap();
-    let mut lifter = Lifter::new(function);
+
+    let mut lifter = Lifter::new(function, &locals, upvalues);
     lifter.lift(entry)
+}
+
+pub fn lift_chunk<'a>(root_function: &'a Function) -> ast_ir::Function<'a> {
+    let locals = root_function
+        .value_allocator
+        .borrow()
+        .values()
+        .iter()
+        .map(|&v| {
+            (
+                v,
+                Rc::new(ast_ir::Local {
+                    name: v.to_string(),
+                }),
+            )
+        })
+        .collect::<FxHashMap<_, _>>();
+
+    lift(root_function, &locals, Vec::new())
 }

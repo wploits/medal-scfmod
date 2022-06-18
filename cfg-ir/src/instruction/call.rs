@@ -1,5 +1,7 @@
 use std::fmt;
 
+use itertools::Itertools;
+
 use super::super::value::ValueId;
 use super::value_info::ValueInfo;
 
@@ -43,7 +45,6 @@ impl fmt::Display for Call {
                 self.return_values
                     .iter()
                     .map(|v| v.to_string())
-                    .collect::<Vec<_>>()
                     .join(", "),
             )?;
         }
@@ -54,7 +55,6 @@ impl fmt::Display for Call {
             self.arguments
                 .iter()
                 .map(|v| v.to_string())
-                .collect::<Vec<_>>()
                 .join(", ")
         )
     }

@@ -30,10 +30,10 @@ pub use call::Call;
 pub use concat::Concat;
 pub use forloop::{NumericForEnter, NumericForLoop};
 
-pub use closure::Closure;
-pub use load::{LoadConstant, LoadGlobal, LoadIndex};
+pub use closure::{Closure, Upvalue};
+pub use load::{LoadConstant, LoadGlobal, LoadUpvalue, LoadIndex};
 pub use r#move::Move;
-pub use store::{StoreGlobal, StoreIndex};
+pub use store::{StoreGlobal, StoreUpvalue, StoreIndex};
 
 use super::value::ValueId;
 use enum_as_inner::EnumAsInner;
@@ -48,9 +48,11 @@ pub enum Inner<'cfg> {
     Unary(Unary),
     LoadConstant(LoadConstant<'cfg>),
     LoadGlobal(LoadGlobal<'cfg>),
+    LoadUpvalue(LoadUpvalue),
     LoadIndex(LoadIndex),
     Move(Move),
     StoreGlobal(StoreGlobal<'cfg>),
+    StoreUpvalue(StoreUpvalue),
     StoreIndex(StoreIndex),
     Concat(Concat),
     Call(Call),
@@ -64,9 +66,11 @@ impl fmt::Display for Inner<'_> {
             Self::Unary(v) => write!(f, "{}", v),
             Self::LoadConstant(v) => write!(f, "{}", v),
             Self::LoadGlobal(v) => write!(f, "{}", v),
+            Self::LoadUpvalue(v) => write!(f, "{}", v),
             Self::LoadIndex(v) => write!(f, "{}", v),
             Self::Move(v) => write!(f, "{}", v),
             Self::StoreGlobal(v) => write!(f, "{}", v),
+            Self::StoreUpvalue(v) => write!(f, "{}", v),
             Self::StoreIndex(v) => write!(f, "{}", v),
             Self::Concat(v) => write!(f, "{}", v),
             Self::Call(v) => write!(f, "{}", v),
