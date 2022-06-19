@@ -95,22 +95,25 @@ fn break_statement() -> ast_ir::Break {
     ast_ir::Break { pos: None }
 }
 
-fn constant<'a>(constant: &'a Constant) -> ast_ir::ExprLit<'a> {
+fn constant<'a>(constant: &Constant) -> ast_ir::ExprLit<'a> {
     ast_ir::ExprLit {
         pos: None,
         lit: match constant {
             Constant::Nil => ast_ir::Lit::Nil,
             Constant::Boolean(v) => ast_ir::Lit::Boolean(*v),
             Constant::Number(v) => ast_ir::Lit::Number(*v),
-            Constant::String(v) => ast_ir::Lit::String(Cow::Borrowed(v)),
+            // TODO: cow strings
+            // Constant::String(v) => ast_ir::Lit::String(Cow::Borrowed(v)),
+            Constant::String(v) => ast_ir::Lit::String(Cow::Owned(v.to_string())),
         },
     }
 }
 
-fn global(name: &str) -> ast_ir::Global {
+fn global<'a, 'b>(name: &'a str) -> ast_ir::Global<'b> {
     ast_ir::Global {
         pos: None,
-        name: Cow::Borrowed(name),
+        // TODO: cow strings
+        name: Cow::Owned(name.to_string()),
     }
 }
 
@@ -203,15 +206,15 @@ enum Loop {
     While(Option<NodeId>),
 }
 
-struct Lifter<'a, 'b> {
-    function: &'a Function<'a>,
+struct Lifter<'a, 'b, 'c> {
+    function: &'c Function<'a>,
     locals: &'b FxHashMap<ValueId, Rc<ast_ir::Local>>,
     upvalues: Vec<Rc<ast_ir::Local>>,
 }
 
-impl<'a, 'b> Lifter<'a, 'b> {
+impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
     pub fn new(
-        function: &'a Function,
+        function: &'c Function<'a>,
         locals: &'b FxHashMap<ValueId, Rc<ast_ir::Local>>,
         upvalues: Vec<Rc<ast_ir::Local>>,
     ) -> Self {
@@ -229,8 +232,8 @@ impl<'a, 'b> Lifter<'a, 'b> {
         }
     }
 
-    fn lift_closure(&self, closure: &'a cfg_ir::instruction::Closure) -> ast_ir::Closure<'a> {
-        let function = closure.function.as_ref();
+    fn lift_closure(&self, closure: &'c cfg_ir::instruction::Closure<'a>) -> ast_ir::Closure<'a> {
+        let function = closure.function.borrow();
         let args = function
             .parameters
             .iter()
@@ -246,7 +249,7 @@ impl<'a, 'b> Lifter<'a, 'b> {
             self_: None,
             args,
             block: lift(
-                function,
+                &function,
                 self.locals,
                 closure
                     .upvalues
@@ -267,7 +270,7 @@ impl<'a, 'b> Lifter<'a, 'b> {
         local_declarations: FxHashMap<usize, &Vec<ValueId>>,
     ) -> ast_ir::Block<'a> {
         let mut body = ast_ir::Block::new(None);
-        let block = self.function.block(node).unwrap();
+        let block = self.function.block(node).unwrap().clone();
         let mut variadic_expr = None;
         for (index, instruction) in block.inner_instructions.iter().enumerate() {
             let assign_local = |value, expr| {
@@ -816,8 +819,8 @@ impl<'a, 'b> Lifter<'a, 'b> {
     }
 }
 
-pub fn lift<'a>(
-    function: &'a Function,
+pub fn lift<'a, 'b>(
+    function: &'b Function<'a>,
     locals: &FxHashMap<ValueId, Rc<ast_ir::Local>>,
     upvalues: Vec<Rc<ast_ir::Local>>,
 ) -> ast_ir::Function<'a> {
@@ -827,7 +830,7 @@ pub fn lift<'a>(
     lifter.lift(entry)
 }
 
-pub fn lift_chunk<'a>(root_function: &'a Function) -> ast_ir::Function<'a> {
+pub fn lift_chunk<'a>(root_function: &'a Function<'a>) -> ast_ir::Function<'a> {
     let locals = root_function
         .value_allocator
         .borrow()

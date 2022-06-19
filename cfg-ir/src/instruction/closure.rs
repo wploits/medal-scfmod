@@ -1,4 +1,4 @@
-use std::{fmt, rc::Rc};
+use std::{fmt, rc::Rc, cell::RefCell};
 
 use itertools::Itertools;
 
@@ -15,7 +15,7 @@ pub enum Upvalue {
 #[derive(Debug, Clone)]
 pub struct Closure<'cfg> {
     pub dest: ValueId,
-    pub function: Rc<Function<'cfg>>,
+    pub function: Rc<RefCell<Function<'cfg>>>,
     pub upvalues: Vec<Upvalue>,
 }
 

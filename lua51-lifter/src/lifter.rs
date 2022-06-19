@@ -3,7 +3,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap},
     ops::{Bound, Range, RangeInclusive},
-    rc::Rc,
+    rc::Rc, iter,
 };
 use std::collections::VecDeque;
 
@@ -19,7 +19,7 @@ use cfg_ir::{
         StoreUpvalue, Terminator, Unary, UnaryOp, UnconditionalJump, Upvalue,
     },
     value::ValueId,
-    value_allocator::ValueAllocator,
+    value_allocator::ValueAllocator, dot,
 };
 use graph::{
     algorithms::{
@@ -40,8 +40,10 @@ pub struct Lifter<'a> {
     function: &'a BytecodeFunction<'a>,
     blocks: HashMap<usize, NodeId>,
     lifted_function: Function<'a>,
+    // TODO: make this a ref
+    lifted_descendants: Vec<Rc<RefCell<Function<'a>>>>,
     location_map: HashMap<usize, InstructionLocation>,
-    closures: Vec<Option<Rc<Function<'a>>>>,
+    closures: Vec<Option<Rc<RefCell<Function<'a>>>>>,
     register_map: HashMap<usize, ValueId>,
     constant_map: HashMap<usize, Constant<'a>>,
 }
@@ -59,6 +61,7 @@ impl<'a> Lifter<'a> {
             closures: vec![None; function.closures.len()],
             register_map: HashMap::new(),
             constant_map: HashMap::new(),
+            lifted_descendants: Vec::new(),
         }
     }
 
@@ -209,9 +212,10 @@ impl<'a> Lifter<'a> {
             .enumerate()
             .peekable();
 
+        let mut instruction_index = block_start;
         while let Some((block_instruction_index, instruction)) = iterator.next() {
             let old_instructions_len = instructions.len();
-            let instruction_index = block_start + block_instruction_index;
+            instruction_index = block_start + block_instruction_index;
             match *instruction {
                 BytecodeInstruction::ABC { op_code, a, b, c } => match op_code {
                     OpCode::Move => {
@@ -552,11 +556,12 @@ impl<'a> Lifter<'a> {
                         let lifted_child = if let Some(lifted_child) = &self.closures[bx as usize] {
                             lifted_child.clone()
                         } else {
-                            let lifted_child =
+                            let (lifted_child, lifted_descendants) =
                                 Lifter::new(child, self.lifted_function.value_allocator.clone())
-                                    .lift_function()
-                                    .map(Rc::new)?;
+                                    .lift_function()?;
+                            let lifted_child = Rc::new(RefCell::new(lifted_child));
                             self.closures[bx as usize] = Some(lifted_child.clone());
+                            self.lifted_descendants.extend(iter::once(lifted_child.clone()).chain(lifted_descendants.into_iter()));
                             lifted_child
                         };
 
@@ -622,7 +627,7 @@ impl<'a> Lifter<'a> {
 
         if terminator.is_some() {
             self.location_map.insert(
-                block_end,
+                instruction_index,
                 InstructionLocation {
                     node: cfg_block_id,
                     index: InstructionIndex::Terminator,
@@ -633,7 +638,7 @@ impl<'a> Lifter<'a> {
         Ok((instructions, terminator))
     }
 
-    pub fn lift_function(mut self) -> Result<Function<'a>> {
+    pub fn lift_function(mut self) -> Result<(Function<'a>, Vec<Rc<RefCell<Function<'a>>>>)> {
         self.discover_blocks()?;
 
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();
@@ -684,6 +689,8 @@ impl<'a> Lifter<'a> {
 
         self.lifted_function.set_entry(self.get_block(0))?;
 
+        //dot::render_to(&self.lifted_function, &mut std::io::stdout())?;
+
         let dfs = dfs_tree(
             self.lifted_function.graph(),
             self.lifted_function.entry().unwrap(),
@@ -701,6 +708,10 @@ impl<'a> Lifter<'a> {
         .unwrap();
         let mut open_values = BTreeMap::new();
         for (block_start, block_end) in block_ranges.into_iter().rev() {
+            let node = self.get_block(block_start);
+            if !dfs.node_exists(node) {
+                continue;
+            }
             let mut it = self.function.code[block_start..=block_end]
                 .iter()
                 .enumerate();
@@ -744,6 +755,7 @@ impl<'a> Lifter<'a> {
                             let open_location = if open_locations.len() == 1 {
                                 open_locations[0]
                             } else {
+                                //dot::render_to(&self.lifted_function, &mut std::io::stdout())?;
                                 // TODO: make this take an iter
                                 let node = common_dominator(
                                     &dominators,
@@ -755,6 +767,7 @@ impl<'a> Lifter<'a> {
                                     index: InstructionIndex::Terminator,
                                 }
                             };
+                            //println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
                             let close_location = self.location_map[&instruction_index];
 
                             let reg = self.get_register(value);
@@ -764,6 +777,7 @@ impl<'a> Lifter<'a> {
                                 .or_insert_with(Vec::new)
                                 .push((open_location, close_location));
                         }
+                        break
                     }
                     BytecodeInstruction::ABC {
                         op_code: OpCode::Close,
@@ -790,8 +804,8 @@ impl<'a> Lifter<'a> {
                                     index: InstructionIndex::Terminator,
                                 }
                             };
-                            println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
-                            println!("{} {:?}", instruction_index, self.location_map);
+                            // println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
+                            // println!("{} {:?}", instruction_index, self.location_map);
                             let close_location = self.location_map[&instruction_index];
 
                             let reg = self.get_register(value);
@@ -814,6 +828,6 @@ impl<'a> Lifter<'a> {
             }
         }
 
-        Ok(self.lifted_function)
+        Ok((self.lifted_function, self.lifted_descendants))
     }
 }

@@ -1,8 +1,8 @@
-use std::{fs::File, io::Read, rc::Rc, time};
+use std::{fs::File, io::Read, rc::Rc, time, iter, cell::RefMut};
 
 use clap::Parser;
 
-use cfg_ir::{dot, ssa};
+use cfg_ir::{dot, ssa, function::Function};
 use lifter::Lifter;
 
 mod chunk;
@@ -39,34 +39,48 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    let mut cfg = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
+    let (mut main, descendants) = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
     let lifted = now.elapsed();
-    dot::render_to(&cfg, &mut std::io::stdout())?;
+
+    process_function(&mut main)?;
+    for function in descendants.into_iter() {
+        process_function(&mut function.borrow_mut())?;
+    }
+
+    dot::render_to(&main, &mut std::io::stdout())?;
     println!("lifting: {:?}", lifted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
-    cfg_ir::value::ensure_write::ensure_writes(&mut cfg);
-
     let now = time::Instant::now();
-    ssa::construct::construct(&mut cfg)?;
-    let ssa_constructed = now.elapsed();
-    dot::render_to(&cfg, &mut std::io::stdout())?;
-    println!("ssa construction: {:?}", ssa_constructed);
-
-    let now = time::Instant::now();
-    ssa::destruct::destruct(&mut cfg);
-    let ssa_destructed = now.elapsed();
-    dot::render_to(&cfg, &mut std::io::stdout())?;
-    println!("ssa destruction: {:?}", ssa_destructed);
-
-    let now = time::Instant::now();
-    let output = cfg_to_ast::lift(&cfg);
+    let output = cfg_to_ast::lift(&main);
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
 
     println!("{}", output);
+
+    Ok(())
+}
+
+fn process_function(cfg: &mut Function) -> anyhow::Result<()> {
+    let now = time::Instant::now();
+    cfg_ir::value::ensure_write::ensure_writes(cfg);
+    let writes_ensured = now.elapsed();
+    //dot::render_to(cfg, &mut std::io::stdout())?;
+    println!("ensure writes: {:?}", writes_ensured);
+
+    let now = time::Instant::now();
+    ssa::construct::construct(cfg)?;
+    let ssa_constructed = now.elapsed();
+    //dot::render_to(cfg, &mut std::io::stdout())?;
+    println!("ssa construction: {:?}", ssa_constructed);
+
+    let now = time::Instant::now();
+    ssa::destruct::destruct(cfg);
+    let ssa_destructed = now.elapsed();
+    //dot::render_to(cfg, &mut std::io::stdout())?;
+    println!("ssa destruction: {:?}", ssa_destructed);
 
     Ok(())
 }
