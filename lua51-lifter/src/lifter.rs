@@ -210,6 +210,7 @@ impl<'a> Lifter<'a> {
             .peekable();
 
         while let Some((block_instruction_index, instruction)) = iterator.next() {
+            let old_instructions_len = instructions.len();
             let instruction_index = block_start + block_instruction_index;
             match *instruction {
                 BytecodeInstruction::ABC { op_code, a, b, c } => match op_code {
@@ -489,6 +490,22 @@ impl<'a> Lifter<'a> {
                         break;
                     }
                     OpCode::Close => {}
+                    OpCode::Self_ => {
+                        // TODO: MethodCall instruction
+                        let method = self.get_register(a as usize);
+                        let self_ = self.get_register(a as usize + 1);
+                        let object = self.get_register(b as usize);
+                        let key = self.get_register_or_constant(c as usize, cfg_block_id);
+
+                        instructions.push(Move { dest: self_, source: object }.into());
+                        instructions.push(LoadIndex { dest: method, object, key }.into());
+                    }
+                    OpCode::SetList => {
+                        // TODO: setlist
+                        if c == 0 {
+                            iterator.next();
+                        }
+                    }
                     /*OpCode::VarArg => {
                         vararg_index = Some(a as usize);
                     }*/
@@ -604,7 +621,7 @@ impl<'a> Lifter<'a> {
                     instruction_index,
                     InstructionLocation {
                         node: cfg_block_id,
-                        index: InstructionIndex::Inner(instructions.len() - 1),
+                        index: InstructionIndex::Inner(old_instructions_len),
                     },
                 );
             }
@@ -785,6 +802,7 @@ impl<'a> Lifter<'a> {
                                     index: InstructionIndex::Terminator,
                                 }
                             };
+                            println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
                             let close_location = self.location_map[&instruction_index];
 
                             let reg = self.get_register(value);
