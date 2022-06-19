@@ -25,7 +25,7 @@ use cfg_ir::{
 
         Binary, BinaryOp, ConditionalJump, LoadConstant, Move, UnconditionalJump,
         Unary, UnaryOp, LoadGlobal, StoreGlobal, LoadIndex, Return, Concat, NumericFor,
-        Call, Closure, StoreIndex, LoadUpvalue, StoreUpvalue, LoadTable,
+        Call, Closure, StoreIndex, LoadUpvalue, StoreUpvalue, LoadTable, IterativeFor,
 
         Inner, Terminator, Upvalue
     },
@@ -95,7 +95,7 @@ impl<'a> Lifter<'a> {
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
-                    OpCode::LOP_FORNPREP => {
+                    OpCode::LOP_FORNPREP | OpCode::LOP_FORGPREP_NEXT => {
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
@@ -114,9 +114,16 @@ impl<'a> Lifter<'a> {
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
                             .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     }
+                    OpCode::LOP_FORGLOOP_NEXT => {
+                        self.blocks
+                            .entry(insn_index + 1)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                        self.blocks
+                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    }
                     OpCode::LOP_FORGPREP |
-                    OpCode::LOP_FORGLOOP | OpCode::LOP_FORGPREP_INEXT | OpCode::LOP_FORGLOOP_INEXT |
-                    OpCode::LOP_FORGLOOP_NEXT => { // unsure how to handle these right now
+                    OpCode::LOP_FORGLOOP | OpCode::LOP_FORGPREP_INEXT | OpCode::LOP_FORGLOOP_INEXT => { // unsure how to handle these right now
                         todo!();
                     }
                     _ => {}
@@ -205,6 +212,7 @@ impl<'a> Lifter<'a> {
                 OpCode::LOP_FORGLOOP | 
                 OpCode::LOP_FORGPREP_INEXT | 
                 OpCode::LOP_FORGLOOP_INEXT |
+                OpCode::LOP_FORGPREP_NEXT |
                 OpCode::LOP_FORGLOOP_NEXT => true,
                 _ => false
             },
@@ -673,7 +681,7 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_FORNPREP => {
                         let branch = self.get_block(instruction_index.wrapping_add(d as usize));
                         terminator = Some(UnconditionalJump(branch).into());
-                    }
+                    } 
                     OpCode::LOP_FORNLOOP => {
                         let limit = self.get_register(a as usize);
                         let step = self.get_register(a as usize + 1);
@@ -705,8 +713,31 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_FORGLOOP => unimplemented!(),
                     OpCode::LOP_FORGPREP_INEXT => unimplemented!(),
                     OpCode::LOP_FORGLOOP_INEXT => unimplemented!(),
-                    OpCode::LOP_FORGPREP_NEXT => unimplemented!(),
-                    OpCode::LOP_FORGLOOP_NEXT => unimplemented!(),
+                    OpCode::LOP_FORGPREP_NEXT => {
+                        let branch = self.get_block(instruction_index.wrapping_add(d as usize) + 1);
+                        terminator = Some(UnconditionalJump(branch).into());
+                    }
+                    OpCode::LOP_FORGLOOP_NEXT => {
+                        let gen = self.get_register(a as usize);
+                        let state = self.get_register(a as usize + 1);
+                        let index = self.get_register(a as usize + 2);
+                        let vars = vec![ self.get_register(a as usize + 3), self.get_register(a as usize + 4) ];
+
+                        let continue_branch = self
+                            .get_block(instruction_index.wrapping_add(d as usize) + 1);
+                        let exit_branch = self.get_block(instruction_index + 1);
+                        terminator = Some(
+                            IterativeFor {
+                                generator: gen,
+                                state,
+                                index,
+                                variables: vars,
+                                continue_branch,
+                                exit_branch,
+                            }
+                            .into(),
+                        )
+                    } 
                     //OpCode::LOP_DUPCLOSURE => unimplemented!(),
                     OpCode::LOP_JUMPIFEQK | OpCode::LOP_JUMPIFNOTEQK => {
                         let (lhs, (load, rhs)) = (

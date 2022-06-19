@@ -3,6 +3,7 @@ use enum_dispatch::enum_dispatch;
 use graph::NodeId;
 use std::fmt;
 
+use super::IterativeFor;
 use super::{super::value::ValueId, branch_info::BranchInfo, value_info::ValueInfo};
 
 use super::for_loop::NumericFor;
@@ -151,6 +152,7 @@ pub enum Terminator {
     ConditionalJump(ConditionalJump),
     UnconditionalJump(UnconditionalJump),
     NumericFor(NumericFor),
+    IterativeFor(IterativeFor),
 }
 
 impl fmt::Display for Terminator {
@@ -160,6 +162,7 @@ impl fmt::Display for Terminator {
             Terminator::ConditionalJump(x) => x.fmt(f),
             Terminator::UnconditionalJump(x) => x.fmt(f),
             Terminator::NumericFor(x) => x.fmt(f),
+            Terminator::IterativeFor(x) => x.fmt(f),
         }
     }
 }

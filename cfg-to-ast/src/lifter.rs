@@ -91,6 +91,21 @@ fn numeric_for_statement<'a>(
     }
 }
 
+fn iterative_for_statement<'a>(
+    gen: ast_ir::Expr<'a>,
+    state: ast_ir::Expr<'a>,
+    idx: ast_ir::Expr<'a>,
+    vars: Vec<Rc<ast_ir::Local>>,
+    body: ast_ir::Block<'a>
+) -> ast_ir::IterativeFor<'a> {
+    ast_ir::IterativeFor {
+        pos: None,
+        vars,
+        values: vec![gen, state, idx],
+        body
+    }
+}
+
 fn break_statement() -> ast_ir::Break {
     ast_ir::Break { pos: None }
 }
@@ -197,6 +212,14 @@ enum Link {
         init: ast_ir::ExprLocal,
         limit: ast_ir::ExprLocal,
         step: ast_ir::ExprLocal,
+    },
+    IterativeFor {
+        exit_branch: Option<NodeId>,
+        continue_branch: Option<NodeId>,
+        generator: ast_ir::ExprLocal,
+        state: ast_ir::ExprLocal,
+        index: ast_ir::ExprLocal,
+        variables: Vec<ast_ir::ExprLocal>,
     },
     None,
 }
@@ -466,6 +489,7 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                 .statements
                 .push(if_statement(self.local(condition)).into()),
             Some(Terminator::NumericFor { .. }) => {}
+            Some(Terminator::IterativeFor { .. }) => {}
             Some(Terminator::Return(return_stat)) => {
                 let mut return_values = return_stat
                     .values
@@ -692,6 +716,28 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                             step: self.local(&for_loop.step),
                         }
                     }
+                    Terminator::IterativeFor(for_loop) => {
+                        let continue_branch = if !visited.contains(&for_loop.continue_branch) {
+                            stack.push(for_loop.continue_branch);
+                            Some(for_loop.continue_branch)
+                        } else {
+                            None
+                        };
+                        let exit_branch = if !visited.contains(&for_loop.exit_branch) {
+                            stack.push(for_loop.exit_branch);
+                            Some(for_loop.exit_branch)
+                        } else {
+                            None
+                        };
+                        Link::IterativeFor {
+                            continue_branch,
+                            exit_branch,
+                            generator: self.local(&for_loop.generator),
+                            state: self.local(&for_loop.state),
+                            index: self.local(&for_loop.index),
+                            variables: for_loop.variables.iter().map(|&x| self.local(&x)).collect(),
+                        }
+                    }
                 },
             );
         }
@@ -777,6 +823,33 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                     statements.push(
                       numeric_for_statement(variable.local, init.into(), limit.into(), Some(step.into()), continue_body)
                         .into(),
+                    );
+                    if let Some(exit_body) = exit_body {
+                        statements.extend(exit_body.statements);
+                    }
+                }
+                Link::IterativeFor { 
+                    exit_branch, 
+                    continue_branch, 
+                    generator, 
+                    state, 
+                    index, 
+                    variables 
+                } => {
+                    let exit_body = exit_branch.map(|exit_node| blocks.remove(&exit_node).unwrap());
+                    let continue_body = continue_branch
+                        .map(|continue_node| blocks.remove(&continue_node).unwrap())
+                        .unwrap_or_else(|| ast_ir::Block::new(None));
+                    let statements = &mut blocks.get_mut(&node).unwrap().statements;
+                    statements.push(
+                        iterative_for_statement(
+                            generator.into(),
+                            state.into(), 
+                            index.into(),
+                            variables.into_iter().map(|x| x.local).collect(),
+                            continue_body
+                        )
+                        .into()
                     );
                     if let Some(exit_body) = exit_body {
                         statements.extend(exit_body.statements);

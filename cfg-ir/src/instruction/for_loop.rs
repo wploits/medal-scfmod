@@ -58,6 +58,10 @@ impl fmt::Display for NumericFor {
 
 #[derive(Debug, Clone)]
 pub struct IterativeFor {
+    pub generator: ValueId,
+    pub state: ValueId,
+    pub index: ValueId,
+    pub variables: Vec<ValueId>,
     pub continue_branch: NodeId,
     pub exit_branch: NodeId,
 }
@@ -74,7 +78,9 @@ impl BranchInfo for IterativeFor {
 
 impl ValueInfo for IterativeFor {
     fn values_read(&self) -> Vec<ValueId> {
-        vec![]
+        let mut v = vec![self.generator, self.state, self.index];
+        v.extend_from_slice(&self.variables);
+        v
     }
 
     fn values_written(&self) -> Vec<ValueId> {
@@ -82,10 +88,20 @@ impl ValueInfo for IterativeFor {
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
-        vec![]
+        vec![&mut self.generator, &mut self.state, &mut self.index]
     }
 
     fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
         vec![]
+    }
+}
+
+impl fmt::Display for IterativeFor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "for {{{} vars}} in {} {} {} {{{}}} or break {{{}}}",
+            self.variables.len(), self.generator, self.state, self.index, self.continue_branch, self.exit_branch
+        )
     }
 }
