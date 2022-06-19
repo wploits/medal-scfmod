@@ -5,7 +5,6 @@ use std::{
     ops::{Bound, Range, RangeInclusive},
     rc::Rc, iter,
 };
-use std::collections::VecDeque;
 
 use anyhow::Result;
 
@@ -206,7 +205,7 @@ impl<'a> Lifter<'a> {
         let mut instructions = Vec::new();
         let mut terminator = None;
         let mut top_index = None;
-        let mut self_queue = VecDeque::new();
+        let mut self_map = HashMap::new();
         let mut iterator = self.function.code[block_start..=block_end]
             .iter()
             .enumerate()
@@ -437,8 +436,8 @@ impl<'a> Lifter<'a> {
                         let return_values = (a as u16..a as u16 + c - 1)
                             .map(|v| self.get_register(v as usize))
                             .collect::<Vec<_>>();
-                        let (function, table) = match self_queue.pop_back() {
-                            Some(method) => (method, Some(function)),
+                        let (function, table) = match self_map.get(&function) {
+                            Some(method) => (*method, Some(function)),
                             None => (function, None)
                         };
 
@@ -460,9 +459,10 @@ impl<'a> Lifter<'a> {
                         }.into());
                     }
                     OpCode::Self_ => {
+                        let function = self.get_register(a as usize);
                         let method = self.get_register_or_constant(c as usize, cfg_block_id);
 
-                        self_queue.push_back(method);
+                        self_map.insert(function, method);
                     }
                     /*OpCode::TableForLoop => {
                         let iterator = self.get_register(a as usize);
