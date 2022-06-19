@@ -2,14 +2,16 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     collections::{BTreeMap, HashMap},
+    iter,
     ops::{Bound, Range, RangeInclusive},
-    rc::Rc, iter,
+    rc::Rc,
 };
 
 use anyhow::Result;
 
 use cfg_ir::{
     constant::Constant,
+    dot,
     function::Function,
     instruction::{
         location::{InstructionIndex, InstructionLocation},
@@ -18,8 +20,9 @@ use cfg_ir::{
         StoreUpvalue, Terminator, Unary, UnaryOp, UnconditionalJump, Upvalue,
     },
     value::ValueId,
-    value_allocator::ValueAllocator, dot,
+    value_allocator::ValueAllocator,
 };
+use fxhash::{FxHashMap, FxHashSet};
 use graph::{
     algorithms::{
         dfs_tree,
@@ -37,14 +40,14 @@ use super::{
 
 pub struct Lifter<'a> {
     function: &'a BytecodeFunction<'a>,
-    blocks: HashMap<usize, NodeId>,
+    blocks: FxHashMap<usize, NodeId>,
     lifted_function: Function<'a>,
     // TODO: make this a ref
     lifted_descendants: Vec<Rc<RefCell<Function<'a>>>>,
-    location_map: HashMap<usize, InstructionLocation>,
+    location_map: FxHashMap<usize, InstructionLocation>,
     closures: Vec<Option<Rc<RefCell<Function<'a>>>>>,
-    register_map: HashMap<usize, ValueId>,
-    constant_map: HashMap<usize, Constant<'a>>,
+    register_map: FxHashMap<usize, ValueId>,
+    constant_map: FxHashMap<usize, Constant<'a>>,
 }
 
 impl<'a> Lifter<'a> {
@@ -54,12 +57,12 @@ impl<'a> Lifter<'a> {
     ) -> Self {
         Self {
             function,
-            blocks: HashMap::new(),
+            blocks: FxHashMap::default(),
             lifted_function: Function::new(value_allocator),
-            location_map: HashMap::new(),
+            location_map: FxHashMap::default(),
             closures: vec![None; function.closures.len()],
-            register_map: HashMap::new(),
-            constant_map: HashMap::new(),
+            register_map: FxHashMap::default(),
+            constant_map: FxHashMap::default(),
             lifted_descendants: Vec::new(),
         }
     }
@@ -205,7 +208,7 @@ impl<'a> Lifter<'a> {
         let mut instructions = Vec::new();
         let mut terminator = None;
         let mut top_index = None;
-        let mut self_map = HashMap::new();
+        let mut self_map = FxHashMap::default();
         let mut iterator = self.function.code[block_start..=block_end]
             .iter()
             .enumerate()
@@ -438,7 +441,7 @@ impl<'a> Lifter<'a> {
                             .collect::<Vec<_>>();
                         let (function, table) = match self_map.get(&function) {
                             Some(method) => (*method, Some(function)),
-                            None => (function, None)
+                            None => (function, None),
                         };
 
                         if b == 0 {
@@ -449,14 +452,17 @@ impl<'a> Lifter<'a> {
                             top_index = Some(a as usize);
                         }
 
-                        instructions.push(Call {
-                            function,
-                            arguments,
-                            variadic_arguments: b == 0,
-                            return_values,
-                            variadic_return: c == 0,
-                            table,
-                        }.into());
+                        instructions.push(
+                            Call {
+                                function,
+                                arguments,
+                                variadic_arguments: b == 0,
+                                return_values,
+                                variadic_return: c == 0,
+                                table,
+                            }
+                            .into(),
+                        );
                     }
                     OpCode::Self_ => {
                         let function = self.get_register(a as usize);
@@ -561,7 +567,10 @@ impl<'a> Lifter<'a> {
                                     .lift_function()?;
                             let lifted_child = Rc::new(RefCell::new(lifted_child));
                             self.closures[bx as usize] = Some(lifted_child.clone());
-                            self.lifted_descendants.extend(iter::once(lifted_child.clone()).chain(lifted_descendants.into_iter()));
+                            self.lifted_descendants.extend(
+                                iter::once(lifted_child.clone())
+                                    .chain(lifted_descendants.into_iter()),
+                            );
                             lifted_child
                         };
 
@@ -675,8 +684,10 @@ impl<'a> Lifter<'a> {
             self.register_map.insert(i as usize, parameter);
         }
 
+        let mut node_to_block = FxHashMap::with_capacity_and_hasher(block_ranges.len(), Default::default());
         for &(block_start_pc, block_end_pc) in &block_ranges {
             let cfg_block_id = self.get_block(block_start_pc);
+            node_to_block.insert(cfg_block_id, (block_start_pc, block_end_pc));
             let (instructions, terminator) =
                 self.lift_instructions(block_start_pc, block_end_pc, cfg_block_id)?;
 
@@ -706,128 +717,111 @@ impl<'a> Lifter<'a> {
             &idoms,
         )
         .unwrap();
-        let mut open_values = BTreeMap::new();
-        for (block_start, block_end) in block_ranges.into_iter().rev() {
-            let node = self.get_block(block_start);
-            if !dfs.node_exists(node) {
-                continue;
-            }
-            let mut it = self.function.code[block_start..=block_end]
-                .iter()
-                .enumerate();
-            while let Some((block_instruction_index, instruction)) = it.next() {
-                let instruction_index = block_start + block_instruction_index;
-                match *instruction {
-                    BytecodeInstruction::ABx {
-                        op_code: OpCode::Closure,
-                        bx,
-                        ..
-                    } => {
-                        let child = &self.function.closures[bx as usize];
 
-                        for _ in 0..child.num_upvalues {
-                            match *it.next().unwrap().1 {
-                                BytecodeInstruction::ABC {
-                                    op_code: OpCode::Move,
-                                    b,
-                                    ..
-                                } => {
-                                    open_values
-                                        .entry(b as usize)
-                                        .or_insert_with(Vec::new)
-                                        .push(self.location_map[&instruction_index]);
-                                }
-                                BytecodeInstruction::ABC {
-                                    op_code: OpCode::GetUpvalue,
-                                    ..
-                                } => {}
-                                _ => unreachable!(),
-                            }
-                        }
-                    }
-                    BytecodeInstruction::ABC {
-                        op_code: OpCode::Return,
-                        ..
-                    } => {
-                        let values = open_values.iter().map(|(&v, _)| v).collect::<Vec<_>>();
-                        for value in values {
-                            let open_locations = open_values.remove(&value).unwrap();
-                            let open_location = if open_locations.len() == 1 {
-                                open_locations[0]
-                            } else {
-                                //dot::render_to(&self.lifted_function, &mut std::io::stdout())?;
-                                // TODO: make this take an iter
-                                let node = common_dominator(
-                                    &dominators,
-                                    open_locations.iter().map(|l| l.node).collect::<Vec<_>>(),
-                                )
-                                .unwrap();
-                                InstructionLocation {
-                                    node,
-                                    index: InstructionIndex::Terminator,
-                                }
-                            };
-                            //println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
-                            let close_location = self.location_map[&instruction_index];
-
-                            let reg = self.get_register(value);
-                            self.lifted_function
-                                .upvalue_open_ranges
-                                .entry(reg)
-                                .or_insert_with(Vec::new)
-                                .push((open_location, close_location));
-                        }
-                        break
-                    }
-                    BytecodeInstruction::ABC {
-                        op_code: OpCode::Close,
-                        a,
-                        ..
-                    } => {
-                        let values = open_values
-                            .range((Bound::Unbounded, Bound::Included(a as usize)))
-                            .map(|(&v, _)| v)
-                            .collect::<Vec<_>>();
-                        for value in values {
-                            let open_locations = open_values.remove(&value).unwrap();
-                            let open_location = if open_locations.len() == 1 {
-                                open_locations[0]
-                            } else {
-                                // TODO: make this take an iter
-                                let node = common_dominator(
-                                    &dominators,
-                                    open_locations.iter().map(|l| l.node).collect::<Vec<_>>(),
-                                )
-                                .unwrap();
-                                InstructionLocation {
-                                    node,
-                                    index: InstructionIndex::Terminator,
-                                }
-                            };
-                            // println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
-                            // println!("{} {:?}", instruction_index, self.location_map);
-                            let close_location = self.location_map[&instruction_index];
-
-                            let reg = self.get_register(value);
-                            self.lifted_function
-                                .upvalue_open_ranges
-                                .entry(reg)
-                                .or_insert_with(Vec::new)
-                                .push((open_location, close_location));
-                        }
-                    }
-                    BytecodeInstruction::ABC {
-                        op_code: OpCode::SetList,
-                        c,
-                        ..
-                    } if c == 0 => {
-                        it.next();
-                    }
-                    _ => {}
-                }
-            }
-        }
+        // TODO: visited with_capacity(graph.nodes.len)
+        self.find_open_value_ranges(self.lifted_function.entry().unwrap(), BTreeMap::new(), &mut FxHashSet::default(), &node_to_block, &dominators);
 
         Ok((self.lifted_function, self.lifted_descendants))
+    }
+
+    fn find_open_value_ranges(&mut self, node: NodeId, mut open_values: BTreeMap<usize, Vec<InstructionLocation>>, visited: &mut FxHashSet<NodeId>, node_to_block: &FxHashMap<NodeId, (usize, usize)>, dominators: &FxHashMap<NodeId, Vec<NodeId>>) {
+        if visited.contains(&node) {
+            return;
+        }
+        visited.insert(node);
+
+        let (block_start, block_end) = node_to_block[&node];
+        let mut it = self.function.code[block_start..=block_end]
+            .iter()
+            .enumerate();
+        while let Some((block_instruction_index, instruction)) = it.next() {
+            let instruction_index = block_start + block_instruction_index;
+            match *instruction {
+                BytecodeInstruction::ABx {
+                    op_code: OpCode::Closure,
+                    bx,
+                    ..
+                } => {
+                    let child = &self.function.closures[bx as usize];
+
+                    for _ in 0..child.num_upvalues {
+                        match *it.next().unwrap().1 {
+                            BytecodeInstruction::ABC {
+                                op_code: OpCode::Move,
+                                b,
+                                ..
+                            } => {
+                                open_values
+                                    .entry(b as usize)
+                                    .or_insert_with(Vec::new)
+                                    .push(self.location_map[&instruction_index]);
+                            }
+                            BytecodeInstruction::ABC {
+                                op_code: OpCode::GetUpvalue,
+                                ..
+                            } => {}
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+                BytecodeInstruction::ABC {
+                    op_code: OpCode::Return | OpCode::Close,
+                    a,
+                    ..
+                } => {
+                    let values = match instruction.opcode() {
+                        OpCode::Return => {
+                            open_values.iter().map(|(&v, _)| v).collect::<Vec<_>>()
+                        }
+                        OpCode::Close => open_values
+                            .range((Bound::Unbounded, Bound::Included(a as usize)))
+                            .map(|(&v, _)| v)
+                            .collect::<Vec<_>>(),
+                        _ => unreachable!(),
+                    };
+                    for value in values {
+                        let open_locations = open_values.remove(&value).unwrap();
+                        let open_location = if open_locations.len() == 1 {
+                            open_locations[0]
+                        } else {
+                            //dot::render_to(&self.lifted_function, &mut std::io::stdout())?;
+                            // TODO: make this take an iter
+                            let node = common_dominator(
+                                dominators,
+                                open_locations.iter().map(|l| l.node).collect::<Vec<_>>(),
+                            )
+                            .unwrap();
+                            InstructionLocation {
+                                node,
+                                index: InstructionIndex::Terminator,
+                            }
+                        };
+                        //println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
+                        let close_location = self.location_map[&instruction_index];
+
+                        let reg = self.get_register(value);
+                        self.lifted_function
+                            .upvalue_open_ranges
+                            .entry(reg)
+                            .or_insert_with(Default::default)
+                            .entry(open_location)
+                            .or_insert_with(Vec::new)
+                            .push(close_location)
+                    }
+                    break;
+                }
+                BytecodeInstruction::ABC {
+                    op_code: OpCode::SetList,
+                    c,
+                    ..
+                } if c == 0 => {
+                    it.next();
+                }
+                _ => {}
+            }
+        }
+        for successor in self.lifted_function.graph().successors(node).collect::<Vec<_>>() {
+            self.find_open_value_ranges(successor, open_values.clone(), visited, node_to_block, dominators);
+        }
     }
 }

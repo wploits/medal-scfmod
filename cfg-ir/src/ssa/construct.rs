@@ -156,7 +156,7 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                 {
                     if let Some(ranges) = function.upvalue_open_ranges.get(&value) {
                         let mut is_open = false;
-                        for &(open_location, close_location) in ranges {
+                        for (&open_location, close_locations) in ranges {
                             let a = if open_location.node == node {
                                 open_location.index < index
                             } else {
@@ -164,16 +164,23 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
                                     .pre_order(open_location.node)?
                                     .contains(&node)
                             };
-                            let b = if close_location.node == node {
-                                close_location.index > index
-                            } else {
-                                post_dominator_tree
-                                    .pre_order(close_location.node)?
-                                    .contains(&node)
-                            };
-                            if a && b {
-                                is_open = true;
-                                break;
+                            if a {
+                                for &close_location in close_locations {
+                                    let b = if close_location.node == node {
+                                        close_location.index > index
+                                    } else {
+                                        post_dominator_tree
+                                            .pre_order(close_location.node)?
+                                            .contains(&node)
+                                    };
+                                    if b {
+                                        is_open = true;
+                                        break;
+                                    }
+                                }
+                                if is_open {
+                                    break;
+                                }
                             }
                         }
                         if is_open {

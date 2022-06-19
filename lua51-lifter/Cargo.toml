@@ -15,6 +15,7 @@ cfg-ir = { path = "../cfg-ir" }
 graph = { path = "../graph", features = ["dot"] }
 cfg-to-ast = { path = "../cfg-to-ast" }
 dhat = "0.3.0"
+fxhash = "0.2.1"
 
 [features]
 dhat-heap = []

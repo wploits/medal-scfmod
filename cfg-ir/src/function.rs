@@ -17,7 +17,7 @@ pub struct Function<'cfg> {
     blocks: FxHashMap<NodeId, BasicBlock<'cfg>>,
     pub parameters: Vec<ValueId>,
     pub value_allocator: Rc<RefCell<ValueAllocator>>,
-    pub upvalue_open_ranges: FxHashMap<ValueId, Vec<(InstructionLocation, InstructionLocation)>>,
+    pub upvalue_open_ranges: FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,
     entry: Option<NodeId>,
 }
 
