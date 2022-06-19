@@ -48,6 +48,8 @@ fn main() -> anyhow::Result<()> {
             let lifted = now.elapsed();
             println!("lifting: {:?}", lifted);
 
+            dot::render_to(&cfg, &mut std::io::stdout())?;
+
             cfg_ir::value::ensure_write::ensure_writes(&mut cfg);
 
             let now = time::Instant::now();

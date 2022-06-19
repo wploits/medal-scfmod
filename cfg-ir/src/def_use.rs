@@ -1,5 +1,5 @@
 use fxhash::{FxHashMap, FxHashSet};
-use graph::NodeId;
+use graph::{NodeId, algorithms::dfs_tree};
 
 use crate::{
     block::BasicBlock,
@@ -36,8 +36,9 @@ impl DefUse {
             function.value_allocator.borrow().next_value_index,
             Default::default(),
         ));
-        for (&node, block) in function.blocks() {
-            def_use.update_block(block, node);
+        let dfs = dfs_tree(function.graph(), function.entry().unwrap()).unwrap();
+        for &node in dfs.nodes() {
+            def_use.update_block(function.block(node).unwrap(), node);
         }
         def_use
     }
