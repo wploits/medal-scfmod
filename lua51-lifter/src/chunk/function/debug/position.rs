@@ -13,6 +13,7 @@ impl Position {
 
         Ok((
             input,
+            // TODO: enumerate instead of zip?
             (0..positions_length)
                 .zip(source_positions)
                 .map(|(instruction, source)| Self {

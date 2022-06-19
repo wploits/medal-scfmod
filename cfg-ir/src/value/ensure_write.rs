@@ -21,7 +21,7 @@ enum AccessType {
 }
 
 pub fn ensure_writes(function: &mut Function) {
-    let entry = function.entry().unwrap();
+    let mut entry = function.entry().unwrap();
 
     let graph = function.graph();
     let dfs = dfs_tree(graph, entry).unwrap();
@@ -92,6 +92,7 @@ pub fn ensure_writes(function: &mut Function) {
                 .unwrap();
             if entry == should_write_node {
                 function.set_entry(new_node).unwrap();
+                entry = new_node;
             }
         }
     }

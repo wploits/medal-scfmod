@@ -10,6 +10,7 @@ mod debug;
 
 #[derive(Debug)]
 pub struct Function<'a> {
+    pub name: &'a str,
     pub line_defined: u32,
     pub last_line_defined: u32,
     pub ellipsis_flag: u8,
@@ -26,7 +27,7 @@ pub struct Function<'a> {
 
 impl<'a> Function<'a> {
     pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
-        let (input, _) = parse_str(input)?;
+        let (input, name) = parse_str(input)?;
         let (input, line_defined) = le_u32(input)?;
         let (input, last_line_defined) = le_u32(input)?;
         let (input, num_upvalues) = le_u8(input)?;
@@ -46,6 +47,7 @@ impl<'a> Function<'a> {
         Ok((
             input,
             Self {
+                name,
                 line_defined,
                 last_line_defined,
                 ellipsis_flag,

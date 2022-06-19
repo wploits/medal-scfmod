@@ -208,6 +208,7 @@ impl<'a> Lifter<'a> {
             .peekable();
 
         while let Some((block_instruction_index, instruction)) = iterator.next() {
+            let old_instructions_len = instructions.len();
             let instruction_index = block_start + block_instruction_index;
             match *instruction {
                 BytecodeInstruction::ABC { op_code, a, b, c } => match op_code {
@@ -478,6 +479,12 @@ impl<'a> Lifter<'a> {
                         break;
                     }
                     OpCode::Close => {}
+                    OpCode::SetList => {
+                        // TODO: setlist
+                        if c == 0 {
+                            iterator.next();
+                        }
+                    }
                     /*OpCode::VarArg => {
                         vararg_index = Some(a as usize);
                     }*/
@@ -593,7 +600,7 @@ impl<'a> Lifter<'a> {
                     instruction_index,
                     InstructionLocation {
                         node: cfg_block_id,
-                        index: InstructionIndex::Inner(instructions.len() - 1),
+                        index: InstructionIndex::Inner(old_instructions_len),
                     },
                 );
             }

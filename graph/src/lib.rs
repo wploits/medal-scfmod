@@ -144,7 +144,7 @@ impl Graph {
         Ok(())
     }
 
-    fn compute_bottom_up_dfs_preorder(&self, node: NodeId) -> Result<Vec<NodeId>> {
+    fn bottom_up_preorder(&self, node: NodeId) -> Result<Vec<NodeId>> {
         if !self.node_exists(node) {
             return Err(Error::InvalidNode(node));
         }
