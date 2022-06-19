@@ -84,15 +84,17 @@ impl ValueInfo for IterativeFor {
     }
 
     fn values_written(&self) -> Vec<ValueId> {
-        vec![]
+        self.variables.clone()
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut ValueId> {
-        vec![&mut self.generator, &mut self.state, &mut self.index]
+        let mut v = vec![&mut self.generator, &mut self.state, &mut self.index];
+        v.extend(self.variables.iter_mut());
+        v
     }
 
     fn values_written_mut(&mut self) -> Vec<&mut ValueId> {
-        vec![]
+        self.variables.iter_mut().collect()
     }
 }
 
