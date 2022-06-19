@@ -47,7 +47,7 @@ pub fn common_dominator(
     nodes: Vec<NodeId>,
 ) -> Option<NodeId> {
     let mut nodes_iter = nodes.iter();
-    let mut res = dominators[nodes_iter.next().unwrap()]
+    let mut res = dominators[nodes_iter.next()?]
         .iter()
         .cloned()
         .collect::<IndexSet<_>>();

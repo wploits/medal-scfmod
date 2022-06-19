@@ -5,6 +5,7 @@ use std::{
     ops::{Bound, Range, RangeInclusive},
     rc::Rc,
 };
+use std::collections::VecDeque;
 
 use anyhow::Result;
 
@@ -202,6 +203,7 @@ impl<'a> Lifter<'a> {
         let mut instructions = Vec::new();
         let mut terminator = None;
         let mut top_index = None;
+        let mut self_queue = VecDeque::new();
         let mut iterator = self.function.code[block_start..=block_end]
             .iter()
             .enumerate()
@@ -430,6 +432,11 @@ impl<'a> Lifter<'a> {
                         let return_values = (a as u16..a as u16 + c - 1)
                             .map(|v| self.get_register(v as usize))
                             .collect::<Vec<_>>();
+                        let (function, table) = match self_queue.pop_back() {
+                            Some(method) => (method, Some(function)),
+                            None => (function, None)
+                        };
+
                         if b == 0 {
                             assert!(top_index.is_some());
                             arguments = self.get_register_range(a as usize + 1..top_index.unwrap());
@@ -437,16 +444,20 @@ impl<'a> Lifter<'a> {
                         if c == 0 {
                             top_index = Some(a as usize);
                         }
-                        instructions.push(
-                            Call {
-                                function,
-                                arguments,
-                                variadic_arguments: b == 0,
-                                return_values,
-                                variadic_return: c == 0,
-                            }
-                            .into(),
-                        );
+
+                        instructions.push(Call {
+                            function,
+                            arguments,
+                            variadic_arguments: b == 0,
+                            return_values,
+                            variadic_return: c == 0,
+                            table,
+                        }.into());
+                    }
+                    OpCode::Self_ => {
+                        let method = self.get_register_or_constant(c as usize, cfg_block_id);
+
+                        self_queue.push_back(method);
                     }
                     /*OpCode::TableForLoop => {
                         let iterator = self.get_register(a as usize);

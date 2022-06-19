@@ -17,9 +17,9 @@ pub(super) fn local_declarations(
 
     let dominators = dominators(function.graph(), root, idoms).unwrap();
 
-    let declaration_node = def_use.values().into_iter().map(|value| {
-        let value_def_use = def_use.get(value).unwrap();
-        (
+    let declaration_node = def_use.values().into_iter().filter_map(|value| {
+        let value_def_use = def_use.get(value)?;
+        Some((
             common_dominator(
                 &dominators,
                 value_def_use
@@ -27,10 +27,9 @@ pub(super) fn local_declarations(
                     .iter()
                     .map(|location| location.node)
                     .collect::<Vec<_>>(),
-            )
-            .unwrap(),
+            )?,
             value,
-        )
+        ))
     });
 
     let mut declaration_location = FxHashMap::default();

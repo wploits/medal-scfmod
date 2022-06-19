@@ -84,7 +84,7 @@ pub struct Call<'ast> {
     pub pos: Option<Pos>,
     pub value: Box<Expr<'ast>>,
     pub arguments: Vec<Expr<'ast>>,
-    pub is_self: bool,
+    pub table: Option<Box<Expr<'ast>>>,
 }
 
 impl_expr!(Call, true);

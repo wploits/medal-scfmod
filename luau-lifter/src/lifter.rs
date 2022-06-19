@@ -382,6 +382,7 @@ impl<'a> Lifter<'a> {
                                 variadic_arguments: b == 0,
                                 return_values,
                                 variadic_return: c == 0,
+                                table: None,
                             }
                             .into(),
                         );

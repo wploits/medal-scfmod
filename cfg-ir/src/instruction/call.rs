@@ -11,6 +11,7 @@ pub struct Call {
     pub variadic_arguments: bool,
     pub return_values: Vec<ValueId>,
     pub variadic_return: bool,
+    pub table: Option<ValueId>,
 }
 
 impl ValueInfo for Call {

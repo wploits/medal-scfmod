@@ -49,7 +49,7 @@ fn assign_locals(locals: Vec<ast_ir::ExprLocal>, values: Vec<ast_ir::Expr>) -> a
         pos: None,
         vars: locals.into_iter().map(|v| v.into()).collect(),
         values,
-        local_prefix: false,
+        local_prefix: true,
     }
 }
 
@@ -121,12 +121,13 @@ fn local_expression(local: Rc<ast_ir::Local>) -> ast_ir::ExprLocal {
 fn call_expression<'a>(
     value: ast_ir::Expr<'a>,
     arguments: Vec<ast_ir::Expr<'a>>,
+    table: Option<Expr<'a>>,
 ) -> ast_ir::Call<'a> {
     ast_ir::Call {
         pos: None,
         arguments,
         value: Box::new(value),
-        is_self: false,
+        table: table.map(Box::new),
     }
 }
 
@@ -423,7 +424,7 @@ impl<'a, 'b> Lifter<'a, 'b> {
                         assert!(variadic_expr.is_some());
                         arguments.push(variadic_expr.take().unwrap());
                     }
-                    let call_expr = call_expression(function, arguments);
+                    let call_expr = call_expression(function, arguments, call.table.map(|v| self.local(&v).into()));
                     if call.variadic_return {
                         variadic_expr = Some(call_expr.into());
                     } else {

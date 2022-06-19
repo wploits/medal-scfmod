@@ -74,9 +74,17 @@ impl Formatter {
     }
 
     fn format_call(&mut self, call: &Call) {
+        let mut iterator = call.arguments.iter().enumerate();
+
+        if let Some(table) = &call.table {
+            self.format_expression(table);
+            self.print(":");
+            iterator.next();
+        }
+
         self.format_expression(&call.value);
         self.print("(");
-        for (argument_index, argument) in call.arguments.iter().enumerate() {
+        for (argument_index, argument) in iterator {
             self.format_expression(argument);
             if argument_index + 1 != call.arguments.len() {
                 self.print(", ");
