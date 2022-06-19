@@ -15,3 +15,4 @@ cfg-ir = { path = "../cfg-ir" }
 graph = { path = "../graph", features = ["dot"] }
 cfg-to-ast = { path = "../cfg-to-ast" }
 mlua = { version = "0.8.0-beta.3", features = ["luau"] }
+fxhash = "0.2.1"
