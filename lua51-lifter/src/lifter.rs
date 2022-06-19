@@ -606,15 +606,13 @@ impl<'a> Lifter<'a> {
                     }
                 }
             }
-            if !instructions.is_empty() {
-                self.location_map.insert(
-                    instruction_index,
-                    InstructionLocation {
-                        node: cfg_block_id,
-                        index: InstructionIndex::Inner(old_instructions_len),
-                    },
-                );
-            }
+            self.location_map.insert(
+                instruction_index,
+                InstructionLocation {
+                    node: cfg_block_id,
+                    index: InstructionIndex::Inner(old_instructions_len),
+                },
+            );
         }
 
         if !Self::is_terminator(&self.function.code[block_end]) {
@@ -793,6 +791,7 @@ impl<'a> Lifter<'a> {
                                 }
                             };
                             println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
+                            println!("{} {:?}", instruction_index, self.location_map);
                             let close_location = self.location_map[&instruction_index];
 
                             let reg = self.get_register(value);
