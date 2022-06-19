@@ -755,15 +755,13 @@ impl<'a> Lifter<'a> {
                     _ => {}
                 }
             }
-            if !instructions.is_empty() {
-                self.location_map.insert(
-                    instruction_index, 
-                    InstructionLocation { 
-                        node: cfg_block_id, 
-                        index: InstructionIndex::Inner(old_instructions_len)
-                     }
-                );
-            }
+            self.location_map.insert(
+                instruction_index, 
+                InstructionLocation { 
+                    node: cfg_block_id, 
+                    index: InstructionIndex::Inner(old_instructions_len)
+                }
+            );
         }
 
         if !Self::is_terminator(&self.function_list[self.function].instructions[block_end]) {
