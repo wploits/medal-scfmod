@@ -490,16 +490,6 @@ impl<'a> Lifter<'a> {
                         break;
                     }
                     OpCode::Close => {}
-                    OpCode::Self_ => {
-                        // TODO: MethodCall instruction
-                        let method = self.get_register(a as usize);
-                        let self_ = self.get_register(a as usize + 1);
-                        let object = self.get_register(b as usize);
-                        let key = self.get_register_or_constant(c as usize, cfg_block_id);
-
-                        instructions.push(Move { dest: self_, source: object }.into());
-                        instructions.push(LoadIndex { dest: method, object, key }.into());
-                    }
                     OpCode::SetList => {
                         // TODO: setlist
                         if c == 0 {
