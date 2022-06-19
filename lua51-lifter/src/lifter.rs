@@ -479,6 +479,16 @@ impl<'a> Lifter<'a> {
                         break;
                     }
                     OpCode::Close => {}
+                    OpCode::Self_ => {
+                        // TODO: MethodCall instruction
+                        let method = self.get_register(a as usize);
+                        let self_ = self.get_register(a as usize + 1);
+                        let object = self.get_register(b as usize);
+                        let key = self.get_register_or_constant(c as usize, cfg_block_id);
+
+                        instructions.push(Move { dest: self_, source: object }.into());
+                        instructions.push(LoadIndex { dest: method, object, key }.into());
+                    }
                     OpCode::SetList => {
                         // TODO: setlist
                         if c == 0 {
@@ -781,6 +791,7 @@ impl<'a> Lifter<'a> {
                                     index: InstructionIndex::Terminator,
                                 }
                             };
+                            println!("{} {}", self.function.line_defined, self.function.positions.as_ref().unwrap()[instruction_index].source);
                             let close_location = self.location_map[&instruction_index];
 
                             let reg = self.get_register(value);
