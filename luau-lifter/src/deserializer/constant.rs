@@ -1,7 +1,9 @@
-use nom::number::complete::{le_f64, le_u32, le_u8};
-use nom::IResult;
-use nom_leb128::leb128_usize;
 use super::list::parse_list;
+use nom::{
+    number::complete::{le_f64, le_u32, le_u8},
+    IResult,
+};
+use nom_leb128::leb128_usize;
 
 const CONSTANT_NIL: u8 = 0;
 const CONSTANT_BOOLEAN: u8 = 1;
@@ -49,7 +51,7 @@ impl Constant {
             }
             CONSTANT_CLOSURE => {
                 let (input, f_id) = leb128_usize(input)?;
-                Ok((input, Constant::Closure(f_id))) 
+                Ok((input, Constant::Closure(f_id)))
             }
             _ => panic!(),
         }

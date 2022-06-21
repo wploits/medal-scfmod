@@ -1,5 +1,4 @@
-use nom::multi::count;
-use nom::IResult;
+use nom::{multi::count, IResult};
 use nom_leb128::leb128_usize;
 
 pub(crate) fn parse_list<'a, T>(
@@ -14,7 +13,7 @@ pub(crate) fn parse_list<'a, T>(
 pub(crate) fn parse_list_len<'a, T>(
     input: &'a [u8],
     parser: impl Fn(&'a [u8]) -> IResult<&'a [u8], T>,
-    length: usize
+    length: usize,
 ) -> IResult<&'a [u8], Vec<T>> {
     let (input, items) = count(parser, length)(input)?;
     Ok((input, items))

@@ -5,12 +5,9 @@ mod op_code;
 
 use lifter::Lifter;
 
+use cfg_ir::{dot, function::Function, ssa};
 use clap::Parser;
-use std::{fs::File};
-use std::io::Read;
-use std::rc::Rc;
-use cfg_ir::{dot, ssa, function::Function};
-use std::time;
+use std::{fs::File, io::Read, rc::Rc, time};
 
 use deserializer::bytecode::Bytecode;
 
@@ -32,7 +29,7 @@ fn main() -> anyhow::Result<()> {
     let chunk = deserializer::compile(&String::from_utf8(buffer).unwrap()).unwrap();
     let parsed = now.elapsed();
     println!("parsing: {:?}", parsed);
-    
+
     match chunk {
         Bytecode::Error(msg) => {
             println!("code did not compile");
@@ -40,13 +37,14 @@ fn main() -> anyhow::Result<()> {
         Bytecode::Chunk(chunk) => {
             let now = time::Instant::now();
             let mut lifter = Lifter::new(
-                &chunk.functions, 
-                &chunk.string_table, 
-                chunk.main, 
-                Rc::default());
+                &chunk.functions,
+                &chunk.string_table,
+                chunk.main,
+                Rc::default(),
+            );
             let (mut main, descendants) = lifter.lift_function()?;
             let lifted = now.elapsed();
-            
+
             process_function(&mut main)?;
             for function in descendants.into_iter() {
                 process_function(&mut function.borrow_mut())?;
@@ -54,7 +52,6 @@ fn main() -> anyhow::Result<()> {
 
             dot::render_to(&main, &mut std::io::stdout())?;
             println!("lifting: {:?}", lifted);
-
 
             let now = time::Instant::now();
             let output = cfg_to_ast::lift(&main);

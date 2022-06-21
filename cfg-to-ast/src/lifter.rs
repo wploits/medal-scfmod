@@ -7,7 +7,7 @@ use cfg_ir::{
     constant::Constant,
     function::Function,
     instruction::{
-        location::InstructionIndex, BinaryOp, ConditionalJump, Inner, Terminator, UnaryOp, Upvalue,
+        BinaryOp, ConditionalJump, Inner, Terminator, UnaryOp, Upvalue,
     },
     value::ValueId,
 };
@@ -96,13 +96,13 @@ fn iterative_for_statement<'a>(
     state: ast_ir::Expr<'a>,
     idx: ast_ir::Expr<'a>,
     vars: Vec<Rc<ast_ir::Local>>,
-    body: ast_ir::Block<'a>
+    body: ast_ir::Block<'a>,
 ) -> ast_ir::IterativeFor<'a> {
     ast_ir::IterativeFor {
         pos: None,
         vars,
         values: vec![gen, state, idx],
-        body
+        body,
     }
 }
 
@@ -290,20 +290,21 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
     fn lift_block(
         &mut self,
         node: NodeId,
-        local_declarations: FxHashMap<usize, &Vec<ValueId>>,
+        /*local_declarations: FxHashMap<usize, &Vec<ValueId>>,*/
     ) -> ast_ir::Block<'a> {
         let mut body = ast_ir::Block::new(None);
         let block = self.function.block(node).unwrap().clone();
         let mut variadic_expr = None;
-        for (index, instruction) in block.inner_instructions.iter().enumerate() {
+        for (_index, instruction) in block.inner_instructions.iter().enumerate() {
             let assign_local = |value, expr| {
                 assign_local(
                     self.local(value),
                     expr,
-                    local_declarations
-                        .get(&index)
-                        .map(|values| values.contains(value))
-                        .unwrap_or(false),
+                    /*local_declarations
+                    .get(&index)
+                    .map(|values| values.contains(value))
+                    .unwrap_or(false),*/
+                    false,
                 )
             };
 
@@ -324,10 +325,11 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                             local: self.upvalues[load_upvalue.upvalue_index].clone(),
                         }
                         .into(),
-                        local_declarations
-                            .get(&index)
-                            .map(|values| values.contains(&load_upvalue.dest))
-                            .unwrap_or(false),
+                        /*local_declarations
+                        .get(&index)
+                        .map(|values| values.contains(&load_upvalue.dest))
+                        .unwrap_or(false)*/
+                        false,
                     )
                     .into(),
                 ),
@@ -450,7 +452,11 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                         assert!(variadic_expr.is_some());
                         arguments.push(variadic_expr.take().unwrap());
                     }
-                    let call_expr = call_expression(function, arguments, call.table.map(|v| self.local(&v).into()));
+                    let call_expr = call_expression(
+                        function,
+                        arguments,
+                        call.table.map(|v| self.local(&v).into()),
+                    );
                     if call.variadic_return {
                         variadic_expr = Some(call_expr.into());
                     } else {
@@ -566,7 +572,7 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
 
         let idoms = compute_immediate_dominators(graph, root, &dfs).unwrap();
 
-        let local_declarations = local_declaration::local_declarations(self.function, root, &idoms);
+        let _local_declarations = local_declaration::local_declarations(self.function, root, &idoms);
 
         let mut blocks = self
             .function
@@ -578,20 +584,20 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                     n,
                     self.lift_block(
                         n,
-                        local_declarations
-                            .iter()
-                            .filter_map(|(location, declarations)| {
-                                if location.node == n {
-                                    if let InstructionIndex::Inner(index) = location.index {
-                                        Some((index, declarations))
-                                    } else {
-                                        None
-                                    }
+                        /*local_declarations
+                        .iter()
+                        .filter_map(|(location, declarations)| {
+                            if location.node == n {
+                                if let InstructionIndex::Inner(index) = location.index {
+                                    Some((index, declarations))
                                 } else {
                                     None
                                 }
-                            })
-                            .collect(),
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),*/
                     ),
                 )
             })
@@ -821,20 +827,26 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                         .unwrap_or_else(|| ast_ir::Block::new(None));
                     let statements = &mut blocks.get_mut(&node).unwrap().statements;
                     statements.push(
-                      numeric_for_statement(variable.local, init.into(), limit.into(), Some(step.into()), continue_body)
+                        numeric_for_statement(
+                            variable.local,
+                            init.into(),
+                            limit.into(),
+                            Some(step.into()),
+                            continue_body,
+                        )
                         .into(),
                     );
                     if let Some(exit_body) = exit_body {
                         statements.extend(exit_body.statements);
                     }
                 }
-                Link::IterativeFor { 
-                    exit_branch, 
-                    continue_branch, 
-                    generator, 
-                    state, 
-                    index, 
-                    variables 
+                Link::IterativeFor {
+                    exit_branch,
+                    continue_branch,
+                    generator,
+                    state,
+                    index,
+                    variables,
                 } => {
                     let exit_body = exit_branch.map(|exit_node| blocks.remove(&exit_node).unwrap());
                     let continue_body = continue_branch
@@ -844,12 +856,12 @@ impl<'a, 'b, 'c> Lifter<'a, 'b, 'c> {
                     statements.push(
                         iterative_for_statement(
                             generator.into(),
-                            state.into(), 
+                            state.into(),
                             index.into(),
                             variables.into_iter().map(|x| x.local).collect(),
-                            continue_body
+                            continue_body,
                         )
-                        .into()
+                        .into(),
                     );
                     if let Some(exit_body) = exit_body {
                         statements.extend(exit_body.statements);

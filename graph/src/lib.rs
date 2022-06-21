@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub mod dot;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct NodeId(usize);
+pub struct NodeId(pub usize);
 
 impl std::fmt::Display for NodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -39,6 +39,18 @@ impl Edge {
     }
 }
 
+impl From<(usize, usize)> for Edge {
+    fn from((source, destination): (usize, usize)) -> Self {
+        Self::new(NodeId(source), NodeId(destination))
+    }
+}
+
+impl From<(NodeId, NodeId)> for Edge {
+    fn from((source, destination): (NodeId, NodeId)) -> Self {
+        Self::new(source, destination)
+    }
+}
+
 /// A control flow graph
 #[derive(Debug, Clone)]
 pub struct Graph {
@@ -54,7 +66,11 @@ impl Graph {
         }
     }
 
-    pub fn from_edges(edges: Vec<Edge>) -> Self {
+    pub fn from_edges(edges: Vec<impl Into<Edge>>) -> Self {
+        let edges = edges
+            .into_iter()
+            .map(|edge| edge.into())
+            .collect::<Vec<Edge>>();
         let mut nodes = Vec::new();
         for edge in &edges {
             nodes.push(edge.source);
@@ -144,34 +160,6 @@ impl Graph {
         Ok(())
     }
 
-    fn bottom_up_preorder(&self, node: NodeId) -> Result<Vec<NodeId>> {
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode(node));
-        }
-
-        // TODO: should we assume all nodes will be included in the preorder and use
-        // nodes.len() as capacity?
-        let mut visited = FxHashSet::default();
-        let mut stack = Vec::new();
-        let mut order = Vec::new();
-
-        visited.insert(node);
-        stack.push(node);
-
-        while let Some(node) = stack.pop() {
-            order.push(node);
-
-            for predecessor in self.predecessors(node) {
-                if !visited.contains(&predecessor) {
-                    visited.insert(predecessor);
-                    stack.push(predecessor);
-                }
-            }
-        }
-
-        Ok(order)
-    }
-
     pub fn pre_order(&self, root: NodeId) -> Result<Vec<NodeId>> {
         if !self.node_exists(root) {
             return Err(Error::InvalidNode(root));
@@ -224,56 +212,6 @@ impl Graph {
         }
 
         dfs_walk(self, root, &mut visited, &mut order)?;
-
-        Ok(order)
-    }
-
-    pub fn compute_bfs_level_order(&self, node: NodeId) -> Result<Vec<NodeId>> {
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode(node));
-        }
-
-        let mut visited: FxHashSet<NodeId> = FxHashSet::default();
-        let mut stack: Vec<NodeId> = Vec::new();
-        let mut order: Vec<NodeId> = Vec::new();
-
-        stack.push(node);
-        visited.insert(node);
-        order.push(node);
-
-        while let Some(node) = stack.pop() {
-            for successor in self.successors(node) {
-                if visited.insert(successor) {
-                    stack.push(successor);
-                    order.push(successor);
-                }
-            }
-        }
-
-        Ok(order)
-    }
-
-    pub fn compute_bottom_up_bfs_level_order(&self, node: NodeId) -> Result<Vec<NodeId>> {
-        if !self.node_exists(node) {
-            return Err(Error::InvalidNode(node));
-        }
-
-        let mut visited: FxHashSet<NodeId> = FxHashSet::default();
-        let mut stack: Vec<NodeId> = Vec::new();
-        let mut order: Vec<NodeId> = Vec::new();
-
-        stack.push(node);
-        visited.insert(node);
-        order.push(node);
-
-        while let Some(node) = stack.pop() {
-            for predecessor in self.predecessors(node) {
-                if visited.insert(predecessor) {
-                    stack.push(predecessor);
-                    order.push(predecessor);
-                }
-            }
-        }
 
         Ok(order)
     }

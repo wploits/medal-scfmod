@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap},
     iter,
     ops::{Bound, Range, RangeInclusive},
     rc::Rc,
@@ -11,7 +11,6 @@ use anyhow::Result;
 
 use cfg_ir::{
     constant::Constant,
-    dot,
     function::Function,
     instruction::{
         location::{InstructionIndex, InstructionLocation},
@@ -684,7 +683,8 @@ impl<'a> Lifter<'a> {
             self.register_map.insert(i as usize, parameter);
         }
 
-        let mut node_to_block = FxHashMap::with_capacity_and_hasher(block_ranges.len(), Default::default());
+        let mut node_to_block =
+            FxHashMap::with_capacity_and_hasher(block_ranges.len(), Default::default());
         for &(block_start_pc, block_end_pc) in &block_ranges {
             let cfg_block_id = self.get_block(block_start_pc);
             node_to_block.insert(cfg_block_id, (block_start_pc, block_end_pc));
@@ -719,12 +719,25 @@ impl<'a> Lifter<'a> {
         .unwrap();
 
         // TODO: visited with_capacity(graph.nodes.len)
-        self.find_open_value_ranges(self.lifted_function.entry().unwrap(), BTreeMap::new(), &mut FxHashSet::default(), &node_to_block, &dominators);
+        self.find_open_value_ranges(
+            self.lifted_function.entry().unwrap(),
+            BTreeMap::new(),
+            &mut FxHashSet::default(),
+            &node_to_block,
+            &dominators,
+        );
 
         Ok((self.lifted_function, self.lifted_descendants))
     }
 
-    fn find_open_value_ranges(&mut self, node: NodeId, mut open_values: BTreeMap<usize, Vec<InstructionLocation>>, visited: &mut FxHashSet<NodeId>, node_to_block: &FxHashMap<NodeId, (usize, usize)>, dominators: &FxHashMap<NodeId, Vec<NodeId>>) {
+    fn find_open_value_ranges(
+        &mut self,
+        node: NodeId,
+        mut open_values: BTreeMap<usize, Vec<InstructionLocation>>,
+        visited: &mut FxHashSet<NodeId>,
+        node_to_block: &FxHashMap<NodeId, (usize, usize)>,
+        dominators: &FxHashMap<NodeId, Vec<NodeId>>,
+    ) {
         if visited.contains(&node) {
             return;
         }
@@ -770,9 +783,7 @@ impl<'a> Lifter<'a> {
                     ..
                 } => {
                     let values = match instruction.opcode() {
-                        OpCode::Return => {
-                            open_values.iter().map(|(&v, _)| v).collect::<Vec<_>>()
-                        }
+                        OpCode::Return => open_values.iter().map(|(&v, _)| v).collect::<Vec<_>>(),
                         OpCode::Close => open_values
                             .range((Bound::Unbounded, Bound::Included(a as usize)))
                             .map(|(&v, _)| v)
@@ -820,8 +831,19 @@ impl<'a> Lifter<'a> {
                 _ => {}
             }
         }
-        for successor in self.lifted_function.graph().successors(node).collect::<Vec<_>>() {
-            self.find_open_value_ranges(successor, open_values.clone(), visited, node_to_block, dominators);
+        for successor in self
+            .lifted_function
+            .graph()
+            .successors(node)
+            .collect::<Vec<_>>()
+        {
+            self.find_open_value_ranges(
+                successor,
+                open_values.clone(),
+                visited,
+                node_to_block,
+                dominators,
+            );
         }
     }
 }

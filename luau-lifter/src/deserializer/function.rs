@@ -1,14 +1,15 @@
-use nom::number::complete::{le_u32, le_u8};
-use nom::IResult;
+use nom::{
+    number::complete::{le_u32, le_u8},
+    IResult,
+};
 use nom_leb128::leb128_usize;
 
-use super::constant::Constant;
-use super::list::{parse_list, parse_list_len};
-
-use crate::{
-    instruction::*,
-    op_code::OpCode,
+use super::{
+    constant::Constant,
+    list::{parse_list, parse_list_len},
 };
+
+use crate::{instruction::*, op_code::OpCode};
 
 #[derive(Debug)]
 pub struct Function {
@@ -35,59 +36,73 @@ impl Function {
         loop {
             let ins = Instruction::parse(vec[pc]).unwrap();
             let op = match ins {
-                Instruction::ABC { op_code, a, b, c, aux } => {
+                Instruction::ABC {
+                    op_code,
+                    a,
+                    b,
+                    c,
+                    aux,
+                } => {
                     println!("{}: {:?} {} {} {} {}", pc, op_code, a, b, c, aux);
                     op_code
-                },
+                }
                 Instruction::AD { op_code, a, d, aux } => {
                     println!("{}: {:?} {} {} {}", pc, op_code, a, d, aux);
                     op_code
-                },
-                Instruction::E { op_code, e } => { 
+                }
+                Instruction::E { op_code, e } => {
                     println!("{}: {:?} {}", pc, op_code, e);
                     op_code
-                },
+                }
             };
-    
+
             // handle ops with aux values
             match op {
-                OpCode::LOP_GETGLOBAL |
-                OpCode::LOP_SETGLOBAL |
-                OpCode::LOP_GETIMPORT |
-                OpCode::LOP_GETTABLEKS |
-                OpCode::LOP_SETTABLEKS |
-                OpCode::LOP_NAMECALL |
-                OpCode::LOP_JUMPIFEQ |
-                OpCode::LOP_JUMPIFLE |
-                OpCode::LOP_JUMPIFLT |
-                OpCode::LOP_JUMPIFNOTEQ |
-                OpCode::LOP_JUMPIFNOTLE |
-                OpCode::LOP_JUMPIFNOTLT |
-                OpCode::LOP_NEWTABLE |
-                OpCode::LOP_SETLIST |
-                OpCode::LOP_FORGLOOP |
-                OpCode::LOP_LOADKX |
-                OpCode::LOP_JUMPIFEQK |
-                OpCode::LOP_JUMPIFNOTEQK |
-                OpCode::LOP_FASTCALL2 |
-                OpCode::LOP_FASTCALL2K => {
+                OpCode::LOP_GETGLOBAL
+                | OpCode::LOP_SETGLOBAL
+                | OpCode::LOP_GETIMPORT
+                | OpCode::LOP_GETTABLEKS
+                | OpCode::LOP_SETTABLEKS
+                | OpCode::LOP_NAMECALL
+                | OpCode::LOP_JUMPIFEQ
+                | OpCode::LOP_JUMPIFLE
+                | OpCode::LOP_JUMPIFLT
+                | OpCode::LOP_JUMPIFNOTEQ
+                | OpCode::LOP_JUMPIFNOTLE
+                | OpCode::LOP_JUMPIFNOTLT
+                | OpCode::LOP_NEWTABLE
+                | OpCode::LOP_SETLIST
+                | OpCode::LOP_FORGLOOP
+                | OpCode::LOP_LOADKX
+                | OpCode::LOP_JUMPIFEQK
+                | OpCode::LOP_JUMPIFNOTEQK
+                | OpCode::LOP_FASTCALL2
+                | OpCode::LOP_FASTCALL2K => {
                     let aux = vec[pc + 1];
                     pc += 2;
                     match ins {
-                        Instruction::ABC { op_code, a, b, c, .. } => {
+                        Instruction::ABC {
+                            op_code, a, b, c, ..
+                        } => {
                             v.push(Instruction::ABC {
-                                op_code, a, b, c, aux
+                                op_code,
+                                a,
+                                b,
+                                c,
+                                aux,
                             });
                         }
                         Instruction::AD { op_code, a, d, .. } => {
-                            v.push(Instruction::AD {
-                                op_code, a, d, aux
-                            });
+                            v.push(Instruction::AD { op_code, a, d, aux });
                         }
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
                     v.push(Instruction::ABC {
-                        op_code: OpCode::LOP_NOP, a: 0, b: 0, c: 0, aux: 0
+                        op_code: OpCode::LOP_NOP,
+                        a: 0,
+                        b: 0,
+                        c: 0,
+                        aux: 0,
                     });
                 }
                 _ => {
@@ -97,7 +112,7 @@ impl Function {
             }
 
             if pc == vec.len() {
-                break
+                break;
             }
         }
 
@@ -127,15 +142,19 @@ impl Function {
         let (input, line_info_delta) = match has_line_info {
             0 => (input, None),
             _ => {
-                let (input, line_info_delta) = parse_list_len(input, le_u8, u32_instructions.len())?;
+                let (input, line_info_delta) =
+                    parse_list_len(input, le_u8, u32_instructions.len())?;
                 (input, Some(line_info_delta))
             }
         };
         let (input, abs_line_info_delta) = match has_line_info {
             0 => (input, None),
             _ => {
-                let (input, abs_line_info_delta) = parse_list_len(input, le_u32, 
-                    ((u32_instructions.len() - 1) >> line_gap_log2.unwrap()) + 1)?;
+                let (input, abs_line_info_delta) = parse_list_len(
+                    input,
+                    le_u32,
+                    ((u32_instructions.len() - 1) >> line_gap_log2.unwrap()) + 1,
+                )?;
                 (input, Some(abs_line_info_delta))
             }
         };
@@ -157,7 +176,7 @@ impl Function {
                 function_name,
                 line_gap_log2,
                 line_info_delta,
-                abs_line_info_delta
+                abs_line_info_delta,
             },
         ))
     }

@@ -2,11 +2,11 @@
 
 members = [
     "graph",
-    "cfg-ir",
-    "ast-ir",
-    "lua51-lifter",
-    "cfg-to-ast",
-    "luau-lifter"
+    "cfg",
+    "ast",
+    #"lua51-lifter",
+    #"cfg-to-ast",
+    #"luau-lifter",
 ]
 
 [profile.release]

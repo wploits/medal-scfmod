@@ -96,13 +96,13 @@ pub enum Instruction {
         a: u8,
         b: u8,
         c: u8,
-        aux: u32
+        aux: u32,
     },
     AD {
         op_code: OpCode,
         a: u8,
         d: i16,
-        aux: u32
+        aux: u32,
     },
     E {
         op_code: OpCode,
@@ -115,7 +115,21 @@ impl Instruction {
         let op_code = (insn & 0xFF) as u8;
 
         match op_code {
-            0 | 1 | 2 | 3 | 6..=11 | 13..=18 | 20..=22 | 33..=53 | 55 | 63 | 65 | 66 | 68 | 70 | 73..=75 => {
+            0
+            | 1
+            | 2
+            | 3
+            | 6..=11
+            | 13..=18
+            | 20..=22
+            | 33..=53
+            | 55
+            | 63
+            | 65
+            | 66
+            | 68
+            | 70
+            | 73..=75 => {
                 let (a, b, c) = Self::parse_abc(insn);
 
                 Ok(Self::ABC {
@@ -123,7 +137,7 @@ impl Instruction {
                     a,
                     b,
                     c,
-                    aux: 0
+                    aux: 0,
                 })
             }
             4 | 5 | 12 | 19 | 23..=32 | 54 | 56..=62 | 64 | 71 | 72 | 76 => {
@@ -133,7 +147,7 @@ impl Instruction {
                     op_code: OpCode::try_from(op_code).unwrap(),
                     a,
                     d,
-                    aux: 0
+                    aux: 0,
                 })
             }
             67 | 69 => {
@@ -141,7 +155,7 @@ impl Instruction {
 
                 Ok(Self::E {
                     op_code: OpCode::try_from(op_code).unwrap(),
-                    e
+                    e,
                 })
             }
             _ => unreachable!(),

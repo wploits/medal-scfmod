@@ -1,8 +1,8 @@
-use std::{fs::File, io::Read, rc::Rc, time, iter, cell::RefMut};
+use std::{fs::File, io::Read, rc::Rc, time};
 
 use clap::Parser;
 
-use cfg_ir::{dot, ssa, function::Function};
+use cfg_ir::{dot, function::Function, ssa};
 use lifter::Lifter;
 
 mod chunk;
@@ -39,13 +39,15 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    let (mut main, descendants) = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
+    let (mut main, _descendants) = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
     let lifted = now.elapsed();
 
-    process_function(&mut main)?;
-    for function in descendants.into_iter() {
+    cfg_ir::new_ssa::construct(&mut main);
+
+    /*process_function(&mut main)?;
+    for function in descendants {
         process_function(&mut function.borrow_mut())?;
-    }
+    }*/
 
     dot::render_to(&main, &mut std::io::stdout())?;
     println!("lifting: {:?}", lifted);

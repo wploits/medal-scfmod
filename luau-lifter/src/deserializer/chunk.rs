@@ -1,6 +1,4 @@
-use super::function::Function;
-use super::list::parse_list;
-use super::parse_string;
+use super::{function::Function, list::parse_list, parse_string};
 use nom::IResult;
 use nom_leb128::leb128_usize;
 
@@ -22,7 +20,7 @@ impl Chunk {
             Self {
                 string_table,
                 functions,
-                main
+                main,
             },
         ))
     }
