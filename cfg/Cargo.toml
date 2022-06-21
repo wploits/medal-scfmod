@@ -1,0 +1,16 @@
+[package]
+name = "cfg-ir"
+version = "0.1.0"
+authors = ["Mathias Pedersen <mathias.pedersen834@gmail.com>", "Jujhar Singh <jujharsmc@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0.30"
+enum_dispatch = "0.3.8"
+enum-as-inner = "0.5.0"
+graph = { path = "../graph" }
+dot = { version = "0.1.4" }
+fxhash = "0.2.1"
+itertools = "0.10.3"
