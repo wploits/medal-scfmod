@@ -1,5 +1,5 @@
 [package]
-name = "cfg-ir"
+name = "cfg"
 version = "0.1.0"
 authors = ["Mathias Pedersen <mathias.pedersen834@gmail.com>", "Jujhar Singh <jujharsmc@gmail.com>"]
 edition = "2021"

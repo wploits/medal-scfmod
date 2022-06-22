@@ -1,26 +1,30 @@
+use graph::NodeId;
+
 #[derive(Debug, Clone)]
-pub struct BasicBlock<'cfg> {
+pub enum Terminator {
+    Jump(NodeId),
+    Conditional(NodeId, NodeId),
+    Return,
+}
+
+#[derive(Debug, Clone)]
+pub struct BasicBlock<'a> {
     // pub phi_instructions: Vec<Phi>,
-    pub statements: Vec<ast::Statement<'cfg>>,
-    pub terminator: Option<ast::TerminatorStatement<'cfg>>,
+    pub block: ast::Block<'a>,
+    pub terminator: Option<Terminator>,
 }
 
 impl Default for BasicBlock<'_> {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl BasicBlock<'_> {
-    pub fn new() -> Self {
         Self {
-            // phi_instructions: Vec::new(),
-            statements: Vec::new(),
+            block: ast::Block::new(),
             terminator: None,
         }
     }
+}
 
-    pub fn terminator(&self) -> &Option<ast::TerminatorStatement> {
+impl<'a> BasicBlock<'a> {
+    pub fn terminator(&self) -> &Option<Terminator> {
         &self.terminator
     }
 

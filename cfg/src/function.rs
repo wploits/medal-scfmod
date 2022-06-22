@@ -1,38 +1,25 @@
-use std::{cell::RefCell, rc::Rc};
-
+use ast::local_allocator::LocalAllocator;
 use fxhash::FxHashMap;
 use graph::{Edge, Graph, NodeId};
+use std::rc::Rc;
 
 use crate::{
-    block::BasicBlock,
+    block::{BasicBlock, Terminator},
     error::{Error, Result},
-    value::ValueId,
-    value_allocator::ValueAllocator,
 };
 
-#[derive(Debug, Clone)]
-pub struct Function<'cfg> {
+#[derive(Debug, Clone, Default)]
+pub struct Function<'a> {
+    pub local_allocator: LocalAllocator,
+    pub parameters: Vec<Rc<ast::Local<'a>>>,
     graph: Graph,
-    blocks: FxHashMap<NodeId, BasicBlock<'cfg>>,
-    pub parameters: Vec<ValueId>,
-    pub value_allocator: Rc<RefCell<ValueAllocator>>,
+    blocks: FxHashMap<NodeId, BasicBlock<'a>>,
     /*pub upvalue_open_ranges:
-        FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
+    FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
     entry: Option<NodeId>,
 }
 
 impl<'cfg> Function<'cfg> {
-    pub fn new(value_allocator: Rc<RefCell<ValueAllocator>>) -> Self {
-        Self {
-            graph: Graph::new(),
-            blocks: FxHashMap::default(),
-            parameters: Vec::new(),
-            value_allocator,
-            entry: None,
-            // upvalue_open_ranges: FxHashMap::default(),
-        }
-    }
-
     pub fn entry(&self) -> &Option<NodeId> {
         &self.entry
     }
@@ -46,10 +33,10 @@ impl<'cfg> Function<'cfg> {
         }
     }
 
-    /*pub fn set_block_terminator(
+    pub fn set_block_terminator(
         &mut self,
         block_id: NodeId,
-        new_terminator: Option<ast::TerminatorStatement>,
+        new_terminator: Option<Terminator>,
     ) -> Result<()> {
         if !self.block_exists(block_id) {
             return Err(Error::InvalidBlock(block_id));
@@ -63,14 +50,21 @@ impl<'cfg> Function<'cfg> {
         {
             self.graph.remove_edge(edge)?;
         }
-        if let Some(new_terminator) = new_terminator {
-            for successor in new_terminator.branches() {
-                self.graph.add_edge(Edge::new(block_id, successor))?;
+        match new_terminator {
+            Some(Terminator::Jump(target)) => {
+                self.graph.add_edge(Edge::new(block_id, target))?;
             }
+            Some(Terminator::Conditional(then_branch, else_branch)) => {
+                self.graph.add_edge(Edge::new(block_id, then_branch))?;
+                self.graph.add_edge(Edge::new(block_id, else_branch))?;
+            }
+            _ => {}
+        }
+        if let Some(new_terminator) = new_terminator {
             self.block_mut(block_id)?.terminator.replace(new_terminator);
         }
         Ok(())
-    }*/
+    }
 
     pub fn graph(&self) -> &Graph {
         &self.graph
@@ -104,7 +98,7 @@ impl<'cfg> Function<'cfg> {
 
     pub fn new_block(&mut self) -> Result<NodeId> {
         let node = self.graph.add_node()?;
-        self.blocks.insert(node, BasicBlock::new());
+        self.blocks.insert(node, BasicBlock::default());
         Ok(node)
     }
 }

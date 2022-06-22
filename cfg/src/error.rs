@@ -1,5 +1,5 @@
 use graph::NodeId;
-use std::ops::Range;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]

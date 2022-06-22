@@ -1,60 +1,41 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{BTreeMap},
-    iter,
-    ops::{Bound, Range, RangeInclusive},
-    rc::Rc,
-};
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 
-use cfg_ir::{
-    function::Function,
-    value::ValueId,
-    value_allocator::ValueAllocator,
-};
-use fxhash::{FxHashMap, FxHashSet};
-use graph::{
-    algorithms::{
-        dfs_tree,
-        dominators::{common_dominator, compute_immediate_dominators, dominators},
-    },
-    NodeId,
-};
+use cfg::{block::Terminator, function::Function};
+use fxhash::FxHashMap;
+use graph::NodeId;
 
-use crate::instruction::Instruction;
-use crate::value;
+use crate::{instruction::Instruction, value};
 
 use super::{
     chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
-    op_code::OpCode, value::ValueId as BytecodeValueId,
+    op_code::OpCode,
 };
 
 pub struct Lifter<'a> {
-    function: &'a BytecodeFunction<'a>,
+    bytecode_function: &'a BytecodeFunction<'a>,
     blocks: FxHashMap<usize, NodeId>,
     lifted_function: Function<'a>,
     // TODO: make this a ref
     lifted_descendants: Vec<Rc<RefCell<Function<'a>>>>,
     closures: Vec<Option<Rc<RefCell<Function<'a>>>>>,
-    register_map: FxHashMap<usize, ValueId>,
+    register_map: FxHashMap<usize, Rc<ast::Local<'a>>>,
     constant_map: FxHashMap<usize, ast::Literal<'a>>,
+    current_node: Option<NodeId>,
 }
 
 impl<'a> Lifter<'a> {
-    pub fn new(
-        function: &'a BytecodeFunction<'_>,
-        value_allocator: Rc<RefCell<ValueAllocator>>,
-    ) -> Self {
+    pub fn new(function: &'a BytecodeFunction<'_>) -> Self {
         Self {
-            function,
+            bytecode_function: function,
             blocks: FxHashMap::default(),
-            lifted_function: Function::new(value_allocator),
+            lifted_function: Function::default(),
             closures: vec![None; function.closures.len()],
             register_map: FxHashMap::default(),
             constant_map: FxHashMap::default(),
             lifted_descendants: Vec::new(),
+            current_node: None,
         }
     }
 
@@ -69,7 +50,7 @@ impl<'a> Lifter<'a> {
             .iter()
             .rev()
             .fold(
-                (self.function.code.len(), Vec::new()),
+                (self.bytecode_function.code.len(), Vec::new()),
                 |(block_end, mut accumulator), &block_start| {
                     accumulator.push((block_start, block_end - 1));
 
@@ -82,58 +63,37 @@ impl<'a> Lifter<'a> {
                         accumulator,
                     )
                 },
-            ).1;
+            )
+            .1;
 
-        for i in 0..self.function.num_params {
-            let parameter = self
-                .lifted_function
-                .value_allocator
-                .borrow_mut()
-                .new_value();
-            self.lifted_function.parameters.push(parameter);
+        for i in 0..self.bytecode_function.num_params {
+            let parameter = self.lifted_function.local_allocator.allocate();
+            self.lifted_function.parameters.push(parameter.clone());
             self.register_map.insert(i as usize, parameter);
         }
 
-        let mut node_to_block =
-            FxHashMap::with_capacity_and_hasher(block_ranges.len(), Default::default());
-
-        for (block_start_pc, block_end_pc) in block_ranges {
-            let cfg_block_id = self.get_block(block_start_pc);
-
-            node_to_block.insert(cfg_block_id, (block_start_pc, block_end_pc));
-
-            let instructions = self.lift_instructions(block_start_pc, block_end_pc);
-            let block = self.lifted_function.block_mut(cfg_block_id).unwrap();
-
-            block.statements.extend(instructions);
-
-            //self.lifted_function
-            //  .set_block_terminator(cfg_block_id, terminator)?;
+        for (start_pc, end_pc) in block_ranges {
+            self.current_node = Some(self.block_to_node(start_pc));
+            let (statements, terminator) = self.lift_block(start_pc, end_pc);
+            let block = &mut self
+                .lifted_function
+                .block_mut(self.current_node.unwrap())
+                .unwrap()
+                .block;
+            block.extend(statements);
+            self.lifted_function
+                .set_block_terminator(self.current_node.unwrap(), Some(terminator))
+                .unwrap();
         }
 
-        self.lifted_function.set_entry(self.get_block(0))?;
-
-        let dfs = dfs_tree(
-            self.lifted_function.graph(),
-            self.lifted_function.entry().unwrap(),
-        )?;
-        let idoms = compute_immediate_dominators(
-            self.lifted_function.graph(),
-            self.lifted_function.entry().unwrap(),
-            &dfs,
-        )?;
-        let dominators = dominators(
-            self.lifted_function.graph(),
-            self.lifted_function.entry().unwrap(),
-            &idoms,
-        ).unwrap();
+        self.lifted_function.set_entry(self.block_to_node(0))?;
 
         Ok(self.lifted_function)
     }
 
     fn discover_blocks(&mut self) -> Result<()> {
         self.blocks.insert(0, self.lifted_function.new_block()?);
-        for (insn_index, insn) in self.function.code.iter().enumerate() {
+        for (insn_index, insn) in self.bytecode_function.code.iter().enumerate() {
             match *insn {
                 BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                     OpCode::SetList if c == 0 => {
@@ -163,15 +123,15 @@ impl<'a> Lifter<'a> {
                 BytecodeInstruction::ABx { .. } => {}
 
                 BytecodeInstruction::AsBx { op_code, a: _, sbx }
-                if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
-                    {
-                        self.blocks
-                            .entry(insn_index + sbx as usize - 131070)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                        self.blocks
-                            .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                    }
+                    if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
+                {
+                    self.blocks
+                        .entry(insn_index + sbx as usize - 131070)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    self.blocks
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                }
                 _ => {}
             }
         }
@@ -179,50 +139,87 @@ impl<'a> Lifter<'a> {
         Ok(())
     }
 
-    fn lift_instructions(&mut self, block_start: usize, block_end: usize) -> Vec<ast::Statement> {
+    fn lift_block(
+        &mut self,
+        block_start: usize,
+        block_end: usize,
+    ) -> (Vec<ast::Statement<'a>>, Terminator) {
         let mut instructions = Vec::new();
-
-        for instruction in &self.function.code[block_start..=block_end] {
+        let mut terminator = None;
+        for (index, instruction) in self.bytecode_function.code[block_start..=block_end]
+            .iter()
+            .enumerate()
+        {
+            let instruction_index = block_start + index;
             match (instruction.opcode(), instruction) {
-                (OpCode::LoadConst, Instruction::ABC { a, b, .. }) => {
-                    instructions.push(
-                        ast::Assign {
-                            left: ast::Local(
-                                Cow::Owned(
-                                    self.get_register(*a as usize)
-                                        .to_string()
-                                )
-                            ).into(),
-                            right: ast::RValue::Literal(self.get_constant(*b as usize)),
-                        }.into()
-                    )
+                (OpCode::Move, Instruction::ABC { a, b, .. }) => instructions.push(
+                    ast::Assign {
+                        left: self.register(*a as usize).into(),
+                        right: self.register(*b as usize).into(),
+                    }
+                    .into(),
+                ),
+                (OpCode::LoadConst, Instruction::ABx { a, bx, .. }) => instructions.push(
+                    ast::Assign {
+                        left: self.register(*a as usize).into(),
+                        right: ast::RValue::Literal(self.constant(*bx as usize)),
+                    }
+                    .into(),
+                ),
+                (OpCode::Test, Instruction::ABC { a, b: _, c, .. }) => {
+                    let condition = self.register_or_constant(*a as usize, &mut instructions);
+                    let (mut true_branch, mut false_branch) = (
+                        self.block_to_node(instruction_index + 2),
+                        self.block_to_node(instruction_index + 1),
+                    );
+                    if *c != 0 {
+                        std::mem::swap(&mut true_branch, &mut false_branch);
+                    }
+                    instructions.push(ast::If::new(condition, None, None).into());
+                    terminator = Some(Terminator::Conditional(false_branch, true_branch));
+                }
+                (OpCode::Jump, Instruction::AsBx { sbx, .. }) => {
+                    terminator = Some(Terminator::Jump(
+                        self.block_to_node(instruction_index + *sbx as usize - 131070),
+                    ));
+                }
+                (OpCode::Return, Instruction::ABC { a: _, c: _, .. }) => {
+                    instructions.push(ast::Return::default().into());
+                    terminator = Some(Terminator::Return);
                 }
                 (opcode, _) => unimplemented!("{:?}", opcode),
             }
         }
-
-        instructions
+        (
+            instructions,
+            terminator.unwrap_or_else(|| Terminator::Jump(self.block_to_node(block_end + 1))),
+        )
     }
 
-    fn get_register(&mut self, index: usize) -> ValueId {
-        *self.register_map.entry(index).or_insert_with(|| {
-            self.lifted_function
-                .value_allocator
-                .borrow_mut()
-                .new_value()
-        })
+    fn register_or_constant(
+        &mut self,
+        index: usize,
+        statements: &mut Vec<ast::Statement<'a>>,
+    ) -> ast::RValue<'a> {
+        if index >= 256 {
+            let literal = self.constant(index - 256);
+            let local = self.lifted_function.local_allocator.allocate();
+            statements.push(ast::Assign::new(local.clone().into(), literal.into()).into());
+            local.into()
+        } else {
+            self.register(index).into()
+        }
     }
 
-    fn get_register_range(&mut self, range: Range<usize>) -> Vec<ValueId> {
-        range.map(|v| self.get_register(v)).collect()
+    fn register(&mut self, index: usize) -> Rc<ast::Local<'a>> {
+        self.register_map
+            .entry(index)
+            .or_insert_with(|| self.lifted_function.local_allocator.allocate())
+            .clone()
     }
 
-    fn get_register_incl_range(&mut self, range: RangeInclusive<usize>) -> Vec<ValueId> {
-        range.map(|v| self.get_register(v)).collect()
-    }
-
-    fn get_constant(&mut self, index: usize) -> ast::Literal<'a> {
-        let converted_constant = match self.function.constants.get(index).unwrap() {
+    fn constant(&mut self, index: usize) -> ast::Literal<'a> {
+        let converted_constant = match self.bytecode_function.constants.get(index).unwrap() {
             value::ValueId::Nil => ast::Literal::Nil,
             value::ValueId::Boolean(v) => ast::Literal::Boolean(*v),
             value::ValueId::Number(v) => ast::Literal::Number(*v),
@@ -234,7 +231,7 @@ impl<'a> Lifter<'a> {
             .clone()
     }
 
-    fn get_block(&self, insn_index: usize) -> NodeId {
+    fn block_to_node(&self, insn_index: usize) -> NodeId {
         *self.blocks.get(&insn_index).unwrap()
     }
 

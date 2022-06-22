@@ -1,8 +1,8 @@
-use std::{fs::File, io::Read, rc::Rc, time};
+use std::{fs::File, io::Read, time};
 
 use clap::Parser;
 
-use cfg_ir::function::Function;
+use graph::dot;
 use lifter::Lifter;
 
 mod chunk;
@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    //let (mut main, _descendants) = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
+    let main = Lifter::new(&chunk.main).lift_function()?;
     let lifted = now.elapsed();
 
     // cfg_ir::new_ssa::construct(&mut main);
@@ -48,15 +48,13 @@ fn main() -> anyhow::Result<()> {
     for function in descendants {
         process_function(&mut function.borrow_mut())?;
     }*/
-
-   // dot::render_to(&main, &mut std::io::stdout())?;
     println!("lifting: {:?}", lifted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
-    //let output = cfg_to_ast::lift(&main);
+    let _output = cfg_to_ast_new::lift(main);
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
 
