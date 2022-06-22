@@ -4,7 +4,7 @@ use nom::{error::*, number::complete::le_u32, *};
 
 use crate::op_code::OpCode;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Instruction {
     ABC {
         op_code: OpCode,

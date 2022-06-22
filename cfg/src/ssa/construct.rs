@@ -13,7 +13,6 @@ use graph::{
 };
 
 use crate::{
-    def_use::DefUse,
     function::Function,
     instruction::{
         location::{InstructionIndex, InstructionLocation},
@@ -240,10 +239,10 @@ pub fn construct(function: &mut Function) -> Result<(), Error> {
     let split_values_time = now.elapsed();
     println!("-split values: {:?}", split_values_time);
 
-    let now = time::Instant::now();
+   /* let now = time::Instant::now();
     let mut def_use = DefUse::new(function);
     let def_use_time = now.elapsed();
-    println!("-def use: {:?}", def_use_time);
+    println!("-def use: {:?}", def_use_time);*/
 
     let now = time::Instant::now();
     loop {

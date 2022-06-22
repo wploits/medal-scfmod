@@ -11,9 +11,10 @@ num_enum = "0.5.6"
 nom = "7.1.0"
 clap = { version = "3.1.0", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
-cfg-ir = { path = "../cfg-ir" }
+cfg-ir = { path = "../cfg" }
 graph = { path = "../graph", features = ["dot"] }
-cfg-to-ast = { path = "../cfg-to-ast" }
+ast = { path = "../ast" }
+cfg-to-ast-new = { path = "../cfg-to-ast-new" }
 dhat = "0.3.0"
 fxhash = "0.2.1"
 

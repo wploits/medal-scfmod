@@ -6,7 +6,6 @@ use graph::{Edge, Graph, NodeId};
 use crate::{
     block::BasicBlock,
     error::{Error, Result},
-    instruction::{branch_info::BranchInfo, location::InstructionLocation, Terminator},
     value::ValueId,
     value_allocator::ValueAllocator,
 };
@@ -17,8 +16,8 @@ pub struct Function<'cfg> {
     blocks: FxHashMap<NodeId, BasicBlock<'cfg>>,
     pub parameters: Vec<ValueId>,
     pub value_allocator: Rc<RefCell<ValueAllocator>>,
-    pub upvalue_open_ranges:
-        FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,
+    /*pub upvalue_open_ranges:
+        FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
     entry: Option<NodeId>,
 }
 
@@ -30,7 +29,7 @@ impl<'cfg> Function<'cfg> {
             parameters: Vec::new(),
             value_allocator,
             entry: None,
-            upvalue_open_ranges: FxHashMap::default(),
+            // upvalue_open_ranges: FxHashMap::default(),
         }
     }
 
@@ -47,10 +46,10 @@ impl<'cfg> Function<'cfg> {
         }
     }
 
-    pub fn set_block_terminator(
+    /*pub fn set_block_terminator(
         &mut self,
         block_id: NodeId,
-        new_terminator: Option<Terminator>,
+        new_terminator: Option<ast::TerminatorStatement>,
     ) -> Result<()> {
         if !self.block_exists(block_id) {
             return Err(Error::InvalidBlock(block_id));
@@ -71,7 +70,7 @@ impl<'cfg> Function<'cfg> {
             self.block_mut(block_id)?.terminator.replace(new_terminator);
         }
         Ok(())
-    }
+    }*/
 
     pub fn graph(&self) -> &Graph {
         &self.graph

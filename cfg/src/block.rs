@@ -1,12 +1,8 @@
-use crate::{instruction::value_info::ValueInfo, value::ValueId};
-
-use super::instruction::{location::InstructionIndex, Inner, Phi, Terminator};
-
 #[derive(Debug, Clone)]
 pub struct BasicBlock<'cfg> {
-    pub phi_instructions: Vec<Phi>,
-    pub inner_instructions: Vec<Inner<'cfg>>,
-    pub(crate) terminator: Option<Terminator>,
+    // pub phi_instructions: Vec<Phi>,
+    pub statements: Vec<ast::Statement<'cfg>>,
+    pub terminator: Option<ast::TerminatorStatement<'cfg>>,
 }
 
 impl Default for BasicBlock<'_> {
@@ -18,24 +14,24 @@ impl Default for BasicBlock<'_> {
 impl BasicBlock<'_> {
     pub fn new() -> Self {
         Self {
-            phi_instructions: Vec::new(),
-            inner_instructions: Vec::new(),
+            // phi_instructions: Vec::new(),
+            statements: Vec::new(),
             terminator: None,
         }
     }
 
-    pub fn terminator(&self) -> &Option<Terminator> {
+    pub fn terminator(&self) -> &Option<ast::TerminatorStatement> {
         &self.terminator
     }
 
-    pub fn indices(&self) -> Vec<InstructionIndex> {
+    /*pub fn indices(&self) -> Vec<InstructionIndex> {
         let phi_indices = self
             .phi_instructions
             .iter()
             .enumerate()
             .map(|(i, _)| InstructionIndex::Phi(i));
         let inner_indices = self
-            .inner_instructions
+            .statements
             .iter()
             .enumerate()
             .map(|(i, _)| InstructionIndex::Inner(i));
@@ -49,7 +45,7 @@ impl BasicBlock<'_> {
     pub fn values_written(&self, index: InstructionIndex) -> Vec<ValueId> {
         match index {
             InstructionIndex::Phi(i) => self.phi_instructions.get(i).unwrap().values_written(),
-            InstructionIndex::Inner(i) => self.inner_instructions.get(i).unwrap().values_written(),
+            InstructionIndex::Inner(i) => self.statements.get(i).unwrap().values_written(),
             InstructionIndex::Terminator => self.terminator.as_ref().unwrap().values_written(),
         }
     }
@@ -147,7 +143,7 @@ impl BasicBlock<'_> {
                 self.terminator.as_mut().unwrap().replace_values(old, new)
             }
         }
-    }
+    }*/
 
     /*pub(crate) fn value_info(&self, index: InstructionIndex) -> Option<&dyn ValueInfo> {
         match index {
