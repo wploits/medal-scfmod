@@ -97,8 +97,12 @@ impl<'a> GraphStructurer<'a> {
             && self.graph.predecessors(else_node).count() == 1
         // && is not cross-interval or back edge
         {
-            panic!("diamond pattern");
+            // if then else end
+            then_block = Some(self.blocks.remove(&then_node).unwrap());
+            else_block = Some(self.blocks.remove(&else_node).unwrap());
+            exit_block = Some(self.blocks.remove(&then_successors[0]).unwrap());
         } else {
+            // if then end
             if then_successors.len() == 1
                 && else_node == then_successors[0]
                 && self.graph.predecessors(else_node).count() == 2
@@ -159,39 +163,6 @@ impl<'a> GraphStructurer<'a> {
         }*/
 
         //dot::render_to(&self.graph, &mut std::io::stdout());
-
-        /*if then_block.is_some() || else_block.is_some() {
-            if then_successors.len() < 2 && else_successors.len() < 2 {
-                println!("yesss");
-                if then_successors.len() == 1
-                    && else_successors.len() == 1
-                    && then_successors[0] == else_successors[0]
-                {
-                    println!("{} consuming {}", entry, else_node);
-                    exit_block = Some(self.blocks.remove(&then_successors[0]).unwrap());
-                } else if then_successors[0] == else_node {
-                    exit_block = else_block;
-                    else_block = None;
-                } else if else_successors[0] == then_node {
-                    exit_block = then_block;
-                    then_block = None;
-                } else {
-                    panic!("if pattern doesnt match");
-                }
-            }
-
-            let block = self.blocks.get_mut(&entry).unwrap();
-            let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-            if let Some(then_block) = then_block {
-                if_stat.then_block = Some(then_block);
-            }
-            if let Some(else_block) = else_block {
-                if_stat.else_block = Some(else_block);
-            }
-            if let Some(exit_block) = exit_block {
-                block.extend(exit_block.0);
-            }
-        }*/
     }
 
     fn collapse_jump(&mut self, back_edges: &[Edge], node: NodeId, target: NodeId) {
@@ -282,7 +253,7 @@ fn main() {
         )
         .into()]),
     );
-    let graph = Graph::from_edges(vec![(1, 2), (1, 3), (2, 3), (3, 4)]);
+    let graph = Graph::from_edges(vec![(1, 2), (1, 3), (2, 4), (3, 4)]);
     graph::dot::render_to(&graph, &mut std::io::stdout()).unwrap();
 
     let root = NodeId(1);
