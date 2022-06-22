@@ -4,10 +4,6 @@ use graph::{
     *,
 };
 
-struct Block<'a> {
-    statements: Vec<ast::Statement<'a>>,
-}
-
 struct GraphStructurer<'a> {
     graph: Graph,
     interval_graph: Option<Graph>,
@@ -108,8 +104,6 @@ impl<'a> GraphStructurer<'a> {
                 && self.graph.predecessors(else_node).count() == 2
                 && self.graph.predecessors(then_node).count() == 1
             {
-                println!("{} consuming {}", entry, then_node);
-                println!("{} consuming {}", entry, else_node);
                 then_block = Some(self.blocks.remove(&then_node).unwrap());
                 exit_block = Some(self.blocks.remove(&else_node).unwrap());
             } else if else_successors.len() == 1
@@ -117,15 +111,9 @@ impl<'a> GraphStructurer<'a> {
                 && self.graph.predecessors(then_node).count() == 2
                 && self.graph.predecessors(else_node).count() == 1
             {
-                println!("{} consuming {}", entry, then_node);
-                println!("{} consuming {}", entry, else_node);
                 else_block = Some(self.blocks.remove(&else_node).unwrap());
                 exit_block = Some(self.blocks.remove(&then_node).unwrap());
             }
-            println!(
-                "pattern: {} {} {:?} {:?}",
-                else_node, then_node, else_successors, then_successors
-            );
         }
 
         let block = self.blocks.get_mut(&entry).unwrap();
@@ -148,19 +136,12 @@ impl<'a> GraphStructurer<'a> {
             block.extend(exit_block.0);
         }
 
-        /*if !back_edges.contains(&(entry, then_node).into())
-            && self.graph.predecessors(then_node).count() == 1
-        {
-            println!("{} consuming {}", entry, then_node);
-            then_block = Some(self.blocks.remove(&then_node).unwrap());
+        if self.interval_graph.as_ref().unwrap().node_exists(entry) {
+            let block = self.blocks.remove(&entry).unwrap();
+            let while_stat = ast::While::new(ast::Literal::from(true).into(), block);
+            self.blocks
+                .insert(entry, ast::Block::from_vec(vec![while_stat.into()]));
         }
-
-        if !back_edges.contains(&(entry, else_node).into())
-            && self.graph.predecessors(else_node).count() == 1
-        {
-            println!("{} consuming {}", entry, else_node);
-            else_block = Some(self.blocks.remove(&else_node).unwrap());
-        }*/
 
         //dot::render_to(&self.graph, &mut std::io::stdout());
     }
@@ -253,7 +234,7 @@ fn main() {
         )
         .into()]),
     );
-    let graph = Graph::from_edges(vec![(1, 2), (1, 3), (2, 4), (3, 4)]);
+    let graph = Graph::from_edges(vec![(1, 2), (1, 3), (2, 4), (3, 4), (4, 1)]);
     graph::dot::render_to(&graph, &mut std::io::stdout()).unwrap();
 
     let root = NodeId(1);

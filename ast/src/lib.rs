@@ -13,6 +13,7 @@ pub mod literal;
 pub mod local;
 pub mod name_gen;
 pub mod unary;
+pub mod r#while;
 
 pub use assign::*;
 pub use call::*;
@@ -22,6 +23,7 @@ pub use index::*;
 pub use literal::*;
 pub use local::*;
 pub use r#if::*;
+pub use r#while::*;
 pub use unary::*;
 
 #[derive(Debug, From, Clone)]
@@ -69,6 +71,7 @@ pub enum Statement<'a> {
     If(If<'a>),
     Goto(Goto<'a>),
     Label(Label<'a>),
+    While(While<'a>),
 }
 
 impl fmt::Display for Statement<'_> {
@@ -79,6 +82,7 @@ impl fmt::Display for Statement<'_> {
             Statement::If(if_) => write!(f, "{}", if_),
             Statement::Goto(goto) => write!(f, "{}", goto),
             Statement::Label(label) => write!(f, "{}", label),
+            Statement::While(while_) => write!(f, "{}", while_),
         }
     }
 }
