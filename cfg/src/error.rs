@@ -2,14 +2,12 @@ use graph::NodeId;
 use std::ops::Range;
 use thiserror::Error;
 
-use super::instruction::location::{InstructionIndex, InstructionLocation};
-
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Block {0} does not exist")]
     InvalidBlock(NodeId),
 
-    #[error("The specified instruction {0} does not exist")]
+    /*#[error("The specified instruction {0} does not exist")]
     InvalidInstruction(InstructionLocation),
 
     #[error("The specified instruction range {}..{} for block {} does not exist",
@@ -17,7 +15,7 @@ pub enum Error {
     InvalidInstructionRange {
         block: NodeId,
         instruction_location_range: Range<InstructionIndex>,
-    },
+    },*/
 
     #[error("No block has been selected")]
     NoBlockSelected,

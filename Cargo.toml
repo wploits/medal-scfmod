@@ -4,7 +4,7 @@ members = [
     "graph",
     "cfg",
     "ast",
-    #"lua51-lifter",
+    "lua51-lifter",
     #"cfg-to-ast",
     #"luau-lifter",
     "cfg-to-ast-new"

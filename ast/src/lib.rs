@@ -83,6 +83,11 @@ impl fmt::Display for Statement<'_> {
     }
 }
 
+#[derive(Debug, From, Clone, EnumAsInner)]
+pub enum TerminatorStatement<'a> {
+    Return(Vec<RValue<'a>>),
+}
+
 #[derive(Debug, Clone, Default, Deref, DerefMut)]
 pub struct Block<'a>(pub Vec<Statement<'a>>);
 

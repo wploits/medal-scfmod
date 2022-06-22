@@ -2,7 +2,7 @@ use std::{fs::File, io::Read, rc::Rc, time};
 
 use clap::Parser;
 
-use cfg_ir::{dot, function::Function, ssa};
+use cfg_ir::function::Function;
 use lifter::Lifter;
 
 mod chunk;
@@ -39,33 +39,33 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    let (mut main, _descendants) = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
+    //let (mut main, _descendants) = Lifter::new(&chunk.main, Rc::default()).lift_function()?;
     let lifted = now.elapsed();
 
-    cfg_ir::new_ssa::construct(&mut main);
+    // cfg_ir::new_ssa::construct(&mut main);
 
     /*process_function(&mut main)?;
     for function in descendants {
         process_function(&mut function.borrow_mut())?;
     }*/
 
-    dot::render_to(&main, &mut std::io::stdout())?;
+   // dot::render_to(&main, &mut std::io::stdout())?;
     println!("lifting: {:?}", lifted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
-    let output = cfg_to_ast::lift(&main);
+    //let output = cfg_to_ast::lift(&main);
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
 
-    println!("{}", output);
+    //println!("{}", output);
 
     Ok(())
 }
 
-fn process_function(cfg: &mut Function) -> anyhow::Result<()> {
+/*fn process_function(cfg: &mut Function) -> anyhow::Result<()> {
     let now = time::Instant::now();
     cfg_ir::value::ensure_write::ensure_writes(cfg);
     let writes_ensured = now.elapsed();
@@ -86,3 +86,4 @@ fn process_function(cfg: &mut Function) -> anyhow::Result<()> {
 
     Ok(())
 }
+*/
