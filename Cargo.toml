@@ -7,6 +7,7 @@ members = [
     #"lua51-lifter",
     #"cfg-to-ast",
     #"luau-lifter",
+    "cfg-to-ast-new"
 ]
 
 [profile.release]

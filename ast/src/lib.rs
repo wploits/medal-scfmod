@@ -1,27 +1,28 @@
 use derive_more::{Deref, DerefMut, From};
 use enum_as_inner::EnumAsInner;
 use itertools::Itertools;
-use std::{
-    fmt,
-    ops::{Deref, DerefMut},
-};
+use std::fmt;
 
 pub mod assign;
 pub mod call;
 pub mod global;
+pub mod goto;
 pub mod r#if;
 pub mod index;
 pub mod literal;
 pub mod local;
 pub mod name_gen;
+pub mod unary;
 
-use assign::*;
-use call::*;
-use global::*;
-use index::*;
-use literal::*;
-use local::*;
-use r#if::*;
+pub use assign::*;
+pub use call::*;
+pub use global::*;
+pub use goto::*;
+pub use index::*;
+pub use literal::*;
+pub use local::*;
+pub use r#if::*;
+pub use unary::*;
 
 #[derive(Debug, From, Clone)]
 pub enum RValue<'a> {
@@ -30,6 +31,7 @@ pub enum RValue<'a> {
     Call(Call<'a>),
     Literal(Literal<'a>),
     Index(Index<'a>),
+    Unary(Unary<'a>),
 }
 
 impl fmt::Display for RValue<'_> {
@@ -40,6 +42,7 @@ impl fmt::Display for RValue<'_> {
             RValue::Literal(literal) => write!(f, "{}", literal),
             RValue::Call(call) => write!(f, "{}", call),
             RValue::Index(index) => write!(f, "{}", index),
+            RValue::Unary(unary) => write!(f, "{}", unary),
         }
     }
 }
@@ -59,11 +62,13 @@ impl fmt::Display for LValue<'_> {
     }
 }
 
-#[derive(Debug, From, Clone)]
+#[derive(Debug, From, Clone, EnumAsInner)]
 pub enum Statement<'a> {
     Call(Call<'a>),
     Assign(Assign<'a>),
     If(If<'a>),
+    Goto(Goto<'a>),
+    Label(Label<'a>),
 }
 
 impl fmt::Display for Statement<'_> {
@@ -72,6 +77,8 @@ impl fmt::Display for Statement<'_> {
             Statement::Call(call) => write!(f, "{}", call),
             Statement::Assign(assign) => write!(f, "{}", assign),
             Statement::If(if_) => write!(f, "{}", if_),
+            Statement::Goto(goto) => write!(f, "{}", goto),
+            Statement::Label(label) => write!(f, "{}", label),
         }
     }
 }

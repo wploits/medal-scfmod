@@ -26,25 +26,27 @@ impl<'a> If<'a> {
 
 impl<'a> fmt::Display for If<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(
-            f,
-            "if {} then\n\t{}",
-            self.condition,
-            self.then_block
-                .iter()
-                .map(|n| n.to_string().replace('\n', "\n\t"))
-                .join("\n\t")
-        )?;
-        if let Some(else_block) = &self.else_block {
-            writeln!(
+        write!(f, "if {} then", self.condition,)?;
+        if let Some(then_block) = &self.then_block {
+            write!(
                 f,
-                "else\n\t{}",
+                "\n\t{}",
+                then_block
+                    .iter()
+                    .map(|n| n.to_string().replace('\n', "\n\t"))
+                    .join("\n\t")
+            )?;
+        }
+        if let Some(else_block) = &self.else_block {
+            write!(
+                f,
+                "\nelse\n\t{}",
                 else_block
                     .iter()
                     .map(|n| n.to_string().replace('\n', "\n\t"))
                     .join("\n\t")
             )?;
         }
-        write!(f, "end")
+        write!(f, "\nend")
     }
 }
