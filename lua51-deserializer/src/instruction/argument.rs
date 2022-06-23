@@ -1,13 +1,13 @@
 use either::Either;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Register(pub u8);
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Constant(pub u32);
 
-#[derive(Debug)]
-pub struct RegisterOrConstant(Either<Register, Constant>);
+#[derive(Debug, Copy, Clone)]
+pub struct RegisterOrConstant(pub Either<Register, Constant>);
 
 impl From<u32> for RegisterOrConstant {
 	fn from(value: u32) -> Self {

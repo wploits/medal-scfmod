@@ -1,12 +1,14 @@
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use anyhow::Result;
+use either::Either;
 
 use cfg::{block::Terminator, function::Function};
 use fxhash::FxHashMap;
 use graph::NodeId;
 
 use lua51_deserializer::{Instruction, Function as BytecodeFunction, Value};
+use lua51_deserializer::argument::RegisterOrConstant;
 
 pub struct Lifter<'a> {
     bytecode_function: &'a BytecodeFunction<'a>,
@@ -129,7 +131,7 @@ impl<'a> Lifter<'a> {
         block_start: usize,
         block_end: usize,
     ) -> (Vec<ast::Statement<'a>>, Terminator) {
-        let mut instructions = Vec::new();
+        let mut statements = Vec::new();
         let mut terminator = None;
         for (index, instruction) in self.bytecode_function.code[block_start..=block_end]
             .iter()
@@ -137,20 +139,69 @@ impl<'a> Lifter<'a> {
         {
             let instruction_index = block_start + index;
             match instruction {
-                Instruction::Move { destination, source } => instructions.push(
+                Instruction::Move { destination, source } => statements.push(
                     ast::Assign {
-                        left: self.register(destination.0 as usize).into(),
-                        right: self.register(source.0 as usize).into(),
+                        left: vec![self.register(destination.0 as usize).into()],
+                        right: vec![self.register(source.0 as usize).into()],
                     }.into()
                 ),
-                Instruction::LoadConstant { destination, source } => instructions.push(
+                Instruction::LoadConstant { destination, source } => statements.push(
                     ast::Assign {
-                        left: self.register(destination.0 as usize).into(),
-                        right: ast::RValue::Literal(self.constant(source.0 as usize)),
+                        left: vec![self.register(destination.0 as usize).into()],
+                        right: vec![ast::RValue::Literal(self.constant(source.0 as usize))],
                     }.into(),
                 ),
+                Instruction::LoadBoolean { destination, value, skip_next } => {
+                    statements.push(
+                        ast::Assign {
+                            left: vec![self.register(destination.0 as usize).into()],
+                            right: vec![ast::Literal::Boolean(*value).into()],
+                        }.into(),
+                    );
+
+                    if *skip_next {
+                        terminator = Some(Terminator::Jump(self.block_to_node(instruction_index + 2)).into());
+                    }
+                }
+                Instruction::LoadNil(range) => {
+                    let range = (range.start.0..range.end.0);
+                    let right = vec![ast::Literal::Nil.into(); range.len()];
+
+                    statements.push(
+                        ast::Assign {
+                            left: range
+                                .map(|destination| self.register(destination as usize).into())
+                                .collect(),
+                            right,
+                        }.into()
+                    )
+                }
+                Instruction::GetGlobal { destination, global, .. } => statements.push(
+                    ast::Assign {
+                        left: vec![self.register(destination.0 as usize).into()],
+                        right: vec![self.constant(global.0 as usize).into()],
+                    }.into(),
+                ),
+                Instruction::GetTable { destination, table, key } => {
+                    let key = self.register_or_constant(*key, &mut statements).into();
+
+                    statements.push(
+                        ast::Assign {
+                            left: vec![self.register(destination.0 as usize).into()],
+                            right: vec![
+                                ast::Index {
+                                    left: Box::new(self.register(table.0 as usize).into()),
+                                    right: key,
+                                }.into()
+                            ],
+                        }.into(),
+                    );
+                }
                 Instruction::Test { value, comparison_value } => {
-                    let condition = self.register_or_constant(value.0 as usize, &mut instructions);
+                    let condition = self.register_or_constant(
+                        RegisterOrConstant(Either::Left(*value)),
+                        &mut statements
+                    );
                     let (mut true_branch, mut false_branch) = (
                         self.block_to_node(instruction_index + 2),
                         self.block_to_node(instruction_index + 1),
@@ -158,7 +209,7 @@ impl<'a> Lifter<'a> {
                     if *comparison_value {
                         std::mem::swap(&mut true_branch, &mut false_branch);
                     }
-                    instructions.push(ast::If::new(condition, None, None).into());
+                    statements.push(ast::If::new(condition, None, None).into());
                     terminator = Some(Terminator::Conditional(false_branch, true_branch));
                 }
                 Instruction::Jump(sbx) => {
@@ -167,30 +218,31 @@ impl<'a> Lifter<'a> {
                     ));
                 }
                 Instruction::Return(_) => {
-                    instructions.push(ast::Return::default().into());
+                    statements.push(ast::Return::default().into());
                     terminator = Some(Terminator::Return);
                 }
                 other => unimplemented!("{:?}", other),
             }
         }
         (
-            instructions,
+            statements,
             terminator.unwrap_or_else(|| Terminator::Jump(self.block_to_node(block_end + 1))),
         )
     }
 
     fn register_or_constant(
         &mut self,
-        index: usize,
+        index: RegisterOrConstant,
         statements: &mut Vec<ast::Statement<'a>>,
     ) -> ast::RValue<'a> {
-        if index >= 256 {
-            let literal = self.constant(index - 256);
-            let local = self.lifted_function.local_allocator.allocate();
-            statements.push(ast::Assign::new(local.clone().into(), literal.into()).into());
-            local.into()
-        } else {
-            self.register(index).into()
+        match index.0 {
+            Either::Left(register) => self.register(register.0 as usize).into(),
+            Either::Right(constant) => {
+                let literal = self.constant(constant.0 as usize);
+                let local = self.lifted_function.local_allocator.allocate();
+                statements.push(ast::Assign::new(vec![local.clone().into()], vec![literal.into()]).into());
+                local.into()
+            }
         }
     }
 
@@ -218,24 +270,14 @@ impl<'a> Lifter<'a> {
         *self.blocks.get(&insn_index).unwrap()
     }
 
-    /*fn is_terminator(instruction: &BytecodeInstruction) -> bool {
+    fn is_terminator(instruction: Instruction) -> bool {
         match instruction {
-            BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
-                OpCode::LoadBool => *c != 0,
-                _ => matches!(
-                    op_code,
-                    OpCode::Equal
-                        | OpCode::LesserThan
-                        | OpCode::LesserOrEqual
-                        | OpCode::Test
-                        | OpCode::Return
-                        | OpCode::TableForLoop
-                ),
-            },
-            BytecodeInstruction::ABx { .. } => false,
-            BytecodeInstruction::AsBx { op_code, .. } => {
-                matches!(op_code, OpCode::Jump | OpCode::ForPrep | OpCode::ForLoop)
-            }
+            Instruction::LoadBoolean { skip_next: true, .. }
+            | Instruction::Jump(_)
+            | Instruction::IterateNumericForLoop { .. }
+            | Instruction::PrepareNumericForLoop { .. }
+            | Instruction::IterateGenericForLoop { .. } => true,
+            _ => false,
         }
-    }*/
+    }
 }
