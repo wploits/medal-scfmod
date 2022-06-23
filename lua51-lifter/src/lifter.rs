@@ -6,12 +6,7 @@ use cfg::{block::Terminator, function::Function};
 use fxhash::FxHashMap;
 use graph::NodeId;
 
-use crate::{instruction::Instruction, value};
-
-use super::{
-    chunk::function::Function as BytecodeFunction, instruction::Instruction as BytecodeInstruction,
-    op_code::OpCode,
-};
+use lua51_deserializer::{Instruction, Function as BytecodeFunction, Value};
 
 pub struct Lifter<'a> {
     bytecode_function: &'a BytecodeFunction<'a>,
@@ -66,7 +61,7 @@ impl<'a> Lifter<'a> {
             )
             .1;
 
-        for i in 0..self.bytecode_function.num_params {
+        for i in 0..self.bytecode_function.number_of_parameters {
             let parameter = self.lifted_function.local_allocator.allocate();
             self.lifted_function.parameters.push(parameter.clone());
             self.register_map.insert(i as usize, parameter);
@@ -95,38 +90,28 @@ impl<'a> Lifter<'a> {
         self.blocks.insert(0, self.lifted_function.new_block()?);
         for (insn_index, insn) in self.bytecode_function.code.iter().enumerate() {
             match *insn {
-                BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
-                    OpCode::SetList if c == 0 => {
-                        // TODO: skip next instruction
-                        todo!();
-                    }
-                    OpCode::LoadBool if c != 0 => {
-                        self.blocks
-                            .entry(insn_index + 2)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                    }
-                    OpCode::Equal
-                    | OpCode::LesserThan
-                    | OpCode::LesserOrEqual
-                    | OpCode::Test
-                    | OpCode::TableForLoop => {
-                        self.blocks
-                            .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                        self.blocks
-                            .entry(insn_index + 2)
-                            .or_insert_with(|| self.lifted_function.new_block().unwrap());
-                    }
-                    _ => {}
-                },
-
-                BytecodeInstruction::ABx { .. } => {}
-
-                BytecodeInstruction::AsBx { op_code, a: _, sbx }
-                    if matches!(op_code, OpCode::Jump | OpCode::ForLoop | OpCode::ForPrep) =>
-                {
+                Instruction::SetList { block_number: 0, .. } => {
+                    // TODO: skip next instruction
+                    todo!();
+                }
+                Instruction::LoadBoolean { skip_next: true, .. } => {
                     self.blocks
-                        .entry(insn_index + sbx as usize - 131070)
+                        .entry(insn_index + 2)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                }
+                Instruction::Equal { .. } | Instruction::LessThan { .. }
+                | Instruction::LessThanOrEqual { .. } | Instruction::Test { .. }
+                | Instruction::IterateGenericForLoop { .. } => {
+                    self.blocks
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                    self.blocks
+                        .entry(insn_index + 2)
+                        .or_insert_with(|| self.lifted_function.new_block().unwrap());
+                }
+                Instruction::Jump(step) | Instruction::IterateNumericForLoop { step, .. } | Instruction::PrepareNumericForLoop { step, .. } => {
+                    self.blocks
+                        .entry(insn_index + step as usize - 131070)
                         .or_insert_with(|| self.lifted_function.new_block().unwrap());
                     self.blocks
                         .entry(insn_index + 1)
@@ -151,43 +136,41 @@ impl<'a> Lifter<'a> {
             .enumerate()
         {
             let instruction_index = block_start + index;
-            match (instruction.opcode(), instruction) {
-                (OpCode::Move, Instruction::ABC { a, b, .. }) => instructions.push(
+            match instruction {
+                Instruction::Move { destination, source } => instructions.push(
                     ast::Assign {
-                        left: self.register(*a as usize).into(),
-                        right: self.register(*b as usize).into(),
-                    }
-                    .into(),
+                        left: self.register(destination.0 as usize).into(),
+                        right: self.register(source.0 as usize).into(),
+                    }.into()
                 ),
-                (OpCode::LoadConst, Instruction::ABx { a, bx, .. }) => instructions.push(
+                Instruction::LoadConstant { destination, source } => instructions.push(
                     ast::Assign {
-                        left: self.register(*a as usize).into(),
-                        right: ast::RValue::Literal(self.constant(*bx as usize)),
-                    }
-                    .into(),
+                        left: self.register(destination.0 as usize).into(),
+                        right: ast::RValue::Literal(self.constant(source.0 as usize)),
+                    }.into(),
                 ),
-                (OpCode::Test, Instruction::ABC { a, b: _, c, .. }) => {
-                    let condition = self.register_or_constant(*a as usize, &mut instructions);
+                Instruction::Test { value, comparison_value } => {
+                    let condition = self.register_or_constant(value.0 as usize, &mut instructions);
                     let (mut true_branch, mut false_branch) = (
                         self.block_to_node(instruction_index + 2),
                         self.block_to_node(instruction_index + 1),
                     );
-                    if *c != 0 {
+                    if *comparison_value {
                         std::mem::swap(&mut true_branch, &mut false_branch);
                     }
                     instructions.push(ast::If::new(condition, None, None).into());
                     terminator = Some(Terminator::Conditional(false_branch, true_branch));
                 }
-                (OpCode::Jump, Instruction::AsBx { sbx, .. }) => {
+                Instruction::Jump(sbx) => {
                     terminator = Some(Terminator::Jump(
                         self.block_to_node(instruction_index + *sbx as usize - 131070),
                     ));
                 }
-                (OpCode::Return, Instruction::ABC { a: _, c: _, .. }) => {
+                Instruction::Return(_) => {
                     instructions.push(ast::Return::default().into());
                     terminator = Some(Terminator::Return);
                 }
-                (opcode, _) => unimplemented!("{:?}", opcode),
+                other => unimplemented!("{:?}", other),
             }
         }
         (
@@ -220,10 +203,10 @@ impl<'a> Lifter<'a> {
 
     fn constant(&mut self, index: usize) -> ast::Literal<'a> {
         let converted_constant = match self.bytecode_function.constants.get(index).unwrap() {
-            value::ValueId::Nil => ast::Literal::Nil,
-            value::ValueId::Boolean(v) => ast::Literal::Boolean(*v),
-            value::ValueId::Number(v) => ast::Literal::Number(*v),
-            value::ValueId::String(v) => ast::Literal::String(Cow::Borrowed(v)),
+            Value::Nil => ast::Literal::Nil,
+            Value::Boolean(v) => ast::Literal::Boolean(*v),
+            Value::Number(v) => ast::Literal::Number(*v),
+            Value::String(v) => ast::Literal::String(Cow::Borrowed(v)),
         };
         self.constant_map
             .entry(index)
@@ -235,7 +218,7 @@ impl<'a> Lifter<'a> {
         *self.blocks.get(&insn_index).unwrap()
     }
 
-    fn is_terminator(instruction: &BytecodeInstruction) -> bool {
+    /*fn is_terminator(instruction: &BytecodeInstruction) -> bool {
         match instruction {
             BytecodeInstruction::ABC { op_code, c, .. } => match op_code {
                 OpCode::LoadBool => *c != 0,
@@ -254,5 +237,5 @@ impl<'a> Lifter<'a> {
                 matches!(op_code, OpCode::Jump | OpCode::ForPrep | OpCode::ForLoop)
             }
         }
-    }
+    }*/
 }
