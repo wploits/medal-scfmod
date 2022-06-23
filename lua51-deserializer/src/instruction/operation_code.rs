@@ -52,11 +52,11 @@ pub enum OperationCode {
 impl OperationCode {
 	pub fn parse(input: &[u8]) -> IResult<&[u8], Self> {
 		let (input, operation_code) = le_u8(input)?;
+		let operation_code = operation_code & 0x3F;
 
 		Ok((input,
 			match FromPrimitive::from_u8(operation_code) {
-				None => return Err(
-					Err::Failure(
+				None => return Err(Err::Failure(
 						Error::from_error_kind(input, ErrorKind::Switch)
 					)
 				),
