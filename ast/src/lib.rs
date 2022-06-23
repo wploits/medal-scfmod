@@ -16,6 +16,7 @@ mod name_gen;
 mod r#return;
 mod unary;
 mod r#while;
+mod table;
 
 pub use assign::*;
 pub use call::*;
@@ -28,12 +29,14 @@ pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
 pub use unary::*;
+pub use table::*;
 
 #[derive(Debug, From, Clone)]
 pub enum RValue<'a> {
     Local(Rc<Local<'a>>),
     Global(Global<'a>),
     Call(Call<'a>),
+    Table(Table<'a>),
     Literal(Literal<'a>),
     Index(Index<'a>),
     Unary(Unary<'a>),
@@ -46,6 +49,7 @@ impl fmt::Display for RValue<'_> {
             RValue::Global(global) => write!(f, "{}", global),
             RValue::Literal(literal) => write!(f, "{}", literal),
             RValue::Call(call) => write!(f, "{}", call),
+            RValue::Table(table) => write!(f, "{}", table),
             RValue::Index(index) => write!(f, "{}", index),
             RValue::Unary(unary) => write!(f, "{}", unary),
         }

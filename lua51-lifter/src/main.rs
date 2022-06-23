@@ -45,10 +45,12 @@ fn main() -> anyhow::Result<()> {
     for function in descendants {
         process_function(&mut function.borrow_mut())?;
     }*/
+
     println!("lifting: {:?}", lifted);
+    println!("{}", main.block(main.entry().unwrap()).unwrap().block);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
-    //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
+    // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;
 
     /*let now = time::Instant::now();
     let _output = cfg_to_ast_new::lift(main);
