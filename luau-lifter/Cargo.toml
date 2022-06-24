@@ -11,8 +11,9 @@ nom = "7.1.0"
 nom-leb128 = "0.2.0"
 clap = { version = "3.1.0", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
-cfg-ir = { path = "../cfg-ir" }
+cfg = { path = "../cfg" }
 graph = { path = "../graph", features = ["dot"] }
-cfg-to-ast = { path = "../cfg-to-ast" }
+ast = { path = "../ast" }
 mlua = { version = "0.8.0-beta.3", features = ["luau"] }
 fxhash = "0.2.1"
+either = "1.6.1"
