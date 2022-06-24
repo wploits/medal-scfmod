@@ -255,7 +255,7 @@ impl<'a> Lifter<'a> {
                         statements.push(ast::Return::default().into());
                         terminator = Some(Terminator::Return);
                     }
-                    _ => unimplemented!("{:?}", op_code)
+                    _ => unreachable!()
                 }
                 Instruction::AD { op_code, a, d, aux } => match op_code {
                     OpCode::LOP_LOADN => unimplemented!(),
@@ -291,7 +291,7 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_JUMPIFEQK => unimplemented!(),
                     OpCode::LOP_JUMPIFNOTEQK => unimplemented!(),
                     OpCode::LOP_FORGPREP => unimplemented!(),
-                    _ => unimplemented!("{:?}", op_code)
+                    _ => unreachable!()
                 }
                 Instruction::E { op_code, e } => match op_code {
                     // there is technically only one actual e opcode that is used
