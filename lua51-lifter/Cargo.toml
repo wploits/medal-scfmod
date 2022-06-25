@@ -12,11 +12,12 @@ nom = "7.1.0"
 clap = { version = "3.1.0", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
 cfg = { path = "../cfg" }
+lua51-deserializer = { path = "../lua51-deserializer" }
 graph = { path = "../graph", features = ["dot"] }
 ast = { path = "../ast" }
-cfg-to-ast-new = { path = "../cfg-to-ast-new" }
 dhat = "0.3.0"
 fxhash = "0.2.1"
+either = "1.6.1"
 
 [features]
 dhat-heap = []

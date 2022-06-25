@@ -4,12 +4,9 @@ use clap::Parser;
 
 use graph::dot;
 use lifter::Lifter;
+use lua51_deserializer::chunk::Chunk;
 
-mod chunk;
-mod instruction;
 mod lifter;
-mod op_code;
-mod value;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -33,13 +30,13 @@ fn main() -> anyhow::Result<()> {
     input.read_exact(&mut buffer)?;
 
     let now = time::Instant::now();
-    let chunk = chunk::parse(&buffer).unwrap().1;
+    let chunk = Chunk::parse(&buffer).unwrap().1;
     //println!("{:#?}", chunk);
     let parsed = now.elapsed();
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    let main = Lifter::new(&chunk.main).lift_function()?;
+    let main = Lifter::new(&chunk.function).lift_function()?;
     let lifted = now.elapsed();
 
     // cfg_ir::new_ssa::construct(&mut main);
@@ -48,15 +45,17 @@ fn main() -> anyhow::Result<()> {
     for function in descendants {
         process_function(&mut function.borrow_mut())?;
     }*/
+
     println!("lifting: {:?}", lifted);
+    println!("{}", main.block(main.entry().unwrap()).unwrap().block);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
-    //s
+    // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;
 
-    let now = time::Instant::now();
+    /*let now = time::Instant::now();
     let _output = cfg_to_ast_new::lift(main);
     let cfg_to_ast_time = now.elapsed();
-    println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
+    println!("cfg to ast lifter: {:?}", cfg_to_ast_time);*/
 
     //println!("{}", output);
 
