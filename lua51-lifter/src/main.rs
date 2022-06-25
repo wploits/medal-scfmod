@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
     }*/
 
     println!("lifting: {:?}", lifted);
-    println!("{}", main.block(main.entry().unwrap()).unwrap().block);
+    cfg_to_ast_new::lift(main);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

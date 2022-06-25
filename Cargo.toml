@@ -6,8 +6,7 @@ members = [
     "ast",
     "lua51-lifter",
     "lua51-deserializer",
-    #"cfg-to-ast",
     #"luau-lifter",
-    #"cfg-to-ast-new"
+    "cfg-to-ast-new"
 ]
 
