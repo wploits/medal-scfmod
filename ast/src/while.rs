@@ -4,8 +4,8 @@ use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct While<'a> {
-    condition: RValue<'a>,
-    block: Block<'a>,
+    pub condition: RValue<'a>,
+    pub block: Block<'a>,
 }
 
 impl<'a> While<'a> {

@@ -4,7 +4,9 @@ use itertools::Itertools;
 use std::{fmt, rc::Rc};
 
 mod assign;
+mod r#break;
 mod call;
+mod r#continue;
 mod global;
 mod goto;
 mod r#if;
@@ -24,6 +26,8 @@ pub use goto::*;
 pub use index::*;
 pub use literal::*;
 pub use local::*;
+pub use r#break::*;
+pub use r#continue::*;
 pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
@@ -76,6 +80,8 @@ pub enum Statement<'a> {
     Label(Label<'a>),
     While(While<'a>),
     Return(Return),
+    Continue(Continue),
+    Break(Break),
 }
 
 impl fmt::Display for Statement<'_> {
@@ -88,13 +94,10 @@ impl fmt::Display for Statement<'_> {
             Statement::Label(label) => write!(f, "{}", label),
             Statement::While(while_) => write!(f, "{}", while_),
             Statement::Return(return_) => write!(f, "{}", return_),
+            Statement::Continue(continue_) => write!(f, "{}", continue_),
+            Statement::Break(break_) => write!(f, "{}", break_),
         }
     }
-}
-
-#[derive(Debug, From, Clone, EnumAsInner)]
-pub enum TerminatorStatement<'a> {
-    Return(Vec<RValue<'a>>),
 }
 
 #[derive(Debug, Clone, Default, Deref, DerefMut)]

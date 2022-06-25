@@ -51,7 +51,7 @@ fn main() -> anyhow::Result<()> {
     println!("lifting: {:?}", lifted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
-    //graph::dot::render_to(&dfs, &mut std::io::stdout())?;
+    //s
 
     let now = time::Instant::now();
     let _output = cfg_to_ast_new::lift(main);
