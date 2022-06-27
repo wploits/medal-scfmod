@@ -46,6 +46,8 @@ fn main() -> anyhow::Result<()> {
         process_function(&mut function.borrow_mut())?;
     }*/
 
+    graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;
+
     println!("lifting: {:?}", lifted);
     cfg_to_ast_new::lift(main);
 

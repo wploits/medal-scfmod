@@ -43,28 +43,6 @@ impl<'a> GraphStructurer<'a> {
         Some(node)
     }
 
-    fn match_infinite_loop(&mut self, header: NodeId, latches: &[NodeId]) -> bool {
-        let successors = self.graph.successors(header).collect::<Vec<_>>();
-        if latches.len() == 1
-            && successors.len() == 1
-            && self.graph.successors(latches[0]).count() == 1
-            && successors[0] == header
-        {
-            self.graph.remove_edge((latches[0], header).into()).unwrap();
-            let block = self.blocks.remove(&header).unwrap();
-            self.blocks.insert(
-                header,
-                ast::Block::from_vec(vec![ast::While::new(
-                    ast::Literal::from(true).into(),
-                    block,
-                )
-                .into()]),
-            );
-            return true;
-        }
-        false
-    }
-
     fn is_loop_header(&self, node: NodeId) -> bool {
         self.back_edges.iter().any(|edge| edge.destination == node)
     }
@@ -73,21 +51,20 @@ impl<'a> GraphStructurer<'a> {
         let successors = self.graph.successors(node).collect::<Vec<_>>();
         if successors.len() == 1 {
             let target = successors[0];
-            let target_successors = self.graph.successors(target).collect::<Vec<_>>();
-            if self.graph.predecessors(target).count() == 1 && target_successors.len() < 2 {
-                if !target_successors.is_empty() {
-                    self.graph.add_edge((node, target).into()).unwrap();
+            if target != node {
+                let target_successors = self.graph.successors(target).collect::<Vec<_>>();
+                if self.graph.predecessors(target).count() == 1 && target_successors.len() < 2 {
+                    if !target_successors.is_empty() {
+                        self.graph.add_edge((node, target).into()).unwrap();
+                    }
+                    self.graph.remove_node(target).unwrap();
+                    let target_block = self.blocks.remove(&target).unwrap();
+                    self.blocks.get_mut(&node).unwrap().extend(target_block.0);
+                    return true;
                 }
-                self.graph.remove_node(target).unwrap();
-                let target_block = self.blocks.remove(&target).unwrap();
-                self.blocks.get_mut(&node).unwrap().extend(target_block.0);
-                true
-            } else {
-                false
             }
-        } else {
-            false
         }
+        false
     }
 
     fn try_match_pattern(&mut self, node: NodeId) {
@@ -137,10 +114,16 @@ impl<'a> GraphStructurer<'a> {
     fn match_virtual_branch(&mut self, node: NodeId, branch: NodeId) -> Option<ast::Block<'a>> {
         if self.back_edges.contains(&Edge::new(node, branch)) {
             let mut block = ast::Block::new();
-            block.push(ast::Continue {}.into());
+            if branch == self.loop_header(node).unwrap() {
+                println!("its a continue");
+                block.push(ast::Continue {}.into());
+            }
             self.graph.remove_edge((node, branch).into()).unwrap();
             Some(block)
         } else {
+            let mut block = ast::Block::new();
+            block.push(ast::Break {}.into());
+            println!("other edge, might be break");
             None
         }
     }

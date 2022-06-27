@@ -1,63 +1,68 @@
 use nom::{
-	combinator::opt,
-	IResult,
-	multi::count,
-	number::complete::{le_u32, le_u8},
+    combinator::opt,
+    multi::count,
+    number::complete::{le_u32, le_u8},
+    IResult,
 };
 
-use crate::{instruction::{Instruction, position::Position}, instruction, local::Local, value::{self, Value}};
+use crate::{
+    instruction,
+    instruction::{position::Position, Instruction},
+    local::Local,
+    value::{self, Value},
+};
 
 #[derive(Debug)]
 pub struct Function<'a> {
-	pub name: &'a str,
-	pub line_defined: u32,
-	pub last_line_defined: u32,
-	pub vararg_flag: u8,
-	pub maximum_stack_size: u8,
-	pub code: Vec<Instruction>,
-	pub constants: Vec<Value<'a>>,
-	pub closures: Vec<Function<'a>>,
-	pub positions: Vec<Position>,
-	pub locals: Vec<Local<'a>>,
-	pub upvalues: Vec<&'a str>,
-	pub number_of_parameters: u8,
+    pub name: &'a str,
+    pub line_defined: u32,
+    pub last_line_defined: u32,
+    pub vararg_flag: u8,
+    pub maximum_stack_size: u8,
+    pub code: Vec<Instruction>,
+    pub constants: Vec<Value<'a>>,
+    pub closures: Vec<Function<'a>>,
+    pub positions: Vec<Position>,
+    pub locals: Vec<Local<'a>>,
+    pub upvalues: Vec<&'a str>,
+    pub number_of_parameters: u8,
 }
 
 impl<'a> Function<'a> {
-	pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
-		let (input, name) = value::parse_string(input)?;
-		let (input, line_defined) = le_u32(input)?;
-		let (input, last_line_defined) = le_u32(input)?;
-		let (input, _) = le_u8(input)?;
-		let (input, number_of_parameters) = le_u8(input)?;
-		let (input, vararg_flag) = le_u8(input)?;
-		let (input, maximum_stack_size) = le_u8(input)?;
-		let (input, code_length) = le_u32(input)?;
-		let (input, code) = count(Instruction::parse, code_length as usize)(input)?;
-		let (input, constants_length) = le_u32(input)?;
-		let (input, constants) = count(Value::parse, constants_length as usize)(input)?;
-		let (input, closures_length) = le_u32(input)?;
-		let (input, closures) = count(Self::parse, closures_length as usize)(input)?;
-		let (input, positions) = opt(Position::parse)(input)?;
-		let (input, locals) = opt(Local::parse)(input)?;
-		let (input, upvalues) = opt(value::parse_strings)(input)?;
+    pub fn parse(input: &'a [u8]) -> IResult<&'a [u8], Self> {
+        let (input, name) = value::parse_string(input)?;
+        let (input, line_defined) = le_u32(input)?;
+        let (input, last_line_defined) = le_u32(input)?;
+        let (input, _) = le_u8(input)?;
+        let (input, number_of_parameters) = le_u8(input)?;
+        let (input, vararg_flag) = le_u8(input)?;
+        let (input, maximum_stack_size) = le_u8(input)?;
+        let (input, code_length) = le_u32(input)?;
+        let (input, code) = count(Instruction::parse, code_length as usize)(input)?;
+        let (input, constants_length) = le_u32(input)?;
+        let (input, constants) = count(Value::parse, constants_length as usize)(input)?;
+        let (input, closures_length) = le_u32(input)?;
+        let (input, closures) = count(Self::parse, closures_length as usize)(input)?;
+        let (input, positions) = opt(Position::parse)(input)?;
+        let (input, locals) = opt(Local::parse)(input)?;
+        let (input, upvalues) = opt(value::parse_strings)(input)?;
 
-		Ok((
-			input,
-			Self {
-				name,
-				line_defined,
-				last_line_defined,
-				vararg_flag,
-				maximum_stack_size,
-				code,
-				constants,
-				closures,
-				positions: positions.unwrap_or(Vec::new()),
-				locals: locals.unwrap_or(Vec::new()),
-				upvalues: upvalues.unwrap_or(Vec::new()),
-				number_of_parameters,
-			},
-		))
-	}
+        Ok((
+            input,
+            Self {
+                name,
+                line_defined,
+                last_line_defined,
+                vararg_flag,
+                maximum_stack_size,
+                code,
+                constants,
+                closures,
+                positions: positions.unwrap_or(Vec::new()),
+                locals: locals.unwrap_or(Vec::new()),
+                upvalues: upvalues.unwrap_or(Vec::new()),
+                number_of_parameters,
+            },
+        ))
+    }
 }
