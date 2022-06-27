@@ -7,14 +7,20 @@ impl<'a> super::GraphStructurer<'a> {
         then_node: NodeId,
         else_node: NodeId,
     ) {
-        let mut then_block = None;
-        let mut else_block = None;
+        let mut if_stat = self
+            .blocks
+            .get_mut(&entry)
+            .unwrap()
+            .pop()
+            .unwrap()
+            .into_if()
+            .unwrap();
+
         let mut exit_block = None;
 
         // check for continue/break
-        let mut then_virtual = self.match_virtual_branch(entry, then_node);
-        let mut else_virtual = self.match_virtual_branch(entry, else_node);
-        println!("{} {}", then_virtual.is_some(), else_virtual.is_some());
+        let then_virtual = self.match_virtual_branch(entry, then_node);
+        let else_virtual = self.match_virtual_branch(entry, else_node);
 
         let then_successors = self.graph.successors(then_node).collect::<Vec<_>>();
         let then_predecessors = self.graph.predecessors(then_node).collect::<Vec<_>>();
@@ -31,9 +37,8 @@ impl<'a> super::GraphStructurer<'a> {
                 && then_predecessors.len() == 1
                 && else_predecessors.len() == 1
             {
-                // if then else end
-                then_block = Some(self.blocks.remove(&then_node).unwrap());
-                else_block = Some(self.blocks.remove(&else_node).unwrap());
+                if_stat.then_block = Some(self.blocks.remove(&then_node).unwrap());
+                if_stat.else_block = Some(self.blocks.remove(&else_node).unwrap());
                 self.graph.remove_node(then_node).unwrap();
                 self.graph.remove_node(else_node).unwrap();
                 if !else_successors.is_empty() {
@@ -47,7 +52,7 @@ impl<'a> super::GraphStructurer<'a> {
                 && self.graph.predecessors(else_node).count() == 2
                 && self.graph.predecessors(then_node).count() == 1
             {
-                then_block = Some(self.blocks.remove(&then_node).unwrap());
+                if_stat.then_block = Some(self.blocks.remove(&then_node).unwrap());
                 exit_block = Some(self.blocks.remove(&else_node).unwrap());
                 self.graph.remove_node(then_node).unwrap();
                 self.graph.remove_node(else_node).unwrap();
@@ -56,45 +61,64 @@ impl<'a> super::GraphStructurer<'a> {
                 && self.graph.predecessors(then_node).count() == 2
                 && self.graph.predecessors(else_node).count() == 1
             {
-                else_block = Some(self.blocks.remove(&else_node).unwrap());
+                if_stat.else_block = Some(self.blocks.remove(&else_node).unwrap());
                 exit_block = Some(self.blocks.remove(&then_node).unwrap());
                 self.graph.remove_node(else_node).unwrap();
                 self.graph.remove_node(then_node).unwrap();
             } else {
                 panic!("no pattern matched");
             }
-        } else if then_virtual.is_some() != else_virtual.is_some() {
-            // one branch has a virtual edge
-            if else_virtual.is_some() {
-                std::mem::swap(&mut then_virtual, &mut else_virtual);
-            }
-            println!("{}", else_node);
-            exit_block = Some(self.blocks.remove(&else_node).unwrap());
-            else_block = None;
         } else {
             panic!("no pattern matched");
         }
 
         let block = self.blocks.get_mut(&entry).unwrap();
-        let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-        if_stat.then_block = then_block;
-        if_stat.else_block = else_block;
 
-        /*if then_block.is_none() && else_block.is_some() {
-            std::mem::swap(&mut then_block, &mut else_block);
+        if if_stat.then_block.is_some() && if_stat.else_block.is_some() {
+            let (last_then_statement, last_else_statement) = (
+                if_stat.then_block.as_ref().unwrap().last().unwrap(),
+                if_stat.else_block.as_ref().unwrap().last().unwrap(),
+            );
+            if match last_then_statement {
+                ast::Statement::Continue(_) => {
+                    matches!(last_else_statement, ast::Statement::Continue(_))
+                }
+                ast::Statement::Break(_) => matches!(last_else_statement, ast::Statement::Break(_)),
+                _ => false,
+            } {
+                if_stat.then_block.as_mut().unwrap().pop();
+                if exit_block.is_none() {
+                    exit_block = Some(ast::Block::new());
+                }
+                exit_block
+                    .as_mut()
+                    .unwrap()
+                    .push(if_stat.else_block.as_mut().unwrap().pop().unwrap());
+            }
+        }
+
+        // todo: do branches need to be options anymore?
+        if if_stat.then_block.is_some() && if_stat.then_block.as_ref().unwrap().is_empty() {
+            if_stat.then_block = None;
+        }
+        if if_stat.else_block.is_some() && if_stat.else_block.as_ref().unwrap().is_empty() {
+            if_stat.else_block = None;
+        }
+
+        if if_stat.then_block.is_none() && if_stat.else_block.is_some() {
+            std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
             if_stat.condition = Box::new(
                 ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not).into(),
             );
         }
 
-
-        if let Some(exit_statement) =
-            optimizer::virtual_edge_elision::optimize_if_statement(if_stat)
-        {
-            assert!(exit_block.is_none());
-            block.push(exit_statement);
-        } else if let Some(exit_block) = exit_block {
+        if if_stat.then_block.is_some() || if_stat.else_block.is_some() {
+            block.push(if_stat.into());
+        } else {
+            // IMPORTANT TODO: evaluate condition if it has side effects
+        }
+        if let Some(exit_block) = exit_block {
             block.extend(exit_block.0);
-        }*/
+        }
     }
 }

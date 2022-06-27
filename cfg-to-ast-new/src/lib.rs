@@ -5,7 +5,6 @@ use graph::{
 };
 
 mod conditional;
-mod optimizer;
 
 struct GraphStructurer<'a> {
     graph: Graph,
