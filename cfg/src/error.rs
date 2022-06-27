@@ -16,7 +16,6 @@ pub enum Error {
         block: NodeId,
         instruction_location_range: Range<InstructionIndex>,
     },*/
-
     #[error("No block has been selected")]
     NoBlockSelected,
 

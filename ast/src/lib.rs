@@ -16,9 +16,9 @@ mod local;
 pub mod local_allocator;
 mod name_gen;
 mod r#return;
+mod table;
 mod unary;
 mod r#while;
-mod table;
 
 pub use assign::*;
 pub use call::*;
@@ -32,8 +32,8 @@ pub use r#continue::*;
 pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
-pub use unary::*;
 pub use table::*;
+pub use unary::*;
 
 #[derive(Debug, From, Clone)]
 pub enum RValue<'a> {
@@ -83,7 +83,7 @@ pub enum Statement<'a> {
     Goto(Goto<'a>),
     Label(Label<'a>),
     While(While<'a>),
-    Return(Return),
+    Return(Return<'a>),
     Continue(Continue),
     Break(Break),
 }

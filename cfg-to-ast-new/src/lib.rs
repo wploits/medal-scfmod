@@ -1,11 +1,10 @@
-use std::{iter::successors, process::exit};
-
 use fxhash::FxHashMap;
 use graph::{
     algorithms::{dominators::*, *},
     *,
 };
-use itertools::Itertools;
+
+mod optimizer;
 
 struct GraphStructurer<'a> {
     graph: Graph,
@@ -72,22 +71,6 @@ impl<'a> GraphStructurer<'a> {
         if successors.len() == 2 {
             self.match_conditional(node, successors[1], successors[0]);
             println!("matched conditional");
-            if self.is_loop_header(node) {
-                let block = self.blocks.get_mut(&node).unwrap();
-                assert!(block.len() == 1);
-                let mut if_stat = match block.pop().unwrap() {
-                    ast::Statement::If(if_stat) => if_stat,
-                    _ => unreachable!(),
-                };
-                let exit_statements = if_stat.else_block.unwrap();
-                if_stat.else_block = Some(ast::Block::from_vec(vec![ast::Break {}.into()]));
-                let while_stat = ast::While::new(
-                    ast::Literal::from(true).into(),
-                    ast::Block::from_vec(vec![if_stat.into()]),
-                );
-                block.push(while_stat.into());
-                block.extend(exit_statements.0);
-            }
         } else if successors.len() == 1 {
             if self.match_empty_jump(node) {
                 println!("unnecessary jump removed");
@@ -95,19 +78,22 @@ impl<'a> GraphStructurer<'a> {
                 println!("matched virtual branch");
                 self.blocks.get_mut(&node).unwrap().extend(block.0);
             }
-            if self.is_loop_header(node) {
-                println!("matched inf loop");
-                assert!(successors[0] == node);
-                let block = self.blocks.remove(&node).unwrap();
-                self.blocks.insert(
-                    node,
-                    ast::Block::from_vec(vec![ast::While::new(
-                        ast::Literal::from(true).into(),
-                        block,
-                    )
-                    .into()]),
-                );
+        }
+        if self.is_loop_header(node) {
+            let mut block = self.blocks.remove(&node).unwrap();
+            if let Some(last) = block.last() {
+                if matches!(last, ast::Statement::Continue(_) | ast::Statement::Break(_)) {
+                    block.pop();
+                }
             }
+            self.blocks.insert(
+                node,
+                ast::Block::from_vec(vec![ast::While::new(
+                    ast::Literal::from(true).into(),
+                    block,
+                )
+                .into()]),
+            );
         }
     }
 
@@ -209,6 +195,13 @@ impl<'a> GraphStructurer<'a> {
         if let Some(else_block) = else_block {
             if_stat.else_block = Some(else_block);
         }
+
+        if let Some(exit_statement) =
+            optimizer::virtual_edge_elision::optimize_if_statement(if_stat)
+        {
+            block.push(exit_statement);
+        }
+
         if let Some(exit_block) = exit_block {
             block.extend(exit_block.0);
         }

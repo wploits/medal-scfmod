@@ -1,16 +1,21 @@
+use itertools::Itertools;
 use std::fmt;
 
-#[derive(Debug, Clone, Default)]
-pub struct Return {}
+use super::RValue;
 
-impl Return {
-    pub fn new() -> Self {
-        Self {}
+#[derive(Debug, Clone, Default)]
+pub struct Return<'a> {
+    pub values: Vec<RValue<'a>>,
+}
+
+impl<'a> Return<'a> {
+    pub fn new(values: Vec<RValue<'a>>) -> Self {
+        Self { values }
     }
 }
 
-impl fmt::Display for Return {
+impl fmt::Display for Return<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "return")
+        write!(f, "return {}", self.values.iter().join(", "))
     }
 }
