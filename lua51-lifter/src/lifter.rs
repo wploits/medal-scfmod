@@ -143,6 +143,8 @@ impl<'a> Lifter<'a> {
 		block_end: usize,
 	) -> (Vec<ast::Statement<'a>>, Terminator) {
 		let mut statements = Vec::new();
+		// Map of tables to their elements.
+		let mut tables: HashMap<Register, Vec<ast::RValue>> = HashMap::new();
 		let mut table_queue = Vec::new();
 		let mut terminator = None;
 
@@ -158,34 +160,48 @@ impl<'a> Lifter<'a> {
 					destination,
 					source,
 				} => {
+					let destination = self.register(destination);
+
 					statements.push(
 						ast::Assign {
-							left: vec![self.register(destination).into()],
+							left: vec![destination.clone().into()],
 							right: vec![self.register(source).into()],
 						}
 							.into(),
 					);
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+					}
 				}
 				Instruction::LoadConstant {
 					destination,
 					source,
 				} => {
+					let destination = self.register(destination);
+
 					statements.push(
 						ast::Assign {
-							left: vec![self.register(destination).into()],
+							left: vec![destination.clone().into()],
 							right: vec![ast::RValue::Literal(self.constant(source))],
 						}
 							.into(),
 					);
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+					}
 				}
 				Instruction::LoadBoolean {
 					destination,
 					value,
 					skip_next,
 				} => {
+					let destination = self.register(destination);
+
 					statements.push(
 						ast::Assign {
-							left: vec![self.register(destination).into()],
+							left: vec![destination.clone().into()],
 							right: vec![ast::Literal::Boolean(value).into()],
 						}
 							.into(),
@@ -196,6 +212,10 @@ impl<'a> Lifter<'a> {
 							Terminator::Jump(self.block_to_node(instruction_index + 2)).into(),
 						);
 					}
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+					}
 				}
 				Instruction::LoadNil(range) => {
 					let left = range
@@ -204,31 +224,42 @@ impl<'a> Lifter<'a> {
 						.collect();
 					let right = vec![ast::Literal::Nil.into(); range.len()];
 
-					statements.push(ast::Assign { left, right }.into())
+					statements.push(ast::Assign { left, right: right.clone() }.into());
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().extend(right);
+					}
 				}
 				Instruction::GetGlobal {
 					destination,
 					global,
 					..
 				} => {
+					let destination = self.register(destination);
+
 					statements.push(
 						ast::Assign {
-							left: vec![self.register(destination).into()],
+							left: vec![destination.clone().into()],
 							right: vec![self.global(global).into()],
 						}
 							.into(),
 					);
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+					}
 				}
 				Instruction::GetTable {
 					destination,
 					table,
 					key,
 				} => {
+					let destination = self.register(destination);
 					let key = Box::new(self.register_or_constant(key, &mut statements).into());
 
 					statements.push(
 						ast::Assign {
-							left: vec![self.register(destination).into()],
+							left: vec![destination.clone().into()],
 							right: vec![ast::Index {
 								left: Box::new(self.register(table).into()),
 								right: key,
@@ -237,6 +268,10 @@ impl<'a> Lifter<'a> {
 						}
 							.into(),
 					);
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+					}
 				}
 				Instruction::SetGlobal { destination, value } => {
 					statements.push(
@@ -250,22 +285,31 @@ impl<'a> Lifter<'a> {
 					);
 				}
 				Instruction::NewTable { destination, .. } => {
+					tables.insert(destination, Vec::new());
+
+					if let Some(table) = table_queue.last() {
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination).into()));
+					}
+
 					table_queue.push(destination);
 				}
 				Instruction::SetList {
 					table,
-					number_of_elements,
 					..
 				} => match table_queue.pop() {
-					Some(t) if t.0 == table.0 => {
+					Some(current_table) if current_table.0 == table.0 => {
 						statements.push(
 							ast::Assign {
 								left: vec![self.register(table).into()],
-								right: vec![ast::Table(
-									(table.0 + 1..table.0 + number_of_elements + 1)
-										.map(|element| (None, self.register(Register(element)).into()))
-										.collect(),
-								).into()],
+								right: vec![
+									ast::Table(
+										tables.remove(&current_table)
+											.unwrap()
+											.into_iter()
+											.map(|v| (None, v))
+											.collect()
+									).into()
+								],
 							}.into(),
 						);
 					}
@@ -279,6 +323,8 @@ impl<'a> Lifter<'a> {
 					} else {
 						Vec::new()
 					};
+					let number_of_arguments = arguments.len();
+					let variadic = return_values == 0;
 					let return_values = if return_values >= 2 {
 						(function.0..function.0 + return_values - 1)
 							.map(|r| self.register(Register(r)).into())
@@ -286,16 +332,37 @@ impl<'a> Lifter<'a> {
 					} else {
 						Vec::new()
 					};
+					let function = self.register(function);
 
-					statements.push(
-						ast::Assign {
-							left: return_values,
-							right: vec![ast::Call {
-								value: Box::new(self.register(function).into()),
-								arguments,
-							}.into()],
-						}.into()
-					);
+					if !variadic {
+						statements.push(
+							ast::Assign {
+								left: return_values,
+								right: vec![ast::Call {
+									value: Box::new(function.clone().into()),
+									arguments,
+								}.into()],
+							}.into()
+						);
+					}
+
+					if let Some(table) = table_queue.last() {
+						let function = function.clone().into();
+						let elements = tables.get_mut(table).unwrap();
+						let arguments = elements.drain(elements.len() - number_of_arguments..).collect();
+
+						elements.pop();
+						elements.push(
+							if variadic {
+								ast::Call {
+									value: Box::new(function),
+									arguments,
+								}.into()
+							} else {
+								function
+							},
+						);
+					}
 				}
 				Instruction::Test {
 					value,
