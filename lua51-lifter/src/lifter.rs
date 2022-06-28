@@ -142,10 +142,13 @@ impl<'a> Lifter<'a> {
 		block_start: usize,
 		block_end: usize,
 	) -> (Vec<ast::Statement<'a>>, Terminator) {
+		const FIELDS_PER_FLUSH: u8 = 50;
+
 		let mut statements = Vec::new();
 		// Map of tables to their elements.
 		let mut tables: HashMap<Register, Vec<ast::RValue>> = HashMap::new();
 		let mut table_queue = Vec::new();
+		let mut table_block = 0;
 		let mut terminator = None;
 
 		//todo: dont clone instructions
@@ -160,36 +163,36 @@ impl<'a> Lifter<'a> {
 					destination,
 					source,
 				} => {
-					let destination = self.register(destination);
+					let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
 
 					statements.push(
 						ast::Assign {
-							left: vec![destination.clone().into()],
+							left: vec![self.register(destination).into()],
 							right: vec![self.register(source).into()],
 						}
 							.into(),
 					);
 
 					if let Some(table) = table_queue.last() {
-						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination)));
 					}
 				}
 				Instruction::LoadConstant {
 					destination,
 					source,
 				} => {
-					let destination = self.register(destination);
+					let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
 
 					statements.push(
 						ast::Assign {
-							left: vec![destination.clone().into()],
+							left: vec![self.register(destination).into()],
 							right: vec![ast::RValue::Literal(self.constant(source))],
 						}
 							.into(),
 					);
 
 					if let Some(table) = table_queue.last() {
-						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination)));
 					}
 				}
 				Instruction::LoadBoolean {
@@ -197,11 +200,11 @@ impl<'a> Lifter<'a> {
 					value,
 					skip_next,
 				} => {
-					let destination = self.register(destination);
+					let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
 
 					statements.push(
 						ast::Assign {
-							left: vec![destination.clone().into()],
+							left: vec![self.register(destination).into()],
 							right: vec![ast::Literal::Boolean(value).into()],
 						}
 							.into(),
@@ -214,10 +217,13 @@ impl<'a> Lifter<'a> {
 					}
 
 					if let Some(table) = table_queue.last() {
-						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination)));
 					}
 				}
 				Instruction::LoadNil(range) => {
+					let range: Vec<_> = range.into_iter()
+						.map(|r| Register(r.0 + table_block * FIELDS_PER_FLUSH))
+						.collect();
 					let left = range
 						.iter()
 						.map(|&r| ast::LValue::Local(self.register(r)))
@@ -235,18 +241,18 @@ impl<'a> Lifter<'a> {
 					global,
 					..
 				} => {
-					let destination = self.register(destination);
+					let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
 
 					statements.push(
 						ast::Assign {
-							left: vec![destination.clone().into()],
+							left: vec![self.register(destination).into()],
 							right: vec![self.global(global).into()],
 						}
 							.into(),
 					);
 
 					if let Some(table) = table_queue.last() {
-						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination)));
 					}
 				}
 				Instruction::GetTable {
@@ -254,12 +260,12 @@ impl<'a> Lifter<'a> {
 					table,
 					key,
 				} => {
-					let destination = self.register(destination);
+					let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
 					let key = Box::new(self.register_or_constant(key, &mut statements).into());
 
 					statements.push(
 						ast::Assign {
-							left: vec![destination.clone().into()],
+							left: vec![self.register(destination).into()],
 							right: vec![ast::Index {
 								left: Box::new(self.register(table).into()),
 								right: key,
@@ -270,7 +276,7 @@ impl<'a> Lifter<'a> {
 					);
 
 					if let Some(table) = table_queue.last() {
-						tables.get_mut(table).unwrap().push(ast::RValue::Local(destination));
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination)));
 					}
 				}
 				Instruction::SetGlobal { destination, value } => {
@@ -285,35 +291,52 @@ impl<'a> Lifter<'a> {
 					);
 				}
 				Instruction::NewTable { destination, .. } => {
+					let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
+
 					tables.insert(destination, Vec::new());
 
 					if let Some(table) = table_queue.last() {
-						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination).into()));
+						tables.get_mut(table).unwrap().push(ast::RValue::Local(self.register(destination)));
 					}
 
 					table_queue.push(destination);
 				}
 				Instruction::SetList {
 					table,
+					block_number,
 					..
-				} => match table_queue.pop() {
+				} => match table_queue.last() {
 					Some(current_table) if current_table.0 == table.0 => {
-						statements.push(
-							ast::Assign {
-								left: vec![self.register(table).into()],
-								right: vec![
-									ast::Table(
-										tables.remove(&current_table)
-											.unwrap()
-											.into_iter()
-											.map(|v| (None, v))
-											.collect()
-									).into()
-								],
-							}.into(),
-						);
+						table_block = block_number;
+
+						if self.bytecode_function.code[instruction_index + 1..=block_end]
+							.iter()
+							.find(|instruction| match instruction {
+								Instruction::SetList { table, block_number, .. }
+								if table.0 == current_table.0 && *block_number == table_block + 1 => true,
+								_ => false,
+							}).is_some() {
+							continue;
+						} else {
+							table_block = 0;
+							statements.push(
+								ast::Assign {
+									left: vec![self.register(table).into()],
+									right: vec![
+										ast::Table(
+											tables.remove(&current_table)
+												.unwrap()
+												.into_iter()
+												.map(|v| (None, v))
+												.collect()
+										).into()
+									],
+								}.into(),
+							);
+							table_queue.pop();
+						}
 					}
-					_ => panic!("Invalid table queue"),
+					other => panic!("Invalid table queue: expected {:?}, got {:?}.", table, other),
 				},
 				Instruction::Call { function, arguments, return_values } => {
 					let arguments = if arguments >= 2 {
@@ -332,14 +355,13 @@ impl<'a> Lifter<'a> {
 					} else {
 						Vec::new()
 					};
-					let function = self.register(function);
 
 					if !variadic {
 						statements.push(
 							ast::Assign {
 								left: return_values,
 								right: vec![ast::Call {
-									value: Box::new(function.clone().into()),
+									value: Box::new(self.register(function).into()),
 									arguments,
 								}.into()],
 							}.into()
@@ -347,20 +369,21 @@ impl<'a> Lifter<'a> {
 					}
 
 					if let Some(table) = table_queue.last() {
-						let function = function.clone().into();
 						let elements = tables.get_mut(table).unwrap();
-						let arguments = elements.drain(elements.len() - number_of_arguments..).collect();
+						let arguments = elements
+							.drain(elements.len() - number_of_arguments..)
+							.collect();
 
 						elements.pop();
 						elements.push(
 							if variadic {
 								ast::Call {
-									value: Box::new(function),
+									value: Box::new(self.register(function).into()),
 									arguments,
 								}.into()
 							} else {
-								function
-							},
+								self.register(function).into()
+							}
 						);
 					}
 				}
