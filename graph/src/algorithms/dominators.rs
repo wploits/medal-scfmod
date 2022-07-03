@@ -60,7 +60,7 @@ pub fn common_dominator(
     res.into_iter().next()
 }
 
-pub fn post_dominator_tree(graph: &Graph, _root: NodeId, dfs: &Graph) -> Result<Graph> {
+pub fn post_dominator_tree(graph: &Graph, dfs: &Graph) -> Result<Graph> {
     let exits = graph
         .nodes()
         .iter()
@@ -106,7 +106,7 @@ pub fn post_dominators(
         return Err(Error::InvalidNode(root));
     }
 
-    let dom_tree = post_dominator_tree(graph, root, dfs)?;
+    let dom_tree = post_dominator_tree(graph, dfs)?;
     let dom_tree_pre_oder = dom_tree.pre_order(root)?;
 
     let mut dominators: FxHashMap<NodeId, FxHashSet<NodeId>> = FxHashMap::default();

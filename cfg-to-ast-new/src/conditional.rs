@@ -27,9 +27,10 @@ impl<'a> super::GraphStructurer<'a> {
         let else_successors = self.graph.successors(else_node).collect::<Vec<_>>();
         let else_predecessors = self.graph.predecessors(else_node).collect::<Vec<_>>();
 
+        println!("{:?}", then_node);
+
         if then_virtual.is_none() && else_virtual.is_none() {
             // conditional?
-            // todo: check dfs tree instead?
             if ((then_successors.len() == 1
                 && else_successors.len() == 1
                 && then_successors[0] == else_successors[0])
@@ -67,6 +68,19 @@ impl<'a> super::GraphStructurer<'a> {
                 self.graph.remove_node(then_node).unwrap();
             } else {
                 panic!("no pattern matched");
+            }
+        } else if then_virtual.is_some() && else_virtual.is_some() {
+            if_stat.then_block = then_virtual;
+            if_stat.else_block = else_virtual;
+        } else if then_virtual.is_some() != else_virtual.is_some() {
+            if then_virtual.is_some() {
+                if_stat.then_block = then_virtual;
+                if_stat.else_block = self.blocks.remove(&else_node);
+                self.graph.remove_node(else_node).unwrap();
+            } else {
+                if_stat.then_block = self.blocks.remove(&then_node);
+                if_stat.else_block = else_virtual;
+                self.graph.remove_node(then_node).unwrap();
             }
         } else {
             panic!("no pattern matched");
