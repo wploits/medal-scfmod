@@ -1,3 +1,4 @@
+use ast::{LocalRw, RcLocal};
 use std::rc::Rc;
 
 use fxhash::{FxHashMap, FxHashSet};
@@ -6,12 +7,7 @@ use graph::algorithms::{
     dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
 };
 
-use crate::{
-    function::Function,
-    instruction::{location::InstructionIndex, value_info::ValueInfo, Phi},
-    new_def_use,
-    value::ValueId,
-};
+use crate::{function::Function, new_def_use, block::Terminator};
 
 pub fn construct(function: &mut Function) {
     let entry = function.entry().unwrap();
@@ -24,20 +20,13 @@ pub fn construct(function: &mut Function) {
     let mut dominance_frontiers = compute_dominance_frontiers(graph, entry, &idoms, &dfs).unwrap();
     dominance_frontiers.retain(|_, f| !f.is_empty());
 
+    // phi insertation
     for (node, dominance_frontier_nodes) in dominance_frontiers {
         let block = function.block(node).unwrap();
         let writes = block
-            .inner_instructions
+            .block
             .iter()
-            .flat_map(|inner| inner.values_written())
-            .chain(
-                block
-                    .terminator()
-                    .as_ref()
-                    .unwrap()
-                    .values_written()
-                    .into_iter(),
-            )
+            .flat_map(|stat| stat.values_written())
             .collect::<Vec<_>>();
 
         for value_written in writes {
@@ -47,35 +36,41 @@ pub fn construct(function: &mut Function) {
                     .predecessors(dominance_frontier_node)
                     .map(|predecessor| (predecessor, value_written))
                     .collect();
-                function
-                    .block_mut(dominance_frontier_node)
-                    .unwrap()
-                    .phi_instructions
-                    .push(Phi {
-                        dest: value_written,
-                        incoming_values,
-                    })
+
+                for predecessor in function.graph().predecessors(dominance_frontier_node) {
+                    match function.block(predecessor).unwrap().terminator.as_mut().unwrap() {
+                        Terminator::Jump(edge) => {
+                            edge.arguments.insert(value_written, value_written);
+                        },
+                        Terminator::Conditional(then_edge, else_edge) => {
+                            if then_edge.node == dominance_frontier_node {
+                                then_edge.arguments.insert(value_written, value_written);
+                            } else if else_edge.node == dominance_frontier_node {
+                                else_edge.arguments.insert(value_written, value_written);
+                            } else {
+                                unreachable!()
+                            }
+                        },
+                        Terminator::Return => unreachable!(),
+                    }
+                }
             }
         }
     }
 
     let mut stack = vec![(
         entry,
-        Rc::new(FxHashMap::<ValueId, Vec<ValueId>>::default()),
+        Rc::new(FxHashMap::<RcLocal<'_>, Vec<RcLocal<'_>>>::default()),
     )];
     let mut visited = FxHashSet::default();
     while let Some((node, mut value_stacks)) = stack.pop() {
         if visited.insert(node) {
             let block = function.block_mut(node).unwrap();
             let block_reads = block
-                .inner_instructions
+                .block
                 .iter()
                 .enumerate()
-                .map(|(index, inner)| (InstructionIndex::Inner(index), inner.values_read()))
-                .chain(std::iter::once((
-                    InstructionIndex::Terminator,
-                    block.terminator().as_ref().unwrap().values_read(),
-                )))
+                .map(|(index, inner)| (index, inner.values_read()))
                 .collect::<Vec<_>>();
 
             for (index, values_read) in block_reads {
@@ -85,8 +80,6 @@ pub fn construct(function: &mut Function) {
                     }
                 }
             }
-
-            
 
             let def_use = new_def_use::DefUse::capture(function);
             for (value, value_def_use) in def_use

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::Local;
+use crate::{Local, RcLocal};
 
 #[derive(Debug, Default, Clone)]
 pub struct LocalAllocator {
@@ -8,8 +8,8 @@ pub struct LocalAllocator {
 }
 
 impl LocalAllocator {
-    pub fn allocate<'a>(&mut self) -> Rc<Local<'a>> {
+    pub fn allocate<'a>(&mut self) -> RcLocal<'a> {
         self.next += 1;
-        Rc::new(Local::new(format!("l_{}", self.next).into()))
+        RcLocal::new(Rc::new(Local::new(format!("l_{}", self.next).into())))
     }
 }

@@ -1,4 +1,4 @@
-use crate::RValue;
+use crate::{LocalRw, RValue, RcLocal};
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -30,6 +30,16 @@ impl<'a> Unary<'a> {
             value: Box::new(value),
             operation,
         }
+    }
+}
+
+impl<'a> LocalRw<'a> for Unary<'a> {
+    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+        self.value.values_read()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+        self.value.values_read_mut()
     }
 }
 

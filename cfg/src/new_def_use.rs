@@ -1,14 +1,11 @@
+use std::rc::Rc;
+
+use ast::Local;
+use by_address::ByAddress;
 use fxhash::FxHashMap;
 use graph::{algorithms::dfs_tree, NodeId};
 
-use crate::{
-    function::Function,
-    instruction::{
-        location::{InstructionIndex, InstructionLocation},
-        value_info::ValueInfo,
-    },
-    value::ValueId,
-};
+use crate::function::Function;
 
 #[derive(Debug, Default)]
 pub struct ValueDefUse {
@@ -17,13 +14,13 @@ pub struct ValueDefUse {
 }
 
 #[derive(Debug, Default)]
-pub struct DefUse {
+pub struct DefUse<'a> {
     values: Vec<ValueId>,
     access_by_index: Vec<ValueDefUse>,
-    value_to_index: FxHashMap<ValueId, usize>,
+    value_to_index: FxHashMap<ByAddress<RcLocal<'a>>, usize>,
 }
 
-impl DefUse {
+impl DefUse<'_> {
     /// Returns all the values that were discovered in the function.
     pub fn collected_values(&self) -> &Vec<ValueId> {
         &self.values

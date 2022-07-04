@@ -1,6 +1,8 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
+use crate::LocalRw;
+
 #[derive(Debug, From, Clone)]
 pub struct Global<'a>(pub Cow<'a, str>);
 
@@ -9,6 +11,8 @@ impl<'a> Global<'a> {
         Self(name)
     }
 }
+
+impl LocalRw<'_> for Global<'_> {}
 
 impl<'a> From<&'a str> for Global<'a> {
     fn from(name: &'a str) -> Self {

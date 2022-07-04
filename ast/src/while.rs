@@ -1,4 +1,4 @@
-use crate::{Block, RValue};
+use crate::{Block, LocalRw, RValue, RcLocal};
 use itertools::Itertools;
 use std::fmt;
 
@@ -11,6 +11,16 @@ pub struct While<'a> {
 impl<'a> While<'a> {
     pub fn new(condition: RValue<'a>, block: Block<'a>) -> Self {
         Self { condition, block }
+    }
+}
+
+impl<'a> LocalRw<'a> for While<'a> {
+    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+        self.condition.values_read()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+        self.condition.values_read_mut()
     }
 }
 

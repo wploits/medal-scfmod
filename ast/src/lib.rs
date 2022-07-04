@@ -1,5 +1,6 @@
 use derive_more::{Deref, DerefMut, From};
 use enum_as_inner::EnumAsInner;
+use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
 use std::{fmt, rc::Rc};
 
@@ -35,9 +36,10 @@ pub use r#while::*;
 pub use table::*;
 pub use unary::*;
 
-#[derive(Debug, From, Clone)]
+#[enum_dispatch(LocalRw)]
+#[derive(Debug, Clone)]
 pub enum RValue<'a> {
-    Local(Rc<Local<'a>>),
+    Local(RcLocal<'a>),
     Global(Global<'a>),
     Call(Call<'a>),
     Table(Table<'a>),
@@ -60,10 +62,45 @@ impl fmt::Display for RValue<'_> {
     }
 }
 
-#[derive(Debug, From, Clone, EnumAsInner)]
+#[derive(Debug, Clone, From, EnumAsInner)]
 pub enum LValue<'a> {
-    Local(Rc<Local<'a>>),
+    Local(RcLocal<'a>),
     Global(Global<'a>),
+    Index(Index<'a>),
+}
+
+impl<'a> LocalRw<'a> for LValue<'a> {
+    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+        match self {
+            LValue::Local(_) => Vec::new(),
+            LValue::Global(global) => global.values_read(),
+            LValue::Index(index) => index.values_read(),
+        }
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+        match self {
+            LValue::Local(_) => Vec::new(),
+            LValue::Global(global) => global.values_read_mut(),
+            LValue::Index(index) => index.values_read_mut(),
+        }
+    }
+
+    fn values_written(&self) -> Vec<&RcLocal<'a>> {
+        match self {
+            LValue::Local(local) => vec![local],
+            LValue::Global(global) => global.values_written(),
+            LValue::Index(index) => index.values_written(),
+        }
+    }
+
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+        match self {
+            LValue::Local(local) => vec![local],
+            LValue::Global(global) => global.values_written_mut(),
+            LValue::Index(index) => index.values_written_mut(),
+        }
+    }
 }
 
 impl fmt::Display for LValue<'_> {
@@ -71,11 +108,13 @@ impl fmt::Display for LValue<'_> {
         match self {
             LValue::Local(local) => write!(f, "{}", local),
             LValue::Global(global) => write!(f, "{}", global),
+            LValue::Index(index) => write!(f, "{}", index),
         }
     }
 }
 
-#[derive(Debug, From, Clone, EnumAsInner)]
+#[enum_dispatch(LocalRw)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum Statement<'a> {
     Call(Call<'a>),
     Assign(Assign<'a>),

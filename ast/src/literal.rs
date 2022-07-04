@@ -1,6 +1,8 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
+use crate::LocalRw;
+
 #[derive(Debug, From, Clone)]
 pub enum Literal<'a> {
     Nil,
@@ -14,6 +16,8 @@ impl<'a> From<&'a str> for Literal<'a> {
         Self::String(value.into())
     }
 }
+
+impl LocalRw<'_> for Literal<'_> {}
 
 impl fmt::Display for Literal<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

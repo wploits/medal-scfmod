@@ -1,3 +1,5 @@
+use crate::{LocalRw, RcLocal};
+
 use super::{Block, RValue};
 
 use itertools::Itertools;
@@ -21,6 +23,16 @@ impl<'a> If<'a> {
             then_block,
             else_block,
         }
+    }
+}
+
+impl<'a> LocalRw<'a> for If<'a> {
+    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+        self.condition.values_read()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+        self.condition.values_read_mut()
     }
 }
 
