@@ -186,8 +186,8 @@ impl<'a> LifterContext<'a> {
 					ast::If::new(condition, Some(
 						ast::Block(
 							vec![ast::Assign::new(
-								vec![self.locals[&value].clone().into()],
-								vec![ast::RValue::Local(self.locals[&destination].clone())],
+								vec![self.locals[&destination].clone().into()],
+								vec![ast::RValue::Local(self.locals[&value].clone())],
 							).into()]
 						),
 					), None).into(),
