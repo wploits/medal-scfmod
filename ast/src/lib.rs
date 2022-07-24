@@ -20,6 +20,7 @@ mod r#return;
 mod table;
 mod unary;
 mod r#while;
+mod binary;
 
 pub use assign::*;
 pub use call::*;
@@ -35,6 +36,7 @@ pub use r#return::*;
 pub use r#while::*;
 pub use table::*;
 pub use unary::*;
+pub use binary::*;
 
 #[enum_dispatch(LocalRw)]
 #[derive(Debug, Clone, EnumAsInner)]
@@ -46,6 +48,7 @@ pub enum RValue<'a> {
     Literal(Literal<'a>),
     Index(Index<'a>),
     Unary(Unary<'a>),
+    Binary(Binary<'a>),
 }
 
 impl fmt::Display for RValue<'_> {
@@ -58,6 +61,7 @@ impl fmt::Display for RValue<'_> {
             RValue::Table(table) => write!(f, "{}", table),
             RValue::Index(index) => write!(f, "{}", index),
             RValue::Unary(unary) => write!(f, "{}", unary),
+            RValue::Binary(binary) => write!(f, "{}", binary),
         }
     }
 }

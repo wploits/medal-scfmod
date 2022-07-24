@@ -1,259 +1,283 @@
-use fxhash::FxHashMap;
 use std::{borrow::Cow, rc::Rc};
+
+use fxhash::FxHashMap;
 
 use ast::RcLocal;
 use cfg::{block::Terminator, function::Function};
 use graph::NodeId;
-use lua51_deserializer::argument::{Constant, Register};
 use lua51_deserializer::{Function as BytecodeFunction, Instruction, Value};
+use lua51_deserializer::argument::{Constant, Register};
 
 struct LifterContext<'a> {
-    bytecode: &'a BytecodeFunction<'a>,
-    nodes: FxHashMap<usize, NodeId>,
-    locals: FxHashMap<Register, RcLocal<'a>>,
-    constants: FxHashMap<usize, ast::Literal<'a>>,
-    function: Function<'a>,
+	bytecode: &'a BytecodeFunction<'a>,
+	nodes: FxHashMap<usize, NodeId>,
+	locals: FxHashMap<Register, RcLocal<'a>>,
+	constants: FxHashMap<usize, ast::Literal<'a>>,
+	function: Function<'a>,
 }
 
 impl<'a> LifterContext<'a> {
-    fn allocate_locals(&mut self) {
-        for i in 0..self.bytecode.maximum_stack_size {
-            self.locals.insert(
-                Register(i),
-                RcLocal::new(Rc::new(ast::Local::new(format!("l_{}", i).into()))),
-            );
-        }
-    }
+	fn allocate_locals(&mut self) {
+		for i in 0..self.bytecode.maximum_stack_size {
+			self.locals.insert(
+				Register(i),
+				RcLocal::new(Rc::new(ast::Local::new(format!("l_{}", i).into()))),
+			);
+		}
+	}
 
-    fn create_block_map(&mut self) {
-        self.nodes.insert(0, self.function.new_block());
-        for (insn_index, insn) in self.bytecode.code.iter().enumerate() {
-            match *insn {
-                Instruction::SetList {
-                    block_number: 0, ..
-                } => {
-                    // TODO: skip next instruction
-                    todo!();
-                }
-                Instruction::LoadBoolean {
-                    skip_next: true, ..
-                } => {
-                    self.nodes
-                        .entry(insn_index + 2)
-                        .or_insert_with(|| self.function.new_block());
-                }
-                Instruction::Equal { .. }
-                | Instruction::LessThan { .. }
-                | Instruction::LessThanOrEqual { .. }
-                | Instruction::Test { .. }
-                | Instruction::IterateGenericForLoop { .. } => {
-                    self.nodes
-                        .entry(insn_index + 1)
-                        .or_insert_with(|| self.function.new_block());
-                    self.nodes
-                        .entry(insn_index + 2)
-                        .or_insert_with(|| self.function.new_block());
-                }
-                Instruction::Jump(step)
-                | Instruction::IterateNumericForLoop { step, .. }
-                | Instruction::PrepareNumericForLoop { step, .. } => {
-                    self.nodes
-                        .entry(insn_index + step as usize - 131070)
-                        .or_insert_with(|| self.function.new_block());
-                    self.nodes
-                        .entry(insn_index + 1)
-                        .or_insert_with(|| self.function.new_block());
-                }
-                Instruction::Return(..) => {
-                    self.nodes.entry(insn_index + 1).or_insert_with(|| self.function.new_block());
-                }
-                _ => {}
-            }
-        }
-    }
+	fn create_block_map(&mut self) {
+		self.nodes.insert(0, self.function.new_block());
+		for (insn_index, insn) in self.bytecode.code.iter().enumerate() {
+			match *insn {
+				Instruction::SetList {
+					block_number: 0, ..
+				} => {
+					// TODO: skip next instruction
+					todo!();
+				}
+				Instruction::LoadBoolean {
+					skip_next: true, ..
+				} => {
+					self.nodes
+						.entry(insn_index + 2)
+						.or_insert_with(|| self.function.new_block());
+				}
+				Instruction::Equal { .. }
+				| Instruction::LessThan { .. }
+				| Instruction::LessThanOrEqual { .. }
+				| Instruction::Test { .. }
+				| Instruction::IterateGenericForLoop { .. } => {
+					self.nodes
+						.entry(insn_index + 1)
+						.or_insert_with(|| self.function.new_block());
+					self.nodes
+						.entry(insn_index + 2)
+						.or_insert_with(|| self.function.new_block());
+				}
+				Instruction::Jump(step)
+				| Instruction::IterateNumericForLoop { step, .. }
+				| Instruction::PrepareNumericForLoop { step, .. } => {
+					self.nodes
+						.entry(insn_index + step as usize - 131070)
+						.or_insert_with(|| self.function.new_block());
+					self.nodes
+						.entry(insn_index + 1)
+						.or_insert_with(|| self.function.new_block());
+				}
+				Instruction::Return(..) => {
+					self.nodes.entry(insn_index + 1).or_insert_with(|| self.function.new_block());
+				}
+				_ => {}
+			}
+		}
+	}
 
-    fn code_ranges(&self) -> Vec<(usize, usize)> {
-        let mut nodes = self.nodes.keys().cloned().collect::<Vec<_>>();
-        nodes.sort_unstable();
-        let ends = nodes
-            .iter()
-            .skip(1)
-            .map(|&s| s - 1)
-            .chain(std::iter::once(self.bytecode.code.len() - 1));
-        nodes.iter().cloned().zip(ends).collect()
-    }
+	fn code_ranges(&self) -> Vec<(usize, usize)> {
+		let mut nodes = self.nodes.keys().cloned().collect::<Vec<_>>();
+		nodes.sort_unstable();
+		let ends = nodes
+			.iter()
+			.skip(1)
+			.map(|&s| s - 1)
+			.chain(std::iter::once(self.bytecode.code.len() - 1));
+		nodes.iter().cloned().zip(ends).collect()
+	}
 
-    fn constant(&mut self, constant: Constant) -> ast::Literal<'a> {
-        let converted_constant = match self.bytecode.constants.get(constant.0 as usize).unwrap() {
-            Value::Nil => ast::Literal::Nil,
-            Value::Boolean(v) => ast::Literal::Boolean(*v),
-            Value::Number(v) => ast::Literal::Number(*v),
-            Value::String(v) => ast::Literal::String(Cow::Borrowed(v)),
-        };
-        self.constants
-            .entry(constant.0 as usize)
-            .or_insert(converted_constant)
-            .clone()
-    }
+	fn constant(&mut self, constant: Constant) -> ast::Literal<'a> {
+		let converted_constant = match self.bytecode.constants.get(constant.0 as usize).unwrap() {
+			Value::Nil => ast::Literal::Nil,
+			Value::Boolean(v) => ast::Literal::Boolean(*v),
+			Value::Number(v) => ast::Literal::Number(*v),
+			Value::String(v) => ast::Literal::String(Cow::Borrowed(v)),
+		};
+		self.constants
+			.entry(constant.0 as usize)
+			.or_insert(converted_constant)
+			.clone()
+	}
 
-    fn lift_instruction(&mut self, index: usize, statements: &mut Vec<ast::Statement<'a>>) {
-        let instruction = self.bytecode.code[index].clone();
-        match instruction {
-            Instruction::Move {
-                destination,
-                source,
-            } => {
-                statements.push(
-                    ast::Assign {
-                        left: vec![self.locals[&destination].clone().into()],
-                        right: vec![self.locals[&source].clone().into()],
-                    }
-                    .into(),
-                );
-            }
-            Instruction::LoadConstant {
-                destination,
-                source,
-            } => {
-                statements.push(
-                    ast::Assign {
-                        left: vec![self.locals[&destination].clone().into()],
-                        right: vec![self.constant(source).into()],
-                    }
-                    .into(),
-                );
-            }
-            Instruction::LoadNil(registers) => {
-                for register in registers {
-                    statements.push(
-                        ast::Assign::new(
-                            vec![self.locals[&register].clone().into()],
-                            vec![ast::Literal::Nil.into()],
-                        )
-                        .into(),
-                    );
-                }
-            }
-            Instruction::GetGlobal {
-                destination,
-                global,
-            } => {
-                let global_str = self.constant(global).as_string().unwrap().clone();
-                statements.push(
-                    ast::Assign::new(
-                        vec![self.locals[&destination].clone().into()],
-                        vec![ast::Global::new(global_str).into()],
-                    )
-                    .into(),
-                );
-            }
-            Instruction::SetGlobal { destination, value } => {
-                let global_str = self.constant(destination).as_string().unwrap().clone();
-                statements.push(
-                    ast::Assign::new(
-                        vec![ast::Global::new(global_str).into()],
-                        vec![self.locals[&value].clone().into()],
-                    )
-                    .into(),
-                );
-            }
-            Instruction::Test {
-                value,
-                comparison_value,
-            } => {
-                let value = self.locals[&value].clone().into();
-                let condition = if comparison_value {
-                    value
-                } else {
-                    ast::Unary::new(value, ast::UnaryOperation::Not).into()
-                };
-                statements.push(ast::If::new(condition, None, None).into())
-            }
-            Instruction::Return(values, _variadic) => {
-                statements.push(
-                    ast::Return::new(
-                        values
-                            .into_iter()
-                            .map(|v| self.locals[&v].clone().into())
-                            .collect(),
-                    )
-                    .into(),
-                );
-            }
-            Instruction::Jump(..) => {}
-            _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
-        }
-    }
+	fn lift_instruction(&mut self, index: usize, statements: &mut Vec<ast::Statement<'a>>) {
+		let instruction = self.bytecode.code[index].clone();
+		match instruction {
+			Instruction::Move {
+				destination,
+				source,
+			} => {
+				statements.push(
+					ast::Assign {
+						left: vec![self.locals[&destination].clone().into()],
+						right: vec![self.locals[&source].clone().into()],
+					}
+						.into(),
+				);
+			}
+			Instruction::LoadConstant {
+				destination,
+				source,
+			} => {
+				statements.push(
+					ast::Assign {
+						left: vec![self.locals[&destination].clone().into()],
+						right: vec![self.constant(source).into()],
+					}
+						.into(),
+				);
+			}
+			Instruction::LoadNil(registers) => {
+				for register in registers {
+					statements.push(
+						ast::Assign::new(
+							vec![self.locals[&register].clone().into()],
+							vec![ast::Literal::Nil.into()],
+						)
+							.into(),
+					);
+				}
+			}
+			Instruction::GetGlobal {
+				destination,
+				global,
+			} => {
+				let global_str = self.constant(global).as_string().unwrap().clone();
+				statements.push(
+					ast::Assign::new(
+						vec![self.locals[&destination].clone().into()],
+						vec![ast::Global::new(global_str).into()],
+					)
+						.into(),
+				);
+			}
+			Instruction::SetGlobal { destination, value } => {
+				let global_str = self.constant(destination).as_string().unwrap().clone();
+				statements.push(
+					ast::Assign::new(
+						vec![ast::Global::new(global_str).into()],
+						vec![self.locals[&value].clone().into()],
+					)
+						.into(),
+				);
+			}
+			Instruction::Test {
+				value,
+				comparison_value,
+			} => {
+				let value = self.locals[&value].clone().into();
+				let condition = if comparison_value {
+					value
+				} else {
+					ast::Unary::new(value, ast::UnaryOperation::Not).into()
+				};
+				statements.push(ast::If::new(condition, None, None).into())
+			}
+			Instruction::TestSet {
+				value,
+				comparison_value,
+				destination,
+			} => {
+				let value_r = self.locals[&value].clone().into();
+				let condition = if comparison_value {
+					value_r
+				} else {
+					ast::Unary::new(value_r, ast::UnaryOperation::Not).into()
+				};
 
-    fn lift_blocks(&mut self) {
-        let ranges = self.code_ranges();
-        for (start, end) in ranges {
-            let mut block = ast::Block::new();
-            for index in start..=end {
-                self.lift_instruction(index, &mut block);
-                if matches!(self.bytecode.code[index], Instruction::Return { .. }) {
-                    break;
-                }
-            }
-            match self.bytecode.code[end] {
-                Instruction::Equal { .. }
-                | Instruction::LessThan { .. }
-                | Instruction::LessThanOrEqual { .. }
-                | Instruction::Test { .. }
-                | Instruction::IterateGenericForLoop { .. } => {
-                    self.function.set_block_terminator(
-                        self.nodes[&start],
-                        Some(Terminator::conditional(
-                            self.nodes[&(end + 1)],
-                            self.nodes[&(end + 2)],
-                        )),
-                    );
-                }
-                Instruction::Jump(step)
-                | Instruction::IterateNumericForLoop { step, .. }
-                | Instruction::PrepareNumericForLoop { step, .. } => {
-                    self.function.set_block_terminator(
-                        self.nodes[&start],
-                        Some(Terminator::jump(
-                            self.nodes[&(end + step as usize - 131070)],
-                        )),
-                    );
-                }
-                Instruction::Return { .. } => {}
-                _ => {
-                    if end + 1 != self.bytecode.code.len() {
-                        self.function.set_block_terminator(
-                            self.nodes[&start],
-                            Some(Terminator::jump(self.nodes[&(end + 1)])),
-                        );
-                    }
-                }
-            }
-            self.function
-                .block_mut(self.nodes[&start])
-                .unwrap()
-                .extend(block.0);
-        }
-    }
+				statements.push(
+					ast::If::new(condition, Some(
+						ast::Block(
+							vec![ast::Assign::new(
+								vec![self.locals[&value].clone().into()],
+								vec![ast::RValue::Local(self.locals[&destination].clone())],
+							).into()]
+						),
+					), None).into(),
+				);
+			}
+			Instruction::Return(values, _variadic) => {
+				statements.push(
+					ast::Return::new(
+						values
+							.into_iter()
+							.map(|v| self.locals[&v].clone().into())
+							.collect(),
+					)
+						.into(),
+				);
+			}
+			Instruction::Jump(..) => {}
+			_ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
+		}
+	}
 
-    fn lift(mut self) -> Function<'a> {
-        self.create_block_map();
-        self.allocate_locals();
-        self.lift_blocks();
-        self.function.set_entry(self.nodes[&0]);
-        self.function
-    }
+	fn lift_blocks(&mut self) {
+		let ranges = self.code_ranges();
+		for (start, end) in ranges {
+			let mut block = ast::Block::new();
+			for index in start..=end {
+				self.lift_instruction(index, &mut block);
+				if matches!(self.bytecode.code[index], Instruction::Return { .. }) {
+					break;
+				}
+			}
+			match self.bytecode.code[end] {
+				Instruction::Equal { .. }
+				| Instruction::LessThan { .. }
+				| Instruction::LessThanOrEqual { .. }
+				| Instruction::Test { .. }
+				| Instruction::IterateGenericForLoop { .. } => {
+					self.function.set_block_terminator(
+						self.nodes[&start],
+						Some(Terminator::conditional(
+							self.nodes[&(end + 1)],
+							self.nodes[&(end + 2)],
+						)),
+					);
+				}
+				Instruction::Jump(step)
+				| Instruction::IterateNumericForLoop { step, .. }
+				| Instruction::PrepareNumericForLoop { step, .. } => {
+					self.function.set_block_terminator(
+						self.nodes[&start],
+						Some(Terminator::jump(
+							self.nodes[&(end + step as usize - 131070)],
+						)),
+					);
+				}
+				Instruction::Return { .. } => {}
+				_ => {
+					if end + 1 != self.bytecode.code.len() {
+						self.function.set_block_terminator(
+							self.nodes[&start],
+							Some(Terminator::jump(self.nodes[&(end + 1)])),
+						);
+					}
+				}
+			}
+			self.function
+				.block_mut(self.nodes[&start])
+				.unwrap()
+				.extend(block.0);
+		}
+	}
+
+	fn lift(mut self) -> Function<'a> {
+		self.create_block_map();
+		self.allocate_locals();
+		self.lift_blocks();
+		self.function.set_entry(self.nodes[&0]);
+		self.function
+	}
 }
 
 pub fn lift<'a>(bytecode: &'a BytecodeFunction<'a>) -> Function<'a> {
-    let context = LifterContext {
-        bytecode,
-        nodes: FxHashMap::default(),
-        locals: FxHashMap::default(),
-        constants: FxHashMap::default(),
-        function: Function::default(),
-    };
-    context.lift()
+	let context = LifterContext {
+		bytecode,
+		nodes: FxHashMap::default(),
+		locals: FxHashMap::default(),
+		constants: FxHashMap::default(),
+		function: Function::default(),
+	};
+	context.lift()
 }
 
 /*pub struct Lifter<'a> {
