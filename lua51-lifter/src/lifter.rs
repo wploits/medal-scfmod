@@ -1,32 +1,275 @@
-use std::collections::{HashMap, VecDeque};
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
-
-use anyhow::Result;
-use either::Either;
 use fxhash::FxHashMap;
+use std::{borrow::Cow, rc::Rc};
 
-use ast;
+use ast::RcLocal;
 use cfg::{block::Terminator, function::Function};
 use graph::NodeId;
 use lua51_deserializer::argument::{Constant, Register};
-use lua51_deserializer::{
-    argument::RegisterOrConstant, Function as BytecodeFunction, Instruction, Value,
-};
+use lua51_deserializer::{Function as BytecodeFunction, Instruction, Value};
 
-pub struct Lifter<'a> {
+struct LifterContext<'a> {
+    bytecode: &'a BytecodeFunction<'a>,
+    nodes: FxHashMap<usize, NodeId>,
+    locals: FxHashMap<Register, RcLocal<'a>>,
+    constants: FxHashMap<usize, ast::Literal<'a>>,
+    function: Function<'a>,
+}
+
+impl<'a> LifterContext<'a> {
+    fn allocate_locals(&mut self) {
+        for i in 0..self.bytecode.maximum_stack_size {
+            self.locals.insert(
+                Register(i),
+                RcLocal::new(Rc::new(ast::Local::new(format!("l_{}", i).into()))),
+            );
+        }
+    }
+
+    fn create_block_map(&mut self) {
+        self.nodes.insert(0, self.function.new_block());
+        for (insn_index, insn) in self.bytecode.code.iter().enumerate() {
+            match *insn {
+                Instruction::SetList {
+                    block_number: 0, ..
+                } => {
+                    // TODO: skip next instruction
+                    todo!();
+                }
+                Instruction::LoadBoolean {
+                    skip_next: true, ..
+                } => {
+                    self.nodes
+                        .entry(insn_index + 2)
+                        .or_insert_with(|| self.function.new_block());
+                }
+                Instruction::Equal { .. }
+                | Instruction::LessThan { .. }
+                | Instruction::LessThanOrEqual { .. }
+                | Instruction::Test { .. }
+                | Instruction::IterateGenericForLoop { .. } => {
+                    self.nodes
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.function.new_block());
+                    self.nodes
+                        .entry(insn_index + 2)
+                        .or_insert_with(|| self.function.new_block());
+                }
+                Instruction::Jump(step)
+                | Instruction::IterateNumericForLoop { step, .. }
+                | Instruction::PrepareNumericForLoop { step, .. } => {
+                    self.nodes
+                        .entry(insn_index + step as usize - 131070)
+                        .or_insert_with(|| self.function.new_block());
+                    self.nodes
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.function.new_block());
+                }
+                Instruction::Return(..) => {
+                    self.nodes.entry(insn_index + 1).or_insert_with(|| self.function.new_block());
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn code_ranges(&self) -> Vec<(usize, usize)> {
+        let mut nodes = self.nodes.keys().cloned().collect::<Vec<_>>();
+        nodes.sort_unstable();
+        let ends = nodes
+            .iter()
+            .skip(1)
+            .map(|&s| s - 1)
+            .chain(std::iter::once(self.bytecode.code.len() - 1));
+        nodes.iter().cloned().zip(ends).collect()
+    }
+
+    fn constant(&mut self, constant: Constant) -> ast::Literal<'a> {
+        let converted_constant = match self.bytecode.constants.get(constant.0 as usize).unwrap() {
+            Value::Nil => ast::Literal::Nil,
+            Value::Boolean(v) => ast::Literal::Boolean(*v),
+            Value::Number(v) => ast::Literal::Number(*v),
+            Value::String(v) => ast::Literal::String(Cow::Borrowed(v)),
+        };
+        self.constants
+            .entry(constant.0 as usize)
+            .or_insert(converted_constant)
+            .clone()
+    }
+
+    fn lift_instruction(&mut self, index: usize, statements: &mut Vec<ast::Statement<'a>>) {
+        let instruction = self.bytecode.code[index].clone();
+        match instruction {
+            Instruction::Move {
+                destination,
+                source,
+            } => {
+                statements.push(
+                    ast::Assign {
+                        left: vec![self.locals[&destination].clone().into()],
+                        right: vec![self.locals[&source].clone().into()],
+                    }
+                    .into(),
+                );
+            }
+            Instruction::LoadConstant {
+                destination,
+                source,
+            } => {
+                statements.push(
+                    ast::Assign {
+                        left: vec![self.locals[&destination].clone().into()],
+                        right: vec![self.constant(source).into()],
+                    }
+                    .into(),
+                );
+            }
+            Instruction::LoadNil(registers) => {
+                for register in registers {
+                    statements.push(
+                        ast::Assign::new(
+                            vec![self.locals[&register].clone().into()],
+                            vec![ast::Literal::Nil.into()],
+                        )
+                        .into(),
+                    );
+                }
+            }
+            Instruction::GetGlobal {
+                destination,
+                global,
+            } => {
+                let global_str = self.constant(global).as_string().unwrap().clone();
+                statements.push(
+                    ast::Assign::new(
+                        vec![self.locals[&destination].clone().into()],
+                        vec![ast::Global::new(global_str).into()],
+                    )
+                    .into(),
+                );
+            }
+            Instruction::SetGlobal { destination, value } => {
+                let global_str = self.constant(destination).as_string().unwrap().clone();
+                statements.push(
+                    ast::Assign::new(
+                        vec![ast::Global::new(global_str).into()],
+                        vec![self.locals[&value].clone().into()],
+                    )
+                    .into(),
+                );
+            }
+            Instruction::Test {
+                value,
+                comparison_value,
+            } => {
+                let value = self.locals[&value].clone().into();
+                let condition = if comparison_value {
+                    value
+                } else {
+                    ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                };
+                statements.push(ast::If::new(condition, None, None).into())
+            }
+            Instruction::Return(values, _variadic) => {
+                statements.push(
+                    ast::Return::new(
+                        values
+                            .into_iter()
+                            .map(|v| self.locals[&v].clone().into())
+                            .collect(),
+                    )
+                    .into(),
+                );
+            }
+            Instruction::Jump(..) => {}
+            _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
+        }
+    }
+
+    fn lift_blocks(&mut self) {
+        let ranges = self.code_ranges();
+        for (start, end) in ranges {
+            let mut block = ast::Block::new();
+            for index in start..=end {
+                self.lift_instruction(index, &mut block);
+                if matches!(self.bytecode.code[index], Instruction::Return { .. }) {
+                    break;
+                }
+            }
+            match self.bytecode.code[end] {
+                Instruction::Equal { .. }
+                | Instruction::LessThan { .. }
+                | Instruction::LessThanOrEqual { .. }
+                | Instruction::Test { .. }
+                | Instruction::IterateGenericForLoop { .. } => {
+                    self.function.set_block_terminator(
+                        self.nodes[&start],
+                        Some(Terminator::conditional(
+                            self.nodes[&(end + 1)],
+                            self.nodes[&(end + 2)],
+                        )),
+                    );
+                }
+                Instruction::Jump(step)
+                | Instruction::IterateNumericForLoop { step, .. }
+                | Instruction::PrepareNumericForLoop { step, .. } => {
+                    self.function.set_block_terminator(
+                        self.nodes[&start],
+                        Some(Terminator::jump(
+                            self.nodes[&(end + step as usize - 131070)],
+                        )),
+                    );
+                }
+                Instruction::Return { .. } => {}
+                _ => {
+                    if end + 1 != self.bytecode.code.len() {
+                        self.function.set_block_terminator(
+                            self.nodes[&start],
+                            Some(Terminator::jump(self.nodes[&(end + 1)])),
+                        );
+                    }
+                }
+            }
+            self.function
+                .block_mut(self.nodes[&start])
+                .unwrap()
+                .extend(block.0);
+        }
+    }
+
+    fn lift(mut self) -> Function<'a> {
+        self.create_block_map();
+        self.allocate_locals();
+        self.lift_blocks();
+        self.function.set_entry(self.nodes[&0]);
+        self.function
+    }
+}
+
+pub fn lift<'a>(bytecode: &'a BytecodeFunction<'a>) -> Function<'a> {
+    let context = LifterContext {
+        bytecode,
+        nodes: FxHashMap::default(),
+        locals: FxHashMap::default(),
+        constants: FxHashMap::default(),
+        function: Function::default(),
+    };
+    context.lift()
+}
+
+/*pub struct Lifter<'a> {
     bytecode_function: &'a BytecodeFunction<'a>,
     blocks: FxHashMap<usize, NodeId>,
     lifted_function: Function<'a>,
     // TODO: make this a ref
     lifted_descendants: Vec<Rc<RefCell<Function<'a>>>>,
     closures: Vec<Option<Rc<RefCell<Function<'a>>>>>,
-    register_map: FxHashMap<Register, Rc<ast::Local<'a>>>,
+    register_map: FxHashMap<Register, RcLocal<'a>>,
     constant_map: FxHashMap<usize, ast::Literal<'a>>,
     current_node: Option<NodeId>,
 }
 
 impl<'a> Lifter<'a> {
-    pub fn new(function: &'a BytecodeFunction<'_>) -> Self {
+    pub fn new(function: &'a BytecodeFunction<'a>) -> Self {
         Self {
             bytecode_function: function,
             blocks: FxHashMap::default(),
@@ -39,7 +282,18 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    pub fn lift_function(mut self) -> Result<Function<'a>> {
+    pub fn lift_blocka(&'a mut self, start_pc: usize, end_pc: usize) {
+        let (statements, terminator) = self.lift_block(start_pc, end_pc);
+        let current_block = self.block_to_node(start_pc);
+        let lifted_function = &mut self.lifted_function;
+        let block = lifted_function
+            .block_mut(current_block)
+            .unwrap();
+        block.extend(statements);
+        lifted_function.set_block_terminator(current_block, Some(terminator));
+    }
+
+    pub fn lift_function(&'a mut self) -> Result<Function<'a>> {
         self.discover_blocks()?;
 
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();
@@ -73,25 +327,30 @@ impl<'a> Lifter<'a> {
         }
 
         for (start_pc, end_pc) in block_ranges {
+            self.lift_blocka(start_pc, end_pc);
+        }
+
+        /*for (start_pc, end_pc) in block_ranges {
             self.current_node = Some(self.block_to_node(start_pc));
             let (statements, terminator) = self.lift_block(start_pc, end_pc);
-            let block = &mut self
+            let current_node = self.current_node.unwrap();
+            let block = &'a mut self
                 .lifted_function
-                .block_mut(self.current_node.unwrap())
+                .block_mut(current_node)
                 .unwrap()
                 .block;
             block.extend(statements);
             self.lifted_function
                 .set_block_terminator(self.current_node.unwrap(), Some(terminator))
                 .unwrap();
-        }
+        }*/
 
         self.lifted_function.set_entry(self.block_to_node(0))?;
 
         Ok(self.lifted_function)
     }
 
-    fn discover_blocks(&mut self) -> Result<()> {
+    fn discover_blocks(&'a mut self) -> Result<()> {
         self.blocks.insert(0, self.lifted_function.new_block()?);
         for (insn_index, insn) in self.bytecode_function.code.iter().enumerate() {
             match *insn {
@@ -138,17 +397,11 @@ impl<'a> Lifter<'a> {
     }
 
     fn lift_block(
-        &mut self,
+        &'a mut self,
         block_start: usize,
         block_end: usize,
-    ) -> (Vec<ast::Statement<'a>>, Terminator) {
-        const FIELDS_PER_FLUSH: u8 = 50;
-
+    ) -> (Vec<ast::Statement<'a>>, Terminator<'a>) {
         let mut statements = Vec::new();
-        // Map of tables to their elements.
-        let mut tables: HashMap<Register, Vec<ast::RValue>> = HashMap::new();
-        let mut table_queue = Vec::new();
-        let mut table_block = 0;
         let mut terminator = None;
 
         //todo: dont clone instructions
@@ -163,8 +416,6 @@ impl<'a> Lifter<'a> {
                     destination,
                     source,
                 } => {
-                    let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
-
                     statements.push(
                         ast::Assign {
                             left: vec![self.register(destination).into()],
@@ -172,313 +423,18 @@ impl<'a> Lifter<'a> {
                         }
                         .into(),
                     );
-
-                    if let Some(table) = table_queue.last() {
-                        tables
-                            .get_mut(table)
-                            .unwrap()
-                            .push(ast::RValue::Local(self.register(destination)));
-                    }
-                }
-                Instruction::LoadConstant {
-                    destination,
-                    source,
-                } => {
-                    let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
-
-                    statements.push(
-                        ast::Assign {
-                            left: vec![self.register(destination).into()],
-                            right: vec![ast::RValue::Literal(self.constant(source))],
-                        }
-                        .into(),
-                    );
-
-                    if let Some(table) = table_queue.last() {
-                        tables
-                            .get_mut(table)
-                            .unwrap()
-                            .push(ast::RValue::Local(self.register(destination)));
-                    }
-                }
-                Instruction::LoadBoolean {
-                    destination,
-                    value,
-                    skip_next,
-                } => {
-                    let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
-
-                    statements.push(
-                        ast::Assign {
-                            left: vec![self.register(destination).into()],
-                            right: vec![ast::Literal::Boolean(value).into()],
-                        }
-                        .into(),
-                    );
-
-                    if skip_next {
-                        terminator = Some(
-                            Terminator::Jump(self.block_to_node(instruction_index + 2)).into(),
-                        );
-                    }
-
-                    if let Some(table) = table_queue.last() {
-                        tables
-                            .get_mut(table)
-                            .unwrap()
-                            .push(ast::RValue::Local(self.register(destination)));
-                    }
-                }
-                Instruction::LoadNil(range) => {
-                    let range: Vec<_> = range
-                        .into_iter()
-                        .map(|r| Register(r.0 + table_block * FIELDS_PER_FLUSH))
-                        .collect();
-                    let left = range
-                        .iter()
-                        .map(|&r| ast::LValue::Local(self.register(r)))
-                        .collect();
-                    let right = vec![ast::Literal::Nil.into(); range.len()];
-
-                    statements.push(
-                        ast::Assign {
-                            left,
-                            right: right.clone(),
-                        }
-                        .into(),
-                    );
-
-                    if let Some(table) = table_queue.last() {
-                        tables.get_mut(table).unwrap().extend(right);
-                    }
-                }
-                Instruction::GetGlobal {
-                    destination,
-                    global,
-                    ..
-                } => {
-                    let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
-
-                    statements.push(
-                        ast::Assign {
-                            left: vec![self.register(destination).into()],
-                            right: vec![self.global(global).into()],
-                        }
-                        .into(),
-                    );
-
-                    if let Some(table) = table_queue.last() {
-                        tables
-                            .get_mut(table)
-                            .unwrap()
-                            .push(ast::RValue::Local(self.register(destination)));
-                    }
-                }
-                Instruction::GetTable {
-                    destination,
-                    table,
-                    key,
-                } => {
-                    let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
-                    let key = Box::new(self.register_or_constant(key, &mut statements).into());
-
-                    statements.push(
-                        ast::Assign {
-                            left: vec![self.register(destination).into()],
-                            right: vec![ast::Index {
-                                left: Box::new(self.register(table).into()),
-                                right: key,
-                            }
-                            .into()],
-                        }
-                        .into(),
-                    );
-
-                    if let Some(table) = table_queue.last() {
-                        tables
-                            .get_mut(table)
-                            .unwrap()
-                            .push(ast::RValue::Local(self.register(destination)));
-                    }
-                }
-                Instruction::SetGlobal { destination, value } => {
-                    statements.push(
-                        ast::Assign {
-                            left: vec![match self.constant(destination).into() {
-                                ast::Literal::String(global) => Rc::new(ast::Local(global)).into(),
-                                _ => panic!("Invalid global"),
-                            }],
-                            right: vec![self.register(value).into()],
-                        }
-                        .into(),
-                    );
-                }
-                Instruction::NewTable { destination, .. } => {
-                    let destination = Register(destination.0 + table_block * FIELDS_PER_FLUSH);
-
-                    tables.insert(destination, Vec::new());
-
-                    if let Some(table) = table_queue.last() {
-                        tables
-                            .get_mut(table)
-                            .unwrap()
-                            .push(ast::RValue::Local(self.register(destination)));
-                    }
-
-                    table_queue.push(destination);
-                }
-                Instruction::SetList {
-                    table,
-                    block_number,
-                    ..
-                } => match table_queue.last() {
-                    Some(current_table) if current_table.0 == table.0 => {
-                        table_block = block_number;
-
-                        if self.bytecode_function.code[instruction_index + 1..=block_end]
-                            .iter()
-                            .find(|instruction| match instruction {
-                                Instruction::SetList {
-                                    table,
-                                    block_number,
-                                    ..
-                                } if table.0 == current_table.0
-                                    && *block_number == table_block + 1 =>
-                                {
-                                    true
-                                }
-                                _ => false,
-                            })
-                            .is_some()
-                        {
-                            continue;
-                        } else {
-                            table_block = 0;
-                            statements.push(
-                                ast::Assign {
-                                    left: vec![self.register(table).into()],
-                                    right: vec![ast::Table(
-                                        tables
-                                            .remove(&current_table)
-                                            .unwrap()
-                                            .into_iter()
-                                            .map(|v| (None, v))
-                                            .collect(),
-                                    )
-                                    .into()],
-                                }
-                                .into(),
-                            );
-                            table_queue.pop();
-                        }
-                    }
-                    other => panic!(
-                        "Invalid table queue: expected {:?}, got {:?}.",
-                        table, other
-                    ),
-                },
-                Instruction::Call {
-                    function,
-                    arguments,
-                    return_values,
-                } => {
-                    let arguments = if arguments >= 2 {
-                        (function.0 + 1..function.0 + arguments)
-                            .map(|r| self.register(Register(r)).into())
-                            .collect()
-                    } else {
-                        Vec::new()
-                    };
-                    let number_of_arguments = arguments.len();
-                    let variadic = return_values == 0;
-                    let return_values = if return_values >= 2 {
-                        (function.0..function.0 + return_values - 1)
-                            .map(|r| self.register(Register(r)).into())
-                            .collect()
-                    } else {
-                        Vec::new()
-                    };
-
-                    if !variadic {
-                        statements.push(
-                            ast::Assign {
-                                left: return_values,
-                                right: vec![ast::Call {
-                                    value: Box::new(self.register(function).into()),
-                                    arguments,
-                                }
-                                .into()],
-                            }
-                            .into(),
-                        );
-                    }
-
-                    if let Some(table) = table_queue.last() {
-                        let elements = tables.get_mut(table).unwrap();
-                        let arguments = elements
-                            .drain(elements.len() - number_of_arguments..)
-                            .collect();
-
-                        elements.pop();
-                        elements.push(if variadic {
-                            ast::Call {
-                                value: Box::new(self.register(function).into()),
-                                arguments,
-                            }
-                            .into()
-                        } else {
-                            self.register(function).into()
-                        });
-                    }
-                }
-                Instruction::Test {
-                    value,
-                    comparison_value,
-                } => {
-                    let condition = self.register_or_constant(
-                        RegisterOrConstant(Either::Left(value)),
-                        &mut statements,
-                    );
-                    let (mut true_branch, mut false_branch) = (
-                        self.block_to_node(instruction_index + 2),
-                        self.block_to_node(instruction_index + 1),
-                    );
-                    if comparison_value {
-                        std::mem::swap(&mut true_branch, &mut false_branch);
-                    }
-                    statements.push(ast::If::new(condition, None, None).into());
-                    terminator = Some(Terminator::Conditional(false_branch, true_branch));
-                }
-                Instruction::Jump(sbx) => {
-                    terminator = Some(Terminator::Jump(
-                        self.block_to_node(instruction_index + sbx as usize - 131070),
-                    ));
-                }
-                Instruction::Return(registers, is_variadic) => {
-                    assert!(!is_variadic);
-                    statements.push(
-                        ast::Return::new(
-                            registers
-                                .iter()
-                                .map(|&r| ast::RValue::Local(self.register(r)))
-                                .collect(),
-                        )
-                        .into(),
-                    );
-                    terminator = Some(Terminator::Return);
-                    break;
                 }
                 other => unimplemented!("{:?}", other),
             }
         }
         (
             statements,
-            terminator.unwrap_or_else(|| Terminator::Jump(self.block_to_node(block_end + 1))),
+            terminator.unwrap_or_else(|| Terminator::jump(self.block_to_node(block_end + 1))),
         )
     }
 
     fn register_or_constant(
-        &mut self,
+        &'a mut self,
         index: RegisterOrConstant,
         statements: &mut Vec<ast::Statement<'a>>,
     ) -> ast::RValue<'a> {
@@ -495,14 +451,14 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn register(&mut self, register: Register) -> Rc<ast::Local<'a>> {
+    fn register(&'a mut self, register: Register) -> RcLocal<'a> {
         self.register_map
             .entry(register)
             .or_insert_with(|| self.lifted_function.local_allocator.allocate())
             .clone()
     }
 
-    fn global(&mut self, constant: Constant) -> ast::Global<'a> {
+    fn global(&'a mut self, constant: Constant) -> ast::Global<'a> {
         match self
             .bytecode_function
             .constants
@@ -514,7 +470,7 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn constant(&mut self, constant: Constant) -> ast::Literal<'a> {
+    fn constant(&'a mut self, constant: Constant) -> ast::Literal<'a> {
         let converted_constant = match self
             .bytecode_function
             .constants
@@ -535,4 +491,4 @@ impl<'a> Lifter<'a> {
     fn block_to_node(&self, insn_index: usize) -> NodeId {
         *self.blocks.get(&insn_index).unwrap()
     }
-}
+}*/

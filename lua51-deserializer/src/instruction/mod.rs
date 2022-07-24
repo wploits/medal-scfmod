@@ -276,11 +276,11 @@ impl Instruction {
                 destination: Register(a),
                 operand: Register(b),
             },
-            RawInstruction(OperationCode::Negate, Layout::ABC { a, b, c }) => Self::Negate {
+            RawInstruction(OperationCode::Negate, Layout::ABC { a, b, c: _ }) => Self::Negate {
                 destination: Register(a),
                 operand: Register(b),
             },
-            RawInstruction(OperationCode::Length, Layout::ABC { a, b, c }) => Self::Length {
+            RawInstruction(OperationCode::Length, Layout::ABC { a, b, c: _ }) => Self::Length {
                 destination: Register(a),
                 operand: Register(b),
             },

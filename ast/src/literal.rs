@@ -1,9 +1,10 @@
 use derive_more::From;
+use enum_as_inner::EnumAsInner;
 use std::{borrow::Cow, fmt};
 
 use crate::LocalRw;
 
-#[derive(Debug, From, Clone)]
+#[derive(Debug, From, Clone, EnumAsInner)]
 pub enum Literal<'a> {
     Nil,
     Boolean(bool),

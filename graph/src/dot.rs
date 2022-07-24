@@ -24,11 +24,11 @@ impl<'a> GraphWalk<'a, NodeId, Edge> for Graph {
     }
 
     fn source(&self, e: &Edge) -> NodeId {
-        e.source
+        e.0
     }
 
     fn target(&self, e: &Edge) -> NodeId {
-        e.destination
+        e.1
     }
 }
 

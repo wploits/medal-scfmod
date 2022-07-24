@@ -1,11 +1,10 @@
 use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, LabelText, Labeller};
-use itertools::Itertools;
 
 use graph::{Edge, NodeId};
 
-use crate::function::Function;
+use crate::{function::Function, block::Terminator};
 
 impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     fn graph_id(&'a self) -> dot::Id<'a> {
@@ -14,18 +13,22 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
 
     fn node_label<'b>(&'b self, n: &NodeId) -> dot::LabelText<'b> {
         let block = self.block(*n).unwrap();
-        let phi_iter = block.phi_instructions.iter().map(|phi| phi.to_string());
-        let inner_iter = block
-            .inner_instructions
-            .iter()
-            .map(|inner| inner.to_string());
-        let terminator_iter = block
-            .terminator()
-            .iter()
-            .map(|terminator| terminator.to_string());
-        let label = phi_iter.chain(inner_iter).chain(terminator_iter).join("\n");
-        dot::LabelText::LabelStr(label.into())
+        dot::LabelText::LabelStr(block.to_string().into())
             .prefix_line(dot::LabelText::LabelStr(n.to_string().into()))
+    }
+
+    fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
+        let terminator = self.block(e.0).unwrap().terminator.as_ref();
+        match terminator {
+            Some(Terminator::Conditional(then_edge, _)) => {
+                if e.1 == then_edge.node {
+                    dot::LabelText::LabelStr("t".into())
+                } else {
+                    dot::LabelText::LabelStr("e".into())
+                }
+            }
+            _ => dot::LabelText::LabelStr("".into()),
+        }
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
@@ -33,7 +36,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     }
 
     fn node_shape(&'a self, _n: &NodeId) -> Option<LabelText<'a>> {
-        Some(LabelText::EscStr(Cow::Borrowed("rect")))
+        Some(LabelText::LabelStr("rect".into()))
     }
 }
 
@@ -47,11 +50,11 @@ impl<'a> GraphWalk<'a, NodeId, Edge> for Function<'_> {
     }
 
     fn source(&self, e: &Edge) -> NodeId {
-        e.source
+        e.0
     }
 
     fn target(&self, e: &Edge) -> NodeId {
-        e.destination
+        e.1
     }
 }
 

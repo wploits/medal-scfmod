@@ -2,7 +2,7 @@ use derive_more::{Deref, DerefMut, From};
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
-use std::{fmt, rc::Rc};
+use std::fmt;
 
 mod assign;
 mod r#break;
@@ -37,7 +37,7 @@ pub use table::*;
 pub use unary::*;
 
 #[enum_dispatch(LocalRw)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumAsInner)]
 pub enum RValue<'a> {
     Local(RcLocal<'a>),
     Global(Global<'a>),
@@ -113,6 +113,19 @@ impl fmt::Display for LValue<'_> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Comment {
+    pub text: String,
+}
+
+impl Comment {
+    pub fn new(text: String) -> Self {
+        Self { text }
+    }
+}
+
+impl<'a> LocalRw<'a> for Comment {}
+
 #[enum_dispatch(LocalRw)]
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum Statement<'a> {
@@ -125,6 +138,13 @@ pub enum Statement<'a> {
     Return(Return<'a>),
     Continue(Continue),
     Break(Break),
+    Comment(Comment),
+}
+
+impl fmt::Display for Comment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "-- {}", self.text)
+    }
 }
 
 impl fmt::Display for Statement<'_> {
@@ -139,6 +159,7 @@ impl fmt::Display for Statement<'_> {
             Statement::Return(return_) => write!(f, "{}", return_),
             Statement::Continue(continue_) => write!(f, "{}", continue_),
             Statement::Break(break_) => write!(f, "{}", break_),
+            Statement::Comment(comment) => write!(f, "{}", comment),
         }
     }
 }
@@ -153,6 +174,10 @@ impl<'a> Block<'a> {
 
     pub fn from_vec(statements: Vec<Statement<'a>>) -> Self {
         Self(statements)
+    }
+
+    pub fn without_comments(self) -> Self {
+        Self(self.0.into_iter().filter(|stmt| stmt.as_comment().is_none()).collect())
     }
 }
 

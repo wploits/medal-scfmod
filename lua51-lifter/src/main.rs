@@ -2,8 +2,7 @@ use std::{fs::File, io::Read, time};
 
 use clap::Parser;
 
-use graph::dot;
-use lifter::Lifter;
+//use lifter::Lifter;
 use lua51_deserializer::chunk::Chunk;
 
 mod lifter;
@@ -36,8 +35,9 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     let now = time::Instant::now();
-    let main = Lifter::new(&chunk.function).lift_function()?;
-    let lifted = now.elapsed();
+    //let main = Lifter::new(&chunk.function).lift_function()?;
+    let main = lifter::lift(&chunk.function);
+    let _lifted = now.elapsed();
 
     // cfg_ir::new_ssa::construct(&mut main);
 
@@ -46,9 +46,9 @@ fn main() -> anyhow::Result<()> {
         process_function(&mut function.borrow_mut())?;
     }*/
 
-    graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    println!("lifting: {:?}", lifted);
+    //println!("lifting: {:?}", lifted);
     cfg_to_ast_new::lift(main);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;

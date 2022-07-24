@@ -1,8 +1,9 @@
 pub mod dominators;
 
+use contracts::requires;
 use fxhash::FxHashSet;
 
-use crate::{Edge, Error, Graph, NodeId, Result};
+use crate::{Edge, Graph, NodeId, Result};
 
 use self::dominators::compute_immediate_dominators;
 
@@ -17,35 +18,32 @@ impl IntoIterator for BackEdges {
     }
 }
 
-pub fn dfs_tree(graph: &Graph, root: NodeId) -> Result<Graph> {
-    if !graph.node_exists(root) {
-        return Err(Error::InvalidNode(root));
-    }
-
+#[requires(graph.has_node(root))]
+pub fn dfs_tree(graph: &Graph, root: NodeId) -> Graph {
     let mut tree = Graph::new();
     let mut stack = Vec::new();
     let mut visited = FxHashSet::default();
     visited.insert(root);
 
-    tree.add_node_with_id(root)?;
+    tree.add_node_with_id(root);
     for successor in graph.successors(root) {
         stack.push((root, successor));
     }
 
     while let Some((pred, index)) = stack.pop() {
-        if tree.node_exists(index) {
+        if tree.has_node(index) {
             continue;
         }
 
-        tree.add_node_with_id(index)?;
-        tree.add_edge(Edge::new(pred, index))?;
+        tree.add_node_with_id(index);
+        tree.add_edge((pred, index));
 
         for successor in graph.successors(index) {
             stack.push((index, successor));
         }
     }
 
-    Ok(tree)
+    tree
 }
 
 pub fn back_edges(graph: &Graph, root: NodeId) -> Result<Vec<Edge>> {
@@ -54,11 +52,11 @@ pub fn back_edges(graph: &Graph, root: NodeId) -> Result<Vec<Edge>> {
     for (node, dominators) in dominators::dominators(
         graph,
         root,
-        &compute_immediate_dominators(graph, root, &dfs_tree(graph, root)?)?,
+        &compute_immediate_dominators(graph, root, &dfs_tree(graph, root)),
     )? {
         for successor in graph.successors(node) {
             if dominators.contains(&successor) {
-                back_edges.push(Edge::new(node, successor));
+                back_edges.push((node, successor));
             }
         }
     }

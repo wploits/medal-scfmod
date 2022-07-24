@@ -6,7 +6,6 @@ use nom::{
 };
 
 use crate::{
-    instruction,
     instruction::{position::Position, Instruction},
     local::Local,
     value::{self, Value},

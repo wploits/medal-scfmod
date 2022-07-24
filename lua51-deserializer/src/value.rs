@@ -1,3 +1,4 @@
+use enum_as_inner::EnumAsInner;
 use nom::{
     bytes::complete::take,
     error::{Error, ErrorKind, ParseError},
@@ -6,7 +7,7 @@ use nom::{
     Err, IResult,
 };
 
-#[derive(Debug)]
+#[derive(Debug, EnumAsInner)]
 pub enum Value<'a> {
     Nil,
     Boolean(bool),

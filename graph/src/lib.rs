@@ -1,15 +1,17 @@
+use contracts::requires;
+use fxhash::FxHashSet;
+
 pub mod algorithms;
 
 pub mod error;
 pub use error::Error;
-use fxhash::FxHashSet;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(feature = "dot")]
 pub mod dot;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct NodeId(pub usize);
+pub struct NodeId(usize);
 
 impl std::fmt::Display for NodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,35 +25,9 @@ impl std::fmt::Debug for NodeId {
     }
 }
 
-// TODO: this should be a struct with named fields
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Edge {
-    pub source: NodeId,
-    pub destination: NodeId,
-}
+pub type Edge = (NodeId, NodeId);
 
-impl Edge {
-    pub fn new(source: NodeId, destination: NodeId) -> Self {
-        Self {
-            source,
-            destination,
-        }
-    }
-}
-
-impl From<(usize, usize)> for Edge {
-    fn from((source, destination): (usize, usize)) -> Self {
-        Self::new(NodeId(source), NodeId(destination))
-    }
-}
-
-impl From<(NodeId, NodeId)> for Edge {
-    fn from((source, destination): (NodeId, NodeId)) -> Self {
-        Self::new(source, destination)
-    }
-}
-
-/// A control flow graph
+/// A directed graph for use in the CFG.
 #[derive(Debug, Clone)]
 pub struct Graph {
     nodes: Vec<NodeId>,
@@ -73,8 +49,8 @@ impl Graph {
             .collect::<Vec<Edge>>();
         let mut nodes = Vec::new();
         for edge in &edges {
-            nodes.push(edge.source);
-            nodes.push(edge.destination);
+            nodes.push(edge.0);
+            nodes.push(edge.1);
         }
         nodes.sort_unstable();
         nodes.dedup();
@@ -90,130 +66,99 @@ impl Graph {
         &self.edges
     }
 
-    pub fn node_exists(&self, node: NodeId) -> bool {
+    pub fn has_node(&self, node: NodeId) -> bool {
         self.nodes.contains(&node)
     }
 
-    pub fn successors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.edges.iter().cloned().filter_map(move |edge| {
-            if edge.source == node {
-                Some(edge.destination)
-            } else {
-                None
-            }
-        })
+    pub fn has_edge(&self, edge: &Edge) -> bool {
+        self.edges.contains(edge)
     }
 
-    pub fn predecessors(&self, node: NodeId) -> impl Iterator<Item = NodeId> + '_ {
-        self.edges.iter().cloned().filter_map(move |edge| {
-            if edge.destination == node {
-                Some(edge.source)
-            } else {
-                None
-            }
-        })
+    #[requires(self.has_node(node))]
+    pub fn successors(&self, node: NodeId) -> Vec<NodeId> {
+        self.edges
+            .iter()
+            .filter_map(|edge| if edge.0 == node { Some(edge.1) } else { None })
+            .collect()
     }
 
-    pub fn add_edge(&mut self, edge: Edge) -> Result<()> {
-        if !self.node_exists(edge.source) {
-            return Err(Error::InvalidNode(edge.source));
-        }
-        if !self.node_exists(edge.destination) {
-            return Err(Error::InvalidNode(edge.destination));
-        }
+    #[requires(self.has_node(node))]
+    pub fn predecessors(&self, node: NodeId) -> Vec<NodeId> {
+        self.edges
+            .iter()
+            .filter_map(|edge| if edge.1 == node { Some(edge.0) } else { None })
+            .collect()
+    }
+
+    #[requires(self.has_node(edge.0) && self.has_node(edge.1) && !self.has_edge(&edge))]
+    pub fn add_edge(&mut self, edge: Edge) {
         self.edges.push(edge);
-        Ok(())
     }
 
-    pub fn remove_edge(&mut self, edge: Edge) -> Result<()> {
-        if !self.node_exists(edge.source) {
-            return Err(Error::InvalidNode(edge.source));
-        }
-        if !self.node_exists(edge.destination) {
-            return Err(Error::InvalidNode(edge.destination));
-        }
-        self.edges.retain(|other_edge| edge != *other_edge);
-        Ok(())
+    #[requires(self.edges.contains(&edge))]
+    pub fn remove_edge(&mut self, edge: &Edge) {
+        self.edges.retain(|other_edge| edge != other_edge);
     }
 
-    pub fn add_node(&mut self) -> Result<NodeId> {
+    pub fn add_node(&mut self) -> NodeId {
         let node = match self.nodes.last() {
             Some(n) => NodeId(n.0 + 1),
             None => NodeId(1),
         };
         self.nodes.push(node);
-        Ok(node)
+        node
     }
 
-    pub fn add_node_with_id(&mut self, node: NodeId) -> Result<()> {
-        if self.node_exists(node) {
-            return Err(Error::NodeExists(node));
-        }
+    #[requires(!self.has_node(node))]
+    pub fn add_node_with_id(&mut self, node: NodeId) {
         self.nodes.push(node);
-        Ok(())
     }
 
-    pub fn remove_node(&mut self, node: NodeId) -> Result<()> {
+    #[requires(self.has_node(node))]
+    pub fn remove_node(&mut self, node: NodeId) {
         self.nodes.retain(|other_node| *other_node != node);
-        self.edges
-            .retain(|e| e.source != node && e.destination != node);
-        Ok(())
+        self.edges.retain(|e| e.0 != node && e.1 != node);
     }
 
-    pub fn pre_order(&self, root: NodeId) -> Result<Vec<NodeId>> {
-        if !self.node_exists(root) {
-            return Err(Error::InvalidNode(root));
-        }
-
+    #[requires(self.has_node(root))]
+    pub fn pre_order(&self, root: NodeId) -> Vec<NodeId> {
         let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut stack: Vec<NodeId> = Vec::new();
         let mut order: Vec<NodeId> = Vec::new();
-
         stack.push(root);
-
         while let Some(node) = stack.pop() {
             if !visited.insert(node) {
                 continue;
             }
-
             order.push(node);
-
             for successor in self.successors(node) {
                 stack.push(successor);
             }
         }
-
-        Ok(order)
+        order
     }
 
-    pub fn post_order(&self, root: NodeId) -> Result<Vec<NodeId>> {
-        if !self.node_exists(root) {
-            return Err(Error::InvalidNode(root));
-        }
-
+    #[requires(self.has_node(root))]
+    pub fn post_order(&self, root: NodeId) -> Vec<NodeId> {
         let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut order: Vec<NodeId> = Vec::new();
-
         // TODO: recursive bad or smthn
         fn dfs_walk(
             graph: &Graph,
             node: NodeId,
             visited: &mut FxHashSet<NodeId>,
             order: &mut Vec<NodeId>,
-        ) -> Result<()> {
+        ) {
             visited.insert(node);
             for successor in graph.successors(node) {
                 if !visited.contains(&successor) {
-                    dfs_walk(graph, successor, visited, order)?;
+                    dfs_walk(graph, successor, visited, order);
                 }
             }
             order.push(node);
-            Ok(())
         }
-
-        dfs_walk(self, root, &mut visited, &mut order)?;
-
-        Ok(order)
+        dfs_walk(self, root, &mut visited, &mut order);
+        order
     }
 }
 

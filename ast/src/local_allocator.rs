@@ -8,7 +8,7 @@ pub struct LocalAllocator {
 }
 
 impl LocalAllocator {
-    pub fn allocate<'a>(&mut self) -> RcLocal<'a> {
+    pub fn allocate(&mut self) -> RcLocal<'_> {
         self.next += 1;
         RcLocal::new(Rc::new(Local::new(format!("l_{}", self.next).into())))
     }
