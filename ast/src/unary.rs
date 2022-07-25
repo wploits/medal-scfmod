@@ -1,7 +1,7 @@
 use crate::{LocalRw, RValue, RcLocal};
 use std::fmt;
 
-#[derive(Debug, Clone,  PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOperation {
     Not,
     Negate,
@@ -18,7 +18,7 @@ impl fmt::Display for UnaryOperation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unary<'a> {
     pub value: Box<RValue<'a>>,
     pub operation: UnaryOperation,

@@ -3,7 +3,7 @@ use crate::{LocalRw, RcLocal};
 use super::RValue;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Index<'a> {
     pub left: Box<RValue<'a>>,
     pub right: Box<RValue<'a>>,

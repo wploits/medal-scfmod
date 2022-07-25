@@ -37,7 +37,7 @@ pub use table::*;
 pub use unary::*;
 
 #[enum_dispatch(LocalRw)]
-#[derive(Debug, Clone, EnumAsInner)]
+#[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum RValue<'a> {
     Local(RcLocal<'a>),
     Global(Global<'a>),
@@ -62,7 +62,7 @@ impl fmt::Display for RValue<'_> {
     }
 }
 
-#[derive(Debug, Clone, From, EnumAsInner)]
+#[derive(Debug, Clone, From, PartialEq, EnumAsInner)]
 pub enum LValue<'a> {
     Local(RcLocal<'a>),
     Global(Global<'a>),
@@ -174,10 +174,6 @@ impl<'a> Block<'a> {
 
     pub fn from_vec(statements: Vec<Statement<'a>>) -> Self {
         Self(statements)
-    }
-
-    pub fn without_comments(self) -> Self {
-        Self(self.0.into_iter().filter(|stmt| stmt.as_comment().is_none()).collect())
     }
 }
 

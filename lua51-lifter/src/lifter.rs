@@ -46,6 +46,7 @@ impl<'a> LifterContext<'a> {
                 | Instruction::LessThan { .. }
                 | Instruction::LessThanOrEqual { .. }
                 | Instruction::Test { .. }
+                | Instruction::TestSet { .. }
                 | Instruction::IterateGenericForLoop { .. } => {
                     self.nodes
                         .entry(insn_index + 1)
