@@ -97,115 +97,134 @@ impl<'a> LifterContext<'a> {
 			.clone()
 	}
 
-	fn lift_instruction(&mut self, index: usize, statements: &mut Vec<ast::Statement<'a>>) {
-		let instruction = self.bytecode.code[index].clone();
-		match instruction {
-			Instruction::Move {
-				destination,
-				source,
-			} => {
-				statements.push(
-					ast::Assign {
-						left: vec![self.locals[&destination].clone().into()],
-						right: vec![self.locals[&source].clone().into()],
+	fn lift_instruction(&mut self, start: usize, end: usize, statements: &mut Vec<ast::Statement<'a>>) {
+		let mut iterator = start..=end;
+
+		while let Some(index) = iterator.next() {
+			let instruction = self.bytecode.code[index].clone();
+			match instruction {
+				Instruction::Move {
+					destination,
+					source,
+				} => {
+					statements.push(
+						ast::Assign {
+							left: vec![self.locals[&destination].clone().into()],
+							right: vec![self.locals[&source].clone().into()],
+						}.into(),
+					);
+				}
+				Instruction::LoadBoolean { destination, value, skip_next } => {
+					statements.push(
+						ast::Assign {
+							left: vec![self.locals[&destination].clone().into()],
+							right: vec![ast::Literal::Boolean(value).into()],
+						}.into(),
+					);
+
+					if skip_next {
+						iterator.next();
 					}
-						.into(),
-				);
-			}
-			Instruction::LoadConstant {
-				destination,
-				source,
-			} => {
-				statements.push(
-					ast::Assign {
-						left: vec![self.locals[&destination].clone().into()],
-						right: vec![self.constant(source).into()],
+				}
+				Instruction::LoadConstant {
+					destination,
+					source,
+				} => {
+					statements.push(
+						ast::Assign {
+							left: vec![self.locals[&destination].clone().into()],
+							right: vec![self.constant(source).into()],
+						}
+							.into(),
+					);
+				}
+				Instruction::LoadNil(registers) => {
+					for register in registers {
+						statements.push(
+							ast::Assign::new(
+								vec![self.locals[&register].clone().into()],
+								vec![ast::Literal::Nil.into()],
+							)
+								.into(),
+						);
 					}
-						.into(),
-				);
-			}
-			Instruction::LoadNil(registers) => {
-				for register in registers {
+				}
+				Instruction::GetGlobal {
+					destination,
+					global,
+				} => {
+					let global_str = self.constant(global).as_string().unwrap().clone();
 					statements.push(
 						ast::Assign::new(
-							vec![self.locals[&register].clone().into()],
-							vec![ast::Literal::Nil.into()],
+							vec![self.locals[&destination].clone().into()],
+							vec![ast::Global::new(global_str).into()],
 						)
 							.into(),
 					);
 				}
-			}
-			Instruction::GetGlobal {
-				destination,
-				global,
-			} => {
-				let global_str = self.constant(global).as_string().unwrap().clone();
-				statements.push(
-					ast::Assign::new(
-						vec![self.locals[&destination].clone().into()],
-						vec![ast::Global::new(global_str).into()],
-					)
-						.into(),
-				);
-			}
-			Instruction::SetGlobal { destination, value } => {
-				let global_str = self.constant(destination).as_string().unwrap().clone();
-				statements.push(
-					ast::Assign::new(
-						vec![ast::Global::new(global_str).into()],
-						vec![self.locals[&value].clone().into()],
-					)
-						.into(),
-				);
-			}
-			Instruction::Test {
-				value,
-				comparison_value,
-			} => {
-				let value = self.locals[&value].clone().into();
-				let condition = if comparison_value {
-					value
-				} else {
-					ast::Unary::new(value, ast::UnaryOperation::Not).into()
-				};
-				statements.push(ast::If::new(condition, None, None).into())
-			}
-			Instruction::TestSet {
-				value,
-				comparison_value,
-				destination,
-			} => {
-				let value_r = self.locals[&value].clone().into();
-				let condition = if comparison_value {
-					value_r
-				} else {
-					ast::Unary::new(value_r, ast::UnaryOperation::Not).into()
-				};
+				Instruction::SetGlobal { destination, value } => {
+					let global_str = self.constant(destination).as_string().unwrap().clone();
+					statements.push(
+						ast::Assign::new(
+							vec![ast::Global::new(global_str).into()],
+							vec![self.locals[&value].clone().into()],
+						)
+							.into(),
+					);
+				}
+				Instruction::Test {
+					value,
+					comparison_value,
+				} => {
+					let value = self.locals[&value].clone().into();
+					let condition = if comparison_value {
+						value
+					} else {
+						ast::Unary::new(value, ast::UnaryOperation::Not).into()
+					};
+					statements.push(ast::If::new(condition, None, None).into())
+				}
+				Instruction::TestSet {
+					value,
+					comparison_value,
+					destination,
+				} => {
+					let value_r = self.locals[&value].clone().into();
+					let condition = if comparison_value {
+						value_r
+					} else {
+						ast::Unary::new(value_r, ast::UnaryOperation::Not).into()
+					};
 
-				statements.push(
-					ast::If::new(condition, Some(
-						ast::Block(
-							vec![ast::Assign::new(
-								vec![self.locals[&destination].clone().into()],
-								vec![ast::RValue::Local(self.locals[&value].clone())],
-							).into()]
-						),
-					), None).into(),
-				);
+					statements.push(
+						ast::If::new(condition, Some(
+							ast::Block(
+								vec![ast::Assign::new(
+									vec![self.locals[&destination].clone().into()],
+									vec![ast::RValue::Local(self.locals[&value].clone())],
+								).into()]
+							),
+						), None).into(),
+					);
+				}
+				Instruction::Return(values, _variadic) => {
+					statements.push(
+						ast::Return::new(
+							values
+								.into_iter()
+								.map(|v| self.locals[&v].clone().into())
+								.collect(),
+						)
+							.into(),
+					);
+				}
+				Instruction::Jump(..) => {}
+				_ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
 			}
-			Instruction::Return(values, _variadic) => {
-				statements.push(
-					ast::Return::new(
-						values
-							.into_iter()
-							.map(|v| self.locals[&v].clone().into())
-							.collect(),
-					)
-						.into(),
-				);
+
+			if matches!(self.bytecode.code[index], Instruction::Return { .. }) {
+				break;
 			}
-			Instruction::Jump(..) => {}
-			_ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
 		}
 	}
 
@@ -213,12 +232,9 @@ impl<'a> LifterContext<'a> {
 		let ranges = self.code_ranges();
 		for (start, end) in ranges {
 			let mut block = ast::Block::new();
-			for index in start..=end {
-				self.lift_instruction(index, &mut block);
-				if matches!(self.bytecode.code[index], Instruction::Return { .. }) {
-					break;
-				}
-			}
+
+			self.lift_instruction(start, end, &mut block);
+
 			match self.bytecode.code[end] {
 				Instruction::Equal { .. }
 				| Instruction::LessThan { .. }
