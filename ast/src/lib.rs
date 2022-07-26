@@ -51,6 +51,15 @@ pub enum RValue<'a> {
     Binary(Binary<'a>),
 }
 
+impl RValue<'_> {
+    pub fn precedence(&self) -> usize {
+        match self {
+            Self::Binary(binary) => binary.precedence(),
+            _ => 0,
+        }
+    }
+}
+
 impl fmt::Display for RValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

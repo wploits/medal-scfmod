@@ -45,6 +45,9 @@ impl<'a> LocalRw<'a> for Unary<'a> {
 
 impl fmt::Display for Unary<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}{}", self.operation, self.value)
+        match &*self.value {
+            RValue::Binary(binary) => write!(f, "{}({})", self.operation, binary),
+            _ => write!(f, "{}{}", self.operation, self.value),
+        }
     }
 }
