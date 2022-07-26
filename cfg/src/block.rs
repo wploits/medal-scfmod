@@ -53,6 +53,12 @@ impl Terminator<'_> {
             }
         }
     }
+
+    pub fn swap_edges(&mut self) {
+        if let Self::Conditional(then_edge, else_edge) = self {
+            std::mem::swap(then_edge, else_edge);
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

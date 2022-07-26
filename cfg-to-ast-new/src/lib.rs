@@ -1,15 +1,15 @@
-use cfg::function::{Function};
 use cfg::dot;
+use cfg::function::Function;
 use fxhash::FxHashMap;
 use graph::{
     algorithms::{dominators::*, *},
-    NodeId, Edge, Graph
+    Edge, Graph, NodeId,
 };
 
-mod conditional;
 mod compound;
-mod r#loop;
+mod conditional;
 mod jump;
+mod r#loop;
 
 struct GraphStructurer<'a> {
     function: Function<'a>,
@@ -50,7 +50,7 @@ impl<'a> GraphStructurer<'a> {
         }
 
         match successors.len() {
-            0 => { }
+            0 => {}
             1 => {
                 // remove unnecessary jumps to allow pattern matching
                 self.match_jump(node, successors[0]);

@@ -1,5 +1,6 @@
-use fxhash::FxHashMap;
 use std::{borrow::Cow, rc::Rc};
+
+use fxhash::FxHashMap;
 
 use ast::RcLocal;
 use cfg::{block::Terminator, function::Function};
@@ -46,7 +47,6 @@ impl<'a> LifterContext<'a> {
                 | Instruction::LessThan { .. }
                 | Instruction::LessThanOrEqual { .. }
                 | Instruction::Test { .. }
-                | Instruction::TestSet { .. }
                 | Instruction::IterateGenericForLoop { .. } => {
                     self.nodes
                         .entry(insn_index + 1)
@@ -66,7 +66,9 @@ impl<'a> LifterContext<'a> {
                         .or_insert_with(|| self.function.new_block());
                 }
                 Instruction::Return(..) => {
-                    self.nodes.entry(insn_index + 1).or_insert_with(|| self.function.new_block());
+                    self.nodes
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.function.new_block());
                 }
                 _ => {}
             }
@@ -169,6 +171,31 @@ impl<'a> LifterContext<'a> {
                     ast::Unary::new(value, ast::UnaryOperation::Not).into()
                 };
                 statements.push(ast::If::new(condition, None, None).into())
+            }
+            Instruction::TestSet {
+                value,
+                comparison_value,
+                destination,
+            } => {
+                let value_r = self.locals[&value].clone().into();
+                let condition = if comparison_value {
+                    value_r
+                } else {
+                    ast::Unary::new(value_r, ast::UnaryOperation::Not).into()
+                };
+
+                statements.push(
+                    ast::If::new(
+                        condition,
+                        Some(ast::Block(vec![ast::Assign::new(
+                            vec![self.locals[&destination].clone().into()],
+                            vec![ast::RValue::Local(self.locals[&value].clone())],
+                        )
+                        .into()])),
+                        None,
+                    )
+                    .into(),
+                );
             }
             Instruction::Return(values, _variadic) => {
                 statements.push(

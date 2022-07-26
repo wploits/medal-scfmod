@@ -5,6 +5,7 @@ use itertools::Itertools;
 use std::fmt;
 
 mod assign;
+mod binary;
 mod r#break;
 mod call;
 mod r#continue;
@@ -22,6 +23,7 @@ mod unary;
 mod r#while;
 
 pub use assign::*;
+pub use binary::*;
 pub use call::*;
 pub use global::*;
 pub use goto::*;
@@ -46,6 +48,7 @@ pub enum RValue<'a> {
     Literal(Literal<'a>),
     Index(Index<'a>),
     Unary(Unary<'a>),
+    Binary(Binary<'a>),
 }
 
 impl fmt::Display for RValue<'_> {
@@ -58,6 +61,7 @@ impl fmt::Display for RValue<'_> {
             RValue::Table(table) => write!(f, "{}", table),
             RValue::Index(index) => write!(f, "{}", index),
             RValue::Unary(unary) => write!(f, "{}", unary),
+            RValue::Binary(binary) => write!(f, "{}", binary),
         }
     }
 }
