@@ -44,6 +44,7 @@ impl<'a> fmt::Display for If<'a> {
                 f,
                 "\n\t{}",
                 then_block
+                    .0
                     .iter()
                     .map(|n| n.to_string().replace('\n', "\n\t"))
                     .join("\n\t")
@@ -54,6 +55,7 @@ impl<'a> fmt::Display for If<'a> {
                 f,
                 "\nelse\n\t{}",
                 else_block
+                    .0
                     .iter()
                     .map(|n| n.to_string().replace('\n', "\n\t"))
                     .join("\n\t")
