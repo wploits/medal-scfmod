@@ -35,18 +35,27 @@ impl<'a> GraphStructurer<'a> {
     }
 
     pub(crate) fn try_collapse_loop(&mut self, header: NodeId) -> bool {
+        return false;
+
         if !self.is_loop_header(header) {
             return false;
         }
-
-        let graph = self.function.graph();
-        let post_dom_tree = post_dominator_tree(graph, &dfs_tree(graph, self.root));
 
         if self.try_match_natural_loop(header) {
             return true;
         }
 
+        let graph = self.function.graph();
+        let post_dom_tree = post_dominator_tree(graph, &dfs_tree(graph, self.root));
+        return false;
+
         let exit_node = post_dom_tree.predecessors(header).first().cloned();
+        if let Some(exit_node) = exit_node {
+            let exit_predecessors = graph.predecessors(exit_node);
+            if exit_predecessors.len() > 1 {
+                self.refine_breaks(header, exit_node, exit_predecessors);
+            }
+        }
 
         /*let exit_statements = post_dom_tree
         .predecessors(header)

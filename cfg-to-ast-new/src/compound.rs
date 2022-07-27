@@ -198,10 +198,11 @@ impl<'a> super::GraphStructurer<'a> {
 
         self.simplify_condition(node);
 
-        let terminator = self
+        let block = self
             .function
             .block(node)
-            .unwrap()
+            .unwrap();
+        let terminator = block
             .terminator
             .as_ref()
             .unwrap()
@@ -210,6 +211,11 @@ impl<'a> super::GraphStructurer<'a> {
         let (then_node, _) = (terminator.0.node, terminator.1.node);
 
         let info = info.unwrap();
+
+        let if_stat = block.last().unwrap().as_if().unwrap();
+        if *if_stat.condition != info.value {
+            return false;
+        }
 
         let binary = ast::Binary::new(
             info.target.clone().into(),
@@ -238,22 +244,21 @@ impl<'a> super::GraphStructurer<'a> {
         then_node: NodeId,
         else_node: NodeId,
     ) -> bool {
-        assert!(!self.is_loop_header(then_node));
-        assert!(!self.is_loop_header(else_node));
-
         let graph = self.function.graph();
         let else_successors = graph.successors(else_node);
         let then_successors = graph.successors(then_node);
 
         let mut changed = false;
-        if else_successors.contains(&then_node) && graph.predecessors(else_node).len() == 1 {
+        if else_node != entry && else_successors.contains(&then_node) && graph.predecessors(else_node).len() == 1 {
+            assert!(!self.is_loop_header(then_node));
             if else_successors.len() == 2 {
                 let end = *else_successors.iter().find(|&&n| n != then_node).unwrap();
                 changed = self.combine_conditionals(entry, else_node, then_node, end);
             } else {
                 changed = self.match_and_or(entry, else_node, then_node);
             }
-        } else if then_successors.contains(&else_node) && graph.predecessors(then_node).len() == 1 {
+        } else if then_node != entry && then_successors.contains(&else_node) && graph.predecessors(then_node).len() == 1 {
+            assert!(!self.is_loop_header(else_node));
             if then_successors.len() == 2 {
                 let end = *then_successors.iter().find(|&&n| n != else_node).unwrap();
                 changed = self.combine_conditionals(entry, then_node, else_node, end);
