@@ -78,7 +78,7 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
 					}.into()
 				),
 				operation: UnaryOperation::Not,
-			}.reduce(),
+			}.into(),
 			(
 				box RValue::Literal(Literal::Boolean(left)),
 				box RValue::Literal(Literal::Boolean(right)),
