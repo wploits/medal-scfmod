@@ -107,7 +107,7 @@ impl OperationCode {
             Self::TailCall => 0,
             Self::Return => 0,
             Self::IterateNumericForLoop => 2,
-            Self::PrepareNumericForLoop => 0,
+            Self::PrepareNumericForLoop => 2,
             Self::IterateGenericForLoop => 0,
             Self::SetList => 0,
             Self::Close => 0,
