@@ -27,7 +27,7 @@ pub enum OperationCode {
     Modulo,
     Power,
     Minus,
-    Negate,
+    Not,
     Length,
     Concatenate,
     Jump,

@@ -10,6 +10,7 @@ impl<'a> super::GraphStructurer<'a> {
             true
         } else if self.function.graph().predecessors(target).len() == 1 {
             let terminator = self.function.block(target).unwrap().terminator.clone();
+            println!("terminator: {:?}", terminator);
             let block = self.function.remove_block(target).unwrap();
             self.function
                 .block_mut(node)

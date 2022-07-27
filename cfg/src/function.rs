@@ -39,6 +39,7 @@ impl<'a> Function<'a> {
         }
         match &new_terminator {
             Some(Terminator::Jump(edge)) => {
+                println!("{} {}", block_id, edge.node);
                 self.graph.add_edge((block_id, edge.node));
             }
             Some(Terminator::Conditional(then_edge, else_edge)) => {
@@ -47,12 +48,7 @@ impl<'a> Function<'a> {
             }
             _ => {}
         }
-        if let Some(new_terminator) = new_terminator {
-            self.block_mut(block_id)
-                .unwrap()
-                .terminator
-                .replace(new_terminator);
-        }
+        self.block_mut(block_id).unwrap().terminator = new_terminator;
     }
 
     #[requires(self.graph.has_edge(old) && self.has_block(target))]
