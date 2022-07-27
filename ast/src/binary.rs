@@ -83,11 +83,13 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
 				box RValue::Literal(Literal::Boolean(left)),
 				box RValue::Literal(Literal::Boolean(right)),
 				BinaryOperation::And | BinaryOperation::Or,
-			) => if self.operation == BinaryOperation::And {
-				RValue::Literal(Literal::Boolean(left && right))
-			} else {
-				RValue::Literal(Literal::Boolean(left || right))
-			}
+			) => Literal::Boolean(
+				if self.operation == BinaryOperation::And {
+					left && right
+				} else {
+					left || right
+				}
+			).into(),
 			(
 				box RValue::Literal(Literal::Boolean(left)),
 				box right,
@@ -126,9 +128,8 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
 			(
 				box RValue::Literal(Literal::String(left)),
 				box RValue::Literal(Literal::String(right)),
-				operation
-			)
-			if operation == BinaryOperation::Concat => RValue::Literal(Literal::String(left + right)),
+				BinaryOperation::Concat,
+			) => RValue::Literal(Literal::String(left + right)),
 			(left, right, operation) => Self {
 				left: Box::new(left.reduce()),
 				right: Box::new(right.reduce()),
