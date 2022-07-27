@@ -138,7 +138,15 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
 	}
 }
 
-impl Binary<'_> {
+impl<'a> Binary<'a> {
+	pub fn new(left: RValue<'a>, right: RValue<'a>, operation: BinaryOperation) -> Self {
+		Self {
+			left: Box::new(left),
+			right: Box::new(right),
+			operation,
+		}
+	}
+
 	pub fn precedence(&self) -> usize {
 		match self.operation {
 			BinaryOperation::Pow => 8,
