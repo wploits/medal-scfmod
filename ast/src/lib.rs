@@ -1,3 +1,5 @@
+#![feature(box_patterns)]
+
 use derive_more::{Deref, DerefMut, From};
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
@@ -38,6 +40,10 @@ pub use table::*;
 pub use unary::*;
 pub use binary::*;
 
+pub trait Reduce<'a> {
+    fn reduce(self) -> RValue<'a>;
+}
+
 #[enum_dispatch(LocalRw)]
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum RValue<'a> {
@@ -49,6 +55,16 @@ pub enum RValue<'a> {
     Index(Index<'a>),
     Unary(Unary<'a>),
     Binary(Binary<'a>),
+}
+
+impl<'a: 'b, 'b> Reduce<'b> for RValue<'a> {
+    fn reduce(self) -> RValue<'a> {
+        match self {
+            Self::Unary(unary) => unary.reduce(),
+            Self::Binary(binary) => binary.reduce(),
+            other => other,
+        }
+    }
 }
 
 impl RValue<'_> {
