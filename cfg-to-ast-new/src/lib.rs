@@ -42,18 +42,19 @@ impl<'a> GraphStructurer<'a> {
             == block.len()
     }
 
-    fn try_match_pattern(&mut self, node: NodeId) {
+    fn try_match_pattern(&mut self, node: NodeId) -> bool {
         let successors = self.function.graph().successors(node);
 
         if self.try_collapse_loop(node) {
-            return;
+            return true;
         }
 
-        match successors.len() {
-            0 => {}
+        let changed = match successors.len() {
+            0 => false,
             1 => {
                 // remove unnecessary jumps to allow pattern matching
-                self.match_jump(node, successors[0]);
+                println!("asd {} {}", node, successors[0]);
+                self.match_jump(node, successors[0])
             }
             2 => {
                 let (then_edge, else_edge) = self
@@ -67,16 +68,18 @@ impl<'a> GraphStructurer<'a> {
                     .unwrap();
                 let (then_node, else_node) = (then_edge.node, else_edge.node);
                 //self.match_conditional(node, then_node, else_node);
-                if self.match_compound_conditional(node, then_node, else_node) {
-                    self.try_match_pattern(node);
-                }
+                self.match_compound_conditional(node, then_node, else_node)
             }
+
             _ => unreachable!(),
         };
+
         dot::render_to(&self.function, &mut std::io::stdout());
+
+        changed
     }
 
-    fn collapse(&mut self) {
+    fn match_blocks(&mut self) -> bool {
         let dfs = dfs_tree(self.function.graph(), self.root);
         for node in self
             .function
@@ -90,10 +93,16 @@ impl<'a> GraphStructurer<'a> {
             self.function.remove_block(node);
         }
 
+        let mut changed = false;
         for node in dfs.post_order(self.root) {
             println!("matching {}", node);
-            self.try_match_pattern(node);
+            changed |= self.try_match_pattern(node);
         }
+        changed
+    }
+
+    fn collapse(&mut self) {
+        while self.match_blocks() {}
 
         let nodes = self.function.graph().nodes().len();
         if self.function.graph().nodes().len() != 1 {

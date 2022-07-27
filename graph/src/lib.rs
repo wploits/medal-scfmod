@@ -90,8 +90,11 @@ impl Graph {
             .collect()
     }
 
-    #[requires(self.has_node(edge.0) && self.has_node(edge.1) && !self.has_edge(&edge))]
+    #[requires(self.has_node(edge.0))]
+    #[requires(self.has_node(edge.1))]
+    #[requires(!self.has_edge(&edge))]
     pub fn add_edge(&mut self, edge: Edge) {
+        println!("add edge: {:?}", edge);
         self.edges.push(edge);
     }
 

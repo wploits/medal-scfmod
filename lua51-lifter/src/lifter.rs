@@ -197,27 +197,18 @@ impl<'a> LifterContext<'a> {
                     };
                     statements.push(ast::If::new(condition, None, None).into())
                 }
-                Instruction::TestSet {
-                    value,
-                    comparison_value,
+                Instruction::Not {
                     destination,
+                    operand,
                 } => {
-                    let value_r = self.locals[&value].clone().into();
-                    let condition = if comparison_value {
-                        value_r
-                    } else {
-                        ast::Unary::new(value_r, ast::UnaryOperation::Not).into()
-                    };
-
                     statements.push(
-                        ast::If::new(
-                            condition,
-                            Some(ast::Block(vec![ast::Assign::new(
-                                vec![self.locals[&destination].clone().into()],
-                                vec![ast::RValue::Local(self.locals[&value].clone())],
+                        ast::Assign::new(
+                            vec![self.locals[&destination].clone().into()],
+                            vec![ast::Unary::new(
+                                self.locals[&operand].clone().into(),
+                                ast::UnaryOperation::Not,
                             )
-                            .into()])),
-                            None,
+                            .into()],
                         )
                         .into(),
                     );

@@ -112,7 +112,7 @@ pub enum Instruction {
         destination: Register,
         operand: Register,
     },
-    Negate {
+    Not {
         destination: Register,
         operand: Register,
     },
@@ -276,7 +276,7 @@ impl Instruction {
                 destination: Register(a),
                 operand: Register(b),
             },
-            RawInstruction(OperationCode::Negate, Layout::ABC { a, b, c: _ }) => Self::Negate {
+            RawInstruction(OperationCode::Not, Layout::ABC { a, b, c: _ }) => Self::Not {
                 destination: Register(a),
                 operand: Register(b),
             },
