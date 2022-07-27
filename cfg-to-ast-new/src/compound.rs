@@ -144,6 +144,8 @@ impl<'a> super::GraphStructurer<'a> {
             second_info,
         );
 
+        use ast::Reduce;
+
         if first_else == second_conditional {
             if second_else == short_circuit {
                 *target_expression = ast::Binary::new(
@@ -174,6 +176,8 @@ impl<'a> super::GraphStructurer<'a> {
                 .into();
             }
         }
+
+        *target_expression = target_expression.clone().reduce();
 
         self.function
             .replace_edge(&(first_conditional, second_conditional), end);
