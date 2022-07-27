@@ -6,25 +6,25 @@ use super::{Binary, BinaryOperation};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum UnaryOperation {
-	Not,
-	Negate,
-	Length,
+    Not,
+    Negate,
+    Length,
 }
 
 impl fmt::Display for UnaryOperation {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			Self::Not => write!(f, "not "),
-			Self::Negate => write!(f, "-"),
-			Self::Length => write!(f, "#"),
-		}
-	}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Not => write!(f, "not "),
+            Self::Negate => write!(f, "-"),
+            Self::Length => write!(f, "#"),
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Unary<'a> {
-	pub value: Box<RValue<'a>>,
-	pub operation: UnaryOperation,
+    pub value: Box<RValue<'a>>,
+    pub operation: UnaryOperation,
 }
 
 impl<'a: 'b, 'b> Reduce<'b> for Unary<'a> {
@@ -83,13 +83,13 @@ impl<'a> Unary<'a> {
 }
 
 impl<'a> LocalRw<'a> for Unary<'a> {
-	fn values_read(&self) -> Vec<&RcLocal<'a>> {
-		self.value.values_read()
-	}
+    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+        self.value.values_read()
+    }
 
-	fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
-		self.value.values_read_mut()
-	}
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+        self.value.values_read_mut()
+    }
 }
 
 impl fmt::Display for Unary<'_> {

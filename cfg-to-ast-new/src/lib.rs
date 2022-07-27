@@ -1,19 +1,19 @@
-use cfg::function::{Function};
 use cfg::dot;
+use cfg::function::Function;
 use fxhash::FxHashMap;
 use graph::{
     algorithms::{dominators::*, *},
-    NodeId, Edge, Graph
+    Edge, Graph, NodeId,
 };
 
+mod compound;
 mod conditional;
-mod r#loop;
 mod jump;
+mod r#loop;
 
 struct GraphStructurer<'a> {
     function: Function<'a>,
     root: NodeId,
-    idoms: &'a FxHashMap<NodeId, NodeId>,
     back_edges: Vec<Edge>,
 }
 
@@ -23,28 +23,15 @@ impl<'a> GraphStructurer<'a> {
         graph: Graph,
         blocks: FxHashMap<NodeId, ast::Block<'a>>,
         root: NodeId,
-        idoms: &'a FxHashMap<NodeId, NodeId>,
+        _idoms: &'a FxHashMap<NodeId, NodeId>,
     ) -> Self {
         let back_edges = back_edges(&graph, root).unwrap();
-        let post_dom_tree = post_dominator_tree(&graph, &dfs_tree(&graph, root));
         let root = function.entry().unwrap();
         Self {
             function,
             root,
-            idoms,
             back_edges,
         }
-    }
-
-    fn loop_header(&self, mut node: NodeId) -> Option<NodeId> {
-        while !self.back_edges.iter().any(|edge| edge.1 == node) {
-            if let Some(&idom) = self.idoms.get(&node) {
-                node = idom;
-            } else {
-                return None;
-            }
-        }
-        Some(node)
     }
 
     fn block_is_no_op(block: &ast::Block) -> bool {
@@ -63,7 +50,7 @@ impl<'a> GraphStructurer<'a> {
         }
 
         match successors.len() {
-            0 => { }
+            0 => {}
             1 => {
                 // remove unnecessary jumps to allow pattern matching
                 self.match_jump(node, successors[0]);
@@ -79,7 +66,10 @@ impl<'a> GraphStructurer<'a> {
                     .as_conditional()
                     .unwrap();
                 let (then_node, else_node) = (then_edge.node, else_edge.node);
-                self.match_conditional(node, then_node, else_node);
+                //self.match_conditional(node, then_node, else_node);
+                if self.match_compound_conditional(node, then_node, else_node) {
+                    self.try_match_pattern(node);
+                }
             }
             _ => unreachable!(),
         };

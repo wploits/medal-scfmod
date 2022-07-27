@@ -5,7 +5,7 @@ use crate::{LocalRw, RcLocal};
 
 use super::RValue;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Call<'a> {
     pub value: Box<RValue<'a>>,
     pub arguments: Vec<RValue<'a>>,

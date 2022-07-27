@@ -4,7 +4,7 @@ use std::{borrow::Cow, fmt};
 
 use crate::LocalRw;
 
-#[derive(Debug, From, Clone, EnumAsInner)]
+#[derive(Debug, From, Clone, PartialEq, EnumAsInner)]
 pub enum Literal<'a> {
     Nil,
     Boolean(bool),

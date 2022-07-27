@@ -3,7 +3,7 @@ use std::{borrow::Cow, fmt};
 
 use crate::LocalRw;
 
-#[derive(Debug, From, Clone)]
+#[derive(Debug, From, PartialEq, Clone)]
 pub struct Global<'a>(pub Cow<'a, str>);
 
 impl<'a> Global<'a> {

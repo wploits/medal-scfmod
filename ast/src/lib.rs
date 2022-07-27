@@ -7,6 +7,7 @@ use itertools::Itertools;
 use std::fmt;
 
 mod assign;
+mod binary;
 mod r#break;
 mod call;
 mod r#continue;
@@ -22,9 +23,9 @@ mod r#return;
 mod table;
 mod unary;
 mod r#while;
-mod binary;
 
 pub use assign::*;
+pub use binary::*;
 pub use call::*;
 pub use global::*;
 pub use goto::*;
@@ -38,14 +39,13 @@ pub use r#return::*;
 pub use r#while::*;
 pub use table::*;
 pub use unary::*;
-pub use binary::*;
 
 pub trait Reduce<'a> {
     fn reduce(self) -> RValue<'a>;
 }
 
 #[enum_dispatch(LocalRw)]
-#[derive(Debug, Clone, EnumAsInner)]
+#[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum RValue<'a> {
     Local(RcLocal<'a>),
     Global(Global<'a>),
@@ -91,7 +91,7 @@ impl fmt::Display for RValue<'_> {
     }
 }
 
-#[derive(Debug, Clone, From, EnumAsInner)]
+#[derive(Debug, Clone, From, PartialEq, EnumAsInner)]
 pub enum LValue<'a> {
     Local(RcLocal<'a>),
     Global(Global<'a>),
@@ -203,10 +203,6 @@ impl<'a> Block<'a> {
 
     pub fn from_vec(statements: Vec<Statement<'a>>) -> Self {
         Self(statements)
-    }
-
-    pub fn without_comments(self) -> Self {
-        Self(self.0.into_iter().filter(|stmt| stmt.as_comment().is_none()).collect())
     }
 }
 

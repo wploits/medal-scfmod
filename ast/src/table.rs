@@ -2,7 +2,7 @@ use crate::{LocalRw, RValue, RcLocal};
 use itertools::Itertools;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Table<'a>(pub Vec<(Option<&'a str>, RValue<'a>)>);
 
 impl<'a> LocalRw<'a> for Table<'a> {

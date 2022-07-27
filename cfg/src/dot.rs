@@ -4,7 +4,7 @@ use dot::{GraphWalk, LabelText, Labeller};
 
 use graph::{Edge, NodeId};
 
-use crate::{function::Function, block::Terminator};
+use crate::{block::Terminator, function::Function};
 
 impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     fn graph_id(&'a self) -> dot::Id<'a> {
