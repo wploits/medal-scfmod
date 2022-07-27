@@ -53,7 +53,6 @@ impl<'a> GraphStructurer<'a> {
             0 => false,
             1 => {
                 // remove unnecessary jumps to allow pattern matching
-                println!("asd {} {}", node, successors[0]);
                 self.match_jump(node, successors[0])
             }
             2 => {

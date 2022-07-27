@@ -94,7 +94,6 @@ impl Graph {
     #[requires(self.has_node(edge.1))]
     #[requires(!self.has_edge(&edge))]
     pub fn add_edge(&mut self, edge: Edge) {
-        println!("add edge: {:?}", edge);
         self.edges.push(edge);
     }
 

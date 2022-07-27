@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Literal, LocalRw, RcLocal, Reduce, RValue};
+use crate::{Literal, LocalRw, RValue, RcLocal, Reduce};
 
 use super::{Unary, UnaryOperation};
 
@@ -24,25 +24,29 @@ pub enum BinaryOperation {
 }
 
 impl fmt::Display for BinaryOperation {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", match self {
-			BinaryOperation::Add => "+",
-			BinaryOperation::Sub => "-",
-			BinaryOperation::Mul => "*",
-			BinaryOperation::Div => "/",
-			BinaryOperation::Mod => "%",
-			BinaryOperation::Pow => "^",
-			BinaryOperation::Concat => "..",
-			BinaryOperation::Equal => "==",
-			BinaryOperation::NotEqual => "~=",
-			BinaryOperation::LessThanOrEqual => "<=",
-			BinaryOperation::GreaterThanOrEqual => ">=",
-			BinaryOperation::LessThan => "<",
-			BinaryOperation::GreaterThan => ">",
-			BinaryOperation::And => "and",
-			BinaryOperation::Or => "or",
-		})
-	}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOperation::Add => "+",
+                BinaryOperation::Sub => "-",
+                BinaryOperation::Mul => "*",
+                BinaryOperation::Div => "/",
+                BinaryOperation::Mod => "%",
+                BinaryOperation::Pow => "^",
+                BinaryOperation::Concat => "..",
+                BinaryOperation::Equal => "==",
+                BinaryOperation::NotEqual => "~=",
+                BinaryOperation::LessThanOrEqual => "<=",
+                BinaryOperation::GreaterThanOrEqual => ">=",
+                BinaryOperation::LessThan => "<",
+                BinaryOperation::GreaterThan => ">",
+                BinaryOperation::And => "and",
+                BinaryOperation::Or => "or",
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -140,27 +144,30 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
 }
 
 impl<'a> Binary<'a> {
-	pub fn new(left: RValue<'a>, right: RValue<'a>, operation: BinaryOperation) -> Self {
-		Self {
-			left: Box::new(left),
-			right: Box::new(right),
-			operation,
-		}
-	}
+    pub fn new(left: RValue<'a>, right: RValue<'a>, operation: BinaryOperation) -> Self {
+        Self {
+            left: Box::new(left),
+            right: Box::new(right),
+            operation,
+        }
+    }
 
-	pub fn precedence(&self) -> usize {
-		match self.operation {
-			BinaryOperation::Pow => 8,
-			BinaryOperation::Mul | BinaryOperation::Div | BinaryOperation::Mod => 6,
-			BinaryOperation::Add | BinaryOperation::Sub => 5,
-			BinaryOperation::Concat => 4,
-			BinaryOperation::LessThan | BinaryOperation::GreaterThan
-			| BinaryOperation::LessThanOrEqual | BinaryOperation::GreaterThanOrEqual
-			| BinaryOperation::Equal | BinaryOperation::NotEqual => 3,
-			BinaryOperation::And => 2,
-			BinaryOperation::Or => 1,
-		}
-	}
+    pub fn precedence(&self) -> usize {
+        match self.operation {
+            BinaryOperation::Pow => 8,
+            BinaryOperation::Mul | BinaryOperation::Div | BinaryOperation::Mod => 6,
+            BinaryOperation::Add | BinaryOperation::Sub => 5,
+            BinaryOperation::Concat => 4,
+            BinaryOperation::LessThan
+            | BinaryOperation::GreaterThan
+            | BinaryOperation::LessThanOrEqual
+            | BinaryOperation::GreaterThanOrEqual
+            | BinaryOperation::Equal
+            | BinaryOperation::NotEqual => 3,
+            BinaryOperation::And => 2,
+            BinaryOperation::Or => 1,
+        }
+    }
 }
 
 impl<'a> LocalRw<'a> for Binary<'a> {

@@ -137,14 +137,16 @@ impl<'a> super::GraphStructurer<'a> {
         let first_info = self.compound_info(first_conditional);
         let second_info = self.compound_info(second_conditional);
 
+        if first_info.is_none() {
+            assert!(second_info.is_none());
+        }
+
         let (target_expression, operand) = self.target_expression(
             first_conditional,
             second_conditional,
             first_info,
             second_info,
         );
-
-        use ast::Reduce;
 
         if first_else == second_conditional {
             if second_else == short_circuit {
@@ -177,7 +179,8 @@ impl<'a> super::GraphStructurer<'a> {
             }
         }
 
-        *target_expression = target_expression.clone().reduce();
+        use ast::Reduce;
+        //*target_expression = target_expression.clone().reduce();
 
         self.function
             .replace_edge(&(first_conditional, second_conditional), end);
