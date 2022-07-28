@@ -1,11 +1,12 @@
 use std::{borrow::Cow, rc::Rc};
 
+use either::Either;
 use fxhash::FxHashMap;
 
 use ast::RcLocal;
 use cfg::{block::Terminator, function::Function};
 use graph::NodeId;
-use lua51_deserializer::argument::{Constant, Register};
+use lua51_deserializer::argument::{Constant, Register, RegisterOrConstant};
 use lua51_deserializer::{Function as BytecodeFunction, Instruction, Value};
 
 struct LifterContext<'a> {
@@ -97,6 +98,13 @@ impl<'a> LifterContext<'a> {
             .entry(constant.0 as usize)
             .or_insert(converted_constant)
             .clone()
+    }
+
+    fn register_or_constant(&mut self, value: RegisterOrConstant) -> ast::RValue<'a> {
+        match value.0 {
+            Either::Left(register) => self.locals[&register].clone().into(),
+            Either::Right(constant) => self.constant(constant).into(),
+        }
     }
 
     fn lift_instruction(
@@ -225,6 +233,51 @@ impl<'a> LifterContext<'a> {
                     );
                 }
                 Instruction::Jump(..) => {}
+                Instruction::Add {
+                    destination,
+                    lhs,
+                    rhs,
+                }
+                | Instruction::Sub {
+                    destination,
+                    lhs,
+                    rhs,
+                }
+                | Instruction::Mul {
+                    destination,
+                    lhs,
+                    rhs,
+                }
+                | Instruction::Div {
+                    destination,
+                    lhs,
+                    rhs,
+                }
+                | Instruction::Mod {
+                    destination,
+                    lhs,
+                    rhs,
+                }
+                | Instruction::Pow {
+                    destination,
+                    lhs,
+                    rhs,
+                } => {
+                    statements.push(
+                        ast::Assign::new(vec![self.locals[&destination].clone().into()], vec![
+                            ast::Binary::new(self.register_or_constant(lhs), self.register_or_constant(rhs), match instruction {
+                                Instruction::Add { .. } => ast::BinaryOperation::Add,
+                                Instruction::Sub { .. } => ast::BinaryOperation::Sub,
+                                Instruction::Mul { .. } => ast::BinaryOperation::Mul,
+                                Instruction::Div { .. } => ast::BinaryOperation::Div,
+                                Instruction::Mod { .. } => ast::BinaryOperation::Mod,
+                                Instruction::Pow { .. } => ast::BinaryOperation::Pow,
+                                _ => unreachable!(),
+                            }).into()
+                        ])
+                            .into(),
+                    );
+                }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
 

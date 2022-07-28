@@ -83,27 +83,27 @@ pub enum Instruction {
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
     },
-    Subtract {
+    Sub {
         destination: Register,
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
     },
-    Multiply {
+    Mul {
         destination: Register,
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
     },
-    Divide {
+    Div {
         destination: Register,
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
     },
-    Modulo {
+    Mod {
         destination: Register,
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
     },
-    Power {
+    Pow {
         destination: Register,
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
@@ -247,27 +247,27 @@ impl Instruction {
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Subtract, Layout::ABC { a, b, c }) => Self::Subtract {
+            RawInstruction(OperationCode::Subtract, Layout::ABC { a, b, c }) => Self::Sub {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Multiply, Layout::ABC { a, b, c }) => Self::Multiply {
+            RawInstruction(OperationCode::Multiply, Layout::ABC { a, b, c }) => Self::Mul {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Divide, Layout::ABC { a, b, c }) => Self::Divide {
+            RawInstruction(OperationCode::Divide, Layout::ABC { a, b, c }) => Self::Div {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Modulo, Layout::ABC { a, b, c }) => Self::Modulo {
+            RawInstruction(OperationCode::Modulo, Layout::ABC { a, b, c }) => Self::Mod {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Power, Layout::ABC { a, b, c }) => Self::Power {
+            RawInstruction(OperationCode::Power, Layout::ABC { a, b, c }) => Self::Pow {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),

@@ -7,7 +7,7 @@ use graph::{
         dfs_tree,
         dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
     },
-    NodeId, Edge,
+    Edge, NodeId,
 };
 
 use crate::{
@@ -107,7 +107,7 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
             .filter(|(local, _)| !def_use.references.contains_key(local))
             .map(|(a, b)| (a.0.to_string().clone(), b))
             .collect::<Vec<_>>();
-        
+
         for (local, locations) in to_remove {
             for edge in locations {
                 match self.function.block_mut(edge.0).unwrap().terminator.as_mut() {
