@@ -10,3 +10,5 @@ members = [
     "cfg-to-ast-new"
 ]
 
+[profile.release]
+debug = true
