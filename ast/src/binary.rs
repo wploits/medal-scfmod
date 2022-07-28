@@ -57,90 +57,95 @@ pub struct Binary<'a> {
 }
 
 impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
-	fn reduce(self) -> RValue<'a> {
-		match (self.left, self.right, self.operation) {
-			(
-				box RValue::Unary(Unary {
-									  operation: UnaryOperation::Not,
-									  value: left,
-								  }),
-				box RValue::Unary(Unary {
-									  operation: UnaryOperation::Not,
-									  value: right,
-								  }),
-				BinaryOperation::And | BinaryOperation::Or,
-			) => Unary {
-				value: Box::new(
-					Binary {
-						left,
-						right,
-						operation: if self.operation == BinaryOperation::And {
-							BinaryOperation::Or
-						} else {
-							BinaryOperation::And
-						},
-					}.into()
-				),
-				operation: UnaryOperation::Not,
-			}.into(),
-			(
-				box RValue::Literal(Literal::Boolean(left)),
-				box RValue::Literal(Literal::Boolean(right)),
-				BinaryOperation::And | BinaryOperation::Or,
-			) => Literal::Boolean(
-				if self.operation == BinaryOperation::And {
-					left && right
-				} else {
-					left || right
-				}
-			).into(),
-			(
-				box RValue::Literal(Literal::Boolean(left)),
-				box right,
-				BinaryOperation::And | BinaryOperation::Or,
-			) => if self.operation == BinaryOperation::And {
-				if !left {
-					RValue::Literal(Literal::Boolean(false))
-				} else {
-					right.reduce()
-				}
-			} else {
-				if left {
-					RValue::Literal(Literal::Boolean(true))
-				} else {
-					right.reduce()
-				}
-			}
-			(
-				box left,
-				box RValue::Literal(Literal::Boolean(right)),
-				BinaryOperation::And | BinaryOperation::Or,
-			)
-			=> if self.operation == BinaryOperation::And {
-				if !right {
-					RValue::Literal(Literal::Boolean(false))
-				} else {
-					left.reduce()
-				}
-			} else {
-				if right {
-					RValue::Literal(Literal::Boolean(true))
-				} else {
-					left.reduce()
-				}
-			}
-			(
-				box RValue::Literal(Literal::String(left)),
-				box RValue::Literal(Literal::String(right)),
-				BinaryOperation::Concat,
-			) => RValue::Literal(Literal::String(left + right)),
-			(left, right, operation) => Self {
-				left: Box::new(left.reduce()),
-				right: Box::new(right.reduce()),
-				operation,
-			}.into()
-		}
-	}
+    fn reduce(self) -> RValue<'a> {
+        match (self.left, self.right, self.operation) {
+            (
+                box RValue::Unary(Unary {
+                    operation: UnaryOperation::Not,
+                    value: left,
+                }),
+                box RValue::Unary(Unary {
+                    operation: UnaryOperation::Not,
+                    value: right,
+                }),
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => Unary {
+                value: Box::new(
+                    Binary {
+                        left,
+                        right,
+                        operation: if self.operation == BinaryOperation::And {
+                            BinaryOperation::Or
+                        } else {
+                            BinaryOperation::And
+                        },
+                    }
+                    .into(),
+                ),
+                operation: UnaryOperation::Not,
+            }
+            .into(),
+            (
+                box RValue::Literal(Literal::Boolean(left)),
+                box RValue::Literal(Literal::Boolean(right)),
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => Literal::Boolean(if self.operation == BinaryOperation::And {
+                left && right
+            } else {
+                left || right
+            })
+            .into(),
+            (
+                box RValue::Literal(Literal::Boolean(left)),
+                box right,
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => {
+                if self.operation == BinaryOperation::And {
+                    if !left {
+                        RValue::Literal(Literal::Boolean(false))
+                    } else {
+                        right.reduce()
+                    }
+                } else {
+                    if left {
+                        RValue::Literal(Literal::Boolean(true))
+                    } else {
+                        right.reduce()
+                    }
+                }
+            }
+            (
+                box left,
+                box RValue::Literal(Literal::Boolean(right)),
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => {
+                if self.operation == BinaryOperation::And {
+                    if !right {
+                        RValue::Literal(Literal::Boolean(false))
+                    } else {
+                        left.reduce()
+                    }
+                } else {
+                    if right {
+                        RValue::Literal(Literal::Boolean(true))
+                    } else {
+                        left.reduce()
+                    }
+                }
+            }
+            (
+                box RValue::Literal(Literal::String(left)),
+                box RValue::Literal(Literal::String(right)),
+                BinaryOperation::Concat,
+            ) => RValue::Literal(Literal::String(left + right)),
+            (left, right, operation) => Self {
+                left: Box::new(left.reduce()),
+                right: Box::new(right.reduce()),
+                operation,
+            }
+            .into(),
+        }
+    }
 }
 
 impl<'a> Binary<'a> {

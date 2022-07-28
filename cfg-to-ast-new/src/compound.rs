@@ -198,16 +198,8 @@ impl<'a> super::GraphStructurer<'a> {
 
         self.simplify_condition(node);
 
-        let block = self
-            .function
-            .block(node)
-            .unwrap();
-        let terminator = block
-            .terminator
-            .as_ref()
-            .unwrap()
-            .as_conditional()
-            .unwrap();
+        let block = self.function.block(node).unwrap();
+        let terminator = block.terminator.as_ref().unwrap().as_conditional().unwrap();
         let (then_node, _) = (terminator.0.node, terminator.1.node);
 
         let info = info.unwrap();
@@ -249,7 +241,10 @@ impl<'a> super::GraphStructurer<'a> {
         let then_successors = graph.successors(then_node);
 
         let mut changed = false;
-        if else_node != entry && else_successors.contains(&then_node) && graph.predecessors(else_node).len() == 1 {
+        if else_node != entry
+            && else_successors.contains(&then_node)
+            && graph.predecessors(else_node).len() == 1
+        {
             assert!(!self.is_loop_header(then_node));
             if else_successors.len() == 2 {
                 let end = *else_successors.iter().find(|&&n| n != then_node).unwrap();
@@ -257,7 +252,10 @@ impl<'a> super::GraphStructurer<'a> {
             } else {
                 changed = self.match_and_or(entry, else_node, then_node);
             }
-        } else if then_node != entry && then_successors.contains(&else_node) && graph.predecessors(then_node).len() == 1 {
+        } else if then_node != entry
+            && then_successors.contains(&else_node)
+            && graph.predecessors(then_node).len() == 1
+        {
             assert!(!self.is_loop_header(else_node));
             if then_successors.len() == 2 {
                 let end = *then_successors.iter().find(|&&n| n != else_node).unwrap();

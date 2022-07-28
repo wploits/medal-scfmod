@@ -28,48 +28,72 @@ pub struct Unary<'a> {
 }
 
 impl<'a: 'b, 'b> Reduce<'b> for Unary<'a> {
-	fn reduce(self) -> RValue<'a> {
-		let is_not_expression = |expression: &RValue| match expression {
-			RValue::Unary(Unary { value, operation: UnaryOperation::Not }) => true,
-			_ => false,
-		};
+    fn reduce(self) -> RValue<'a> {
+        let is_not_expression = |expression: &RValue| match expression {
+            RValue::Unary(Unary {
+                value,
+                operation: UnaryOperation::Not,
+            }) => true,
+            _ => false,
+        };
 
-		match (*self.value, self.operation) {
-			(RValue::Literal(Literal::Boolean(value)), UnaryOperation::Not) => RValue::Literal(Literal::Boolean(!value)),
-			(
-				RValue::Unary(
-					Unary {
-						box value,
-						operation: UnaryOperation::Not,
-					}),
-				UnaryOperation::Not) => value.reduce(),
-			(RValue::Literal(Literal::Number(value)), UnaryOperation::Negate) => RValue::Literal(Literal::Number(-value)),
-			(RValue::Literal(Literal::String(value)), UnaryOperation::Length) => RValue::Literal(Literal::Number(value.len() as f64)),
-			(
-				RValue::Binary(Binary {
-								   left,
-								   right,
-								   operation,
-							   }),
-				UnaryOperation::Not,
-			) if (operation == BinaryOperation::And || operation == BinaryOperation::Or)
-			 && (is_not_expression(left.as_ref()) || is_not_expression(right.as_ref())) => Binary {
-				left: Box::new(Unary {
-					value: left,
-					operation: UnaryOperation::Not,
-				}.reduce()),
-				right: Box::new(Unary {
-					value: right,
-					operation: UnaryOperation::Not,
-				}.reduce()),
-				operation: if operation == BinaryOperation::And { BinaryOperation::Or } else { BinaryOperation::And },
-			}.reduce(),
-			(value, operation) => Self {
-				value: Box::new(value.reduce()),
-				operation,
-			}.into(),
-		}
-	}
+        match (*self.value, self.operation) {
+            (RValue::Literal(Literal::Boolean(value)), UnaryOperation::Not) => {
+                RValue::Literal(Literal::Boolean(!value))
+            }
+            (
+                RValue::Unary(Unary {
+                    box value,
+                    operation: UnaryOperation::Not,
+                }),
+                UnaryOperation::Not,
+            ) => value.reduce(),
+            (RValue::Literal(Literal::Number(value)), UnaryOperation::Negate) => {
+                RValue::Literal(Literal::Number(-value))
+            }
+            (RValue::Literal(Literal::String(value)), UnaryOperation::Length) => {
+                RValue::Literal(Literal::Number(value.len() as f64))
+            }
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation,
+                }),
+                UnaryOperation::Not,
+            ) if (operation == BinaryOperation::And || operation == BinaryOperation::Or)
+                && (is_not_expression(left.as_ref()) || is_not_expression(right.as_ref())) =>
+            {
+                Binary {
+                    left: Box::new(
+                        Unary {
+                            value: left,
+                            operation: UnaryOperation::Not,
+                        }
+                        .reduce(),
+                    ),
+                    right: Box::new(
+                        Unary {
+                            value: right,
+                            operation: UnaryOperation::Not,
+                        }
+                        .reduce(),
+                    ),
+                    operation: if operation == BinaryOperation::And {
+                        BinaryOperation::Or
+                    } else {
+                        BinaryOperation::And
+                    },
+                }
+                .reduce()
+            }
+            (value, operation) => Self {
+                value: Box::new(value.reduce()),
+                operation,
+            }
+            .into(),
+        }
+    }
 }
 
 impl<'a> Unary<'a> {

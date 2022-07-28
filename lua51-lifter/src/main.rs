@@ -36,10 +36,10 @@ fn main() -> anyhow::Result<()> {
 
     let now = time::Instant::now();
     //let main = Lifter::new(&chunk.function).lift_function()?;
-    let main = lifter::lift(&chunk.function);
+    let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
-    // cfg_ir::new_ssa::construct(&mut main);
+    cfg::new_ssa::construct(&mut main);
 
     /*process_function(&mut main)?;
     for function in descendants {

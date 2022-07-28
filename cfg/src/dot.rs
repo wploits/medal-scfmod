@@ -2,9 +2,21 @@ use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, LabelText, Labeller};
 
+use fxhash::FxHashMap;
 use graph::{Edge, NodeId};
 
 use crate::{block::Terminator, function::Function};
+
+fn arguments(args: &FxHashMap<ast::RcLocal, ast::RcLocal>) -> String {
+    let mut s = String::new();
+    for (i, (local, new_local)) in args.iter().enumerate() {
+        s.push_str(&format!("{} -> {}", local, new_local));
+        if i + 1 != args.len() {
+            s.push_str("\n");
+        }
+    }
+    s
+}
 
 impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     fn graph_id(&'a self) -> dot::Id<'a> {
@@ -18,16 +30,21 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     }
 
     fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
-        let terminator = self.block(e.0).unwrap().terminator.as_ref();
-        match terminator {
-            Some(Terminator::Conditional(then_edge, _)) => {
-                if e.1 == then_edge.node {
-                    dot::LabelText::LabelStr("t".into())
-                } else {
-                    dot::LabelText::LabelStr("e".into())
+        if let Some(terminator) = self.block(e.0).unwrap().terminator.as_ref() {
+            match terminator {
+                Terminator::Conditional(then_edge, _) => {
+                    if e.1 == then_edge.node {
+                        dot::LabelText::LabelStr("t".into())
+                    } else {
+                        dot::LabelText::LabelStr("e".into())
+                    }
+                }
+                Terminator::Jump(edge) => {
+                    dot::LabelText::LabelStr(format!("{}", arguments(&edge.arguments)).into())
                 }
             }
-            _ => dot::LabelText::LabelStr("".into()),
+        } else {
+            dot::LabelText::LabelStr("".into())
         }
     }
 

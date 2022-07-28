@@ -73,7 +73,7 @@ impl<'a> GraphStructurer<'a> {
             _ => unreachable!(),
         };
 
-        dot::render_to(&self.function, &mut std::io::stdout());
+        //dot::render_to(&self.function, &mut std::io::stdout());
 
         changed
     }

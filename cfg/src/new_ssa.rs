@@ -2,130 +2,217 @@ use ast::{LocalRw, RcLocal};
 use std::rc::Rc;
 
 use fxhash::{FxHashMap, FxHashSet};
-use graph::algorithms::{
-    dfs_tree,
-    dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
+use graph::{
+    algorithms::{
+        dfs_tree,
+        dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
+    },
+    NodeId,
 };
 
-use crate::{function::Function, new_def_use, block::Terminator};
+use crate::{
+    block::{BasicBlockEdge, Terminator},
+    function::Function,
+};
 
-pub fn construct(function: &mut Function) {
-    let entry = function.entry().unwrap();
-    let graph = function.graph();
+struct SsaConstructor<'a, 'b> {
+    function: &'b mut Function<'a>,
+    locals: FxHashMap<RcLocal<'a>, Vec<RcLocal<'a>>>,
+    idoms: FxHashMap<NodeId, NodeId>,
+}
 
-    let dfs = dfs_tree(graph, entry).unwrap();
-    let idoms = compute_immediate_dominators(graph, entry, &dfs).unwrap();
-    let dom_tree = dominator_tree(graph, &idoms).unwrap();
-
-    let mut dominance_frontiers = compute_dominance_frontiers(graph, entry, &idoms, &dfs).unwrap();
-    dominance_frontiers.retain(|_, f| !f.is_empty());
-
-    // phi insertation
-    for (node, dominance_frontier_nodes) in dominance_frontiers {
-        let block = function.block(node).unwrap();
-        let writes = block
-            .block
+impl<'a, 'b> SsaConstructor<'a, 'b> {
+    fn edges(&self, node: NodeId) -> Vec<&BasicBlockEdge<'a>> {
+        self.function
+            .blocks()
             .iter()
-            .flat_map(|stat| stat.values_written())
-            .collect::<Vec<_>>();
+            .flat_map(|(_, block)| match &block.terminator {
+                Some(Terminator::Jump(edge)) => vec![edge],
+                Some(Terminator::Conditional(then_edge, else_edge)) => vec![then_edge, else_edge],
+                _ => vec![],
+            })
+            .filter(|edge| edge.node == node)
+            .collect::<Vec<_>>()
+    }
 
-        for value_written in writes {
-            for &dominance_frontier_node in &dominance_frontier_nodes {
-                let incoming_values = function
-                    .graph()
-                    .predecessors(dominance_frontier_node)
-                    .map(|predecessor| (predecessor, value_written))
-                    .collect();
+    fn edges_mut(&mut self, node: NodeId) -> Vec<&mut BasicBlockEdge<'a>> {
+        self.function
+            .blocks_mut()
+            .iter_mut()
+            .flat_map(|(_, block)| match &mut block.terminator {
+                Some(Terminator::Jump(edge)) => vec![edge],
+                Some(Terminator::Conditional(then_edge, else_edge)) => vec![then_edge, else_edge],
+                _ => vec![],
+            })
+            .filter(|edge| edge.node == node)
+            .collect::<Vec<_>>()
+    }
 
-                for predecessor in function.graph().predecessors(dominance_frontier_node) {
-                    match function.block(predecessor).unwrap().terminator.as_mut().unwrap() {
-                        Terminator::Jump(edge) => {
-                            edge.arguments.insert(value_written, value_written);
-                        },
-                        Terminator::Conditional(then_edge, else_edge) => {
-                            if then_edge.node == dominance_frontier_node {
-                                then_edge.arguments.insert(value_written, value_written);
-                            } else if else_edge.node == dominance_frontier_node {
-                                else_edge.arguments.insert(value_written, value_written);
-                            } else {
-                                unreachable!()
-                            }
-                        },
-                        Terminator::Return => unreachable!(),
-                    }
+    fn find_ssa_variable(
+        &mut self,
+        node: NodeId,
+        index: usize,
+        old_local: RcLocal<'a>,
+    ) -> RcLocal<'a> {
+        let new_locals = &self.locals[&old_local];
+        println!("new locals: {:?}", new_locals);
+        let block = self.function.block(node).unwrap();
+        for statement in block.iter().rev().skip(block.len() - index) {
+            for write in statement.values_written() {
+                if new_locals.contains(write) {
+                    return write.clone();
                 }
             }
         }
-    }
-
-    let mut stack = vec![(
-        entry,
-        Rc::new(FxHashMap::<RcLocal<'_>, Vec<RcLocal<'_>>>::default()),
-    )];
-    let mut visited = FxHashSet::default();
-    while let Some((node, mut value_stacks)) = stack.pop() {
-        if visited.insert(node) {
-            let block = function.block_mut(node).unwrap();
-            let block_reads = block
-                .block
-                .iter()
-                .enumerate()
-                .map(|(index, inner)| (index, inner.values_read()))
-                .collect::<Vec<_>>();
-
-            for (index, values_read) in block_reads {
-                for read_value in values_read {
-                    if let Some(value_stack) = value_stacks.get(&read_value) {
-                        block.replace_values_read(index, read_value, *value_stack.last().unwrap());
-                    }
+        for edge in self.edges(node) {
+            for argument in &edge.arguments {
+                if new_locals.contains(&argument.1) {
+                    return argument.0.clone();
                 }
             }
+        }
+        if let Some(&idom) = self.idoms.get(&node) {
+            return self.find_ssa_variable(
+                idom,
+                self.function.block(idom).unwrap().len(),
+                old_local,
+            );
+        }
+        println!("failed to find value");
+        self.function.local_allocator.allocate()
+    }
 
-            let def_use = new_def_use::DefUse::capture(function);
-            for (value, value_def_use) in def_use
-                .access_by_node(node)
+    fn replace_reads(&mut self, node: NodeId) {
+        for index in 0..self.function.block_mut(node).unwrap().len() {
+            let mut statement = self.function.block_mut(node).unwrap().remove(index);
+            for read in statement
+                .values_read()
                 .into_iter()
-                .filter(|(_, value_def_use)| !value_def_use.writes.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
             {
-                for write_location in value_def_use
-                    .writes
-                    .iter()
-                    .filter(|location| location.node == node)
-                {
-                    if value_stacks.contains_key(&value) {
-                        let new_value = function.value_allocator.borrow_mut().new_value();
-                        Rc::make_mut(&mut value_stacks)
-                            .get_mut(&value)
-                            .unwrap()
-                            .push(new_value);
-                        function.block_mut(node).unwrap().replace_values_written(
-                            write_location.index,
-                            value,
-                            new_value,
-                        );
-                    } else {
-                        Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
-                    }
-                }
+                let ssa_variable = self.find_ssa_variable(
+                    node,
+                    self.function.block(node).unwrap().len(),
+                    read.clone(),
+                );
+                statement.replace_values_read(&read, &ssa_variable);
             }
-
-            for successor in function.graph().successors(node).collect::<Vec<_>>() {
-                for phi in &mut function.block_mut(successor).unwrap().phi_instructions {
-                    let old_value = phi.incoming_values[&node];
-                    if let Some(value_stack) = value_stacks.get(&old_value) {
-                        phi.incoming_values
-                            .insert(node, *value_stack.last().unwrap());
-                    }
-                }
-            }
-        }
-
-        for child_block in dom_tree.successors(node) {
-            if !visited.contains(&child_block) {
-                stack.push((node, value_stacks.clone()));
-                stack.push((child_block, value_stacks));
-                break;
-            }
+            self.function
+                .block_mut(node)
+                .unwrap()
+                .insert(index, statement);
         }
     }
+
+    fn construct(mut self) {
+        let graph = self.function.graph();
+        let entry = self.function.entry().unwrap();
+
+        let dfs = dfs_tree(graph, entry);
+        let idoms = compute_immediate_dominators(graph, entry, &dfs);
+
+        let dominance_frontiers = compute_dominance_frontiers(graph, entry, &idoms, &dfs).unwrap();
+
+        let mut assignments = FxHashMap::default();
+
+        for (&node, block) in self.function.blocks_mut() {
+            for (index, statement) in block.iter().enumerate() {
+                let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for local in written {
+                    assignments
+                        .entry(node)
+                        .or_insert_with(Vec::new)
+                        .push((local, index));
+                }
+            }
+        }
+
+        //let mut locals = FxHashMap::default();
+        for (&node, writes) in &assignments {
+            for write in writes {
+                let new_local = self.function.local_allocator.allocate();
+                println!("old: {} new: {}", write.0, new_local);
+                self.locals
+                    .entry(write.0.clone())
+                    .or_insert_with(Vec::new)
+                    .push(new_local.clone());
+                self.function
+                    .block_mut(node)
+                    .unwrap()
+                    .get_mut(write.1)
+                    .unwrap()
+                    .as_assign_mut()
+                    .unwrap()
+                    .replace_values_written(&write.0, &new_local);
+            }
+        }
+
+        for (&node, writes) in &assignments {
+            for write in writes {
+                let new_name = self.function.local_allocator.allocate();
+                self.locals.get_mut(&write.0).unwrap().push(new_name.clone());
+                if let Some(df) = dominance_frontiers.get(&node) {
+                    for &df_node in df {
+                        for df_pred in self.function.graph().predecessors(df_node) {
+                            let argument = self.find_ssa_variable(
+                                df_pred,
+                                self.function.block(df_pred).unwrap().len(),
+                                write.0.clone(),
+                            );
+                            println!("{} -> {}", df_pred, argument);
+                            let terminator = self
+                                .function
+                                .block_mut(df_pred)
+                                .unwrap()
+                                .terminator
+                                .as_mut()
+                                .unwrap();
+                            match terminator {
+                                Terminator::Jump(edge) => {
+                                    assert!(edge.node == df_node);
+                                    edge.arguments.insert(new_name.clone(), argument);
+                                }
+                                Terminator::Conditional(then_edge, else_edge) => {
+                                    if then_edge.node == df_node {
+                                        then_edge.arguments.insert(new_name.clone(), argument);
+                                    } else if else_edge.node == df_node {
+                                        else_edge.arguments.insert(new_name.clone(), argument);
+                                    } else {
+                                        unreachable!();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        crate::dot::render_to(self.function, &mut std::io::stdout());
+
+        for node in self.function.graph().nodes().clone() {
+            self.replace_reads(node);
+        }
+    }
+}
+
+pub fn construct<'a, 'b>(function: &'b mut Function<'a>) {
+    println!("ssa construct");
+    crate::dot::render_to(function, &mut std::io::stdout());
+    let idoms = compute_immediate_dominators(
+        function.graph(),
+        function.entry().unwrap(),
+        &dfs_tree(function.graph(), function.entry().unwrap()),
+    );
+    SsaConstructor {
+        function,
+        locals: FxHashMap::default(),
+        idoms,
+    }
+    .construct();
 }

@@ -2,7 +2,7 @@ use derive_more::{Deref, DerefMut, Display, From};
 use enum_dispatch::enum_dispatch;
 use std::{borrow::Cow, fmt, rc::Rc};
 
-#[derive(Debug, From, Clone, PartialEq)]
+#[derive(Debug, From, Clone, PartialEq, Eq, Hash)]
 pub struct Local<'a>(pub Cow<'a, str>);
 
 impl<'a> Local<'a> {
@@ -17,7 +17,7 @@ impl fmt::Display for Local<'_> {
     }
 }
 
-#[derive(Debug, Clone, Display, Deref, DerefMut, PartialEq)]
+#[derive(Debug, Clone, Display, Deref, DerefMut, PartialEq, Eq, Hash)]
 pub struct RcLocal<'a>(Rc<Local<'a>>);
 
 impl<'a> RcLocal<'a> {

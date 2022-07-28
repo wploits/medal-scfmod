@@ -69,10 +69,10 @@ impl OperationCode {
 
     pub fn instruction_layout(&self) -> usize {
         /*
-            0 = ABC
-            1 = ABx
-            2 = AsBx
-         */
+           0 = ABC
+           1 = ABx
+           2 = AsBx
+        */
 
         match self {
             Self::Move => 0,
