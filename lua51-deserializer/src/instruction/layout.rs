@@ -9,7 +9,7 @@ use super::OperationCode;
 
 #[derive(Debug)]
 pub enum Layout {
-    ABC { a: u8, b: u8, c: u8 },
+    ABC { a: u8, b: u16, c: u16 },
     ABx { a: u8, bx: u32 },
     AsBx { a: u8, sbx: i32 },
 }
@@ -22,8 +22,8 @@ impl Layout {
         {
             Some(0) => {
                 let a = ((instruction >> 6) & 0xFF) as u8;
-                let c = ((instruction >> 14) & 0x1FF) as u8;
-                let b = ((instruction >> 23) & 0x1FF) as u8;
+                let c = ((instruction >> 14) & 0x1FF) as u16;
+                let b = ((instruction >> 23) & 0x1FF) as u16;
 
                 Ok((input, Self::ABC { a, b, c }))
             }

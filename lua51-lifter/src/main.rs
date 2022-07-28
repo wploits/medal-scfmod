@@ -39,17 +39,20 @@ fn main() -> anyhow::Result<()> {
     let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
+    let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
+    let ssa_constructed = now.elapsed();
+    println!("ssa construction: {:?}", ssa_constructed);
 
     /*process_function(&mut main)?;
     for function in descendants {
         process_function(&mut function.borrow_mut())?;
     }*/
 
-    cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     //println!("lifting: {:?}", lifted);
-    cfg_to_ast_new::lift(main);
+    //cfg_to_ast_new::lift(main);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

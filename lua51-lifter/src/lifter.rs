@@ -264,18 +264,24 @@ impl<'a> LifterContext<'a> {
                     rhs,
                 } => {
                     statements.push(
-                        ast::Assign::new(vec![self.locals[&destination].clone().into()], vec![
-                            ast::Binary::new(self.register_or_constant(lhs), self.register_or_constant(rhs), match instruction {
-                                Instruction::Add { .. } => ast::BinaryOperation::Add,
-                                Instruction::Sub { .. } => ast::BinaryOperation::Sub,
-                                Instruction::Mul { .. } => ast::BinaryOperation::Mul,
-                                Instruction::Div { .. } => ast::BinaryOperation::Div,
-                                Instruction::Mod { .. } => ast::BinaryOperation::Mod,
-                                Instruction::Pow { .. } => ast::BinaryOperation::Pow,
-                                _ => unreachable!(),
-                            }).into()
-                        ])
-                            .into(),
+                        ast::Assign::new(
+                            vec![self.locals[&destination].clone().into()],
+                            vec![ast::Binary::new(
+                                self.register_or_constant(lhs),
+                                self.register_or_constant(rhs),
+                                match instruction {
+                                    Instruction::Add { .. } => ast::BinaryOperation::Add,
+                                    Instruction::Sub { .. } => ast::BinaryOperation::Sub,
+                                    Instruction::Mul { .. } => ast::BinaryOperation::Mul,
+                                    Instruction::Div { .. } => ast::BinaryOperation::Div,
+                                    Instruction::Mod { .. } => ast::BinaryOperation::Mod,
+                                    Instruction::Pow { .. } => ast::BinaryOperation::Pow,
+                                    _ => unreachable!(),
+                                },
+                            )
+                            .into()],
+                        )
+                        .into(),
                     );
                 }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),

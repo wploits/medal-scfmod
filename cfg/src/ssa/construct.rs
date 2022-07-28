@@ -78,17 +78,15 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
             for index in 0..self.function.block_mut(node).unwrap().len() {
                 let mut statement = self.function.block_mut(node).unwrap().remove(index);
                 for read in statement
-                    .values_read()
+                    .values_read_mut()
                     .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
                 {
                     let ssa_variable = self.find_ssa_variable(
                         node,
-                        self.function.block(node).unwrap().len(),
+                        index + 1,
                         read.clone(),
                     );
-                    statement.replace_values_read(&read, &ssa_variable);
+                    *read = ssa_variable
                 }
                 self.function
                     .block_mut(node)
@@ -189,14 +187,14 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
                                 self.function.block(df_pred).unwrap().len(),
                                 write.0.clone(),
                             );
-                            let terminator = self
+                            match self
                                 .function
                                 .block_mut(df_pred)
                                 .unwrap()
                                 .terminator
                                 .as_mut()
-                                .unwrap();
-                            match terminator {
+                                .unwrap()
+                            {
                                 Terminator::Jump(edge) => {
                                     assert!(edge.node == df_node);
                                     edge.arguments.insert(new_name.clone(), argument);
@@ -217,10 +215,11 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
             }
         }
 
+        self.replace_reads();
+
         crate::dot::render_to(self.function, &mut std::io::stdout());
 
-        self.replace_reads();
-        self.remove_unused_parameters();
+        //self.remove_unused_parameters();
     }
 }
 

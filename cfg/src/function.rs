@@ -39,7 +39,6 @@ impl<'a> Function<'a> {
         }
         match &new_terminator {
             Some(Terminator::Jump(edge)) => {
-                println!("{} {}", block_id, edge.node);
                 self.graph.add_edge((block_id, edge.node));
             }
             Some(Terminator::Conditional(then_edge, else_edge)) => {
