@@ -39,7 +39,7 @@ fn main() -> anyhow::Result<()> {
     let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
-    cfg::new_ssa::construct(&mut main);
+    cfg::ssa::construct(&mut main);
 
     /*process_function(&mut main)?;
     for function in descendants {

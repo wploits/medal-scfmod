@@ -11,7 +11,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub mod dot;
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct NodeId(usize);
+pub struct NodeId(pub usize);
 
 impl std::fmt::Display for NodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -1,368 +1,240 @@
-use std::{rc::Rc, time};
+use ast::{LocalRw, RcLocal};
+use std::rc::Rc;
 
 use fxhash::{FxHashMap, FxHashSet};
 use graph::{
     algorithms::{
         dfs_tree,
-        dominators::{
-            compute_dominance_frontiers, compute_immediate_dominators, dominator_tree,
-            post_dominator_tree,
-        },
+        dominators::{compute_dominance_frontiers, compute_immediate_dominators, dominator_tree},
     },
-    NodeId,
+    NodeId, Edge,
 };
 
 use crate::{
+    block::{BasicBlockEdge, Terminator},
     function::Function,
-    instruction::{
-        location::{InstructionIndex, InstructionLocation},
-        value_info::ValueInfo,
-        Inner, Move, Phi,
-    },
-    value::ValueId,
+    ssa_def_use,
 };
 
-use super::error::Error;
+struct SsaConstructor<'a, 'b> {
+    function: &'b mut Function<'a>,
+    locals: FxHashMap<RcLocal<'a>, Vec<RcLocal<'a>>>,
+    idoms: FxHashMap<NodeId, NodeId>,
+}
 
-pub fn construct(function: &mut Function) -> Result<(), Error> {
-    let entry = function
-        .entry()
-        .ok_or(Error::Graph(graph::Error::NoEntry))?;
-
-    let now = time::Instant::now();
-    let dfs = dfs_tree(function.graph(), entry)?;
-    let dfs_computed = now.elapsed();
-    println!("-dfs tree: {:?}", dfs_computed);
-
-    let now = time::Instant::now();
-    let immediate_dominators = compute_immediate_dominators(function.graph(), entry, &dfs)?;
-    let imm_dom_computed = now.elapsed();
-    println!("-compute immediate dominators: {:?}", imm_dom_computed);
-
-    let now = time::Instant::now();
-    let mut dominance_frontiers =
-        compute_dominance_frontiers(function.graph(), entry, &immediate_dominators, &dfs)?;
-    dominance_frontiers.retain(|_, f| !f.is_empty());
-    let df_computed = now.elapsed();
-    println!("-compute dominance frontiers: {:?}", df_computed);
-
-    let now = time::Instant::now();
-    let mut node_to_values_written =
-        FxHashMap::with_capacity_and_hasher(dominance_frontiers.len(), Default::default());
-    let mut value_written_to_nodes = FxHashMap::default();
-    for &node in dominance_frontiers.keys() {
-        let block = function.block(node).unwrap();
-        let values_written = block
-            .phi_instructions
+impl<'a, 'b> SsaConstructor<'a, 'b> {
+    fn edges(&self, node: NodeId) -> Vec<&BasicBlockEdge<'a>> {
+        self.function
+            .blocks()
             .iter()
-            .map(|phi| phi.values_written())
-            .chain(
-                block
-                    .inner_instructions
-                    .iter()
-                    .map(|inner| inner.values_written()),
-            )
-            .chain(block.terminator.iter().map(|t| t.values_written()))
-            .flatten()
-            .collect::<Vec<_>>();
-        for &value in &values_written {
-            value_written_to_nodes
-                .entry(value)
-                .or_insert_with(Vec::new)
-                .push(node);
-        }
-        use std::borrow::BorrowMut;
-        node_to_values_written
-            .entry(node)
-            .or_insert_with(|| {
-                FxHashSet::<ValueId>::with_capacity_and_hasher(
-                    values_written.len(),
-                    Default::default(),
-                )
+            .flat_map(|(_, block)| match &block.terminator {
+                Some(Terminator::Jump(edge)) => vec![edge],
+                Some(Terminator::Conditional(then_edge, else_edge)) => vec![then_edge, else_edge],
+                _ => vec![],
             })
-            .borrow_mut()
-            .extend(values_written.iter())
+            .filter(|edge| edge.node == node)
+            .collect::<Vec<_>>()
     }
 
-    let mut value_to_nodes_with_phi = FxHashMap::<ValueId, FxHashSet<NodeId>>::default();
-    for (&value, nodes) in &mut value_written_to_nodes {
-        while let Some(node) = nodes.pop() {
-            use std::borrow::BorrowMut;
-            let nodes_with_phi = value_to_nodes_with_phi
-                .entry(value)
-                .or_insert_with(FxHashSet::default)
-                .borrow_mut();
-            if let Some(frontiers) = dominance_frontiers.get(&node) {
-                for &dominance_frontier_node in frontiers {
-                    if !nodes_with_phi.contains(&dominance_frontier_node) {
-                        let incoming_values = function
-                            .graph()
-                            .predecessors(dominance_frontier_node)
-                            .map(|p| (p, value))
-                            .collect::<FxHashMap<_, _>>();
-                        function
-                            .block_mut(dominance_frontier_node)
-                            .unwrap()
-                            .phi_instructions
-                            .push(Phi {
-                                dest: value,
-                                incoming_values,
-                            });
-
-                        nodes_with_phi.insert(dominance_frontier_node);
-                        match node_to_values_written.get(&dominance_frontier_node) {
-                            Some(values_written) if values_written.contains(&value) => {}
-                            _ => nodes.push(dominance_frontier_node),
-                        }
-                    }
+    fn find_ssa_variable(
+        &mut self,
+        node: NodeId,
+        index: usize,
+        old_local: RcLocal<'a>,
+    ) -> RcLocal<'a> {
+        let new_locals = self.locals.get(&old_local);
+        if new_locals.is_none() {
+            return old_local;
+        }
+        let new_locals = new_locals.unwrap();
+        let block = self.function.block(node).unwrap();
+        for statement in block.iter().rev().skip(block.len() - index) {
+            for write in statement.values_written() {
+                if new_locals.contains(write) {
+                    return write.clone();
                 }
             }
         }
-    }
-    let phis_inserted = now.elapsed();
-    println!("-phi insertation: {:?}", phis_inserted);
-
-    let now = time::Instant::now();
-    // split values
-    let dominator_tree = dominator_tree(function.graph(), &immediate_dominators)?;
-    let post_dominator_tree = post_dominator_tree(function.graph(), entry, &dfs)?;
-    let mut visited = FxHashSet::default();
-    // TODO: can we use smallvec here?
-    let mut stack = vec![(entry, Rc::new(FxHashMap::<_, Vec<_>>::default()))];
-    while let Some((node, mut value_stacks)) = stack.pop() {
-        if !visited.contains(&node) {
-            visited.insert(node);
-            for index in function.block_mut(node).unwrap().indices() {
-                if !matches!(index, InstructionIndex::Phi(_)) {
-                    let block = function.block_mut(node).unwrap();
-                    for (read_value_index, value) in
-                        block.values_read(index).into_iter().enumerate()
-                    {
-                        if let Some(value_stack) = value_stacks.get(&value) {
-                            *block.values_read_mut(index)[read_value_index] =
-                                *value_stack.last().unwrap();
-                        }
-                    }
+        for edge in self.edges(node) {
+            for argument in &edge.arguments {
+                if new_locals.contains(&argument.1) {
+                    return argument.0.clone();
                 }
+            }
+        }
+        if let Some(&idom) = self.idoms.get(&node) {
+            return self.find_ssa_variable(
+                idom,
+                self.function.block(idom).unwrap().len(),
+                old_local,
+            );
+        }
+        println!("failed to find value");
+        self.function.local_allocator.allocate()
+    }
 
-                let mut values_to_replace = FxHashMap::default();
-                for (written_value_index, value) in function
+    fn replace_reads(&mut self) {
+        for node in self.function.graph().nodes().clone() {
+            for index in 0..self.function.block_mut(node).unwrap().len() {
+                let mut statement = self.function.block_mut(node).unwrap().remove(index);
+                for read in statement
+                    .values_read()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                {
+                    let ssa_variable = self.find_ssa_variable(
+                        node,
+                        self.function.block(node).unwrap().len(),
+                        read.clone(),
+                    );
+                    statement.replace_values_read(&read, &ssa_variable);
+                }
+                self.function
                     .block_mut(node)
                     .unwrap()
-                    .values_written(index)
-                    .into_iter()
-                    .enumerate()
-                {
-                    if let Some(ranges) = function.upvalue_open_ranges.get(&value) {
-                        let mut is_open = false;
-                        for (&open_location, close_locations) in ranges {
-                            let a = if open_location.node == node {
-                                open_location.index < index
-                            } else {
-                                dominator_tree
-                                    .pre_order(open_location.node)?
-                                    .contains(&node)
-                            };
-                            if a {
-                                for &close_location in close_locations {
-                                    let b = if close_location.node == node {
-                                        close_location.index > index
-                                    } else {
-                                        post_dominator_tree
-                                            .pre_order(close_location.node)?
-                                            .contains(&node)
-                                    };
-                                    if b {
-                                        is_open = true;
-                                        break;
-                                    }
-                                }
-                                if is_open {
-                                    break;
-                                }
-                            }
-                        }
-                        if is_open {
-                            if !value_stacks.contains_key(&value) {
-                                Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
-                            }
-                            continue;
-                        }
-                    }
-
-                    if value_stacks.contains_key(&value) {
-                        let new_value = function.value_allocator.borrow_mut().new_value();
-                        Rc::make_mut(&mut value_stacks)
-                            .get_mut(&value)
-                            .unwrap()
-                            .push(new_value);
-
-                        values_to_replace
-                            .entry(node)
-                            .or_insert_with(Vec::new)
-                            .push((written_value_index, new_value));
-                    } else {
-                        Rc::make_mut(&mut value_stacks).insert(value, vec![value]);
-                    }
-                }
-
-                for (node, values) in values_to_replace {
-                    let block = function.block_mut(node).unwrap();
-                    for (written_value_index, value) in values {
-                        *block.values_written_mut(index)[written_value_index] = value;
-                    }
-                }
-            }
-
-            for successor in function.graph().successors(node).collect::<Vec<_>>() {
-                let block = function.block_mut(successor).unwrap();
-
-                for phi in &mut block.phi_instructions {
-                    let old_value = phi.incoming_values[&node];
-                    if let Some(value_stack) = value_stacks.get(&old_value) {
-                        phi.incoming_values
-                            .insert(node, *value_stack.last().unwrap());
-                    }
-                }
-            }
-        }
-
-        for child_block in dominator_tree.successors(node) {
-            if !visited.contains(&child_block) {
-                stack.push((node, value_stacks.clone()));
-                stack.push((child_block, value_stacks));
-                break;
+                    .insert(index, statement);
             }
         }
     }
 
-    let split_values_time = now.elapsed();
-    println!("-split values: {:?}", split_values_time);
+    fn remove_unused_parameters(&mut self) {
+        let def_use = ssa_def_use::SsaDefUse::new(self.function);
 
-   /* let now = time::Instant::now();
-    let mut def_use = DefUse::new(function);
-    let def_use_time = now.elapsed();
-    println!("-def use: {:?}", def_use_time);*/
-
-    let now = time::Instant::now();
-    loop {
-        let mut phis_to_remove = Vec::new();
-        let mut values_to_replace = FxHashMap::default();
-
-        for node in function.graph().nodes().clone() {
-            let mut phis = Vec::new();
-            let block = function.block(node).unwrap();
-            for (phi_index, phi) in block.phi_instructions.iter().cloned().enumerate() {
-                // TODO: use Vec with sort_unstable and dedup? will use less memory
-                // we dont need fast lookup, or lookup at all
-                let unique = phi
-                    .incoming_values
-                    .values()
-                    .cloned()
-                    .collect::<FxHashSet<_>>();
-                if unique.len() == 1 {
-                    let new_value = unique.into_iter().next().unwrap();
-                    if new_value != phi.dest {
-                        values_to_replace.insert(phi.dest, new_value);
-                    }
-                    phis.push(phi_index);
-                } else if let Some(def_use_info) = def_use.get(phi.dest) {
-                    if def_use_info
-                        .reads
-                        .iter()
-                        .filter(
-                            |InstructionLocation {
-                                 node: other_node,
-                                 index: other_instruction_index,
-                             }| {
-                                if *other_node == node {
-                                    if let InstructionIndex::Phi(other_phi_index) =
-                                        *other_instruction_index
-                                    {
-                                        return other_phi_index != phi_index;
-                                    }
-                                }
-
-                                true
-                            },
-                        )
-                        .count()
-                        == 0
-                    {
-                        phis.push(phi_index);
-                    }
-                }
-            }
-
-            if !phis.is_empty() {
-                phis_to_remove.push((node, phis));
-            }
-        }
-
-        if phis_to_remove.is_empty() {
-            break;
-        }
-
-        for (node, phi_indices) in phis_to_remove.into_iter().rev() {
-            let block = function.block_mut(node).unwrap();
-            for phi_index in phi_indices.into_iter().rev() {
-                block.phi_instructions.remove(phi_index);
-            }
-            def_use.update_block_phi(block, node);
-        }
-
-        // we dont need to worry about where to replace since ssa form means values will only be written to once :)
-        for node in function.graph().nodes().clone() {
-            for (&old, &new) in &values_to_replace {
-                let block = function.block_mut(node).unwrap();
-                for instruction_index in block.indices() {
-                    block.replace_values_read(instruction_index, old, new);
-                }
-                def_use.update_block(block, node);
-            }
-        }
-    }
-
-    let pruned = now.elapsed();
-    println!("-pruning: {:?}", pruned);
-
-    let now = time::Instant::now();
-
-    let mut block_moves = Vec::new();
-    for (&node, block) in function.blocks() {
-        let moves = block
-            .inner_instructions
-            .iter()
-            .enumerate()
-            .rev()
-            .filter_map(|(i, inner)| {
-                if let Inner::Move(m) = inner {
-                    Some((i, m.clone()))
-                } else {
-                    None
-                }
-            })
+        let to_remove = def_use
+            .parameters
+            .into_iter()
+            .filter(|(local, _)| !def_use.references.contains_key(local))
+            .map(|(a, b)| (a.0.to_string().clone(), b))
             .collect::<Vec<_>>();
-        if !moves.is_empty() {
-            block_moves.push((node, moves));
-        }
-    }
-
-    for (node, moves) in block_moves {
-        for (instruction_index, Move { dest, source }) in moves {
-            for read_location in def_use.get(dest).unwrap().reads.clone() {
-                let read_location_block = function.block_mut(read_location.node).unwrap();
-                read_location_block.replace_values_read(read_location.index, dest, source);
-                def_use.update_block(read_location_block, read_location.node);
+        
+        for (local, locations) in to_remove {
+            for edge in locations {
+                match self.function.block_mut(edge.0).unwrap().terminator.as_mut() {
+                    Some(Terminator::Jump(edge)) => {
+                        edge.arguments.retain(|target, _| target.0 != local);
+                    }
+                    Some(Terminator::Conditional(then_edge, else_edge)) => {
+                        if then_edge.node == edge.0 {
+                            then_edge.arguments.retain(|target, _| target.0 != local);
+                        } else if else_edge.node == edge.0 {
+                            else_edge.arguments.retain(|target, _| target.0 != local);
+                        } else {
+                            unreachable!();
+                        }
+                    }
+                    None => {}
+                }
             }
-            let block = function.block_mut(node).unwrap();
-            block.inner_instructions.remove(instruction_index);
-            def_use.update_block(block, node);
         }
     }
 
-    let copy_elision = now.elapsed();
-    println!("copy elision: {:?}", copy_elision);
+    fn construct(mut self) {
+        let graph = self.function.graph();
+        let entry = self.function.entry().unwrap();
 
-    Ok(())
+        let dfs = dfs_tree(graph, entry);
+        let idoms = compute_immediate_dominators(graph, entry, &dfs);
+
+        let dominance_frontiers = compute_dominance_frontiers(graph, entry, &idoms, &dfs).unwrap();
+
+        let mut assignments = FxHashMap::default();
+
+        for (&node, block) in self.function.blocks_mut() {
+            for (index, statement) in block.iter().enumerate() {
+                let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for local in written {
+                    assignments
+                        .entry(node)
+                        .or_insert_with(Vec::new)
+                        .push((local, index));
+                }
+            }
+        }
+
+        for (&node, writes) in &assignments {
+            for write in writes {
+                let new_local = self.function.local_allocator.allocate();
+                self.locals
+                    .entry(write.0.clone())
+                    .or_insert_with(Vec::new)
+                    .push(new_local.clone());
+                self.function
+                    .block_mut(node)
+                    .unwrap()
+                    .get_mut(write.1)
+                    .unwrap()
+                    .as_assign_mut()
+                    .unwrap()
+                    .replace_values_written(&write.0, &new_local);
+            }
+        }
+
+        for (&node, writes) in &assignments {
+            for write in writes {
+                let new_name = self.function.local_allocator.allocate();
+                self.locals
+                    .get_mut(&write.0)
+                    .unwrap()
+                    .push(new_name.clone());
+                if let Some(df) = dominance_frontiers.get(&node) {
+                    for &df_node in df {
+                        for df_pred in self.function.graph().predecessors(df_node) {
+                            let argument = self.find_ssa_variable(
+                                df_pred,
+                                self.function.block(df_pred).unwrap().len(),
+                                write.0.clone(),
+                            );
+                            let terminator = self
+                                .function
+                                .block_mut(df_pred)
+                                .unwrap()
+                                .terminator
+                                .as_mut()
+                                .unwrap();
+                            match terminator {
+                                Terminator::Jump(edge) => {
+                                    assert!(edge.node == df_node);
+                                    edge.arguments.insert(new_name.clone(), argument);
+                                }
+                                Terminator::Conditional(then_edge, else_edge) => {
+                                    if then_edge.node == df_node {
+                                        then_edge.arguments.insert(new_name.clone(), argument);
+                                    } else if else_edge.node == df_node {
+                                        else_edge.arguments.insert(new_name.clone(), argument);
+                                    } else {
+                                        unreachable!();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        crate::dot::render_to(self.function, &mut std::io::stdout());
+
+        self.replace_reads();
+        self.remove_unused_parameters();
+    }
+}
+
+pub fn construct<'a>(function: &mut Function<'a>) {
+    crate::dot::render_to(function, &mut std::io::stdout());
+    let idoms = compute_immediate_dominators(
+        function.graph(),
+        function.entry().unwrap(),
+        &dfs_tree(function.graph(), function.entry().unwrap()),
+    );
+    SsaConstructor {
+        function,
+        locals: FxHashMap::default(),
+        idoms,
+    }
+    .construct();
 }
