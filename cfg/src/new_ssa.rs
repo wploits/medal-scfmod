@@ -54,7 +54,11 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
         index: usize,
         old_local: RcLocal<'a>,
     ) -> RcLocal<'a> {
-        let new_locals = &self.locals[&old_local];
+        let new_locals = self.locals.get(&old_local);
+        if new_locals.is_none() {
+            return old_local;
+        }
+        let new_locals = new_locals.unwrap();
         println!("new locals: {:?}", new_locals);
         let block = self.function.block(node).unwrap();
         for statement in block.iter().rev().skip(block.len() - index) {

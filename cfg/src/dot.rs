@@ -32,11 +32,21 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
         if let Some(terminator) = self.block(e.0).unwrap().terminator.as_ref() {
             match terminator {
-                Terminator::Conditional(then_edge, _) => {
+                Terminator::Conditional(then_edge, else_edge) => {
                     if e.1 == then_edge.node {
-                        dot::LabelText::LabelStr("t".into())
+                        let arguments = arguments(&then_edge.arguments);
+                        if !arguments.is_empty() {
+                            dot::LabelText::LabelStr(format!("t\n{}", arguments).into())
+                        } else {
+                            dot::LabelText::LabelStr("t".into())
+                        }
                     } else {
-                        dot::LabelText::LabelStr("e".into())
+                        let arguments = arguments(&else_edge.arguments);
+                        if !arguments.is_empty() {
+                            dot::LabelText::LabelStr(format!("e\n{}", arguments).into())
+                        } else {
+                            dot::LabelText::LabelStr("e".into())
+                        }
                     }
                 }
                 Terminator::Jump(edge) => {
