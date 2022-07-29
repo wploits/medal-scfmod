@@ -38,6 +38,6 @@ impl<'a> LocalRw<'a> for Index<'a> {
 
 impl fmt::Display for Index<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{}", self.left, self.right)
+        write!(f, "{}[{}]", self.left, self.right)
     }
 }

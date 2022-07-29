@@ -1,10 +1,10 @@
-use std::rc::Rc;
 
-use ast::Local;
+
+
 use ast::LocalRw;
-use by_address::ByAddress;
+
 use fxhash::FxHashMap;
-use graph::{algorithms::dfs_tree, Edge, NodeId};
+use graph::{Edge, NodeId};
 
 use crate::{block::Terminator, function::Function};
 

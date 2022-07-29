@@ -44,6 +44,8 @@ fn main() -> anyhow::Result<()> {
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
 
+    cfg::dot::render_to(&main, &mut std::io::stdout());
+
     /*process_function(&mut main)?;
     for function in descendants {
         process_function(&mut function.borrow_mut())?;

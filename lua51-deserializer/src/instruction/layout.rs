@@ -3,7 +3,7 @@ use nom::{
     number::complete::le_u32,
     Err, IResult,
 };
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::{FromPrimitive};
 
 use super::OperationCode;
 

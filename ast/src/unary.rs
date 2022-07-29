@@ -31,7 +31,7 @@ impl<'a: 'b, 'b> Reduce<'b> for Unary<'a> {
     fn reduce(self) -> RValue<'a> {
         let is_not_expression = |expression: &RValue| match expression {
             RValue::Unary(Unary {
-                value,
+                value: _,
                 operation: UnaryOperation::Not,
             }) => true,
             _ => false,
