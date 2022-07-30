@@ -1,14 +1,14 @@
 use cfg::{block::Terminator, dot};
 use graph::NodeId;
 
-struct CompoundAssignment<'a> {
-    target: ast::RcLocal<'a>,
-    value: ast::RValue<'a>,
+struct CompoundAssignment {
+    target: ast::RcLocal,
+    value: ast::RValue,
 }
 
-impl<'a> super::GraphStructurer<'a> {
+impl super::GraphStructurer {
     // todo: there may be instructions unrelated to the compound conditional earlier in the block
-    fn compound_info(&self, node: NodeId) -> Option<CompoundAssignment<'a>> {
+    fn compound_info(&self, node: NodeId) -> Option<CompoundAssignment> {
         let mut statements = self.function.block(node).unwrap().ast.iter();
         if let Some(assign) = statements.next().unwrap().as_assign() {
             if assign.left.len() != 1 || assign.right.len() != 1 {
@@ -51,9 +51,9 @@ impl<'a> super::GraphStructurer<'a> {
         &mut self,
         first_conditional: NodeId,
         second_conditional: NodeId,
-        first_info: Option<CompoundAssignment<'a>>,
-        second_info: Option<CompoundAssignment<'a>>,
-    ) -> (&mut ast::RValue<'a>, ast::RValue<'a>) {
+        first_info: Option<CompoundAssignment>,
+        second_info: Option<CompoundAssignment>,
+    ) -> (&mut ast::RValue, ast::RValue) {
         let first_block = self.function.block(first_conditional).unwrap();
         let second_block = self.function.block(second_conditional).unwrap();
         if first_block.len() == 2

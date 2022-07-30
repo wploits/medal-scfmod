@@ -1,4 +1,4 @@
-use crate::{LocalRw, RcLocal};
+use crate::{LocalRw, RcLocal, SideEffects};
 
 use super::{Block, RValue};
 
@@ -6,17 +6,17 @@ use itertools::Itertools;
 use std::fmt;
 
 #[derive(Debug, Clone)]
-pub struct If<'a> {
-    pub condition: Box<RValue<'a>>,
-    pub then_block: Option<Block<'a>>,
-    pub else_block: Option<Block<'a>>,
+pub struct If {
+    pub condition: Box<RValue>,
+    pub then_block: Option<Block>,
+    pub else_block: Option<Block>,
 }
 
-impl<'a> If<'a> {
+impl If {
     pub fn new(
-        condition: RValue<'a>,
-        then_block: Option<Block<'a>>,
-        else_block: Option<Block<'a>>,
+        condition: RValue,
+        then_block: Option<Block>,
+        else_block: Option<Block>,
     ) -> Self {
         Self {
             condition: Box::new(condition),
@@ -26,17 +26,23 @@ impl<'a> If<'a> {
     }
 }
 
-impl<'a> LocalRw<'a> for If<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl SideEffects for If {
+    fn has_side_effects(&self) -> bool {
+        true
+    }
+}
+
+impl LocalRw for If {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.condition.values_read()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.condition.values_read_mut()
     }
 }
 
-impl<'a> fmt::Display for If<'a> {
+impl fmt::Display for If {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "if {} then", self.condition,)?;
         if let Some(then_block) = &self.then_block {

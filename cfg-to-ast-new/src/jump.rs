@@ -1,6 +1,6 @@
 use graph::NodeId;
 
-impl<'a> super::GraphStructurer<'a> {
+impl super::GraphStructurer {
     pub(crate) fn match_jump(&mut self, node: NodeId, target: NodeId) -> bool {
         if Self::block_is_no_op(&self.function.block(node).unwrap().ast) {
             for predecessor in self.function.graph().predecessors(node) {

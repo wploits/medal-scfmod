@@ -5,7 +5,7 @@ use graph::{
 
 use crate::GraphStructurer;
 
-impl<'a> GraphStructurer<'a> {
+impl GraphStructurer {
     pub(crate) fn is_loop_header(&self, node: NodeId) -> bool {
         self.back_edges.iter().any(|edge| edge.1 == node)
     }

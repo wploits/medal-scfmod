@@ -6,12 +6,12 @@ use fxhash::FxHashMap;
 use graph::NodeId;
 
 #[derive(Debug, Clone)]
-pub struct BasicBlockEdge<'a> {
+pub struct BasicBlockEdge {
     pub node: NodeId,
-    pub arguments: FxHashMap<RcLocal<'a>, RcLocal<'a>>,
+    pub arguments: FxHashMap<RcLocal, RcLocal>,
 }
 
-impl BasicBlockEdge<'_> {
+impl BasicBlockEdge {
     fn new(node: NodeId) -> Self {
         Self {
             node,
@@ -21,12 +21,12 @@ impl BasicBlockEdge<'_> {
 }
 
 #[derive(Debug, Clone, EnumAsInner)]
-pub enum Terminator<'a> {
-    Jump(BasicBlockEdge<'a>),
-    Conditional(BasicBlockEdge<'a>, BasicBlockEdge<'a>),
+pub enum Terminator {
+    Jump(BasicBlockEdge),
+    Conditional(BasicBlockEdge, BasicBlockEdge),
 }
 
-impl Terminator<'_> {
+impl Terminator {
     pub fn jump(node: NodeId) -> Self {
         Self::Jump(BasicBlockEdge::new(node))
     }
@@ -62,26 +62,26 @@ impl Terminator<'_> {
 }
 
 #[derive(Debug, Clone)]
-pub struct BasicBlock<'a> {
-    pub ast: ast::Block<'a>,
-    pub terminator: Option<Terminator<'a>>,
+pub struct BasicBlock {
+    pub ast: ast::Block,
+    pub terminator: Option<Terminator>,
 }
 
-impl<'a> Deref for BasicBlock<'a> {
-    type Target = ast::Block<'a>;
+impl<'a> Deref for BasicBlock {
+    type Target = ast::Block;
 
     fn deref(&self) -> &Self::Target {
         &self.ast
     }
 }
 
-impl<'a> DerefMut for BasicBlock<'a> {
+impl<'a> DerefMut for BasicBlock {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ast
     }
 }
 
-impl Default for BasicBlock<'_> {
+impl Default for BasicBlock {
     fn default() -> Self {
         Self {
             ast: ast::Block::new(),
@@ -90,7 +90,7 @@ impl Default for BasicBlock<'_> {
     }
 }
 
-impl<'a> BasicBlock<'a> {
+impl BasicBlock {
     pub fn terminator(&self) -> &Option<Terminator> {
         &self.terminator
     }

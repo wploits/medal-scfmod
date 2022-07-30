@@ -243,7 +243,6 @@ impl Instruction {
                 method: RegisterOrConstant::from(c as u32),
             },
             RawInstruction(OperationCode::Add, Layout::ABC { a, b, c }) => {
-                println!("{} {}", a, b);
                 Self::Add {
                     destination: Register(a),
                     lhs: RegisterOrConstant::from(b as u32),

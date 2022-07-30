@@ -1,26 +1,32 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
-use crate::LocalRw;
+use crate::{LocalRw, SideEffects};
 
 #[derive(Debug, From, PartialEq, Clone)]
-pub struct Global<'a>(pub Cow<'a, str>);
+pub struct Global(pub String);
 
-impl<'a> Global<'a> {
-    pub fn new(name: Cow<'a, str>) -> Self {
+impl Global {
+    pub fn new(name: String) -> Self {
         Self(name)
     }
 }
 
-impl LocalRw<'_> for Global<'_> {}
+impl LocalRw for Global {}
 
-impl<'a> From<&'a str> for Global<'a> {
+impl SideEffects for Global {
+    fn has_side_effects(&self) -> bool {
+        true
+    }
+}
+
+impl<'a> From<&'a str> for Global {
     fn from(name: &'a str) -> Self {
         Self::new(name.into())
     }
 }
 
-impl fmt::Display for Global<'_> {
+impl fmt::Display for Global {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }

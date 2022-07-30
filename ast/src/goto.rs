@@ -1,44 +1,48 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
-use crate::LocalRw;
+use crate::{LocalRw, has_side_effects, SideEffects};
 
-#[derive(Debug, Clone, From)]
-pub struct Label<'a>(pub Cow<'a, str>);
+#[derive(Debug, Clone)]
+pub struct Label(pub String);
 
-impl<'a> From<&'a str> for Label<'a> {
-    fn from(str: &'a str) -> Self {
+impl SideEffects for Label {}
+
+impl From<&str> for Label {
+    fn from(str: &str) -> Self {
         Label(str.into())
     }
 }
 
-impl<'a> From<String> for Label<'a> {
+impl From<String> for Label {
     fn from(str: String) -> Self {
         Label(str.into())
     }
 }
 
-impl LocalRw<'_> for Label<'_> {}
+impl LocalRw for Label {}
 
-impl fmt::Display for Label<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Display for Label {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "::{}::", self.0)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Goto<'a>(pub Label<'a>);
+pub struct Goto(pub Label);
 
-impl<'a> Goto<'a> {
-    pub fn new(label: Label<'a>) -> Self {
+has_side_effects!(Goto);
+
+impl Goto {
+    pub fn new(label: Label) -> Self {
         Self(label)
     }
 }
 
-impl LocalRw<'_> for Goto<'_> {}
+impl LocalRw for Goto {}
 
-impl fmt::Display for Goto<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Display for Goto {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "goto {}", self.0 .0)
     }
 }

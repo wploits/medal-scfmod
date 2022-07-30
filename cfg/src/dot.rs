@@ -18,7 +18,7 @@ fn arguments(args: &FxHashMap<ast::RcLocal, ast::RcLocal>) -> String {
     s
 }
 
-impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
+impl<'a> Labeller<'a, NodeId, Edge> for Function {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("cfg").unwrap()
     }
@@ -67,7 +67,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function<'_> {
     }
 }
 
-impl<'a> GraphWalk<'a, NodeId, Edge> for Function<'_> {
+impl<'a> GraphWalk<'a, NodeId, Edge> for Function {
     fn nodes(&'a self) -> dot::Nodes<'a, NodeId> {
         Cow::Borrowed(self.graph().nodes())
     }

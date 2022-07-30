@@ -1,66 +1,69 @@
 use derive_more::{Deref, DerefMut, Display, From};
 use enum_dispatch::enum_dispatch;
 use std::{borrow::Cow, fmt, rc::Rc};
+use crate::SideEffects;
 
 #[derive(Debug, From, Clone, PartialEq, Eq, Hash)]
-pub struct Local<'a>(pub Cow<'a, str>);
+pub struct Local(pub String);
 
-impl<'a> Local<'a> {
-    pub fn new(name: Cow<'a, str>) -> Self {
+impl Local {
+    pub fn new(name: String) -> Self {
         Self(name)
     }
 }
 
-impl fmt::Display for Local<'_> {
+impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 #[derive(Debug, Clone, Display, Deref, DerefMut, PartialEq, Eq, Hash)]
-pub struct RcLocal<'a>(Rc<Local<'a>>);
+pub struct RcLocal(Rc<Local>);
 
-impl<'a> RcLocal<'a> {
-    pub fn new(rc: Rc<Local<'a>>) -> Self {
+impl SideEffects for RcLocal {}
+
+impl RcLocal {
+    pub fn new(rc: Rc<Local>) -> Self {
         Self(rc)
     }
 }
 
-impl<'a> LocalRw<'a> for RcLocal<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for RcLocal {
+    fn values_read(&self) -> Vec<&RcLocal> {
         vec![self]
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         vec![self]
     }
 }
 
 #[enum_dispatch]
-pub trait LocalRw<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+pub trait LocalRw {
+    fn values_read(&self) -> Vec<&RcLocal> {
         Vec::new()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         Vec::new()
     }
 
-    fn values_written(&self) -> Vec<&RcLocal<'a>> {
+    fn values_written(&self) -> Vec<&RcLocal> {
         Vec::new()
     }
 
-    fn values_written_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
         Vec::new()
     }
 
-    fn values(&self) -> Vec<&RcLocal<'a>> {
+    fn values(&self) -> Vec<&RcLocal> {
         let mut res = self.values_read();
         res.extend(self.values_written());
         res
     }
 
-    fn replace_values_read(&mut self, old: &RcLocal<'a>, new: &RcLocal<'a>) {
+    fn replace_values_read(&mut self, old: &RcLocal, new: &RcLocal) {
         for value in self.values_read_mut() {
             if Rc::ptr_eq(value, old) {
                 *value = new.clone();
@@ -68,7 +71,7 @@ pub trait LocalRw<'a> {
         }
     }
 
-    fn replace_values_written(&mut self, old: &RcLocal<'a>, new: &RcLocal<'a>) {
+    fn replace_values_written(&mut self, old: &RcLocal, new: &RcLocal) {
         for value in self.values_written_mut() {
             if Rc::ptr_eq(value, old) {
                 *value = new.clone();
@@ -76,7 +79,7 @@ pub trait LocalRw<'a> {
         }
     }
 
-    fn replace_values(&mut self, old: &RcLocal<'a>, new: &RcLocal<'a>) {
+    fn replace_values(&mut self, old: &RcLocal, new: &RcLocal) {
         self.replace_values_read(old, new);
         self.replace_values_written(old, new);
     }

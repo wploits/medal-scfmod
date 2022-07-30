@@ -14,15 +14,15 @@ use crate::{
     ssa_def_use,
 };
 
-struct SsaConstructor<'a, 'b> {
-    function: &'b mut Function<'a>,
-    locals: FxHashMap<ast::RcLocal<'a>, Vec<ast::RcLocal<'a>>>,
+struct SsaConstructor<'a> {
+    function: &'a mut Function,
+    locals: FxHashMap<ast::RcLocal, Vec<ast::RcLocal>>,
     idoms: FxHashMap<NodeId, NodeId>,
-    assignments: FxHashMap<NodeId, Vec<(ast::RcLocal<'a>, usize)>>,
+    assignments: FxHashMap<NodeId, Vec<(ast::RcLocal, usize)>>,
 }
 
-impl<'a, 'b> SsaConstructor<'a, 'b> {
-    fn edges(&self, node: NodeId) -> Vec<&BasicBlockEdge<'a>> {
+impl<'a> SsaConstructor<'a> {
+    fn edges(&self, node: NodeId) -> Vec<&BasicBlockEdge> {
         self.function
             .blocks()
             .iter()
@@ -39,8 +39,8 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
         &self,
         node: NodeId,
         skip: usize,
-        old_local: &ast::RcLocal<'a>,
-    ) -> Option<ast::RcLocal<'a>> {
+        old_local: &ast::RcLocal,
+    ) -> Option<ast::RcLocal> {
         if let Some(new_locals) = self.locals.get(&old_local) {
             let block = self.function.block(node).unwrap();
             for statement in block.iter().rev().skip(skip) {
@@ -58,8 +58,8 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
         &self,
         node: NodeId,
         skip: usize,
-        old_local: ast::RcLocal<'a>,
-    ) -> Option<ast::RcLocal<'a>> {
+        old_local: ast::RcLocal,
+    ) -> Option<ast::RcLocal> {
         let block_defined = self.ssa_defined_in_block(node, skip, &old_local);
         if block_defined.is_some() {
             return block_defined;
@@ -75,7 +75,7 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
         if let Some(&idom) = self.idoms.get(&node) {
             return self.find_ssa_variable(idom, 0, old_local);
         }
-        panic!("failed to find value");
+        None
     }
 
     fn replace_reads(&mut self) {
@@ -103,7 +103,6 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
             .parameters
             .into_iter()
             .filter(|(local, _)| !def_use.references.contains_key(local))
-            .map(|(a, b)| (a.0.to_string().clone(), b))
             .collect::<Vec<_>>();
 
         for (local, locations) in to_remove {
@@ -127,10 +126,11 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
         }
     }
 
-    fn replace_edge_arguments(&self, node: NodeId, edge: &mut BasicBlockEdge<'a>) {
+    fn replace_edge_arguments(&self, node: NodeId, edge: &mut BasicBlockEdge) {
         for argument in edge.arguments.iter_mut() {
-            let ssa_variable = self.find_ssa_variable(node, 0, argument.1.clone()).unwrap();
-            *argument.1 = ssa_variable;
+            if let Some(ssa_variable) = self.find_ssa_variable(node, 0, argument.1.clone()) {
+                *argument.1 = ssa_variable;
+            }
         }
     }
 
@@ -242,12 +242,13 @@ impl<'a, 'b> SsaConstructor<'a, 'b> {
         self.replace_writes();
         self.create_block_arguments();
         self.replace_reads();
+        crate::dot::render_to(self.function, &mut std::io::stdout());
         self.replace_block_arguments();
         self.remove_unused_parameters();
     }
 }
 
-pub fn construct<'a>(function: &mut Function<'a>) {
+pub fn construct<'a>(function: &mut Function) {
     let idoms = compute_immediate_dominators(
         function.graph(),
         function.entry().unwrap(),

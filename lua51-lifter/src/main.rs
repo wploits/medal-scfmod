@@ -44,6 +44,11 @@ fn main() -> anyhow::Result<()> {
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
 
+    let def_use = cfg::ssa_def_use::SsaDefUse::new(&main);
+    for node in main.graph().nodes().clone() {
+        cfg::inline::inline_expressions(&mut main, node, &def_use);
+    }
+
     cfg::dot::render_to(&main, &mut std::io::stdout());
 
     /*process_function(&mut main)?;

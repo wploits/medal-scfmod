@@ -23,6 +23,7 @@ mod r#return;
 mod table;
 mod unary;
 mod r#while;
+mod side_effects;
 
 pub use assign::*;
 pub use binary::*;
@@ -39,26 +40,27 @@ pub use r#return::*;
 pub use r#while::*;
 pub use table::*;
 pub use unary::*;
+pub use side_effects::*;
 
-pub trait Reduce<'a> {
-    fn reduce(self) -> RValue<'a>;
+pub trait Reduce {
+    fn reduce(self) -> RValue;
 }
 
-#[enum_dispatch(LocalRw)]
+#[enum_dispatch(LocalRw, SideEffects)]
 #[derive(Debug, Clone, PartialEq, EnumAsInner)]
-pub enum RValue<'a> {
-    Local(RcLocal<'a>),
-    Global(Global<'a>),
-    Call(Call<'a>),
-    Table(Table<'a>),
-    Literal(Literal<'a>),
-    Index(Index<'a>),
-    Unary(Unary<'a>),
-    Binary(Binary<'a>),
+pub enum RValue {
+    Local(RcLocal),
+    Global(Global),
+    Call(Call),
+    Table(Table),
+    Literal(Literal),
+    Index(Index),
+    Unary(Unary),
+    Binary(Binary),
 }
 
-impl<'a: 'b, 'b> Reduce<'b> for RValue<'a> {
-    fn reduce(self) -> RValue<'a> {
+impl<'a: 'b, 'b> Reduce for RValue {
+    fn reduce(self) -> RValue {
         match self {
             Self::Unary(unary) => unary.reduce(),
             Self::Binary(binary) => binary.reduce(),
@@ -67,7 +69,7 @@ impl<'a: 'b, 'b> Reduce<'b> for RValue<'a> {
     }
 }
 
-impl RValue<'_> {
+impl RValue {
     pub fn precedence(&self) -> usize {
         match self {
             Self::Binary(binary) => binary.precedence(),
@@ -76,7 +78,7 @@ impl RValue<'_> {
     }
 }
 
-impl fmt::Display for RValue<'_> {
+impl fmt::Display for RValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RValue::Local(local) => write!(f, "{}", local),
@@ -91,15 +93,16 @@ impl fmt::Display for RValue<'_> {
     }
 }
 
-#[derive(Debug, Clone, From, PartialEq, EnumAsInner)]
-pub enum LValue<'a> {
-    Local(RcLocal<'a>),
-    Global(Global<'a>),
-    Index(Index<'a>),
+#[enum_dispatch(SideEffects)]
+#[derive(Debug, Clone, PartialEq, EnumAsInner)]
+pub enum LValue {
+    Local(RcLocal),
+    Global(Global),
+    Index(Index),
 }
 
-impl<'a> LocalRw<'a> for LValue<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for LValue {
+    fn values_read(&self) -> Vec<&RcLocal> {
         match self {
             LValue::Local(_) => Vec::new(),
             LValue::Global(global) => global.values_read(),
@@ -107,7 +110,7 @@ impl<'a> LocalRw<'a> for LValue<'a> {
         }
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         match self {
             LValue::Local(_) => Vec::new(),
             LValue::Global(global) => global.values_read_mut(),
@@ -115,7 +118,7 @@ impl<'a> LocalRw<'a> for LValue<'a> {
         }
     }
 
-    fn values_written(&self) -> Vec<&RcLocal<'a>> {
+    fn values_written(&self) -> Vec<&RcLocal> {
         match self {
             LValue::Local(local) => vec![local],
             LValue::Global(global) => global.values_written(),
@@ -123,7 +126,7 @@ impl<'a> LocalRw<'a> for LValue<'a> {
         }
     }
 
-    fn values_written_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
         match self {
             LValue::Local(local) => vec![local],
             LValue::Global(global) => global.values_written_mut(),
@@ -132,7 +135,7 @@ impl<'a> LocalRw<'a> for LValue<'a> {
     }
 }
 
-impl fmt::Display for LValue<'_> {
+impl fmt::Display for LValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             LValue::Local(local) => write!(f, "{}", local),
@@ -153,18 +156,20 @@ impl Comment {
     }
 }
 
-impl<'a> LocalRw<'a> for Comment {}
+impl SideEffects for Comment {}
 
-#[enum_dispatch(LocalRw)]
+impl LocalRw for Comment {}
+
+#[enum_dispatch(LocalRw, SideEffects)]
 #[derive(Debug, Clone, EnumAsInner)]
-pub enum Statement<'a> {
-    Call(Call<'a>),
-    Assign(Assign<'a>),
-    If(If<'a>),
-    Goto(Goto<'a>),
-    Label(Label<'a>),
-    While(While<'a>),
-    Return(Return<'a>),
+pub enum Statement {
+    Call(Call),
+    Assign(Assign),
+    If(If),
+    Goto(Goto),
+    Label(Label),
+    While(While),
+    Return(Return),
     Continue(Continue),
     Break(Break),
     Comment(Comment),
@@ -176,7 +181,7 @@ impl fmt::Display for Comment {
     }
 }
 
-impl fmt::Display for Statement<'_> {
+impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Statement::Call(call) => write!(f, "{}", call),
@@ -194,19 +199,19 @@ impl fmt::Display for Statement<'_> {
 }
 
 #[derive(Debug, Clone, Default, Deref, DerefMut)]
-pub struct Block<'a>(pub Vec<Statement<'a>>);
+pub struct Block(pub Vec<Statement>);
 
-impl<'a> Block<'a> {
+impl Block {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn from_vec(statements: Vec<Statement<'a>>) -> Self {
+    pub fn from_vec(statements: Vec<Statement>) -> Self {
         Self(statements)
     }
 }
 
-impl fmt::Display for Block<'_> {
+impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

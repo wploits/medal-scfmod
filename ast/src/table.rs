@@ -1,16 +1,16 @@
-use crate::{LocalRw, RValue, RcLocal};
+use crate::{LocalRw, RValue, RcLocal, has_side_effects};
 use itertools::Itertools;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Table<'a>(pub Vec<(Option<&'a str>, RValue<'a>)>);
+pub struct Table(pub Vec<(Option<String>, RValue)>);
 
-impl<'a> LocalRw<'a> for Table<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for Table {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.0.iter().flat_map(|(_, r)| r.values_read()).collect()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.0
             .iter_mut()
             .flat_map(|(_, r)| r.values_read_mut())
@@ -18,7 +18,10 @@ impl<'a> LocalRw<'a> for Table<'a> {
     }
 }
 
-impl fmt::Display for Table<'_> {
+// TODO
+has_side_effects!(Table);
+
+impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

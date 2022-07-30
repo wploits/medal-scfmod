@@ -11,19 +11,18 @@ mod conditional;
 mod jump;
 mod r#loop;
 
-struct GraphStructurer<'a> {
-    function: Function<'a>,
+struct GraphStructurer {
+    function: Function,
     root: NodeId,
     back_edges: Vec<Edge>,
 }
 
-impl<'a> GraphStructurer<'a> {
+impl GraphStructurer {
     fn new(
-        function: Function<'a>,
+        function: Function,
         graph: Graph,
-        blocks: FxHashMap<NodeId, ast::Block<'a>>,
+        blocks: FxHashMap<NodeId, ast::Block>,
         root: NodeId,
-        _idoms: &'a FxHashMap<NodeId, NodeId>,
     ) -> Self {
         let back_edges = back_edges(&graph, root).unwrap();
         let root = function.entry().unwrap();
@@ -109,7 +108,7 @@ impl<'a> GraphStructurer<'a> {
         }
     }
 
-    fn structure(mut self) -> ast::Block<'a> {
+    fn structure(mut self) -> ast::Block {
         self.collapse();
         self.function.remove_block(self.root).unwrap().ast
     }
@@ -118,8 +117,6 @@ impl<'a> GraphStructurer<'a> {
 pub fn lift(function: cfg::function::Function) {
     let graph = function.graph().clone();
     let root = function.entry().unwrap();
-    let dfs = dfs_tree(&graph, root);
-    let idoms = compute_immediate_dominators(&graph, root, &dfs);
 
     //dot::render_to(&graph, &mut std::io::stdout());
 
@@ -129,7 +126,7 @@ pub fn lift(function: cfg::function::Function) {
         .map(|(&node, block)| (node, block.ast.clone()))
         .collect();
 
-    let structurer = GraphStructurer::new(function, graph, blocks, root, &idoms);
+    let structurer = GraphStructurer::new(function, graph, blocks, root);
     let block = structurer.structure();
     println!("{}", block);
 }

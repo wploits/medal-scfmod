@@ -2,7 +2,7 @@ use ast::UnaryOperation;
 use cfg::block::Terminator;
 use graph::NodeId;
 
-impl<'a> super::GraphStructurer<'a> {
+impl super::GraphStructurer {
     /*pub(crate) fn match_conditional(
         &mut self,
         entry: NodeId,

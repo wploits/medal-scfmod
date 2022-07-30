@@ -2,24 +2,30 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::RcLocal;
+use crate::{RcLocal, SideEffects};
 
 use super::{LValue, LocalRw, RValue};
 
 #[derive(Debug, Clone)]
-pub struct Assign<'a> {
-    pub left: Vec<LValue<'a>>,
-    pub right: Vec<RValue<'a>>,
+pub struct Assign {
+    pub left: Vec<LValue>,
+    pub right: Vec<RValue>,
 }
 
-impl<'a> Assign<'a> {
-    pub fn new(left: Vec<LValue<'a>>, right: Vec<RValue<'a>>) -> Self {
+impl Assign {
+    pub fn new(left: Vec<LValue>, right: Vec<RValue>) -> Self {
         Self { left, right }
     }
 }
 
-impl<'a> LocalRw<'a> for Assign<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl SideEffects for Assign {
+    fn has_side_effects(&self) -> bool {
+        self.right.iter().any(|r| r.has_side_effects()) || self.left.iter().any(|l| l.has_side_effects())
+    }
+}
+
+impl LocalRw for Assign {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.left
             .iter()
             .flat_map(|l| l.values_read())
@@ -27,7 +33,7 @@ impl<'a> LocalRw<'a> for Assign<'a> {
             .collect()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .iter_mut()
             .flat_map(|l| l.values_read_mut())
@@ -35,11 +41,11 @@ impl<'a> LocalRw<'a> for Assign<'a> {
             .collect()
     }
 
-    fn values_written(&self) -> Vec<&RcLocal<'a>> {
+    fn values_written(&self) -> Vec<&RcLocal> {
         self.left.iter().flat_map(|l| l.values_written()).collect()
     }
 
-    fn values_written_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .iter_mut()
             .flat_map(|l| l.values_written_mut())
@@ -47,7 +53,7 @@ impl<'a> LocalRw<'a> for Assign<'a> {
     }
 }
 
-impl fmt::Display for Assign<'_> {
+impl fmt::Display for Assign {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

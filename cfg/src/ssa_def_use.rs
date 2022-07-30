@@ -21,14 +21,14 @@ pub enum Definition {
 }
 
 #[derive(Debug, Default)]
-pub struct SsaDefUse<'a> {
-    pub definitions: FxHashMap<&'a ast::RcLocal<'a>, Definition>,
-    pub parameters: FxHashMap<&'a ast::RcLocal<'a>, Vec<Edge>>,
-    pub references: FxHashMap<&'a ast::RcLocal<'a>, Vec<Location>>,
+pub struct SsaDefUse {
+    pub definitions: FxHashMap<String, Definition>,
+    pub parameters: FxHashMap<String, Vec<Edge>>,
+    pub references: FxHashMap<String, Vec<Location>>,
 }
 
-impl<'a> SsaDefUse<'a> {
-    pub fn new(function: &'a Function<'a>) -> Self {
+impl SsaDefUse {
+    pub fn new(function: &Function) -> Self {
         let mut this = Self {
             definitions: FxHashMap::default(),
             parameters: FxHashMap::default(),
@@ -38,11 +38,11 @@ impl<'a> SsaDefUse<'a> {
             for (index, statement) in block.iter().enumerate() {
                 for value in statement.values_written() {
                     this.definitions
-                        .insert(value, Definition::Variable(node, index));
+                        .insert(value.0.to_string(), Definition::Variable(node, index));
                 }
                 for value in statement.values_read() {
                     this.references
-                        .entry(value)
+                        .entry(value.0.to_string())
                         .or_insert_with(Vec::new)
                         .push(Location::Block(node, index));
                 }
@@ -51,11 +51,11 @@ impl<'a> SsaDefUse<'a> {
                 Some(Terminator::Jump(edge)) => {
                     for (target, value) in edge.arguments.iter() {
                         this.parameters
-                            .entry(target)
+                            .entry(target.0.to_string())
                             .or_insert_with(Vec::new)
                             .push((node, edge.node));
                         this.references
-                            .entry(value)
+                            .entry(value.0.to_string())
                             .or_insert_with(Vec::new)
                             .push(Location::Edge((node, edge.node)));
                     }
@@ -63,21 +63,21 @@ impl<'a> SsaDefUse<'a> {
                 Some(Terminator::Conditional(then_edge, else_edge)) => {
                     for (target, value) in then_edge.arguments.iter() {
                         this.parameters
-                            .entry(target)
+                            .entry(target.0.to_string())
                             .or_insert_with(Vec::new)
                             .push((node, then_edge.node));
                         this.references
-                            .entry(value)
+                            .entry(value.0.to_string())
                             .or_insert_with(Vec::new)
                             .push(Location::Edge((node, then_edge.node)));
                     }
                     for (target, value) in else_edge.arguments.iter() {
                         this.parameters
-                            .entry(target)
+                            .entry(target.0.to_string())
                             .or_insert_with(Vec::new)
                             .push((node, else_edge.node));
                         this.references
-                            .entry(value)
+                            .entry(value.0.to_string())
                             .or_insert_with(Vec::new)
                             .push(Location::Edge((node, else_edge.node)));
                     }

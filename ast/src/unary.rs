@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Literal, LocalRw, RValue, RcLocal, Reduce};
+use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects};
 
 use super::{Binary, BinaryOperation};
 
@@ -22,13 +22,19 @@ impl fmt::Display for UnaryOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Unary<'a> {
-    pub value: Box<RValue<'a>>,
+pub struct Unary {
+    pub value: Box<RValue>,
     pub operation: UnaryOperation,
 }
 
-impl<'a: 'b, 'b> Reduce<'b> for Unary<'a> {
-    fn reduce(self) -> RValue<'a> {
+impl SideEffects for Unary {
+    fn has_side_effects(&self) -> bool {
+        self.value.has_side_effects()
+    }
+}
+
+impl Reduce for Unary {
+    fn reduce(self) -> RValue {
         let is_not_expression = |expression: &RValue| match expression {
             RValue::Unary(Unary {
                 value: _,
@@ -96,8 +102,8 @@ impl<'a: 'b, 'b> Reduce<'b> for Unary<'a> {
     }
 }
 
-impl<'a> Unary<'a> {
-    pub fn new(value: RValue<'a>, operation: UnaryOperation) -> Self {
+impl Unary {
+    pub fn new(value: RValue, operation: UnaryOperation) -> Self {
         Self {
             value: Box::new(value),
             operation,
@@ -112,17 +118,17 @@ impl<'a> Unary<'a> {
     }
 }
 
-impl<'a> LocalRw<'a> for Unary<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for Unary {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.value.values_read()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.value.values_read_mut()
     }
 }
 
-impl fmt::Display for Unary<'_> {
+impl fmt::Display for Unary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

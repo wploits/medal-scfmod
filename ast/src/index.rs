@@ -1,16 +1,18 @@
-use crate::{LocalRw, RcLocal};
+use crate::{LocalRw, RcLocal, SideEffects, has_side_effects};
 
 use super::RValue;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Index<'a> {
-    pub left: Box<RValue<'a>>,
-    pub right: Box<RValue<'a>>,
+pub struct Index {
+    pub left: Box<RValue>,
+    pub right: Box<RValue>,
 }
 
-impl<'a> Index<'a> {
-    pub fn new(left: RValue<'a>, right: RValue<'a>) -> Self {
+has_side_effects!(Index);
+
+impl Index {
+    pub fn new(left: RValue, right: RValue) -> Self {
         Self {
             left: Box::new(left),
             right: Box::new(right),
@@ -18,8 +20,8 @@ impl<'a> Index<'a> {
     }
 }
 
-impl<'a> LocalRw<'a> for Index<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for Index {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.left
             .values_read()
             .into_iter()
@@ -27,7 +29,7 @@ impl<'a> LocalRw<'a> for Index<'a> {
             .collect()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .values_read_mut()
             .into_iter()
@@ -36,7 +38,7 @@ impl<'a> LocalRw<'a> for Index<'a> {
     }
 }
 
-impl fmt::Display for Index<'_> {
+impl fmt::Display for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[{}]", self.left, self.right)
     }

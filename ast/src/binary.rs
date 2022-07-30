@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Literal, LocalRw, RValue, RcLocal, Reduce};
+use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects};
 
 use super::{Unary, UnaryOperation};
 
@@ -50,14 +50,20 @@ impl fmt::Display for BinaryOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Binary<'a> {
-    pub left: Box<RValue<'a>>,
-    pub right: Box<RValue<'a>>,
+pub struct Binary {
+    pub left: Box<RValue>,
+    pub right: Box<RValue>,
     pub operation: BinaryOperation,
 }
 
-impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
-    fn reduce(self) -> RValue<'a> {
+impl SideEffects for Binary {
+    fn has_side_effects(&self) -> bool {
+        self.left.has_side_effects() || self.right.has_side_effects()
+    }
+}
+
+impl<'a: 'b, 'b> Reduce for Binary {
+    fn reduce(self) -> RValue {
         match (self.left, self.right, self.operation) {
             (
                 box RValue::Unary(Unary {
@@ -137,7 +143,7 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
                 box RValue::Literal(Literal::String(left)),
                 box RValue::Literal(Literal::String(right)),
                 BinaryOperation::Concat,
-            ) => RValue::Literal(Literal::String(left + right)),
+            ) => RValue::Literal(Literal::String(format!("{}{}", left, right))),
             (left, right, operation) => Self {
                 left: Box::new(left.reduce()),
                 right: Box::new(right.reduce()),
@@ -148,8 +154,8 @@ impl<'a: 'b, 'b> Reduce<'b> for Binary<'a> {
     }
 }
 
-impl<'a> Binary<'a> {
-    pub fn new(left: RValue<'a>, right: RValue<'a>, operation: BinaryOperation) -> Self {
+impl Binary {
+    pub fn new(left: RValue, right: RValue, operation: BinaryOperation) -> Self {
         Self {
             left: Box::new(left),
             right: Box::new(right),
@@ -175,8 +181,8 @@ impl<'a> Binary<'a> {
     }
 }
 
-impl<'a> LocalRw<'a> for Binary<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for Binary {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.left
             .values_read()
             .into_iter()
@@ -184,7 +190,7 @@ impl<'a> LocalRw<'a> for Binary<'a> {
             .collect()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .values_read_mut()
             .into_iter()
@@ -193,7 +199,7 @@ impl<'a> LocalRw<'a> for Binary<'a> {
     }
 }
 
-impl fmt::Display for Binary<'_> {
+impl fmt::Display for Binary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let parentheses = |expression: &RValue| {
             if self.precedence() > expression.precedence() && expression.precedence() != 0 {

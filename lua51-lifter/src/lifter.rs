@@ -12,9 +12,9 @@ use lua51_deserializer::{Function as BytecodeFunction, Instruction, Value};
 struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeId>,
-    locals: FxHashMap<Register, RcLocal<'a>>,
-    constants: FxHashMap<usize, ast::Literal<'a>>,
-    function: Function<'a>,
+    locals: FxHashMap<Register, RcLocal>,
+    constants: FxHashMap<usize, ast::Literal>,
+    function: Function,
 }
 
 impl<'a> LifterContext<'a> {
@@ -87,12 +87,12 @@ impl<'a> LifterContext<'a> {
         nodes.iter().cloned().zip(ends).collect()
     }
 
-    fn constant(&mut self, constant: Constant) -> ast::Literal<'a> {
+    fn constant(&mut self, constant: Constant) -> ast::Literal {
         let converted_constant = match self.bytecode.constants.get(constant.0 as usize).unwrap() {
             Value::Nil => ast::Literal::Nil,
             Value::Boolean(v) => ast::Literal::Boolean(*v),
             Value::Number(v) => ast::Literal::Number(*v),
-            Value::String(v) => ast::Literal::String(Cow::Borrowed(v)),
+            Value::String(v) => ast::Literal::String(v.to_string()),
         };
         self.constants
             .entry(constant.0 as usize)
@@ -100,7 +100,7 @@ impl<'a> LifterContext<'a> {
             .clone()
     }
 
-    fn register_or_constant(&mut self, value: RegisterOrConstant) -> ast::RValue<'a> {
+    fn register_or_constant(&mut self, value: RegisterOrConstant) -> ast::RValue {
         match value.0 {
             Either::Left(register) => self.locals[&register].clone().into(),
             Either::Right(constant) => self.constant(constant).into(),
@@ -111,7 +111,7 @@ impl<'a> LifterContext<'a> {
         &mut self,
         start: usize,
         end: usize,
-        statements: &mut Vec<ast::Statement<'a>>,
+        statements: &mut Vec<ast::Statement>,
     ) {
         let mut iterator = start..=end;
 
@@ -349,7 +349,7 @@ impl<'a> LifterContext<'a> {
         }
     }
 
-    fn lift(mut self) -> Function<'a> {
+    fn lift(mut self) -> Function {
         self.create_block_map();
         self.allocate_locals();
         self.lift_blocks();
@@ -358,7 +358,7 @@ impl<'a> LifterContext<'a> {
     }
 }
 
-pub fn lift<'a>(bytecode: &'a BytecodeFunction<'a>) -> Function<'a> {
+pub fn lift(bytecode: &BytecodeFunction) -> Function {
     let context = LifterContext {
         bytecode,
         nodes: FxHashMap::default(),
@@ -369,20 +369,20 @@ pub fn lift<'a>(bytecode: &'a BytecodeFunction<'a>) -> Function<'a> {
     context.lift()
 }
 
-/*pub struct Lifter<'a> {
-    bytecode_function: &'a BytecodeFunction<'a>,
+/*pub struct Lifter {
+    bytecode_function: &'a BytecodeFunction,
     blocks: FxHashMap<usize, NodeId>,
-    lifted_function: Function<'a>,
+    lifted_function: Function,
     // TODO: make this a ref
-    lifted_descendants: Vec<Rc<RefCell<Function<'a>>>>,
-    closures: Vec<Option<Rc<RefCell<Function<'a>>>>>,
-    register_map: FxHashMap<Register, RcLocal<'a>>,
-    constant_map: FxHashMap<usize, ast::Literal<'a>>,
+    lifted_descendants: Vec<Rc<RefCell<Function>>>,
+    closures: Vec<Option<Rc<RefCell<Function>>>>,
+    register_map: FxHashMap<Register, RcLocal>,
+    constant_map: FxHashMap<usize, ast::Literal>,
     current_node: Option<NodeId>,
 }
 
-impl<'a> Lifter<'a> {
-    pub fn new(function: &'a BytecodeFunction<'a>) -> Self {
+impl Lifter {
+    pub fn new(function: &'a BytecodeFunction) -> Self {
         Self {
             bytecode_function: function,
             blocks: FxHashMap::default(),
@@ -406,7 +406,7 @@ impl<'a> Lifter<'a> {
         lifted_function.set_block_terminator(current_block, Some(terminator));
     }
 
-    pub fn lift_function(&'a mut self) -> Result<Function<'a>> {
+    pub fn lift_function(&'a mut self) -> Result<Function> {
         self.discover_blocks()?;
 
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();
@@ -513,7 +513,7 @@ impl<'a> Lifter<'a> {
         &'a mut self,
         block_start: usize,
         block_end: usize,
-    ) -> (Vec<ast::Statement<'a>>, Terminator<'a>) {
+    ) -> (Vec<ast::Statement>, Terminator) {
         let mut statements = Vec::new();
         let mut terminator = None;
 
@@ -549,8 +549,8 @@ impl<'a> Lifter<'a> {
     fn register_or_constant(
         &'a mut self,
         index: RegisterOrConstant,
-        statements: &mut Vec<ast::Statement<'a>>,
-    ) -> ast::RValue<'a> {
+        statements: &mut Vec<ast::Statement>,
+    ) -> ast::RValue {
         match index.0 {
             Either::Left(register) => self.register(register).into(),
             Either::Right(constant) => {
@@ -564,14 +564,14 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn register(&'a mut self, register: Register) -> RcLocal<'a> {
+    fn register(&'a mut self, register: Register) -> RcLocal {
         self.register_map
             .entry(register)
             .or_insert_with(|| self.lifted_function.local_allocator.allocate())
             .clone()
     }
 
-    fn global(&'a mut self, constant: Constant) -> ast::Global<'a> {
+    fn global(&'a mut self, constant: Constant) -> ast::Global {
         match self
             .bytecode_function
             .constants
@@ -583,7 +583,7 @@ impl<'a> Lifter<'a> {
         }
     }
 
-    fn constant(&'a mut self, constant: Constant) -> ast::Literal<'a> {
+    fn constant(&'a mut self, constant: Constant) -> ast::Literal {
         let converted_constant = match self
             .bytecode_function
             .constants

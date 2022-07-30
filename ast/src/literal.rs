@@ -2,25 +2,27 @@ use derive_more::From;
 use enum_as_inner::EnumAsInner;
 use std::{borrow::Cow, fmt};
 
-use crate::LocalRw;
+use crate::{LocalRw, has_side_effects, SideEffects};
 
 #[derive(Debug, From, Clone, PartialEq, EnumAsInner)]
-pub enum Literal<'a> {
+pub enum Literal {
     Nil,
     Boolean(bool),
     Number(f64),
-    String(Cow<'a, str>),
+    String(String),
 }
 
-impl<'a> From<&'a str> for Literal<'a> {
-    fn from(value: &'a str) -> Self {
+impl From<&str> for Literal {
+    fn from(value: &str) -> Self {
         Self::String(value.into())
     }
 }
 
-impl LocalRw<'_> for Literal<'_> {}
+impl LocalRw for Literal {}
 
-impl fmt::Display for Literal<'_> {
+impl SideEffects for Literal {}
+
+impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Literal::Nil => write!(f, "nil"),

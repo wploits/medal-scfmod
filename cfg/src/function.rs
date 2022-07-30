@@ -6,17 +6,17 @@ use graph::{Edge, Graph, NodeId};
 use crate::block::{BasicBlock, Terminator};
 
 #[derive(Debug, Clone, Default)]
-pub struct Function<'a> {
+pub struct Function {
     pub local_allocator: LocalAllocator,
-    pub parameters: Vec<RcLocal<'a>>,
+    pub parameters: Vec<RcLocal>,
     graph: Graph,
-    blocks: FxHashMap<NodeId, BasicBlock<'a>>,
+    blocks: FxHashMap<NodeId, BasicBlock>,
     /*pub upvalue_open_ranges:
     FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
     entry: Option<NodeId>,
 }
 
-impl<'a> Function<'a> {
+impl Function {
     pub fn entry(&self) -> &Option<NodeId> {
         &self.entry
     }
@@ -30,7 +30,7 @@ impl<'a> Function<'a> {
     pub fn set_block_terminator(
         &mut self,
         block_id: NodeId,
-        new_terminator: Option<Terminator<'a>>,
+        new_terminator: Option<Terminator>,
     ) {
         for edge in &self.graph.edges().clone() {
             if edge.0 == block_id {
@@ -74,19 +74,19 @@ impl<'a> Function<'a> {
         self.graph.has_node(block)
     }
 
-    pub fn block(&self, block: NodeId) -> Option<&BasicBlock<'a>> {
+    pub fn block(&self, block: NodeId) -> Option<&BasicBlock> {
         self.blocks.get(&block)
     }
 
-    pub fn block_mut(&mut self, block: NodeId) -> Option<&mut BasicBlock<'a>> {
+    pub fn block_mut(&mut self, block: NodeId) -> Option<&mut BasicBlock> {
         self.blocks.get_mut(&block)
     }
 
-    pub fn blocks(&self) -> &FxHashMap<NodeId, BasicBlock<'a>> {
+    pub fn blocks(&self) -> &FxHashMap<NodeId, BasicBlock> {
         &self.blocks
     }
 
-    pub fn blocks_mut(&mut self) -> &mut FxHashMap<NodeId, BasicBlock<'a>> {
+    pub fn blocks_mut(&mut self) -> &mut FxHashMap<NodeId, BasicBlock> {
         &mut self.blocks
     }
 
@@ -96,7 +96,7 @@ impl<'a> Function<'a> {
         node
     }
 
-    pub fn remove_block(&mut self, block: NodeId) -> Option<BasicBlock<'a>> {
+    pub fn remove_block(&mut self, block: NodeId) -> Option<BasicBlock> {
         let removed_block = self.blocks.remove(&block);
         if removed_block.is_some() {
             self.graph.remove_node(block);

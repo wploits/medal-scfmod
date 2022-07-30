@@ -1,30 +1,32 @@
-use crate::{Block, LocalRw, RValue, RcLocal};
+use crate::{Block, LocalRw, RValue, RcLocal, has_side_effects};
 use itertools::Itertools;
 use std::fmt;
 
 #[derive(Debug, Clone)]
-pub struct While<'a> {
-    pub condition: RValue<'a>,
-    pub block: Block<'a>,
+pub struct While {
+    pub condition: RValue,
+    pub block: Block,
 }
 
-impl<'a> While<'a> {
-    pub fn new(condition: RValue<'a>, block: Block<'a>) -> Self {
+has_side_effects!(While);
+
+impl While {
+    pub fn new(condition: RValue, block: Block) -> Self {
         Self { condition, block }
     }
 }
 
-impl<'a> LocalRw<'a> for While<'a> {
-    fn values_read(&self) -> Vec<&RcLocal<'a>> {
+impl LocalRw for While {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.condition.values_read()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal<'a>> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.condition.values_read_mut()
     }
 }
 
-impl fmt::Display for While<'_> {
+impl fmt::Display for While {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
