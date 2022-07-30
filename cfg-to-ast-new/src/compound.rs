@@ -205,7 +205,8 @@ impl super::GraphStructurer {
         let info = info.unwrap();
 
         let if_stat = block.last().unwrap().as_if().unwrap();
-        if *if_stat.condition != info.value {
+        if if_stat.condition.as_local() != Some(&info.target) {
+            println!("{} {}", if_stat.condition, info.value);
             return false;
         }
 

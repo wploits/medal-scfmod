@@ -1,4 +1,4 @@
-use crate::{Block, LocalRw, RValue, RcLocal, has_side_effects, Traverse};
+use crate::{has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
 use itertools::Itertools;
 use std::fmt;
 

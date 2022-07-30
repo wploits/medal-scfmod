@@ -242,13 +242,11 @@ impl Instruction {
                 table: Register(b as u8),
                 method: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Add, Layout::ABC { a, b, c }) => {
-                Self::Add {
-                    destination: Register(a),
-                    lhs: RegisterOrConstant::from(b as u32),
-                    rhs: RegisterOrConstant::from(c as u32),
-                }
-            }
+            RawInstruction(OperationCode::Add, Layout::ABC { a, b, c }) => Self::Add {
+                destination: Register(a),
+                lhs: RegisterOrConstant::from(b as u32),
+                rhs: RegisterOrConstant::from(c as u32),
+            },
             RawInstruction(OperationCode::Subtract, Layout::ABC { a, b, c }) => Self::Sub {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),

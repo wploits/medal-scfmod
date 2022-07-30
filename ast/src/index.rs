@@ -1,4 +1,4 @@
-use crate::{LocalRw, RcLocal, SideEffects, has_side_effects, Traverse};
+use crate::{has_side_effects, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::RValue;
 use std::fmt;

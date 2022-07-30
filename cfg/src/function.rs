@@ -27,11 +27,7 @@ impl Function {
     }
 
     #[requires(self.has_block(block_id))]
-    pub fn set_block_terminator(
-        &mut self,
-        block_id: NodeId,
-        new_terminator: Option<Terminator>,
-    ) {
+    pub fn set_block_terminator(&mut self, block_id: NodeId, new_terminator: Option<Terminator>) {
         for edge in &self.graph.edges().clone() {
             if edge.0 == block_id {
                 self.graph.remove_edge(edge);

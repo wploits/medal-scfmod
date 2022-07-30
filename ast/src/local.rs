@@ -1,7 +1,7 @@
+use crate::{SideEffects, Traverse};
 use derive_more::{Deref, DerefMut, Display, From};
 use enum_dispatch::enum_dispatch;
 use std::{borrow::Cow, fmt, rc::Rc};
-use crate::{SideEffects, Traverse};
 
 #[derive(Debug, From, Clone, PartialEq, Eq, Hash)]
 pub struct Local(pub String);

@@ -20,11 +20,11 @@ mod local;
 pub mod local_allocator;
 mod name_gen;
 mod r#return;
+mod side_effects;
 mod table;
+mod traverse;
 mod unary;
 mod r#while;
-mod side_effects;
-mod traverse;
 
 pub use assign::*;
 pub use binary::*;
@@ -39,10 +39,10 @@ pub use r#continue::*;
 pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
-pub use table::*;
-pub use unary::*;
 pub use side_effects::*;
+pub use table::*;
 pub use traverse::*;
+pub use unary::*;
 
 pub trait Reduce {
     fn reduce(self) -> RValue;
@@ -76,6 +76,15 @@ impl RValue {
         match self {
             Self::Binary(binary) => binary.precedence(),
             _ => 0,
+        }
+    }
+
+    pub fn into_lvalue(self) -> Option<LValue> {
+        match self {
+            Self::Local(local) => Some(LValue::Local(local)),
+            Self::Global(global) => Some(LValue::Global(global)),
+            Self::Index(index) => Some(LValue::Index(index)),
+            _ => None,
         }
     }
 }

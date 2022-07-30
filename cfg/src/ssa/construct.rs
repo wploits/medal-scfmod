@@ -64,16 +64,17 @@ impl<'a> SsaConstructor<'a> {
         if block_defined.is_some() {
             return block_defined;
         }
-        let new_locals = &self.locals[&old_local];
-        for edge in self.edges(node) {
-            for argument in &edge.arguments {
-                if new_locals.contains(&argument.0) {
-                    return Some(argument.0.clone());
+        if let Some(new_locals) = self.locals.get(&old_local) {
+            for edge in self.edges(node) {
+                for argument in &edge.arguments {
+                    if new_locals.contains(&argument.0) {
+                        return Some(argument.0.clone());
+                    }
                 }
             }
-        }
-        if let Some(&idom) = self.idoms.get(&node) {
-            return self.find_ssa_variable(idom, 0, old_local);
+            if let Some(&idom) = self.idoms.get(&node) {
+                return self.find_ssa_variable(idom, 0, old_local);
+            }
         }
         None
     }
@@ -86,7 +87,9 @@ impl<'a> SsaConstructor<'a> {
                 for read in statement.values_read_mut().into_iter() {
                     let ssa_variable =
                         self.find_ssa_variable(node, block_len - index - 1, read.clone());
-                    *read = ssa_variable.unwrap()
+                    if let Some(ssa_variable) = ssa_variable {
+                        *read = ssa_variable;
+                    }
                 }
                 self.function
                     .block_mut(node)

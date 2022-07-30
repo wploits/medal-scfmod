@@ -1,14 +1,26 @@
-use crate::{RValue, LValue};
+use crate::{LValue, RValue};
 use enum_dispatch::enum_dispatch;
 
 #[enum_dispatch]
-pub trait Traverse {    
+pub trait Traverse {
     fn lvalues<'a>(&'a mut self) -> Vec<&'a mut LValue> {
         Vec::new()
     }
 
     fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
         Vec::new()
+    }
+
+    fn traverse_lvalues(
+        &mut self,
+        lvalue_callback: &impl Fn(&mut LValue),
+        rvalue_callback: &impl Fn(&mut RValue),
+    ) {
+        self.rvalues().into_iter().for_each(rvalue_callback);
+        self.lvalues().into_iter().for_each(lvalue_callback);
+        self.lvalues().into_iter().for_each(|lvalue| {
+            lvalue.traverse_lvalues(lvalue_callback, rvalue_callback);
+        });
     }
 
     fn traverse_rvalues(&mut self, callback: &impl Fn(&mut RValue)) {

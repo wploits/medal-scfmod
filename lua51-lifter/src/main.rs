@@ -39,16 +39,15 @@ fn main() -> anyhow::Result<()> {
     let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
-    cfg::dot::render_to(&main, &mut std::io::stdout());
+    //cfg::dot::render_to(&main, &mut std::io::stdout());
 
     let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
 
-    let def_use = cfg::ssa_def_use::SsaDefUse::new(&main);
     for node in main.graph().nodes().clone() {
-        cfg::inline::inline_expressions(&mut main, node, &def_use);
+        cfg::inline::inline_expressions(&mut main, node);
     }
 
     cfg::dot::render_to(&main, &mut std::io::stdout());

@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::fmt;
 
-use crate::{LocalRw, RcLocal, has_side_effects, Traverse};
+use crate::{has_side_effects, LocalRw, RcLocal, Traverse};
 
 use super::RValue;
 
@@ -20,18 +20,23 @@ impl Return {
 
 impl Traverse for Return {
     fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
-        self.values.iter_mut().collect()
+        self.values.iter_mut().rev().collect()
     }
 }
 
 impl LocalRw for Return {
     fn values_read(&self) -> Vec<&RcLocal> {
-        self.values.iter().flat_map(|r| r.values_read()).collect()
+        self.values
+            .iter()
+            .rev()
+            .flat_map(|r| r.values_read())
+            .collect()
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.values
             .iter_mut()
+            .rev()
             .flat_map(|r| r.values_read_mut())
             .collect()
     }

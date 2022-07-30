@@ -13,11 +13,7 @@ pub struct If {
 }
 
 impl If {
-    pub fn new(
-        condition: RValue,
-        then_block: Option<Block>,
-        else_block: Option<Block>,
-    ) -> Self {
+    pub fn new(condition: RValue, then_block: Option<Block>, else_block: Option<Block>) -> Self {
         Self {
             condition: Box::new(condition),
             then_block,

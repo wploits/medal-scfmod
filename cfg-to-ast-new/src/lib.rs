@@ -96,6 +96,9 @@ impl GraphStructurer {
             println!("matching {}", node);
             changed |= self.try_match_pattern(node);
         }
+
+        cfg::dot::render_to(&self.function, &mut std::io::stdout());
+
         changed
     }
 

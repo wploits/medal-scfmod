@@ -30,7 +30,8 @@ impl Traverse for Assign {
 
 impl SideEffects for Assign {
     fn has_side_effects(&self) -> bool {
-        self.right.iter().any(|r| r.has_side_effects()) || self.left.iter().any(|l| l.has_side_effects())
+        self.right.iter().any(|r| r.has_side_effects())
+            || self.left.iter().any(|l| l.has_side_effects())
     }
 }
 

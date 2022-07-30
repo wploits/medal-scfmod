@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse, LValue};
+use crate::{LValue, Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse};
 
 use super::{Unary, UnaryOperation};
 

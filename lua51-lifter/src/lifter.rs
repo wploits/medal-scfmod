@@ -107,12 +107,7 @@ impl<'a> LifterContext<'a> {
         }
     }
 
-    fn lift_instruction(
-        &mut self,
-        start: usize,
-        end: usize,
-        statements: &mut Vec<ast::Statement>,
-    ) {
+    fn lift_instruction(&mut self, start: usize, end: usize, statements: &mut Vec<ast::Statement>) {
         let mut iterator = start..=end;
 
         while let Some(index) = iterator.next() {
@@ -193,12 +188,21 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::GetTable { destination, table, key } => {
+                Instruction::GetTable {
+                    destination,
+                    table,
+                    key,
+                } => {
                     statements.push(
                         ast::Assign::new(
                             vec![self.locals[&destination].clone().into()],
-                            vec![ast::Index::new(self.locals[&table].clone().into(), self.register_or_constant(key)).into()],
-                        ).into()
+                            vec![ast::Index::new(
+                                self.locals[&table].clone().into(),
+                                self.register_or_constant(key),
+                            )
+                            .into()],
+                        )
+                        .into(),
                     );
                 }
                 Instruction::Test {

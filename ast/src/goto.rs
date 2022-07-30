@@ -1,7 +1,7 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
-use crate::{LocalRw, has_side_effects, SideEffects, Traverse};
+use crate::{has_side_effects, LocalRw, SideEffects, Traverse};
 
 #[derive(Debug, Clone)]
 pub struct Label(pub String);

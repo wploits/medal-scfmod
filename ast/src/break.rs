@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{LocalRw, has_side_effects, Traverse};
+use crate::{has_side_effects, LocalRw, Traverse};
 
 #[derive(Debug, Clone)]
 pub struct Break {}
