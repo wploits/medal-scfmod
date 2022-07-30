@@ -39,6 +39,8 @@ fn main() -> anyhow::Result<()> {
     let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
+    cfg::dot::render_to(&main, &mut std::io::stdout());
+
     let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();

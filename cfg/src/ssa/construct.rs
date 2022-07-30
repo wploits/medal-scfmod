@@ -112,9 +112,9 @@ impl<'a> SsaConstructor<'a> {
                         edge.arguments.retain(|target, _| target.0 != local);
                     }
                     Some(Terminator::Conditional(then_edge, else_edge)) => {
-                        if then_edge.node == edge.0 {
+                        if then_edge.node == edge.1 {
                             then_edge.arguments.retain(|target, _| target.0 != local);
-                        } else if else_edge.node == edge.0 {
+                        } else if else_edge.node == edge.1 {
                             else_edge.arguments.retain(|target, _| target.0 != local);
                         } else {
                             unreachable!();
