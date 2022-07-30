@@ -57,9 +57,8 @@ pub fn inline_expressions(function: &mut Function, node: NodeId, def_use: &SsaDe
         traverse_statement(ref_statement, |rvalue| {
             if let ast::RValue::Local(rvalue_local) = rvalue {
                 if *rvalue_local == local {
-                    println!("inline {}", local)
+                    *rvalue = new_expression.clone();
                 }
-                *rvalue = new_expression.clone();
             }
         });
         block.remove(index);
