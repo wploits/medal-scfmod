@@ -2,7 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{RcLocal, SideEffects};
+use crate::{RcLocal, SideEffects, Traverse};
 
 use super::{LValue, LocalRw, RValue};
 
@@ -15,6 +15,16 @@ pub struct Assign {
 impl Assign {
     pub fn new(left: Vec<LValue>, right: Vec<RValue>) -> Self {
         Self { left, right }
+    }
+}
+
+impl Traverse for Assign {
+    fn lvalues<'a>(&'a mut self) -> Vec<&'a mut LValue> {
+        self.left.iter_mut().collect()
+    }
+
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        self.right.iter_mut().collect()
     }
 }
 

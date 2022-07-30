@@ -1,7 +1,7 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
-use crate::{LocalRw, has_side_effects, SideEffects};
+use crate::{LocalRw, has_side_effects, SideEffects, Traverse};
 
 #[derive(Debug, Clone)]
 pub struct Label(pub String);
@@ -22,6 +22,8 @@ impl From<String> for Label {
 
 impl LocalRw for Label {}
 
+impl Traverse for Label {}
+
 impl fmt::Display for Label {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "::{}::", self.0)
@@ -30,6 +32,8 @@ impl fmt::Display for Label {
 
 #[derive(Debug, Clone)]
 pub struct Goto(pub Label);
+
+impl Traverse for Goto {}
 
 has_side_effects!(Goto);
 

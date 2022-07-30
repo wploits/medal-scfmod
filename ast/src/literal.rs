@@ -2,7 +2,7 @@ use derive_more::From;
 use enum_as_inner::EnumAsInner;
 use std::{borrow::Cow, fmt};
 
-use crate::{LocalRw, has_side_effects, SideEffects};
+use crate::{LocalRw, has_side_effects, SideEffects, Traverse};
 
 #[derive(Debug, From, Clone, PartialEq, EnumAsInner)]
 pub enum Literal {
@@ -21,6 +21,8 @@ impl From<&str> for Literal {
 impl LocalRw for Literal {}
 
 impl SideEffects for Literal {}
+
+impl Traverse for Literal {}
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -1,7 +1,7 @@
 use derive_more::From;
 use std::{borrow::Cow, fmt};
 
-use crate::{LocalRw, SideEffects};
+use crate::{LocalRw, SideEffects, Traverse};
 
 #[derive(Debug, From, PartialEq, Clone)]
 pub struct Global(pub String);
@@ -19,6 +19,8 @@ impl SideEffects for Global {
         true
     }
 }
+
+impl Traverse for Global {}
 
 impl<'a> From<&'a str> for Global {
     fn from(name: &'a str) -> Self {

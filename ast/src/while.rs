@@ -1,4 +1,4 @@
-use crate::{Block, LocalRw, RValue, RcLocal, has_side_effects};
+use crate::{Block, LocalRw, RValue, RcLocal, has_side_effects, Traverse};
 use itertools::Itertools;
 use std::fmt;
 
@@ -13,6 +13,12 @@ has_side_effects!(While);
 impl While {
     pub fn new(condition: RValue, block: Block) -> Self {
         Self { condition, block }
+    }
+}
+
+impl Traverse for While {
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        vec![&mut self.condition]
     }
 }
 

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects};
+use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse};
 
 use super::{Binary, BinaryOperation};
 
@@ -30,6 +30,12 @@ pub struct Unary {
 impl SideEffects for Unary {
     fn has_side_effects(&self) -> bool {
         self.value.has_side_effects()
+    }
+}
+
+impl Traverse for Unary {
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        vec![&mut self.value]
     }
 }
 

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{LocalRw, has_side_effects};
+use crate::{LocalRw, has_side_effects, Traverse};
 
 #[derive(Debug, Clone)]
 pub struct Break {}
@@ -8,6 +8,8 @@ pub struct Break {}
 has_side_effects!(Break);
 
 impl LocalRw for Break {}
+
+impl Traverse for Break {}
 
 impl fmt::Display for Break {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

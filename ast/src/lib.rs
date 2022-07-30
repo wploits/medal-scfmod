@@ -24,6 +24,7 @@ mod table;
 mod unary;
 mod r#while;
 mod side_effects;
+mod traverse;
 
 pub use assign::*;
 pub use binary::*;
@@ -41,12 +42,13 @@ pub use r#while::*;
 pub use table::*;
 pub use unary::*;
 pub use side_effects::*;
+pub use traverse::*;
 
 pub trait Reduce {
     fn reduce(self) -> RValue;
 }
 
-#[enum_dispatch(LocalRw, SideEffects)]
+#[enum_dispatch(LocalRw, SideEffects, Traverse)]
 #[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum RValue {
     Local(RcLocal),
@@ -93,7 +95,7 @@ impl fmt::Display for RValue {
     }
 }
 
-#[enum_dispatch(SideEffects)]
+#[enum_dispatch(SideEffects, Traverse)]
 #[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum LValue {
     Local(RcLocal),
@@ -156,11 +158,13 @@ impl Comment {
     }
 }
 
+impl Traverse for Comment {}
+
 impl SideEffects for Comment {}
 
 impl LocalRw for Comment {}
 
-#[enum_dispatch(LocalRw, SideEffects)]
+#[enum_dispatch(LocalRw, SideEffects, Traverse)]
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum Statement {
     Call(Call),

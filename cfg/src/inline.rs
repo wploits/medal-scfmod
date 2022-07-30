@@ -1,29 +1,6 @@
 use graph::NodeId;
-use ast::SideEffects;
+use ast::{SideEffects, Traverse};
 use crate::{ssa_def_use::{SsaDefUse, Location}, function::Function};
-
-fn traverse_statement(statement: &mut ast::Statement, callback: impl Fn(&mut ast::RValue)) {
-    match statement {
-        ast::Statement::Assign(assign) => {
-            for rvalue in &mut assign.right {
-                traverse_rvalue(rvalue, &callback);
-            }
-        }
-        ast::Statement::Return(ret) => {
-            for rvalue in &mut ret.values {
-                traverse_rvalue(rvalue, &callback);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn traverse_rvalue(rvalue: &mut ast::RValue, callback: impl Fn(&mut ast::RValue)) {
-    callback(rvalue);
-    match rvalue {
-        _ => {}
-    }
-}
 
 pub fn inline_expressions(function: &mut Function, node: NodeId, def_use: &SsaDefUse) {
     let block = function.block(node).unwrap();
@@ -52,15 +29,18 @@ pub fn inline_expressions(function: &mut Function, node: NodeId, def_use: &SsaDe
         }
     }
     let block = function.block_mut(node).unwrap();
-    for (index, ref_index, local, new_expression) in replacements {
-        let ref_statement = block.get_mut(ref_index).unwrap();
-        traverse_statement(ref_statement, |rvalue| {
+    for (_, ref_index, local, new_expression) in &replacements {
+        let ref_statement = block.get_mut(*ref_index).unwrap();
+        ref_statement.traverse_rvalues(&|rvalue| {
             if let ast::RValue::Local(rvalue_local) = rvalue {
-                if *rvalue_local == local {
+                if rvalue_local == local {
                     *rvalue = new_expression.clone();
                 }
             }
         });
+    }
+
+    for (index, _, _, _) in replacements {
         block.remove(index);
     }
 }

@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::fmt;
 
-use crate::{LocalRw, RcLocal, SideEffects};
+use crate::{LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::RValue;
 
@@ -23,6 +23,13 @@ impl Call {
 impl SideEffects for Call {
     fn has_side_effects(&self) -> bool {
         self.value.has_side_effects() || self.arguments.iter().any(|arg| arg.has_side_effects())
+    }
+}
+
+impl Traverse for Call {
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        std::iter::once(self.value.as_mut()).chain(self.arguments.iter_mut())
+            .collect()
     }
 }
 

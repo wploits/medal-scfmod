@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{LocalRw, has_side_effects};
+use crate::{LocalRw, has_side_effects, Traverse};
 
 #[derive(Debug, Clone)]
 pub struct Continue {}
@@ -8,6 +8,8 @@ pub struct Continue {}
 has_side_effects!(Continue);
 
 impl LocalRw for Continue {}
+
+impl Traverse for Continue {}
 
 impl fmt::Display for Continue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

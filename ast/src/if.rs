@@ -1,4 +1,4 @@
-use crate::{LocalRw, RcLocal, SideEffects};
+use crate::{LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::{Block, RValue};
 
@@ -23,6 +23,12 @@ impl If {
             then_block,
             else_block,
         }
+    }
+}
+
+impl Traverse for If {
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        vec![&mut self.condition]
     }
 }
 

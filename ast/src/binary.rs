@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects};
+use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse, LValue};
 
 use super::{Unary, UnaryOperation};
 
@@ -54,6 +54,12 @@ pub struct Binary {
     pub left: Box<RValue>,
     pub right: Box<RValue>,
     pub operation: BinaryOperation,
+}
+
+impl Traverse for Binary {
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        vec![&mut self.left, &mut self.right]
+    }
 }
 
 impl SideEffects for Binary {

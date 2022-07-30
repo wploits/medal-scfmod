@@ -1,4 +1,4 @@
-use crate::{LocalRw, RValue, RcLocal, has_side_effects};
+use crate::{LocalRw, RValue, RcLocal, has_side_effects, Traverse};
 use itertools::Itertools;
 use std::fmt;
 
@@ -15,6 +15,12 @@ impl LocalRw for Table {
             .iter_mut()
             .flat_map(|(_, r)| r.values_read_mut())
             .collect()
+    }
+}
+
+impl Traverse for Table {
+    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+        panic!()
     }
 }
 

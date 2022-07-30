@@ -1,7 +1,7 @@
 use derive_more::{Deref, DerefMut, Display, From};
 use enum_dispatch::enum_dispatch;
 use std::{borrow::Cow, fmt, rc::Rc};
-use crate::SideEffects;
+use crate::{SideEffects, Traverse};
 
 #[derive(Debug, From, Clone, PartialEq, Eq, Hash)]
 pub struct Local(pub String);
@@ -22,6 +22,8 @@ impl fmt::Display for Local {
 pub struct RcLocal(Rc<Local>);
 
 impl SideEffects for RcLocal {}
+
+impl Traverse for RcLocal {}
 
 impl RcLocal {
     pub fn new(rc: Rc<Local>) -> Self {
