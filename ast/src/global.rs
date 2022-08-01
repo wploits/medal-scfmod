@@ -1,9 +1,9 @@
 use derive_more::From;
-use std::{borrow::Cow, fmt};
+use std::fmt;
 
 use crate::{LocalRw, SideEffects, Traverse};
 
-#[derive(Debug, From, PartialEq, Clone)]
+#[derive(Debug, From, PartialEq, Eq, Clone)]
 pub struct Global(pub String);
 
 impl Global {

@@ -1,5 +1,4 @@
-use derive_more::From;
-use std::{borrow::Cow, fmt};
+use std::fmt;
 
 use crate::{has_side_effects, LocalRw, SideEffects, Traverse};
 
@@ -16,7 +15,7 @@ impl From<&str> for Label {
 
 impl From<String> for Label {
     fn from(str: String) -> Self {
-        Label(str.into())
+        Label(str)
     }
 }
 

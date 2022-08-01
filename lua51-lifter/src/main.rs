@@ -42,15 +42,16 @@ fn main() -> anyhow::Result<()> {
     //cfg::dot::render_to(&main, &mut std::io::stdout());
 
     let now = time::Instant::now();
-    /*cfg::ssa::construct(&mut main);
+    cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
-    println!("ssa construction: {:?}", ssa_constructed);*/
+    println!("ssa construction: {:?}", ssa_constructed);
 
-    for node in main.graph().nodes().clone() {
-        cfg::inline::inline_expressions(&mut main, node);
-    }
+    // cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    // for node in main.graph().nodes().clone() {
+    //     cfg::inline::inline_expressions(&mut main, node);
+    // }
 
-    cfg::dot::render_to(&main, &mut std::io::stdout());
+    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     /*process_function(&mut main)?;
     for function in descendants {

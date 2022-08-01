@@ -1,9 +1,5 @@
-use crate::{
-    function::Function,
-    ssa_def_use::{Definition, Location, SsaDefUse},
-};
+use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
-use fxhash::FxHashSet;
 use graph::NodeId;
 
 fn assigns(

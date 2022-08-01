@@ -206,7 +206,7 @@ impl Instruction {
                 }
             }
             RawInstruction(OperationCode::LoadNil, Layout::ABC { a, b, .. }) => {
-                Self::LoadNil((a..b as u8).map(|r| Register(r)).collect())
+                Self::LoadNil((a..b as u8).map(Register).collect())
             }
             RawInstruction(OperationCode::GetUpvalue, Layout::ABC { a, b, .. }) => {
                 Self::GetUpvalue {
@@ -327,7 +327,7 @@ impl Instruction {
                 arguments: b as u8,
             },
             RawInstruction(OperationCode::Return, Layout::ABC { a, b, .. }) => {
-                Self::Return((a..a + b as u8 - 1).map(|r| Register(r)).collect(), b == 0)
+                Self::Return((a..a + b as u8 - 1).map(Register).collect(), b == 0)
             }
             RawInstruction(OperationCode::IterateNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::IterateNumericForLoop {
@@ -358,7 +358,7 @@ impl Instruction {
                 function: Function(bx),
             },
             RawInstruction(OperationCode::VarArg, Layout::ABC { a, b, .. }) => {
-                Self::VarArg((a..b as u8).map(|r| Register(r)).collect())
+                Self::VarArg((a..b as u8).map(Register).collect())
             }
             _ => {
                 return Err(Err::Failure(Error::from_error_kind(

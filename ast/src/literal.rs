@@ -1,8 +1,8 @@
 use derive_more::From;
 use enum_as_inner::EnumAsInner;
-use std::{borrow::Cow, fmt};
+use std::fmt;
 
-use crate::{has_side_effects, LocalRw, SideEffects, Traverse};
+use crate::{LocalRw, SideEffects, Traverse};
 
 #[derive(Debug, From, Clone, PartialEq, EnumAsInner)]
 pub enum Literal {

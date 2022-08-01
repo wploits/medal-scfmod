@@ -21,8 +21,8 @@ impl super::GraphStructurer {
                         if let ast::RValue::Local(if_condition) = &*if_stat.condition {
                             if &target == if_condition {
                                 return Some(CompoundAssignment {
-                                    target: target.clone(),
-                                    value: assign.right[0].clone().into(),
+                                    target,
+                                    value: assign.right[0].clone(),
                                 });
                             }
                         }
@@ -31,11 +31,11 @@ impl super::GraphStructurer {
                 }
                 return Some(CompoundAssignment {
                     target,
-                    value: assign.right[0].clone().into(),
+                    value: assign.right[0].clone(),
                 });
             }
         }
-        return None;
+        None
     }
 
     fn simplify_condition(&mut self, node: NodeId) {
@@ -72,8 +72,7 @@ impl super::GraphStructurer {
                 &mut block
                     .iter_mut()
                     .rev()
-                    .skip(1)
-                    .next()
+                    .nth(1)
                     .unwrap()
                     .as_assign_mut()
                     .unwrap()
@@ -161,32 +160,30 @@ impl super::GraphStructurer {
                     ast::Binary::new(target_expression.clone(), operand, ast::BinaryOperation::Or)
                         .into();
             }
+        } else if second_else == short_circuit {
+            *target_expression = ast::Binary::new(
+                target_expression.clone(),
+                operand,
+                ast::BinaryOperation::And,
+            )
+            .into();
         } else {
-            if second_else == short_circuit {
-                *target_expression = ast::Binary::new(
-                    target_expression.clone(),
-                    operand,
-                    ast::BinaryOperation::And,
-                )
-                .into();
-            } else {
-                *target_expression = ast::Binary::new(
-                    target_expression.clone(),
-                    ast::Unary::new(operand, ast::UnaryOperation::Not).into(),
-                    ast::BinaryOperation::And,
-                )
-                .into();
-            }
+            *target_expression = ast::Binary::new(
+                target_expression.clone(),
+                ast::Unary::new(operand, ast::UnaryOperation::Not).into(),
+                ast::BinaryOperation::And,
+            )
+            .into();
         }
 
-        use ast::Reduce;
+        //use ast::Reduce;
         //*target_expression = target_expression.clone().reduce();
 
         self.function
             .replace_edge(&(first_conditional, second_conditional), end);
         self.function.remove_block(second_conditional);
 
-        return true;
+        true
     }
 
     pub fn match_and_or(&mut self, node: NodeId, assigner: NodeId, end: NodeId) -> bool {
@@ -219,7 +216,7 @@ impl super::GraphStructurer {
                 ast::BinaryOperation::Or
             },
         );
-        let assign = ast::Assign::new(vec![info.target.clone().into()], vec![binary.into()]);
+        let assign = ast::Assign::new(vec![info.target.into()], vec![binary.into()]);
         let block = self.function.block_mut(node).unwrap();
         block.pop();
         block.push(assign.into());
@@ -228,7 +225,7 @@ impl super::GraphStructurer {
             .set_block_terminator(node, Some(Terminator::jump(end)));
         self.function.remove_block(assigner);
 
-        return true;
+        true
     }
 
     pub(crate) fn match_compound_conditional(

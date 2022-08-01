@@ -57,9 +57,9 @@ impl<'a> Function<'a> {
                 code,
                 constants,
                 closures,
-                positions: positions.unwrap_or(Vec::new()),
-                locals: locals.unwrap_or(Vec::new()),
-                upvalues: upvalues.unwrap_or(Vec::new()),
+                positions: positions.unwrap_or_default(),
+                locals: locals.unwrap_or_default(),
+                upvalues: upvalues.unwrap_or_default(),
                 number_of_parameters,
             },
         ))

@@ -97,7 +97,7 @@ impl Graph {
         self.edges.push(edge);
     }
 
-    #[requires(self.edges.contains(&edge))]
+    #[requires(self.edges.contains(edge))]
     pub fn remove_edge(&mut self, edge: &Edge) {
         self.edges.retain(|other_edge| edge != other_edge);
     }

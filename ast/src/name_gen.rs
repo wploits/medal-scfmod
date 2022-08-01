@@ -11,7 +11,7 @@ impl NameGenerator for DefaultNameGenerator {
         let hint = match rvalue {
             RValue::Global(global) => Some(global.to_string()),
             RValue::Index(index) => match &*index.right {
-                RValue::Literal(Literal::String(string)) => Some(format!("{}", string)),
+                RValue::Literal(Literal::String(string)) => Some(string.to_string()),
                 _ => None,
             },
             _ => None,

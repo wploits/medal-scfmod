@@ -19,11 +19,11 @@ impl Assign {
 }
 
 impl Traverse for Assign {
-    fn lvalues<'a>(&'a mut self) -> Vec<&'a mut LValue> {
+    fn lvalues(&mut self) -> Vec<&mut LValue> {
         self.left.iter_mut().collect()
     }
 
-    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+    fn rvalues(&mut self) -> Vec<&mut RValue> {
         self.right.iter_mut().collect()
     }
 }

@@ -17,7 +17,7 @@ impl While {
 }
 
 impl Traverse for While {
-    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+    fn rvalues(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.condition]
     }
 }

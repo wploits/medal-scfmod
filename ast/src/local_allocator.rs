@@ -10,6 +10,6 @@ pub struct LocalAllocator {
 impl LocalAllocator {
     pub fn allocate(&mut self) -> RcLocal {
         self.next += 1;
-        RcLocal::new(Rc::new(Local::new(format!("l_{}", self.next).into())))
+        RcLocal::new(Rc::new(Local::new(format!("l_{}", self.next))))
     }
 }

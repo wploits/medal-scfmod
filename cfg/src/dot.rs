@@ -10,9 +10,10 @@ use crate::{block::Terminator, function::Function};
 fn arguments(args: &FxHashMap<ast::RcLocal, ast::RcLocal>) -> String {
     let mut s = String::new();
     for (i, (local, new_local)) in args.iter().enumerate() {
-        s.push_str(&format!("{} -> {}", local, new_local));
+        use std::fmt::Write;
+        write!(s, "{} -> {}", local, new_local).unwrap();
         if i + 1 != args.len() {
-            s.push_str("\n");
+            s.push('\n');
         }
     }
     s
@@ -50,7 +51,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
                     }
                 }
                 Terminator::Jump(edge) => {
-                    dot::LabelText::LabelStr(format!("{}", arguments(&edge.arguments)).into())
+                    dot::LabelText::LabelStr(arguments(&edge.arguments).into())
                 }
             }
         } else {

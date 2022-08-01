@@ -4,7 +4,7 @@ use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse};
 
 use super::{Binary, BinaryOperation};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum UnaryOperation {
     Not,
     Negate,
@@ -34,19 +34,21 @@ impl SideEffects for Unary {
 }
 
 impl Traverse for Unary {
-    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+    fn rvalues(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.value]
     }
 }
 
 impl Reduce for Unary {
     fn reduce(self) -> RValue {
-        let is_not_expression = |expression: &RValue| match expression {
-            RValue::Unary(Unary {
-                value: _,
-                operation: UnaryOperation::Not,
-            }) => true,
-            _ => false,
+        let is_not_expression = |expression: &RValue| {
+            matches!(
+                expression,
+                RValue::Unary(Unary {
+                    value: _,
+                    operation: UnaryOperation::Not,
+                })
+            )
         };
 
         match (*self.value, self.operation) {

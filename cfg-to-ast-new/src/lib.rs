@@ -1,10 +1,7 @@
 use cfg::dot;
 use cfg::function::Function;
 use fxhash::FxHashMap;
-use graph::{
-    algorithms::{dominators::*, *},
-    Edge, Graph, NodeId,
-};
+use graph::{algorithms::*, Edge, Graph, NodeId};
 
 mod compound;
 mod conditional;
@@ -97,7 +94,7 @@ impl GraphStructurer {
             changed |= self.try_match_pattern(node);
         }
 
-        cfg::dot::render_to(&self.function, &mut std::io::stdout());
+        cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         changed
     }

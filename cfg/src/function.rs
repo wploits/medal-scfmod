@@ -3,7 +3,7 @@ use contracts::requires;
 use fxhash::FxHashMap;
 use graph::{Edge, Graph, NodeId};
 
-use crate::block::{BasicBlock, Terminator};
+use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 
 #[derive(Debug, Clone, Default)]
 pub struct Function {
@@ -84,6 +84,26 @@ impl Function {
 
     pub fn blocks_mut(&mut self) -> &mut FxHashMap<NodeId, BasicBlock> {
         &mut self.blocks
+    }
+
+    pub fn predecessor_blocks(&self, block: NodeId) -> Vec<&BasicBlock> {
+        self.graph
+            .predecessors(block)
+            .into_iter()
+            .map(|n| &self.blocks()[&n])
+            .collect::<Vec<_>>()
+    }
+
+    pub fn edges_to_block(&self, node: NodeId) -> Vec<&BasicBlockEdge> {
+        self.predecessor_blocks(node)
+            .into_iter()
+            .flat_map(|block| match &block.terminator {
+                Some(Terminator::Jump(edge)) => vec![edge],
+                Some(Terminator::Conditional(then_edge, else_edge)) => vec![then_edge, else_edge],
+                _ => vec![],
+            })
+            .filter(|edge| edge.node == node)
+            .collect::<Vec<_>>()
     }
 
     pub fn new_block(&mut self) -> NodeId {

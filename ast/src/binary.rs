@@ -1,10 +1,10 @@
 use std::fmt;
 
-use crate::{LValue, Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse};
+use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse};
 
 use super::{Unary, UnaryOperation};
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum BinaryOperation {
     Add,
     Sub,
@@ -57,7 +57,7 @@ pub struct Binary {
 }
 
 impl Traverse for Binary {
-    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+    fn rvalues(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.left, &mut self.right]
     }
 }
@@ -118,12 +118,10 @@ impl<'a: 'b, 'b> Reduce for Binary {
                     } else {
                         right.reduce()
                     }
+                } else if left {
+                    RValue::Literal(Literal::Boolean(true))
                 } else {
-                    if left {
-                        RValue::Literal(Literal::Boolean(true))
-                    } else {
-                        right.reduce()
-                    }
+                    right.reduce()
                 }
             }
             (
@@ -137,12 +135,10 @@ impl<'a: 'b, 'b> Reduce for Binary {
                     } else {
                         left.reduce()
                     }
+                } else if right {
+                    RValue::Literal(Literal::Boolean(true))
                 } else {
-                    if right {
-                        RValue::Literal(Literal::Boolean(true))
-                    } else {
-                        left.reduce()
-                    }
+                    left.reduce()
                 }
             }
             (

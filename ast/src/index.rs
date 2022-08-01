@@ -1,4 +1,4 @@
-use crate::{has_side_effects, LocalRw, RcLocal, SideEffects, Traverse};
+use crate::{has_side_effects, LocalRw, RcLocal, Traverse};
 
 use super::RValue;
 use std::fmt;
@@ -39,7 +39,7 @@ impl LocalRw for Index {
 }
 
 impl Traverse for Index {
-    fn rvalues<'a>(&'a mut self) -> Vec<&'a mut RValue> {
+    fn rvalues(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.left, &mut self.right]
     }
 }
