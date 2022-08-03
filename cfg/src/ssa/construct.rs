@@ -53,10 +53,9 @@ impl<'a> SsaConstructor<'a> {
                 .graph()
                 .predecessors(node)
                 .into_iter()
-                .filter(|p| self.dfs.has_node(*p))
+                .filter(|&p| self.dfs.has_node(p))
                 .collect::<Vec<_>>();
             if preds.len() == 1 {
-                // TODO: into_iter().next().unwrap() ?
                 self.find_local(*preds.first().unwrap(), local)
             } else {
                 let parameter_local = self.function.local_allocator.allocate();
@@ -103,30 +102,8 @@ impl<'a> SsaConstructor<'a> {
     }
 
     fn construct(mut self) {
-        for node in self.dfs.nodes().clone() {
+        for &node in self.dfs.nodes() {
             for stat_index in 0..self.function.block(node).unwrap().len() {
-                let statement = self
-                    .function
-                    .block_mut(node)
-                    .unwrap()
-                    .get_mut(stat_index)
-                    .unwrap();
-                let read = statement
-                    .values_read()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                for (local_index, local) in read.into_iter().enumerate() {
-                    let new_local = self.find_local(node, &local);
-                    let statement = self
-                        .function
-                        .block_mut(node)
-                        .unwrap()
-                        .get_mut(stat_index)
-                        .unwrap();
-                    *statement.values_read_mut()[local_index] = new_local;
-                }
-
                 let statement = self
                     .function
                     .block_mut(node)
@@ -154,6 +131,31 @@ impl<'a> SsaConstructor<'a> {
                         .as_assign_mut()
                         .unwrap()
                         .replace_values_written(&local, &new_local);
+                }
+            }
+        }
+        for node in self.dfs.nodes().clone() {
+            for stat_index in 0..self.function.block(node).unwrap().len() {
+                let statement = self
+                    .function
+                    .block_mut(node)
+                    .unwrap()
+                    .get_mut(stat_index)
+                    .unwrap();
+                let read = statement
+                    .values_read()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for (local_index, local) in read.into_iter().enumerate() {
+                    let new_local = self.find_local(node, &local);
+                    let statement = self
+                        .function
+                        .block_mut(node)
+                        .unwrap()
+                        .get_mut(stat_index)
+                        .unwrap();
+                    *statement.values_read_mut()[local_index] = new_local;
                 }
             }
         }

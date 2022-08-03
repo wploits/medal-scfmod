@@ -39,12 +39,19 @@ fn main() -> anyhow::Result<()> {
     let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout());
-
     let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
+
+    cfg::dot::render_to(&main, &mut std::io::stdout());
+
+    let now = time::Instant::now();
+    let liveness = cfg::ssa::liveness::Liveness::new(&mut main);
+    let liveness_constructed = now.elapsed();
+    println!("liveness construction: {:?}", liveness_constructed);
+
+    //println!("{:#?}", liveness);
 
     // cfg::dot::render_to(&main, &mut std::io::stdout())?;
     // for node in main.graph().nodes().clone() {
