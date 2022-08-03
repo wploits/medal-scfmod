@@ -1,7 +1,7 @@
 use cfg::dot;
 use cfg::function::Function;
 use fxhash::FxHashMap;
-use graph::{algorithms::*, Edge, Graph, NodeId};
+use graph::{algorithms::*, Edge, Graph, NodeId, Directed};
 
 mod compound;
 mod conditional;
@@ -17,7 +17,7 @@ struct GraphStructurer {
 impl GraphStructurer {
     fn new(
         function: Function,
-        graph: Graph,
+        graph: Graph<Directed>,
         blocks: FxHashMap<NodeId, ast::Block>,
         root: NodeId,
     ) -> Self {

@@ -3,7 +3,7 @@ pub mod dominators;
 use contracts::requires;
 use fxhash::FxHashSet;
 
-use crate::{Edge, Graph, NodeId, Result};
+use crate::{Edge, Graph, NodeId, Result, Directed};
 
 use self::dominators::compute_immediate_dominators;
 
@@ -19,7 +19,7 @@ impl IntoIterator for BackEdges {
 }
 
 #[requires(graph.has_node(root))]
-pub fn dfs_tree(graph: &Graph, root: NodeId) -> Graph {
+pub fn dfs_tree(graph: &Graph<Directed>, root: NodeId) -> Graph<Directed> {
     let mut tree = Graph::new();
     let mut stack = Vec::new();
     let mut visited = FxHashSet::default();
@@ -46,7 +46,7 @@ pub fn dfs_tree(graph: &Graph, root: NodeId) -> Graph {
     tree
 }
 
-pub fn back_edges(graph: &Graph, root: NodeId) -> Result<Vec<Edge>> {
+pub fn back_edges(graph: &Graph<Directed>, root: NodeId) -> Result<Vec<Edge>> {
     let mut back_edges = Vec::new();
 
     for (node, dominators) in dominators::dominators(

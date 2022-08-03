@@ -2,9 +2,11 @@ use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, Labeller};
 
+use crate::EdgeType;
+
 use super::{Edge, Graph, NodeId};
 
-impl<'a> Labeller<'a, NodeId, Edge> for Graph {
+impl<'a, T: EdgeType> Labeller<'a, NodeId, Edge> for Graph<T> {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("my_graph").unwrap()
     }
@@ -14,7 +16,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Graph {
     }
 }
 
-impl<'a> GraphWalk<'a, NodeId, Edge> for Graph {
+impl<'a, T: EdgeType> GraphWalk<'a, NodeId, Edge> for Graph<T> {
     fn nodes(&'a self) -> dot::Nodes<'a, NodeId> {
         Cow::Borrowed(self.nodes())
     }
@@ -32,6 +34,6 @@ impl<'a> GraphWalk<'a, NodeId, Edge> for Graph {
     }
 }
 
-pub fn render_to<W: Write>(graph: &Graph, output: &mut W) -> std::io::Result<()> {
+pub fn render_to<W: Write, T: EdgeType>(graph: &Graph<T>, output: &mut W) -> std::io::Result<()> {
     dot::render(graph, output)
 }

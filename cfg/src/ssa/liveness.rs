@@ -9,12 +9,12 @@ use crate::function::Function;
 // TODO: one hash map to a structure containing the sets
 #[derive(Debug)]
 pub struct Liveness {
-    uses: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
-    defs: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
-    uses_phi: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
-    defs_phi: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
-    live_in: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
-    live_out: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
+    pub uses: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
+    pub defs: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
+    pub uses_phi: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
+    pub defs_phi: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
+    pub live_in: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
+    pub live_out: FxHashMap<NodeId, LinkedHashSet<RcLocal>>,
 }
 
 impl Liveness {

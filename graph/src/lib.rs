@@ -1,3 +1,5 @@
+use std::{marker::PhantomData, fmt::Debug};
+
 use contracts::requires;
 use fxhash::FxHashSet;
 
@@ -27,53 +29,29 @@ impl std::fmt::Debug for NodeId {
 
 pub type Edge = (NodeId, NodeId);
 
-/// A directed graph for use in the CFG.
-#[derive(Debug, Clone)]
-pub struct Graph {
-    nodes: Vec<NodeId>,
-    edges: Vec<Edge>,
+pub trait EdgeType: std::fmt::Debug + Clone {
+
 }
 
-impl Graph {
-    pub fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct Directed;
 
-    pub fn from_edges(edges: Vec<impl Into<Edge>>) -> Self {
-        let edges = edges
-            .into_iter()
-            .map(|edge| edge.into())
-            .collect::<Vec<Edge>>();
-        let mut nodes = Vec::new();
-        for edge in &edges {
-            nodes.push(edge.0);
-            nodes.push(edge.1);
-        }
-        nodes.sort_unstable();
-        nodes.dedup();
+impl EdgeType for Directed {}
 
-        Self { nodes, edges }
-    }
+#[derive(Debug, Clone)]
+pub struct Undirected;
 
-    pub fn nodes(&self) -> &Vec<NodeId> {
-        &self.nodes
-    }
+impl EdgeType for Undirected {}
 
-    pub fn edges(&self) -> &Vec<Edge> {
-        &self.edges
-    }
+/// A directed graph for use in the CFG.
+#[derive(Debug, Clone)]
+pub struct Graph<T: EdgeType> {
+    nodes: Vec<NodeId>,
+    edges: Vec<Edge>,
+    edge_type: PhantomData<T>
+}
 
-    pub fn has_node(&self, node: NodeId) -> bool {
-        self.nodes.contains(&node)
-    }
-
-    pub fn has_edge(&self, edge: &Edge) -> bool {
-        self.edges.contains(edge)
-    }
-
+impl Graph<Directed> {
     #[requires(self.has_node(node))]
     pub fn successors(&self, node: NodeId) -> Vec<NodeId> {
         self.edges
@@ -146,7 +124,7 @@ impl Graph {
         let mut order: Vec<NodeId> = Vec::new();
         // TODO: recursive bad or smthn
         fn dfs_walk(
-            graph: &Graph,
+            graph: &Graph<Directed>,
             node: NodeId,
             visited: &mut FxHashSet<NodeId>,
             order: &mut Vec<NodeId>,
@@ -164,7 +142,49 @@ impl Graph {
     }
 }
 
-impl Default for Graph {
+impl<T: EdgeType> Graph<T> {
+    pub fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            edge_type: PhantomData
+        }
+    }
+
+    pub fn from_edges(edges: Vec<impl Into<Edge>>) -> Self {
+        let edges = edges
+            .into_iter()
+            .map(|edge| edge.into())
+            .collect::<Vec<Edge>>();
+        let mut nodes = Vec::new();
+        for edge in &edges {
+            nodes.push(edge.0);
+            nodes.push(edge.1);
+        }
+        nodes.sort_unstable();
+        nodes.dedup();
+
+        Self { nodes, edges, edge_type: PhantomData }
+    }
+
+    pub fn nodes(&self) -> &Vec<NodeId> {
+        &self.nodes
+    }
+
+    pub fn edges(&self) -> &Vec<Edge> {
+        &self.edges
+    }
+
+    pub fn has_node(&self, node: NodeId) -> bool {
+        self.nodes.contains(&node)
+    }
+
+    pub fn has_edge(&self, edge: &Edge) -> bool {
+        self.edges.contains(edge)
+    }
+}
+
+impl<T: EdgeType> Default for Graph<T> {
     fn default() -> Self {
         Self::new()
     }

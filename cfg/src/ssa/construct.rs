@@ -1,12 +1,12 @@
 use ast::LocalRw;
 use fxhash::FxHashMap;
-use graph::{algorithms::dfs_tree, Graph, NodeId};
+use graph::{algorithms::dfs_tree, Graph, NodeId, Directed};
 
 use crate::{block::Terminator, function::Function, ssa_def_use};
 
 struct SsaConstructor<'a> {
     function: &'a mut Function,
-    dfs: Graph,
+    dfs: Graph<Directed>,
     current_definition: FxHashMap<ast::RcLocal, FxHashMap<NodeId, ast::RcLocal>>,
 }
 

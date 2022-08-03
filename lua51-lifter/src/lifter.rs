@@ -113,11 +113,8 @@ impl<'a> LifterContext<'a> {
         end: usize,
         statements: &mut Vec<ast::Statement>,
     ) -> Option<(NodeId, ast::Assign)> {
-        let mut iterator = start..=end;
         let mut result = None;
-
-        while let Some(index) = iterator.next() {
-            let instruction = self.bytecode.code[index].clone();
+        for instruction in &self.bytecode.code[start..=end] {
             match instruction {
                 Instruction::Move {
                     destination,
@@ -131,7 +128,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::LoadBoolean {
+                &Instruction::LoadBoolean {
                     destination, value, ..
                 } => {
                     statements.push(
@@ -142,7 +139,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::LoadConstant {
+                &Instruction::LoadConstant {
                     destination,
                     source,
                 } => {
@@ -165,7 +162,7 @@ impl<'a> LifterContext<'a> {
                         );
                     }
                 }
-                Instruction::GetGlobal {
+                &Instruction::GetGlobal {
                     destination,
                     global,
                 } => {
@@ -178,7 +175,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::SetGlobal { destination, value } => {
+                &Instruction::SetGlobal { destination, value } => {
                     let global_str = self.constant(destination).as_string().unwrap().clone();
                     statements.push(
                         ast::Assign::new(
@@ -188,7 +185,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::GetTable {
+                &Instruction::GetTable {
                     destination,
                     table,
                     key,
@@ -205,7 +202,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::Test {
+                &Instruction::Test {
                     value,
                     comparison_value,
                 } => {
@@ -245,32 +242,32 @@ impl<'a> LifterContext<'a> {
                     );
                 }
                 Instruction::Jump(..) => {}
-                Instruction::Add {
+                &Instruction::Add {
                     destination,
                     lhs,
                     rhs,
                 }
-                | Instruction::Sub {
+                | &Instruction::Sub {
                     destination,
                     lhs,
                     rhs,
                 }
-                | Instruction::Mul {
+                | &Instruction::Mul {
                     destination,
                     lhs,
                     rhs,
                 }
-                | Instruction::Div {
+                | &Instruction::Div {
                     destination,
                     lhs,
                     rhs,
                 }
-                | Instruction::Mod {
+                | &Instruction::Mod {
                     destination,
                     lhs,
                     rhs,
                 }
-                | Instruction::Pow {
+                | &Instruction::Pow {
                     destination,
                     lhs,
                     rhs,
@@ -330,7 +327,7 @@ impl<'a> LifterContext<'a> {
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
 
-            if matches!(self.bytecode.code[index], Instruction::Return { .. }) {
+            if matches!(instruction, Instruction::Return { .. }) {
                 break;
             }
         }
