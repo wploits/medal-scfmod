@@ -2,17 +2,31 @@ use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, Labeller};
 
-use crate::EdgeType;
+use crate::{Directed, EdgeType, Undirected};
 
 use super::{Edge, Graph, NodeId};
 
-impl<'a, T: EdgeType> Labeller<'a, NodeId, Edge> for Graph<T> {
+impl<'a> Labeller<'a, NodeId, Edge> for Graph<Directed> {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("my_graph").unwrap()
     }
 
     fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
         dot::Id::new(n.to_string()).unwrap()
+    }
+}
+
+impl<'a> Labeller<'a, NodeId, Edge> for Graph<Undirected> {
+    fn graph_id(&'a self) -> dot::Id<'a> {
+        dot::Id::new("my_graph").unwrap()
+    }
+
+    fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
+        dot::Id::new(n.to_string()).unwrap()
+    }
+
+    fn kind(&self) -> dot::Kind {
+        dot::Kind::Graph
     }
 }
 
@@ -34,6 +48,12 @@ impl<'a, T: EdgeType> GraphWalk<'a, NodeId, Edge> for Graph<T> {
     }
 }
 
-pub fn render_to<W: Write, T: EdgeType>(graph: &Graph<T>, output: &mut W) -> std::io::Result<()> {
+pub fn render_to<'a, W: Write, T: EdgeType>(
+    graph: &'a Graph<T>,
+    output: &mut W,
+) -> std::io::Result<()>
+where
+    Graph<T>: Labeller<'a, NodeId, (NodeId, NodeId)>,
+{
     dot::render(graph, output)
 }

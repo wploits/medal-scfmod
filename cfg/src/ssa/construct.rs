@@ -1,6 +1,6 @@
 use ast::LocalRw;
 use fxhash::FxHashMap;
-use graph::{algorithms::dfs_tree, Graph, NodeId, Directed};
+use graph::{algorithms::dfs_tree, Directed, Graph, NodeId};
 
 use crate::{block::Terminator, function::Function, ssa_def_use};
 

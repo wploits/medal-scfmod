@@ -1,7 +1,7 @@
 use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
 use fxhash::FxHashMap;
-use graph::{Edge, Graph, NodeId, Directed};
+use graph::{Directed, Edge, Graph, NodeId};
 
 use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 

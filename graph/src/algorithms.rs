@@ -3,7 +3,7 @@ pub mod dominators;
 use contracts::requires;
 use fxhash::FxHashSet;
 
-use crate::{Edge, Graph, NodeId, Result, Directed};
+use crate::{Directed, Edge, Graph, NodeId, Result};
 
 use self::dominators::compute_immediate_dominators;
 

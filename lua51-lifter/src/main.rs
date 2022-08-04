@@ -47,9 +47,16 @@ fn main() -> anyhow::Result<()> {
     cfg::dot::render_to(&main, &mut std::io::stdout());
 
     let now = time::Instant::now();
-    let liveness = cfg::ssa::liveness::Liveness::new(&mut main);
+    let liveness = cfg::ssa::liveness::Liveness::new(&main);
     let liveness_constructed = now.elapsed();
-    println!("liveness construction: {:?}", liveness_constructed);
+    println!("liveness: {:?}", liveness_constructed);
+
+    let now = time::Instant::now();
+    let interference = cfg::ssa::interference_graph::InterferenceGraph::new(&main, &liveness);
+    let interference_constructed = now.elapsed();
+    println!("interference: {:?}", interference_constructed);
+
+    graph::dot::render_to(&interference.graph, &mut std::io::stdout());
 
     //println!("{:#?}", liveness);
 

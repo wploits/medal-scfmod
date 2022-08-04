@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, fmt::Debug};
+use std::{fmt::Debug, marker::PhantomData};
 
 use contracts::requires;
 use fxhash::FxHashSet;
@@ -29,9 +29,7 @@ impl std::fmt::Debug for NodeId {
 
 pub type Edge = (NodeId, NodeId);
 
-pub trait EdgeType: std::fmt::Debug + Clone {
-
-}
+pub trait EdgeType: std::fmt::Debug + Clone {}
 
 #[derive(Debug, Clone)]
 pub struct Directed;
@@ -48,7 +46,7 @@ impl EdgeType for Undirected {}
 pub struct Graph<T: EdgeType> {
     nodes: Vec<NodeId>,
     edges: Vec<Edge>,
-    edge_type: PhantomData<T>
+    edge_type: PhantomData<T>,
 }
 
 impl Graph<Directed> {
@@ -78,15 +76,6 @@ impl Graph<Directed> {
     #[requires(self.edges.contains(edge))]
     pub fn remove_edge(&mut self, edge: &Edge) {
         self.edges.retain(|other_edge| edge != other_edge);
-    }
-
-    pub fn add_node(&mut self) -> NodeId {
-        let node = match self.nodes.last() {
-            Some(n) => NodeId(n.0 + 1),
-            None => NodeId(1),
-        };
-        self.nodes.push(node);
-        node
     }
 
     #[requires(!self.has_node(node))]
@@ -142,12 +131,38 @@ impl Graph<Directed> {
     }
 }
 
+impl Graph<Undirected> {
+    #[requires(self.has_node(edge.0))]
+    #[requires(self.has_node(edge.1))]
+    #[requires(!self.has_edge(&edge))]
+    #[requires(!self.has_edge(&(edge.1, edge.0)))]
+    pub fn add_edge(&mut self, edge: Edge) {
+        self.edges.push(edge);
+    }
+
+    #[requires(self.has_node(node))]
+    pub fn neighbors(&self, node: NodeId) -> Vec<NodeId> {
+        self.edges
+            .iter()
+            .filter_map(|edge| {
+                if edge.0 == node {
+                    Some(edge.1)
+                } else if edge.1 == node {
+                    Some(edge.0)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
 impl<T: EdgeType> Graph<T> {
     pub fn new() -> Self {
         Self {
             nodes: Vec::new(),
             edges: Vec::new(),
-            edge_type: PhantomData
+            edge_type: PhantomData,
         }
     }
 
@@ -164,11 +179,24 @@ impl<T: EdgeType> Graph<T> {
         nodes.sort_unstable();
         nodes.dedup();
 
-        Self { nodes, edges, edge_type: PhantomData }
+        Self {
+            nodes,
+            edges,
+            edge_type: PhantomData,
+        }
     }
 
     pub fn nodes(&self) -> &Vec<NodeId> {
         &self.nodes
+    }
+
+    pub fn add_node(&mut self) -> NodeId {
+        let node = match self.nodes.last() {
+            Some(n) => NodeId(n.0 + 1),
+            None => NodeId(1),
+        };
+        self.nodes.push(node);
+        node
     }
 
     pub fn edges(&self) -> &Vec<Edge> {

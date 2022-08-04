@@ -1,7 +1,7 @@
 use cfg::dot;
 use cfg::function::Function;
 use fxhash::FxHashMap;
-use graph::{algorithms::*, Edge, Graph, NodeId, Directed};
+use graph::{algorithms::*, Directed, Edge, Graph, NodeId};
 
 mod compound;
 mod conditional;

@@ -2,9 +2,12 @@ use contracts::requires;
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 
-use crate::{algorithms::dfs_tree, Error, Graph, NodeId, Result, Directed};
+use crate::{algorithms::dfs_tree, Directed, Error, Graph, NodeId, Result};
 
-pub fn dominator_tree(graph: &Graph<Directed>, idoms: &FxHashMap<NodeId, NodeId>) -> Graph<Directed> {
+pub fn dominator_tree(
+    graph: &Graph<Directed>,
+    idoms: &FxHashMap<NodeId, NodeId>,
+) -> Graph<Directed> {
     let mut dom_tree = Graph::<Directed>::new();
     for &vertex in graph.nodes() {
         dom_tree.add_node_with_id(vertex);

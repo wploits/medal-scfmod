@@ -1,8 +1,8 @@
+use ast::LocalRw;
 use ast::RcLocal;
 use fxhash::FxHashMap;
 use graph::NodeId;
 use linked_hash_set::LinkedHashSet;
-use ast::LocalRw;
 
 use crate::function::Function;
 
@@ -18,14 +18,27 @@ pub struct Liveness {
 }
 
 impl Liveness {
-    fn explore_all_paths(liveness: &mut Liveness, function: &Function, node: NodeId, variable: &RcLocal) {
+    fn explore_all_paths(
+        liveness: &mut Liveness,
+        function: &Function,
+        node: NodeId,
+        variable: &RcLocal,
+    ) {
         if liveness.defs[&node].contains(variable) || liveness.live_in[&node].contains(variable) {
             return;
         }
-        liveness.live_in.get_mut(&node).unwrap().insert(variable.clone());
+        liveness
+            .live_in
+            .get_mut(&node)
+            .unwrap()
+            .insert(variable.clone());
         if liveness.defs_phi[&node].contains(&variable) {
             for predecessor in function.graph().predecessors(node) {
-                liveness.live_out.get_mut(&predecessor).unwrap().insert(variable.clone());
+                liveness
+                    .live_out
+                    .get_mut(&predecessor)
+                    .unwrap()
+                    .insert(variable.clone());
                 Self::explore_all_paths(liveness, function, predecessor, variable);
             }
         }
@@ -58,7 +71,11 @@ impl Liveness {
         }
         for node in function.graph().nodes() {
             for variable in liveness.uses_phi[node].clone() {
-                liveness.live_out.get_mut(node).unwrap().insert(variable.clone());
+                liveness
+                    .live_out
+                    .get_mut(node)
+                    .unwrap()
+                    .insert(variable.clone());
                 Self::explore_all_paths(&mut liveness, function, *node, &variable);
             }
             for variable in liveness.uses[node].clone() {
