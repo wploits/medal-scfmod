@@ -40,17 +40,23 @@ impl InterferenceGraph {
                 .entry(new_var.clone())
                 .or_insert_with(|| new_node);
             for current_var in current_variables {
-                self.graph.add_edge((
+                let edge = (
                     self.variable_to_node[current_var],
                     self.variable_to_node[current_var],
-                ));
+                );
+                if !self.graph.has_edge(&edge) {
+                    self.graph.add_edge(edge);
+                }
             }
         }
         for combination in new_variables.iter().combinations(2) {
-            self.graph.add_edge((
+            let edge = (
                 self.variable_to_node[combination[0]],
                 self.variable_to_node[combination[1]],
-            ));
+            );
+            if !self.graph.has_edge(&edge) {
+                self.graph.add_edge(edge);
+            }
         }
     }
 
