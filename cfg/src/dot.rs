@@ -26,7 +26,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
 
     fn node_label<'b>(&'b self, n: &NodeId) -> dot::LabelText<'b> {
         let block = self.block(*n).unwrap();
-        dot::LabelText::LabelStr(block.to_string().into())
+        dot::LabelText::LabelStr(block.ast.to_string().into())
             .prefix_line(dot::LabelText::LabelStr(n.to_string().into()))
     }
 

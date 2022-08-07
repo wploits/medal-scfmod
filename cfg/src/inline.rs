@@ -22,29 +22,29 @@ fn assigns(
 pub fn inline_expressions(function: &mut Function, node: NodeId) {
     let block = function.block_mut(node).unwrap();
     let mut index = 0;
-    while index < block.len() {
-        for read in block[index]
+    while index < block.ast.len() {
+        for read in block.ast[index]
             .values_read()
             .into_iter()
             .cloned()
             .collect::<Vec<_>>()
         {
             for stat_index in (0..index).rev() {
-                if let Some(new_expression) = assigns(block, stat_index, &read) {
-                    if block[stat_index + 1..index]
+                if let Some(new_expression) = assigns(&block.ast, stat_index, &read) {
+                    if block.ast[stat_index + 1..index]
                         .iter()
                         .any(|statement| statement.has_side_effects())
                     {
                         break;
                     }
-                    block.get_mut(index).unwrap().traverse_rvalues(&|rvalue| {
+                    block.ast.get_mut(index).unwrap().traverse_rvalues(&|rvalue| {
                         if let ast::RValue::Local(rvalue_local) = rvalue {
                             if *rvalue_local == read {
                                 *rvalue = new_expression.clone();
                             }
                         }
                     });
-                    block.remove(stat_index);
+                    block.ast.remove(stat_index);
                     index -= 1;
                     continue;
                 }

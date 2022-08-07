@@ -32,7 +32,7 @@ impl SsaDefUse {
             references: FxHashMap::default(),
         };
         for (&node, block) in function.blocks() {
-            for (index, statement) in block.iter().enumerate() {
+            for (index, statement) in block.ast.iter().enumerate() {
                 for value in statement.values_written() {
                     this.definitions
                         .insert(value.0.to_string(), Definition::Variable(node, index));

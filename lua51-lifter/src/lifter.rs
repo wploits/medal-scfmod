@@ -347,6 +347,7 @@ impl<'a> LifterContext<'a> {
             self.function
                 .block_mut(self.nodes[&start])
                 .unwrap()
+                .ast
                 .extend(block.0);
 
             match self.bytecode.code[end] {
@@ -374,7 +375,7 @@ impl<'a> LifterContext<'a> {
                         self.function
                             .block_mut(new_block)
                             .unwrap()
-                            .0
+                            .ast
                             .push(assign.into());
 
                         self.function.set_block_terminator(

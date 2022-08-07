@@ -104,11 +104,12 @@ impl<'a> SsaConstructor<'a> {
 
     fn construct(mut self) {
         for node in self.dfs.nodes().clone() {
-            for stat_index in 0..self.function.block(node).unwrap().len() {
+            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
                 let statement = self
                     .function
                     .block_mut(node)
                     .unwrap()
+                    .ast
                     .get_mut(stat_index)
                     .unwrap();
                 let read = statement
@@ -122,6 +123,7 @@ impl<'a> SsaConstructor<'a> {
                         .function
                         .block_mut(node)
                         .unwrap()
+                        .ast
                         .get_mut(stat_index)
                         .unwrap();
                     *statement.values_read_mut()[local_index] = new_local;
@@ -131,6 +133,7 @@ impl<'a> SsaConstructor<'a> {
                     .function
                     .block_mut(node)
                     .unwrap()
+                    .ast
                     .get_mut(stat_index)
                     .unwrap();
                 let written = statement
@@ -148,6 +151,7 @@ impl<'a> SsaConstructor<'a> {
                         .function
                         .block_mut(node)
                         .unwrap()
+                        .ast
                         .get_mut(stat_index)
                         .unwrap();
                     statement

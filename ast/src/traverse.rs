@@ -24,9 +24,7 @@ pub trait Traverse {
     }
 
     fn traverse_rvalues(&mut self, callback: &impl Fn(&mut RValue))
-    // where Self: std::fmt::Debug
     {
-        // println!("trv: {:#?}", self.rvalues());
         self.rvalues().into_iter().for_each(callback);
         self.rvalues().into_iter().for_each(|rvalue| {
             rvalue.traverse_rvalues(callback);

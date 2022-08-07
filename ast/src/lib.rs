@@ -1,6 +1,6 @@
 #![feature(box_patterns)]
 
-use derive_more::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut};
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
@@ -211,7 +211,7 @@ impl fmt::Display for Statement {
     }
 }
 
-#[derive(Debug, Clone, Default, Deref, DerefMut)]
+#[derive(Debug, Clone, Default)]
 pub struct Block(pub Vec<Statement>);
 
 impl Block {
@@ -221,6 +221,21 @@ impl Block {
 
     pub fn from_vec(statements: Vec<Statement>) -> Self {
         Self(statements)
+    }
+}
+
+// rust-analyzer doesnt like derive_more :/
+impl Deref for Block {
+    type Target = Vec<Statement>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Block {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

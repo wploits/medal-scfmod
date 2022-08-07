@@ -67,20 +67,6 @@ pub struct BasicBlock {
     pub terminator: Option<Terminator>,
 }
 
-impl Deref for BasicBlock {
-    type Target = ast::Block;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ast
-    }
-}
-
-impl DerefMut for BasicBlock {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.ast
-    }
-}
-
 impl Default for BasicBlock {
     fn default() -> Self {
         Self {

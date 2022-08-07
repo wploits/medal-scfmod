@@ -170,7 +170,7 @@ impl super::GraphStructurer {
         let else_block = self.function.remove_block(else_node).unwrap();
 
         let block = self.function.block_mut(entry).unwrap();
-        let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
+        let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
         if_stat.then_block = Some(then_block.ast);
         if_stat.else_block = Some(else_block.ast);
         Self::simplify_if(if_stat);

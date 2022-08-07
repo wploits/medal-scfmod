@@ -40,7 +40,7 @@ impl super::GraphStructurer {
 
     fn simplify_condition(&mut self, node: NodeId) {
         let block = self.function.block_mut(node).unwrap();
-        let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
+        let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
         if let Some(unary) = if_stat.condition.as_unary() {
             if_stat.condition = unary.value.clone();
             block.terminator.as_mut().unwrap().swap_edges();
@@ -56,8 +56,8 @@ impl super::GraphStructurer {
     ) -> (&mut ast::RValue, ast::RValue) {
         let first_block = self.function.block(first_conditional).unwrap();
         let second_block = self.function.block(second_conditional).unwrap();
-        if first_block.len() == 2
-            && second_block.len() == 2
+        if first_block.ast.len() == 2
+            && second_block.ast.len() == 2
             && first_info.is_some()
             && second_info.is_some()
             && first_info.as_ref().unwrap().target == second_info.as_ref().unwrap().target
@@ -67,9 +67,10 @@ impl super::GraphStructurer {
                 vec![first_info.as_ref().unwrap().target.clone().into()],
             );
             let block = self.function.block_mut(first_conditional).unwrap();
-            block.insert(1, assign.into());
+            block.ast.insert(1, assign.into());
             (
                 &mut block
+                    .ast
                     .iter_mut()
                     .rev()
                     .nth(1)
@@ -81,6 +82,7 @@ impl super::GraphStructurer {
             )
         } else {
             let operand = *second_block
+                .ast
                 .last()
                 .unwrap()
                 .as_if()
@@ -91,6 +93,7 @@ impl super::GraphStructurer {
                 self.function
                     .block_mut(first_conditional)
                     .unwrap()
+                    .ast
                     .last_mut()
                     .unwrap()
                     .as_if_mut()
@@ -115,7 +118,7 @@ impl super::GraphStructurer {
         let first_block = self.function.block(first_conditional).unwrap();
         let second_block = self.function.block(second_conditional).unwrap();
 
-        if first_block.len() > 2 || second_block.len() > 2 {
+        if first_block.ast.len() > 2 || second_block.ast.len() > 2 {
             return false;
         }
 
@@ -201,7 +204,7 @@ impl super::GraphStructurer {
 
         let info = info.unwrap();
 
-        let if_stat = block.last().unwrap().as_if().unwrap();
+        let if_stat = block.ast.last().unwrap().as_if().unwrap();
         if if_stat.condition.as_local() != Some(&info.target) {
             println!("{} {}", if_stat.condition, info.value);
             return false;
@@ -218,8 +221,8 @@ impl super::GraphStructurer {
         );
         let assign = ast::Assign::new(vec![info.target.into()], vec![binary.into()]);
         let block = self.function.block_mut(node).unwrap();
-        block.pop();
-        block.push(assign.into());
+        block.ast.pop();
+        block.ast.push(assign.into());
 
         self.function
             .set_block_terminator(node, Some(Terminator::jump(end)));
