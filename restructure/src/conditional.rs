@@ -1,8 +1,10 @@
-use ast::UnaryOperation;
+use ast::Reduce;
 use cfg::block::Terminator;
 use graph::NodeId;
 
-impl super::GraphStructurer {
+use crate::GraphStructurer;
+
+impl GraphStructurer {
     /*pub(crate) fn match_conditional(
         &mut self,
         entry: NodeId,
@@ -183,6 +185,56 @@ impl super::GraphStructurer {
         true
     }
 
+    // a -> b -> c + a -> c
+    fn match_triangle_conditional(
+        &mut self,
+        entry: NodeId,
+        then_node: NodeId,
+        else_node: NodeId,
+    ) -> bool {
+        let mut _match_triangle_conditional = |then_node, else_node, inverted| {
+            let graph = self.function.graph();
+            let then_successors = graph.successors(then_node);
+
+            if then_successors.len() != 1 {
+                return false;
+            }
+
+            if graph.predecessors(then_node).len() != 1 {
+                return false;
+            }
+
+            if then_successors[0] != else_node {
+                return false;
+            }
+
+            let then_block = self.function.remove_block(then_node).unwrap();
+
+            let block = self.function.block_mut(entry).unwrap();
+            let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
+            if_stat.then_block = Some(then_block.ast);
+
+            if inverted {
+                if_stat.condition = Box::new(
+                    ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not)
+                        .reduce()
+                        .into(),
+                )
+            }
+
+            //Self::simplify_if(if_stat);
+
+            self.function
+                .set_block_terminator(entry, Some(Terminator::jump(else_node)));
+            self.match_jump(entry, else_node);
+
+            true
+        };
+
+        _match_triangle_conditional(then_node, else_node, false)
+            || _match_triangle_conditional(else_node, then_node, true)
+    }
+
     // this may not succeed if loop refinement is required
     pub(crate) fn match_conditional(
         &mut self,
@@ -191,6 +243,8 @@ impl super::GraphStructurer {
         else_node: NodeId,
     ) -> bool {
         if self.match_diamond_conditional(entry, then_node, else_node) {
+            return true;
+        } else if self.match_triangle_conditional(entry, then_node, else_node) {
             return true;
         }
         false

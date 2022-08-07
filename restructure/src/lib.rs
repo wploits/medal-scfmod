@@ -62,8 +62,8 @@ impl GraphStructurer {
                     .as_conditional()
                     .unwrap();
                 let (then_node, else_node) = (then_edge.node, else_edge.node);
-                //self.match_conditional(node, then_node, else_node);
-                self.match_compound_conditional(node, then_node, else_node)
+                self.match_conditional(node, then_node, else_node)
+                //self.match_compound_conditional(node, then_node, else_node)
             }
 
             _ => unreachable!(),
