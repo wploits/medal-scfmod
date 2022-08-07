@@ -7,7 +7,7 @@ members = [
     "lua51-lifter",
     "lua51-deserializer",
     #"luau-lifter",
-    "cfg-to-ast-new"
+    "restructure"
 ]
 
 [profile.release]

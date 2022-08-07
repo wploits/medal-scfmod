@@ -17,6 +17,7 @@ fxhash = "0.2.1"
 itertools = "0.10.3"
 by_address = "1.0.4"
 contracts = "0.6.3"
+linked_hash_set = "0.1.4"
 
 [profile.release]
 debug = true

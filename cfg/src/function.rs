@@ -1,7 +1,7 @@
 use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
 use fxhash::FxHashMap;
-use graph::{Edge, Graph, NodeId};
+use graph::{Directed, Edge, Graph, NodeId};
 
 use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 
@@ -9,7 +9,7 @@ use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 pub struct Function {
     pub local_allocator: LocalAllocator,
     pub parameters: Vec<RcLocal>,
-    graph: Graph,
+    graph: Graph<Directed>,
     blocks: FxHashMap<NodeId, BasicBlock>,
     /*pub upvalue_open_ranges:
     FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
@@ -62,7 +62,7 @@ impl Function {
         self.graph.remove_edge(edge);
     }
 
-    pub fn graph(&self) -> &Graph {
+    pub fn graph(&self) -> &Graph<Directed> {
         &self.graph
     }
 

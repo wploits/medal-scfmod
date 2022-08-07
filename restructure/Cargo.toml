@@ -1,5 +1,5 @@
 [package]
-name = "cfg-to-ast-new"
+name = "restructure"
 version = "0.1.0"
 edition = "2021"
 

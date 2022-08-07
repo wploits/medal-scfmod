@@ -39,12 +39,27 @@ fn main() -> anyhow::Result<()> {
     let mut main = lifter::lift(&chunk.function);
     let _lifted = now.elapsed();
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout());
-
-    let now = time::Instant::now();
+    /*let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
-    println!("ssa construction: {:?}", ssa_constructed);
+    println!("ssa construction: {:?}", ssa_constructed);*/
+
+    cfg::dot::render_to(&main, &mut std::io::stdout());
+
+    /*let now = time::Instant::now();
+    let liveness = cfg::ssa::liveness::Liveness::new(&main);
+    let liveness_constructed = now.elapsed();
+    println!("liveness: {:?}", liveness_constructed);
+
+    let now = time::Instant::now();
+    let interference = cfg::ssa::interference_graph::InterferenceGraph::new(&main, &liveness);
+    let interference_constructed = now.elapsed();
+    println!("interference: {:?}", interference_constructed);
+
+    graph::dot::render_to(&interference.graph, &mut std::io::stdout());
+    println!("{:#?}", interference.variable_to_node);*/
+
+    //println!("{:#?}", liveness);
 
     // cfg::dot::render_to(&main, &mut std::io::stdout())?;
     // for node in main.graph().nodes().clone() {
@@ -61,7 +76,7 @@ fn main() -> anyhow::Result<()> {
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     //println!("lifting: {:?}", lifted);
-    //cfg_to_ast_new::lift(main);
+    restructure::lift(main);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

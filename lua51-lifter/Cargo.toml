@@ -18,7 +18,7 @@ ast = { path = "../ast" }
 dhat = "0.3.0"
 fxhash = "0.2.1"
 either = "1.6.1"
-cfg-to-ast-new = { path = "../cfg-to-ast-new" }
+restructure = { path = "../restructure" }
 enum-as-inner = "0.5.0"
 
 [features]
