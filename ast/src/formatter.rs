@@ -85,6 +85,7 @@ impl<'a> Formatter<'a> {
 		}
 	}
 
+
 	fn format_block(&mut self, block: &'a Block) {
 		self.indentation_level += 1;
 
@@ -109,15 +110,17 @@ impl<'a> Formatter<'a> {
 				let mut right = Vec::new();
 
 				for (lvalue, rvalue) in assign.left.iter().zip(assign.right.iter()) {
-					if let (Some((is_local, name)), RValue::Closure(function)) = (match lvalue {
-						LValue::Local(local) => Some((true, local.0.to_string())),
-						LValue::Global(global) => Some((false, global.0.clone())),
-						_ => None,
-					}, rvalue) {
-						if is_local {
+					if let LValue::Local(local) = lvalue {
+						if !self.scope(&local.0.0) {
 							self.write("local ".chars());
 						}
+					}
 
+					if let (Some(name), RValue::Closure(function)) = (match lvalue {
+						LValue::Local(local) => Some(local.0.to_string()),
+						LValue::Global(global) => Some(global.0.clone()),
+						_ => None,
+					}, rvalue) {
 						self.write(format!("function {}({})\n", name, function.parameters.iter().join(", ")).chars());
 						self.new_scope();
 						self.format_block(&function.body);
@@ -125,12 +128,6 @@ impl<'a> Formatter<'a> {
 						self.indent();
 						self.write("end".chars());
 					} else {
-						if let LValue::Local(local) = lvalue {
-							if !self.scope(&local.0.0) {
-								self.write("local ".chars());
-							}
-						}
-
 						left.push(lvalue);
 						right.push(rvalue);
 					}
