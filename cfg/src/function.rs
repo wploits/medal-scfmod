@@ -10,7 +10,7 @@ pub struct Function {
     pub local_allocator: LocalAllocator,
     pub parameters: Vec<RcLocal>,
     graph: Graph<Directed>,
-    blocks: FxHashMap<NodeId, BasicBlock>,
+    pub blocks: FxHashMap<NodeId, BasicBlock>,
     /*pub upvalue_open_ranges:
     FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
     entry: Option<NodeId>,

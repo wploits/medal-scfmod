@@ -64,7 +64,7 @@ impl Liveness {
                 defs_phi.extend(edge.arguments.keys().cloned());
                 uses_phi.extend(edge.arguments.values().cloned());
             }
-            for instruction in block.iter() {
+            for instruction in block.ast.iter() {
                 uses.extend(instruction.values_read().into_iter().cloned());
                 defs.extend(instruction.values_written().into_iter().cloned());
             }

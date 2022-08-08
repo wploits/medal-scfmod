@@ -20,6 +20,7 @@ fxhash = "0.2.1"
 either = "1.6.1"
 restructure = { path = "../restructure" }
 enum-as-inner = "0.5.0"
+itertools = "*"
 
 [features]
 dhat-heap = []

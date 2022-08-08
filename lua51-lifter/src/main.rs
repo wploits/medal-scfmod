@@ -76,7 +76,10 @@ fn main() -> anyhow::Result<()> {
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     //println!("lifting: {:?}", lifted);
-    restructure::lift(main);
+    let main = restructure::lift(main);
+    let formatted = ast::formatter::Formatter::format(&main, Default::default());
+
+    println!("{}", formatted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

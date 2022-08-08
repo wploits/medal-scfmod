@@ -2,7 +2,7 @@ use crate::{has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
 use itertools::Itertools;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct While {
     pub condition: RValue,
     pub block: Block,

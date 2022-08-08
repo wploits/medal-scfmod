@@ -107,7 +107,7 @@ impl InterferenceGraph {
             this.create_interference(&liveness.live_in[node]);
             this.create_interference(&liveness.live_out[node]);
             let mut current_live_set = liveness.live_out[node].clone();
-            for statement in block.iter().rev() {
+            for statement in block.ast.iter().rev() {
                 current_live_set = this.update_live_set(statement, current_live_set);
             }
             let live_in = &liveness.live_in[node];

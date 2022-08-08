@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{has_side_effects, LocalRw, Traverse};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Break {}
 
 has_side_effects!(Break);

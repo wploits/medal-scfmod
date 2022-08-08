@@ -211,7 +211,7 @@ impl GraphStructurer {
             let then_block = self.function.remove_block(then_node).unwrap();
 
             let block = self.function.block_mut(entry).unwrap();
-            let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
+            let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
             if_stat.then_block = Some(then_block.ast);
 
             if inverted {

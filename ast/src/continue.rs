@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{has_side_effects, LocalRw, Traverse};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Continue {}
 
 has_side_effects!(Continue);

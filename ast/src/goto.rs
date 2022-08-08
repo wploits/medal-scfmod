@@ -2,7 +2,7 @@ use std::fmt;
 
 use crate::{has_side_effects, LocalRw, SideEffects, Traverse};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Label(pub String);
 
 impl SideEffects for Label {}
@@ -29,7 +29,7 @@ impl fmt::Display for Label {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Goto(pub Label);
 
 impl Traverse for Goto {}

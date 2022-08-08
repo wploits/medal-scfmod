@@ -5,7 +5,7 @@ use super::{Block, RValue};
 use itertools::Itertools;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct If {
     pub condition: Box<RValue>,
     pub then_block: Option<Block>,

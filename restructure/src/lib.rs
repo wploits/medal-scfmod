@@ -9,7 +9,7 @@ mod jump;
 mod r#loop;
 
 struct GraphStructurer {
-    function: Function,
+    pub function: Function,
     root: NodeId,
     back_edges: Vec<Edge>,
 }
@@ -114,7 +114,7 @@ impl GraphStructurer {
     }
 }
 
-pub fn lift(function: cfg::function::Function) {
+pub fn lift(function: cfg::function::Function) -> ast::Block {
     let graph = function.graph().clone();
     let root = function.entry().unwrap();
 
@@ -128,5 +128,6 @@ pub fn lift(function: cfg::function::Function) {
 
     let structurer = GraphStructurer::new(function, graph, blocks, root);
     let block = structurer.structure();
-    println!("{}", block);
+
+    block
 }

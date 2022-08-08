@@ -25,6 +25,8 @@ mod table;
 mod traverse;
 mod unary;
 mod r#while;
+mod closure;
+pub mod formatter;
 
 pub use assign::*;
 pub use binary::*;
@@ -43,6 +45,7 @@ pub use side_effects::*;
 pub use table::*;
 pub use traverse::*;
 pub use unary::*;
+pub use closure::*;
 
 pub trait Reduce {
     fn reduce(self) -> RValue;
@@ -59,6 +62,7 @@ pub enum RValue {
     Index(Index),
     Unary(Unary),
     Binary(Binary),
+    Closure(Closure),
 }
 
 impl<'a: 'b, 'b> Reduce for RValue {
@@ -100,6 +104,7 @@ impl fmt::Display for RValue {
             RValue::Index(index) => write!(f, "{}", index),
             RValue::Unary(unary) => write!(f, "{}", unary),
             RValue::Binary(binary) => write!(f, "{}", binary),
+            RValue::Closure(closure) => write!(f, "{}", closure),
         }
     }
 }
@@ -156,7 +161,7 @@ impl fmt::Display for LValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Comment {
     pub text: String,
 }
@@ -174,7 +179,7 @@ impl SideEffects for Comment {}
 impl LocalRw for Comment {}
 
 #[enum_dispatch(LocalRw, SideEffects, Traverse)]
-#[derive(Debug, Clone, EnumAsInner)]
+#[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum Statement {
     Call(Call),
     Assign(Assign),
@@ -211,7 +216,7 @@ impl fmt::Display for Statement {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Block(pub Vec<Statement>);
 
 impl Block {

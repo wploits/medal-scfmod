@@ -19,7 +19,7 @@ impl fmt::Display for Local {
 }
 
 #[derive(Debug, Clone, Display, Deref, DerefMut, PartialEq, Eq, Hash)]
-pub struct RcLocal(Rc<Local>);
+pub struct RcLocal(pub Rc<Local>);
 
 impl SideEffects for RcLocal {}
 

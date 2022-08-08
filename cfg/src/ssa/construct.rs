@@ -25,13 +25,13 @@ impl<'a> SsaConstructor<'a> {
             for edge in locations {
                 match self.function.block_mut(edge.0).unwrap().terminator.as_mut() {
                     Some(Terminator::Jump(edge)) => {
-                        edge.arguments.retain(|target, _| target.0 != local);
+                        edge.arguments.retain(|target, _| target.0.0 != local);
                     }
                     Some(Terminator::Conditional(then_edge, else_edge)) => {
                         if then_edge.node == edge.1 {
-                            then_edge.arguments.retain(|target, _| target.0 != local);
+                            then_edge.arguments.retain(|target, _| target.0.0 != local);
                         } else if else_edge.node == edge.1 {
-                            else_edge.arguments.retain(|target, _| target.0 != local);
+                            else_edge.arguments.retain(|target, _| target.0.0 != local);
                         } else {
                             unreachable!();
                         }
@@ -137,7 +137,7 @@ impl<'a> SsaConstructor<'a> {
             }
         }
         for node in self.dfs.nodes().clone() {
-            for stat_index in 0..self.function.block(node).unwrap().len() {
+            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
                 let statement = self
                     .function
                     .block_mut(node)

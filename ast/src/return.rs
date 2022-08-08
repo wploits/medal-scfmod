@@ -5,7 +5,7 @@ use crate::{has_side_effects, LocalRw, RcLocal, Traverse};
 
 use super::RValue;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Return {
     pub values: Vec<RValue>,
 }

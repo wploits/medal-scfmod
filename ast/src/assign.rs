@@ -6,7 +6,7 @@ use crate::{RcLocal, SideEffects, Traverse};
 
 use super::{LValue, LocalRw, RValue};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Assign {
     pub left: Vec<LValue>,
     pub right: Vec<RValue>,
