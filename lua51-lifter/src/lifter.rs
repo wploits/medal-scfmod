@@ -3,13 +3,14 @@ use std::{borrow::Cow, rc::Rc};
 use either::Either;
 use fxhash::FxHashMap;
 use itertools::Itertools;
+
 use ast::RcLocal;
 use cfg::{block::Terminator, function::Function};
 use graph::NodeId;
 use lua51_deserializer::{Function as BytecodeFunction, Instruction, Value};
 use lua51_deserializer::argument::{Constant, Register, RegisterOrConstant};
 
-struct LifterContext<'a> {
+pub struct LifterContext<'a> {
 	bytecode: &'a BytecodeFunction<'a>,
 	nodes: FxHashMap<usize, NodeId>,
 	locals: FxHashMap<Register, RcLocal>,
@@ -120,7 +121,7 @@ impl<'a> LifterContext<'a> {
 		statements: &mut Vec<ast::Statement>,
 	) -> Option<(NodeId, ast::Assign)> {
 		let mut result = None;
-		for (index, instruction) in self.bytecode.code[start..=end].iter().enumerate() {
+		for instruction in &self.bytecode.code[start..=end] {
 			match instruction {
 				Instruction::Move {
 					destination,
@@ -315,23 +316,60 @@ impl<'a> LifterContext<'a> {
 
 					statements.push(
 						ast::If {
-							condition: Box::new(if !comparison_value {
-								value.clone()
-							} else {
+							condition: Box::new(if *comparison_value {
 								ast::Unary {
 									value: Box::new(value.clone()),
 									operation: ast::UnaryOperation::Not,
-								}
-									.into()
+								}.into()
+							} else {
+								value.clone()
 							}),
 							then_block: None,
 							else_block: None,
+						}.into(),
+					);
+				}
+				Instruction::Call { function, arguments, return_values } => {
+					let call = ast::Call {
+						value: Box::new(self.locals[function].clone().into()),
+						arguments: if *arguments <= 1 {
+							Vec::new()
+						} else {
+							(1..*arguments)
+								.map(|argument| self.locals[&Register(function.0 + argument)].clone().into())
+								.collect_vec()
+						},
+					};
+
+					statements.push(
+						if *return_values > 1 {
+							ast::Assign {
+								left: (0..return_values - 1)
+									.map(|return_value| self.locals[&Register(function.0 + return_value)].clone().into())
+									.collect_vec(),
+								right: vec![call.into()],
+							}.into()
+						} else {
+							call.into()
 						}
-							.into(),
+					)
+				}
+				Instruction::GetUpvalue { destination, upvalue } => {
+					statements.push(
+						ast::Assign {
+							left: vec![self.locals[destination].clone().into()],
+							right: vec![RcLocal::new(
+								Rc::new(
+									ast::Local(
+										self.bytecode.upvalues[upvalue.0 as usize].to_string()
+									)
+								)
+							).into()],
+						}.into()
 					);
 				}
 				Instruction::Closure { destination, function } => {
-					let closure = lift(&self.bytecode.closures[function.0 as usize]);
+					let closure = Self::lift(&self.bytecode.closures[function.0 as usize]);
 					let parameters = closure.parameters.clone();
 					let body = restructure::lift(closure);
 
@@ -437,24 +475,22 @@ impl<'a> LifterContext<'a> {
 		}
 	}
 
-	fn lift(mut self) -> Function {
-		self.create_block_map();
-		self.allocate_locals();
-		self.lift_blocks();
-		self.function.set_entry(self.nodes[&0]);
-		self.function
-	}
-}
+	pub fn lift(bytecode: &'a BytecodeFunction) -> Function {
+		let mut context = Self {
+			bytecode,
+			nodes: FxHashMap::default(),
+			locals: FxHashMap::default(),
+			constants: FxHashMap::default(),
+			function: Function::default(),
+		};
 
-pub fn lift(bytecode: &BytecodeFunction) -> Function {
-	let context = LifterContext {
-		bytecode,
-		nodes: FxHashMap::default(),
-		locals: FxHashMap::default(),
-		constants: FxHashMap::default(),
-		function: Function::default(),
-	};
-	context.lift()
+		context.create_block_map();
+		context.allocate_locals();
+		context.lift_blocks();
+		context.function.set_entry(context.nodes[&0]);
+
+		context.function
+	}
 }
 
 /*pub struct Lifter {

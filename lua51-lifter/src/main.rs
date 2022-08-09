@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
 
     let now = time::Instant::now();
     //let main = Lifter::new(&chunk.function).lift_function()?;
-    let mut main = lifter::lift(&chunk.function);
+    let mut main = lifter::LifterContext::lift(&chunk.function);
     let _lifted = now.elapsed();
 
     /*let now = time::Instant::now();

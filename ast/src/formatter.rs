@@ -127,10 +127,21 @@ impl<'a> Formatter<'a> {
 						self.pop_scope();
 						self.indent();
 						self.write("end".chars());
+						println!("lc {:?}", lvalue);
+						println!("{:?}", rvalue);
 					} else {
+						println!("l {:?}", lvalue);
+						println!("{:#?}", rvalue);
+
 						left.push(lvalue);
 						right.push(rvalue);
 					}
+				}
+
+				if let Some(RValue::Call(_)) = assign.right.last() {
+					let len = assign.left.len();
+
+					left.extend(&assign.left[len - 1..2 * len - 2])
 				}
 
 				if !(left.is_empty() || right.is_empty()) {
