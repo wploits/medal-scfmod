@@ -216,9 +216,7 @@ impl GraphStructurer {
 
             if inverted {
                 if_stat.condition = Box::new(
-                    ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not)
-                        .reduce()
-                        .into(),
+                    ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not).reduce(),
                 )
             }
 
@@ -242,11 +240,7 @@ impl GraphStructurer {
         then_node: NodeId,
         else_node: NodeId,
     ) -> bool {
-        if self.match_diamond_conditional(entry, then_node, else_node) {
-            return true;
-        } else if self.match_triangle_conditional(entry, then_node, else_node) {
-            return true;
-        }
-        false
+        self.match_diamond_conditional(entry, then_node, else_node)
+            || self.match_triangle_conditional(entry, then_node, else_node)
     }
 }

@@ -1,5 +1,4 @@
-use cfg::dot;
-use cfg::function::Function;
+use cfg::{dot, function::Function};
 use fxhash::FxHashMap;
 use graph::{algorithms::*, Directed, Edge, Graph, NodeId};
 
@@ -62,8 +61,8 @@ impl GraphStructurer {
                     .as_conditional()
                     .unwrap();
                 let (then_node, else_node) = (then_edge.node, else_edge.node);
-                self.match_conditional(node, then_node, else_node)
-                //self.match_compound_conditional(node, then_node, else_node)
+                self.match_compound_conditional(node, then_node, else_node)
+                    || self.match_conditional(node, then_node, else_node)
             }
 
             _ => unreachable!(),
@@ -127,7 +126,5 @@ pub fn lift(function: cfg::function::Function) -> ast::Block {
         .collect();
 
     let structurer = GraphStructurer::new(function, graph, blocks, root);
-    let block = structurer.structure();
-
-    block
+    structurer.structure()
 }
