@@ -127,12 +127,7 @@ impl<'a> Formatter<'a> {
 						self.pop_scope();
 						self.indent();
 						self.write("end".chars());
-						println!("lc {:?}", lvalue);
-						println!("{:?}", rvalue);
 					} else {
-						println!("l {:?}", lvalue);
-						println!("{:#?}", rvalue);
-
 						left.push(lvalue);
 						right.push(rvalue);
 					}

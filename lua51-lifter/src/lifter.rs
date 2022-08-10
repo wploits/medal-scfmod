@@ -119,8 +119,7 @@ impl<'a> LifterContext<'a> {
 		start: usize,
 		end: usize,
 		statements: &mut Vec<ast::Statement>,
-	) -> Option<(NodeId, ast::Assign)> {
-		let mut result = None;
+	) {
 		for instruction in &self.bytecode.code[start..=end] {
 			match instruction {
 				Instruction::Move {
@@ -310,9 +309,7 @@ impl<'a> LifterContext<'a> {
 						left: vec![self.locals[&destination].clone().into()],
 						right: vec![value.clone()],
 					};
-					let assign_node = self.function.new_block();
-
-					result = Some((assign_node, assign));
+					let new_block = self.function.new_block();
 
 					statements.push(
 						ast::If {
@@ -327,6 +324,31 @@ impl<'a> LifterContext<'a> {
 							then_block: None,
 							else_block: None,
 						}.into(),
+					);
+
+					let condition_block = self.nodes[&start];
+					let next_block = self.nodes[&(end + 1)];
+					let step = match &self.bytecode.code[end] {
+						Instruction::Jump(step) => *step as usize,
+						_ => unreachable!(),
+					};
+
+					self.function
+						.block_mut(new_block)
+						.unwrap()
+						.ast
+						.push(assign.into());
+
+					self.function.set_block_terminator(
+						condition_block,
+						Some(Terminator::conditional(next_block, new_block)),
+					);
+
+					self.function.set_block_terminator(
+						new_block,
+						Some(Terminator::jump(
+							self.nodes[&(end + step as usize - 131070)],
+						)),
 					);
 				}
 				Instruction::Call { function, arguments, return_values } => {
@@ -390,8 +412,6 @@ impl<'a> LifterContext<'a> {
 				break;
 			}
 		}
-
-		result
 	}
 
 	fn lift_blocks(&mut self) {
@@ -399,7 +419,7 @@ impl<'a> LifterContext<'a> {
 		for (start, end) in ranges {
 			let mut block = ast::Block::new();
 
-			let assign = self.lift_instruction(start, end, &mut block);
+			self.lift_instruction(start, end, &mut block);
 			self.function
 				.block_mut(self.nodes[&start])
 				.unwrap()
@@ -423,31 +443,11 @@ impl<'a> LifterContext<'a> {
 				Instruction::Jump(step)
 				| Instruction::IterateNumericForLoop { step, .. }
 				| Instruction::PrepareNumericForLoop { step, .. } => {
-					if let Some(Instruction::TestSet { .. }) = self.bytecode.code.get(end - 1) {
-						let condition_block = self.nodes[&start];
-						let assign_block = self.nodes[&(end + 1)];
-						let (new_block, assign) = assign.unwrap();
+					let block = self.nodes[&start];
 
-						self.function
-							.block_mut(new_block)
-							.unwrap()
-							.ast
-							.push(assign.into());
-
+					if self.function.block(block).unwrap().terminator.is_none() {
 						self.function.set_block_terminator(
-							condition_block,
-							Some(Terminator::conditional(assign_block, new_block)),
-						);
-
-						self.function.set_block_terminator(
-							new_block,
-							Some(Terminator::jump(
-								self.nodes[&(end + step as usize - 131070)],
-							)),
-						);
-					} else {
-						self.function.set_block_terminator(
-							self.nodes[&start],
+							block,
 							Some(Terminator::jump(
 								self.nodes[&(end + step as usize - 131070)],
 							)),
