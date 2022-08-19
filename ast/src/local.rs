@@ -4,17 +4,23 @@ use enum_dispatch::enum_dispatch;
 use std::{fmt, rc::Rc};
 
 #[derive(Debug, From, Clone, PartialEq, Eq, Hash)]
-pub struct Local(pub String);
+pub struct Local {
+    pub name: String,
+    pub is_captured: bool,
+}
 
 impl Local {
     pub fn new(name: String) -> Self {
-        Self(name)
+        Self {
+            name,
+            is_captured: false,
+        }
     }
 }
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.name)
     }
 }
 

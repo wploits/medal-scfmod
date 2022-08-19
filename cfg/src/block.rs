@@ -6,12 +6,12 @@ use fxhash::FxHashMap;
 use graph::NodeId;
 
 #[derive(Debug, Clone)]
-pub struct BasicBlockEdge {
+pub struct BlockEdge {
     pub node: NodeId,
     pub arguments: FxHashMap<RcLocal, RcLocal>,
 }
 
-impl BasicBlockEdge {
+impl BlockEdge {
     fn new(node: NodeId) -> Self {
         Self {
             node,
@@ -21,21 +21,18 @@ impl BasicBlockEdge {
 }
 
 #[derive(Debug, Clone, EnumAsInner)]
-pub enum Terminator {
-    Jump(BasicBlockEdge),
-    Conditional(BasicBlockEdge, BasicBlockEdge),
+pub enum Edges {
+    Jump(BlockEdge),
+    Conditional(BlockEdge, BlockEdge),
 }
 
-impl Terminator {
+impl Edges {
     pub fn jump(node: NodeId) -> Self {
-        Self::Jump(BasicBlockEdge::new(node))
+        Self::Jump(BlockEdge::new(node))
     }
 
     pub fn conditional(then_node: NodeId, else_node: NodeId) -> Self {
-        Self::Conditional(
-            BasicBlockEdge::new(then_node),
-            BasicBlockEdge::new(else_node),
-        )
+        Self::Conditional(BlockEdge::new(then_node), BlockEdge::new(else_node))
     }
 
     pub fn replace_branch(&mut self, old: NodeId, new: NodeId) {
@@ -61,23 +58,15 @@ impl Terminator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BasicBlock {
     pub ast: ast::Block,
-    pub terminator: Option<Terminator>,
-}
-
-impl Default for BasicBlock {
-    fn default() -> Self {
-        Self {
-            ast: ast::Block::new(),
-            terminator: None,
-        }
-    }
+    pub terminator: Option<Edges>,
+    pub upvalues_closed: Vec<RcLocal>,
 }
 
 impl BasicBlock {
-    pub fn terminator(&self) -> &Option<Terminator> {
+    pub fn terminator(&self) -> &Option<Edges> {
         &self.terminator
     }
 }

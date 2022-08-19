@@ -19,7 +19,7 @@ impl LocalRw for Table {
 }
 
 impl Traverse for Table {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         panic!()
     }
 }

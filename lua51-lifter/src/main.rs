@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, time};
+use std::{fs::File, io::Read, rc::Rc, time};
 
 use clap::Parser;
 
@@ -36,13 +36,15 @@ fn main() -> anyhow::Result<()> {
 
     let now = time::Instant::now();
     //let main = Lifter::new(&chunk.function).lift_function()?;
-    let mut main = lifter::LifterContext::lift(&chunk.function);
+    let mut main = lifter::LifterContext::lift(&chunk.function, Vec::new(), Default::default());
     let _lifted = now.elapsed();
 
-    /*let now = time::Instant::now();
+    cfg::dot::render_to(&main, &mut std::io::stdout());
+
+    let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
-    println!("ssa construction: {:?}", ssa_constructed);*/
+    //println!("ssa construction: {:?}", ssa_constructed);
 
     cfg::dot::render_to(&main, &mut std::io::stdout());
 
@@ -76,10 +78,10 @@ fn main() -> anyhow::Result<()> {
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     //println!("lifting: {:?}", lifted);
-    let main = restructure::lift(main);
-    let formatted = ast::formatter::Formatter::format(&main, Default::default());
+    //let main = restructure::lift(main);
+    //let formatted = ast::formatter::Formatter::format(&main, Default::default());
 
-    println!("{}", formatted);
+    //println!("{}", formatted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

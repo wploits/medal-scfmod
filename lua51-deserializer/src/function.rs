@@ -16,6 +16,7 @@ pub struct Function<'a> {
     pub name: &'a str,
     pub line_defined: u32,
     pub last_line_defined: u32,
+    pub number_of_upvalues: u8,
     pub vararg_flag: u8,
     pub maximum_stack_size: u8,
     pub code: Vec<Instruction>,
@@ -32,7 +33,7 @@ impl<'a> Function<'a> {
         let (input, name) = value::parse_string(input)?;
         let (input, line_defined) = le_u32(input)?;
         let (input, last_line_defined) = le_u32(input)?;
-        let (input, _) = le_u8(input)?;
+        let (input, number_of_upvalues) = le_u8(input)?;
         let (input, number_of_parameters) = le_u8(input)?;
         let (input, vararg_flag) = le_u8(input)?;
         let (input, maximum_stack_size) = le_u8(input)?;
@@ -52,6 +53,7 @@ impl<'a> Function<'a> {
                 name,
                 line_defined,
                 last_line_defined,
+                number_of_upvalues,
                 vararg_flag,
                 maximum_stack_size,
                 code,

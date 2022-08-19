@@ -1,22 +1,29 @@
 use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use graph::{Directed, Edge, Graph, NodeId};
+use std::{cell::RefCell, rc::Rc};
 
-use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
+use crate::block::{BasicBlock, BlockEdge, Edges};
 
 #[derive(Debug, Clone, Default)]
 pub struct Function {
-    pub local_allocator: LocalAllocator,
+    pub local_allocator: Rc<RefCell<LocalAllocator>>,
     pub parameters: Vec<RcLocal>,
+    pub upvalues_captured: Vec<RcLocal>,
     graph: Graph<Directed>,
     pub blocks: FxHashMap<NodeId, BasicBlock>,
-    /*pub upvalue_open_ranges:
-    FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
     entry: Option<NodeId>,
 }
 
 impl Function {
+    pub fn new(local_allocator: Rc<RefCell<LocalAllocator>>) -> Self {
+        Self {
+            local_allocator,
+            ..Default::default()
+        }
+    }
+
     pub fn entry(&self) -> &Option<NodeId> {
         &self.entry
     }
@@ -27,17 +34,17 @@ impl Function {
     }
 
     #[requires(self.has_block(block_id))]
-    pub fn set_block_terminator(&mut self, block_id: NodeId, new_terminator: Option<Terminator>) {
+    pub fn set_block_terminator(&mut self, block_id: NodeId, new_terminator: Option<Edges>) {
         for edge in &self.graph.edges().clone() {
             if edge.0 == block_id {
                 self.graph.remove_edge(edge);
             }
         }
         match &new_terminator {
-            Some(Terminator::Jump(edge)) => {
+            Some(Edges::Jump(edge)) => {
                 self.graph.add_edge((block_id, edge.node));
             }
-            Some(Terminator::Conditional(then_edge, else_edge)) => {
+            Some(Edges::Conditional(then_edge, else_edge)) => {
                 self.graph.add_edge((block_id, then_edge.node));
                 self.graph.add_edge((block_id, else_edge.node));
             }
@@ -94,12 +101,12 @@ impl Function {
             .collect::<Vec<_>>()
     }
 
-    pub fn edges_to_block(&self, node: NodeId) -> Vec<&BasicBlockEdge> {
+    pub fn edges_to_block(&self, node: NodeId) -> Vec<&BlockEdge> {
         self.predecessor_blocks(node)
             .into_iter()
             .flat_map(|block| match &block.terminator {
-                Some(Terminator::Jump(edge)) => vec![edge],
-                Some(Terminator::Conditional(then_edge, else_edge)) => vec![then_edge, else_edge],
+                Some(Edges::Jump(edge)) => vec![edge],
+                Some(Edges::Conditional(then_edge, else_edge)) => vec![then_edge, else_edge],
                 _ => vec![],
             })
             .filter(|edge| edge.node == node)

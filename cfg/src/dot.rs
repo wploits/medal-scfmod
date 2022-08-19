@@ -5,7 +5,7 @@ use dot::{GraphWalk, LabelText, Labeller};
 use fxhash::FxHashMap;
 use graph::{Edge, NodeId};
 
-use crate::{block::Terminator, function::Function};
+use crate::{block::Edges, function::Function};
 
 fn arguments(args: &FxHashMap<ast::RcLocal, ast::RcLocal>) -> String {
     let mut s = String::new();
@@ -33,7 +33,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
     fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
         if let Some(terminator) = self.block(e.0).unwrap().terminator.as_ref() {
             match terminator {
-                Terminator::Conditional(then_edge, else_edge) => {
+                Edges::Conditional(then_edge, else_edge) => {
                     if e.1 == then_edge.node {
                         let arguments = arguments(&then_edge.arguments);
                         if !arguments.is_empty() {
@@ -50,9 +50,7 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
                         }
                     }
                 }
-                Terminator::Jump(edge) => {
-                    dot::LabelText::LabelStr(arguments(&edge.arguments).into())
-                }
+                Edges::Jump(edge) => dot::LabelText::LabelStr(arguments(&edge.arguments).into()),
             }
         } else {
             dot::LabelText::LabelStr("".into())

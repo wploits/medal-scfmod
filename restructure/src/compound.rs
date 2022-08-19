@@ -1,4 +1,4 @@
-use cfg::{block::Terminator, dot};
+use cfg::{block::Edges, dot};
 use graph::NodeId;
 
 struct CompoundAssignment {
@@ -225,7 +225,7 @@ impl super::GraphStructurer {
         block.ast.push(assign.into());
 
         self.function
-            .set_block_terminator(node, Some(Terminator::jump(end)));
+            .set_block_terminator(node, Some(Edges::jump(end)));
         self.function.remove_block(assigner);
 
         true

@@ -57,7 +57,7 @@ pub struct Binary {
 }
 
 impl Traverse for Binary {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.left, &mut self.right]
     }
 }

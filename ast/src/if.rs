@@ -23,7 +23,7 @@ impl If {
 }
 
 impl Traverse for If {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.condition]
     }
 }

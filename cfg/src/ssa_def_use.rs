@@ -3,7 +3,7 @@ use ast::LocalRw;
 use fxhash::FxHashMap;
 use graph::{Edge, NodeId};
 
-use crate::{block::Terminator, function::Function};
+use crate::{block::Edges, function::Function};
 
 #[derive(Debug)]
 pub enum Location {
@@ -45,7 +45,7 @@ impl SsaDefUse {
                 }
             }
             match &block.terminator {
-                Some(Terminator::Jump(edge)) => {
+                Some(Edges::Jump(edge)) => {
                     for (target, value) in edge.arguments.iter() {
                         this.parameters
                             .entry(target.0.to_string())
@@ -57,7 +57,7 @@ impl SsaDefUse {
                             .push(Location::Edge((node, edge.node)));
                     }
                 }
-                Some(Terminator::Conditional(then_edge, else_edge)) => {
+                Some(Edges::Conditional(then_edge, else_edge)) => {
                     for (target, value) in then_edge.arguments.iter() {
                         this.parameters
                             .entry(target.0.to_string())

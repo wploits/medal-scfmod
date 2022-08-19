@@ -2,7 +2,9 @@ use ast::LocalRw;
 use fxhash::FxHashMap;
 use graph::{algorithms::dfs_tree, Directed, Graph, NodeId};
 
-use crate::{block::Terminator, function::Function, ssa_def_use};
+use crate::{block::Edges, function::Function, ssa_def_use};
+
+use super::upvalues;
 
 struct SsaConstructor<'a> {
     function: &'a mut Function,
@@ -24,14 +26,14 @@ impl<'a> SsaConstructor<'a> {
         for (local, locations) in to_remove {
             for edge in locations {
                 match self.function.block_mut(edge.0).unwrap().terminator.as_mut() {
-                    Some(Terminator::Jump(edge)) => {
-                        edge.arguments.retain(|target, _| target.0.0 != local);
+                    Some(Edges::Jump(edge)) => {
+                        edge.arguments.retain(|target, _| target.name != local);
                     }
-                    Some(Terminator::Conditional(then_edge, else_edge)) => {
+                    Some(Edges::Conditional(then_edge, else_edge)) => {
                         if then_edge.node == edge.1 {
-                            then_edge.arguments.retain(|target, _| target.0.0 != local);
+                            then_edge.arguments.retain(|target, _| target.name != local);
                         } else if else_edge.node == edge.1 {
-                            else_edge.arguments.retain(|target, _| target.0.0 != local);
+                            else_edge.arguments.retain(|target, _| target.name != local);
                         } else {
                             unreachable!();
                         }
@@ -58,7 +60,7 @@ impl<'a> SsaConstructor<'a> {
             if preds.len() == 1 {
                 self.find_local(*preds.first().unwrap(), local)
             } else {
-                let parameter_local = self.function.local_allocator.allocate();
+                let parameter_local = self.function.local_allocator.borrow_mut().allocate();
                 self.current_definition
                     .entry(local.clone())
                     .or_insert_with(FxHashMap::default)
@@ -74,12 +76,12 @@ impl<'a> SsaConstructor<'a> {
                         .as_mut()
                         .unwrap()
                     {
-                        Terminator::Jump(edge) => {
+                        Edges::Jump(edge) => {
                             assert!(edge.node == node);
                             edge.arguments
                                 .insert(parameter_local.clone(), argument_local);
                         }
-                        Terminator::Conditional(then_edge, else_edge) => {
+                        Edges::Conditional(then_edge, else_edge) => {
                             if then_edge.node == node {
                                 then_edge
                                     .arguments
@@ -102,6 +104,8 @@ impl<'a> SsaConstructor<'a> {
     }
 
     fn construct(mut self) {
+        let upvalues = upvalues::compute_open_upvalues(self.function);
+
         for &node in self.dfs.nodes() {
             for stat_index in 0..self.function.block(node).unwrap().ast.len() {
                 let statement = self
@@ -117,7 +121,7 @@ impl<'a> SsaConstructor<'a> {
                     .cloned()
                     .collect::<Vec<_>>();
                 for local in written {
-                    let new_local = self.function.local_allocator.allocate();
+                    let new_local = self.function.local_allocator.borrow_mut().allocate();
                     self.current_definition
                         .entry(local.clone())
                         .or_insert_with(FxHashMap::default)
@@ -129,6 +133,9 @@ impl<'a> SsaConstructor<'a> {
                         .ast
                         .get_mut(stat_index)
                         .unwrap();
+                    if let Some(a) = upvalues.get(&(node, stat_index)) {
+                        println!("this upvalue is open: {}", statement);
+                    }
                     statement
                         .as_assign_mut()
                         .unwrap()

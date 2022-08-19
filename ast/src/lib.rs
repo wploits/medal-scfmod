@@ -1,16 +1,21 @@
 #![feature(box_patterns)]
 
-use std::ops::{Deref, DerefMut};
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
-use std::fmt;
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 mod assign;
 mod binary;
 mod r#break;
 mod call;
+mod close;
+mod closure;
 mod r#continue;
+pub mod formatter;
 mod global;
 mod goto;
 mod r#if;
@@ -25,12 +30,12 @@ mod table;
 mod traverse;
 mod unary;
 mod r#while;
-mod closure;
-pub mod formatter;
 
 pub use assign::*;
 pub use binary::*;
 pub use call::*;
+pub use close::*;
+pub use closure::*;
 pub use global::*;
 pub use goto::*;
 pub use index::*;
@@ -45,7 +50,6 @@ pub use side_effects::*;
 pub use table::*;
 pub use traverse::*;
 pub use unary::*;
-pub use closure::*;
 
 pub trait Reduce {
     fn reduce(self) -> RValue;
@@ -190,6 +194,7 @@ pub enum Statement {
     Return(Return),
     Continue(Continue),
     Break(Break),
+    Close(Close),
     Comment(Comment),
 }
 
@@ -212,6 +217,7 @@ impl fmt::Display for Statement {
             Statement::Continue(continue_) => write!(f, "{}", continue_),
             Statement::Break(break_) => write!(f, "{}", break_),
             Statement::Comment(comment) => write!(f, "{}", comment),
+            Statement::Close(close) => write!(f, "{}", close),
         }
     }
 }
@@ -220,10 +226,6 @@ impl fmt::Display for Statement {
 pub struct Block(pub Vec<Statement>);
 
 impl Block {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn from_vec(statements: Vec<Statement>) -> Self {
         Self(statements)
     }

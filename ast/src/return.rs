@@ -19,7 +19,7 @@ impl Return {
 }
 
 impl Traverse for Return {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         self.values.iter_mut().rev().collect()
     }
 }

@@ -27,7 +27,7 @@ impl SideEffects for Call {
 }
 
 impl Traverse for Call {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         std::iter::once(self.value.as_mut())
             .chain(self.arguments.iter_mut())
             .collect()

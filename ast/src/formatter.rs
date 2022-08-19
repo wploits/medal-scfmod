@@ -31,7 +31,7 @@ impl fmt::Display for IndentationMode {
             f,
             "{}",
             match self {
-                Self::Spaces(spaces) => Cow::Owned(vec![' '; *spaces as usize].iter().join("")),
+                Self::Spaces(spaces) => Cow::Owned(" ".repeat(*spaces as usize)),
                 Self::Tab => Cow::Borrowed("\u{09}"),
             }
         )
@@ -79,26 +79,6 @@ impl<'a> Formatter<'a> {
         );
     }
 
-    fn new_scope(&mut self) {
-        self.locals_stack.push(HashSet::new());
-    }
-
-    fn pop_scope(&mut self) {
-        self.locals_stack.pop();
-    }
-
-    fn scope(&mut self, local: &'a String) -> bool {
-        let locals = self.locals_stack.last_mut().unwrap();
-
-        if locals.contains(local) {
-            true
-        } else {
-            locals.insert(local);
-
-            false
-        }
-    }
-
     fn format_block(&mut self, block: &'a Block) {
         self.indentation_level += 1;
 
@@ -126,12 +106,6 @@ impl<'a> Formatter<'a> {
                 let mut right = Vec::new();
 
                 for (lvalue, rvalue) in assign.left.iter().zip(assign.right.iter()) {
-                    if let LValue::Local(local) = lvalue {
-                        if !self.scope(&local.0 .0) {
-                            self.write("local ".chars());
-                        }
-                    }
-
                     if let (Some(name), RValue::Closure(function)) = (
                         match lvalue {
                             LValue::Local(local) => Some(local.0.to_string()),
@@ -148,9 +122,7 @@ impl<'a> Formatter<'a> {
                             )
                             .chars(),
                         );
-                        self.new_scope();
                         self.format_block(&function.body);
-                        self.pop_scope();
                         self.indent();
                         self.write("end".chars());
                     } else {

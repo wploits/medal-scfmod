@@ -34,7 +34,7 @@ impl SideEffects for Unary {
 }
 
 impl Traverse for Unary {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.value]
     }
 }

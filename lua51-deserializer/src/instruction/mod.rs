@@ -1,7 +1,6 @@
-use nom::IResult;
 use nom::{
     error::{Error, ErrorKind, ParseError},
-    Err,
+    Err, IResult,
 };
 use num_traits::ToPrimitive;
 

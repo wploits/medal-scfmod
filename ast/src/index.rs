@@ -39,7 +39,7 @@ impl LocalRw for Index {
 }
 
 impl Traverse for Index {
-    fn rvalues(&mut self) -> Vec<&mut RValue> {
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.left, &mut self.right]
     }
 }
