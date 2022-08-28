@@ -62,7 +62,6 @@ impl Edges {
 pub struct BasicBlock {
     pub ast: ast::Block,
     pub terminator: Option<Edges>,
-    pub upvalues_closed: Vec<RcLocal>,
 }
 
 impl BasicBlock {

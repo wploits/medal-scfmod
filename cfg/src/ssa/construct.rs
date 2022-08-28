@@ -1,6 +1,7 @@
 use ast::LocalRw;
 use fxhash::FxHashMap;
 use graph::{algorithms::dfs_tree, Directed, Graph, NodeId};
+use itertools::Itertools;
 
 use crate::{block::Edges, function::Function, ssa_def_use};
 
@@ -9,7 +10,7 @@ use super::upvalues;
 struct SsaConstructor<'a> {
     function: &'a mut Function,
     dfs: Graph<Directed>,
-    current_definition: FxHashMap<ast::RcLocal, FxHashMap<NodeId, ast::RcLocal>>,
+    current_definition: FxHashMap<ast::RcLocal, FxHashMap<(NodeId, usize), ast::RcLocal>>,
 }
 
 // based on "Simple and Efficient Construction of Static Single Assignment Form" (https://pp.info.uni-karlsruhe.de/uploads/publikationen/braun13cc.pdf)
@@ -44,8 +45,22 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-    fn find_local(&mut self, node: NodeId, local: &ast::RcLocal) -> ast::RcLocal {
-        if let Some(new_local) = self.current_definition[local].get(&node) {
+    fn find_local_in_block(
+        &self,
+        node: NodeId,
+        local: &ast::RcLocal,
+        index: usize,
+    ) -> Option<&ast::RcLocal> {
+        self.current_definition[local]
+            .iter()
+            .filter(|(&(def_node, def_index), _)| def_node == node && def_index < index)
+            .sorted_by(|&((_, a), _), ((_, b), _)| a.cmp(b))
+            .last()
+            .map(|(_, local)| local)
+    }
+
+    fn find_local(&mut self, node: NodeId, local: &ast::RcLocal, index: usize) -> ast::RcLocal {
+        if let Some(new_local) = self.find_local_in_block(node, local, index) {
             // local to block
             new_local.clone()
         } else {
@@ -58,16 +73,16 @@ impl<'a> SsaConstructor<'a> {
                 .filter(|&p| self.dfs.has_node(p))
                 .collect::<Vec<_>>();
             if preds.len() == 1 {
-                self.find_local(*preds.first().unwrap(), local)
+                self.find_local(*preds.first().unwrap(), local, 0)
             } else {
                 let parameter_local = self.function.local_allocator.borrow_mut().allocate();
                 self.current_definition
                     .entry(local.clone())
                     .or_insert_with(FxHashMap::default)
-                    .insert(node, parameter_local.clone());
+                    .insert((node, index), parameter_local.clone());
 
                 for pred in preds {
-                    let argument_local = self.find_local(pred, local);
+                    let argument_local = self.find_local(pred, local, 0);
                     match self
                         .function
                         .block_mut(pred)
@@ -104,7 +119,7 @@ impl<'a> SsaConstructor<'a> {
     }
 
     fn construct(mut self) {
-        let upvalues = upvalues::compute_open_upvalues(self.function);
+        let upvalue_open_defs = upvalues::compute_open_upvalues(self.function);
 
         for &node in self.dfs.nodes() {
             for stat_index in 0..self.function.block(node).unwrap().ast.len() {
@@ -125,7 +140,7 @@ impl<'a> SsaConstructor<'a> {
                     self.current_definition
                         .entry(local.clone())
                         .or_insert_with(FxHashMap::default)
-                        .insert(node, new_local.clone());
+                        .insert((node, stat_index), new_local.clone());
                     let statement = self
                         .function
                         .block_mut(node)
@@ -133,9 +148,6 @@ impl<'a> SsaConstructor<'a> {
                         .ast
                         .get_mut(stat_index)
                         .unwrap();
-                    if let Some(a) = upvalues.get(&(node, stat_index)) {
-                        println!("this upvalue is open: {}", statement);
-                    }
                     statement
                         .as_assign_mut()
                         .unwrap()
@@ -158,7 +170,7 @@ impl<'a> SsaConstructor<'a> {
                     .cloned()
                     .collect::<Vec<_>>();
                 for (local_index, local) in read.into_iter().enumerate() {
-                    let new_local = self.find_local(node, &local);
+                    let new_local = self.find_local(node, &local, stat_index);
                     let statement = self
                         .function
                         .block_mut(node)
@@ -170,6 +182,10 @@ impl<'a> SsaConstructor<'a> {
                 }
             }
         }
+
+        //println!("upvalue locals: {:#?}", upvalue_locals);
+
+        //upvalues::fix_upvalues(self.function);
 
         self.remove_unused_parameters();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();

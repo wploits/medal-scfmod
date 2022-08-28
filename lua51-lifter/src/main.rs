@@ -41,6 +41,7 @@ fn main() -> anyhow::Result<()> {
 
     cfg::dot::render_to(&main, &mut std::io::stdout());
 
+    println!("ssa");
     let now = time::Instant::now();
     cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();

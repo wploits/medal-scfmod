@@ -2,7 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{Block, LocalRw, RcLocal, SideEffects, Statement, Traverse};
+use crate::{Block, LocalRw, RcLocal, SideEffects, Traverse};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Closure {
@@ -15,7 +15,8 @@ impl fmt::Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "function({})\n\t{}\nend",
+            "-- upvalues: {}\nfunction({})\n\t{}\nend",
+            self.upvalues.iter().join(", "),
             self.parameters.iter().join(", "),
             self.body
                 .0

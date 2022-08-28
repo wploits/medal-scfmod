@@ -427,7 +427,7 @@ impl<'a> LifterContext<'a> {
                             left: vec![self.locals[destination].clone().into()],
                             right: vec![ast::Closure {
                                 parameters,
-                                body,
+                                body: Default::default(),
                                 upvalues,
                             }
                             .into()],
