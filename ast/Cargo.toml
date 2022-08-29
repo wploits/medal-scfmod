@@ -10,6 +10,11 @@ derive_more = "0.99.17"
 enum-as-inner = "0.5.0"
 itertools = "0.10.3"
 enum_dispatch = "0.3.8"
+by_address = "1.0.4"
+
 
 [profile.release]
 debug = true
+
+[features]
+no_local_debug = []

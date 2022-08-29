@@ -127,11 +127,11 @@ impl Unary {
 }
 
 impl LocalRw for Unary {
-    fn values_read(&self) -> Vec<&RcLocal> {
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
         self.value.values_read()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
         self.value.values_read_mut()
     }
 }

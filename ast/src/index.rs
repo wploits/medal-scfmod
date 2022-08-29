@@ -21,20 +21,16 @@ impl Index {
 }
 
 impl LocalRw for Index {
-    fn values_read(&self) -> Vec<&RcLocal> {
-        self.left
-            .values_read()
-            .into_iter()
-            .chain(self.right.values_read().into_iter())
-            .collect()
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+        Box::new(self.left.values_read().chain(self.right.values_read()))
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
-        self.left
-            .values_read_mut()
-            .into_iter()
-            .chain(self.right.values_read_mut().into_iter())
-            .collect()
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+        Box::new(
+            self.left
+                .values_read_mut()
+                .chain(self.right.values_read_mut()),
+        )
     }
 }
 
@@ -46,6 +42,9 @@ impl Traverse for Index {
 
 impl fmt::Display for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}[{}]", self.left, self.right)
+        write!(f, "{}{}", self.left, match &self.right {
+            box RValue::Literal(super::Literal::String(field)) => format!(".{}", field),
+            _ => format!("[{}]", self.right),
+        })
     }
 }

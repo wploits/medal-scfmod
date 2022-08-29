@@ -78,11 +78,6 @@ impl Graph<Directed> {
         self.edges.retain(|other_edge| edge != other_edge);
     }
 
-    #[requires(!self.has_node(node))]
-    pub fn add_node_with_id(&mut self, node: NodeId) {
-        self.nodes.push(node);
-    }
-
     #[requires(self.has_node(node))]
     pub fn remove_node(&mut self, node: NodeId) {
         self.nodes.retain(|other_node| *other_node != node);
@@ -107,8 +102,9 @@ impl Graph<Directed> {
         order
     }
 
-    #[requires(self.has_node(root))]
-    pub fn post_order(&self, root: NodeId) -> Vec<NodeId> {
+    // if root is not provided, the entire graph is searched
+    #[requires(root.is_some() -> self.has_node(root.unwrap()))]
+    pub fn post_order(&self, root: Option<NodeId>) -> Vec<NodeId> {
         let mut visited: FxHashSet<NodeId> = FxHashSet::default();
         let mut order: Vec<NodeId> = Vec::new();
         // TODO: recursive bad or smthn
@@ -126,8 +122,21 @@ impl Graph<Directed> {
             }
             order.push(node);
         }
-        dfs_walk(self, root, &mut visited, &mut order);
+        if let Some(root) = root {
+            dfs_walk(self, root, &mut visited, &mut order);
+        } else {
+            // TODO: test
+            for &node in self.nodes() {
+                if !visited.contains(&node) {
+                    dfs_walk(self, node, &mut visited, &mut order);
+                }
+            }
+        }
         order
+    }
+
+    pub fn has_edge(&self, edge: &Edge) -> bool {
+        self.edges.contains(edge)
     }
 }
 
@@ -135,7 +144,6 @@ impl Graph<Undirected> {
     #[requires(self.has_node(edge.0))]
     #[requires(self.has_node(edge.1))]
     #[requires(!self.has_edge(&edge))]
-    #[requires(!self.has_edge(&(edge.1, edge.0)))]
     pub fn add_edge(&mut self, edge: Edge) {
         self.edges.push(edge);
     }
@@ -154,6 +162,10 @@ impl Graph<Undirected> {
                 }
             })
             .collect()
+    }
+
+    pub fn has_edge(&self, edge: &Edge) -> bool {
+        self.edges.contains(edge) || self.edges.contains(&(edge.1, edge.0))
     }
 }
 
@@ -199,16 +211,17 @@ impl<T: EdgeType> Graph<T> {
         node
     }
 
+    #[requires(!self.has_node(node))]
+    pub fn add_node_with_id(&mut self, node: NodeId) {
+        self.nodes.push(node);
+    }
+
     pub fn edges(&self) -> &Vec<Edge> {
         &self.edges
     }
 
     pub fn has_node(&self, node: NodeId) -> bool {
         self.nodes.contains(&node)
-    }
-
-    pub fn has_edge(&self, edge: &Edge) -> bool {
-        self.edges.contains(edge)
     }
 }
 

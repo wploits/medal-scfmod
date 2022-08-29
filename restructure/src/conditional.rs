@@ -1,8 +1,10 @@
 use ast::Reduce;
-use cfg::block::Edges;
+use cfg::block::Terminator;
 use graph::NodeId;
+use itertools::Itertools;
 
 use crate::GraphStructurer;
+use petgraph::stable_graph::NodeIndex;
 
 impl GraphStructurer {
     fn simplify_if(if_stat: &mut ast::If) {
@@ -17,19 +19,20 @@ impl GraphStructurer {
     // a -> b -> d + a -> c -> d
     fn match_diamond_conditional(
         &mut self,
-        entry: NodeId,
-        then_node: NodeId,
-        else_node: NodeId,
+        entry: NodeIndex,
+        then_node: NodeIndex,
+        else_node: NodeIndex,
     ) -> bool {
-        let graph = self.function.graph();
-        let then_successors = graph.successors(then_node);
-        let else_successors = graph.successors(else_node);
+        let then_successors = self.function.successor_blocks(then_node).collect_vec();
+        let else_successors = self.function.successor_blocks(else_node).collect_vec();
 
         if then_successors.len() != 1 || then_successors != else_successors {
             return false;
         }
 
-        if graph.predecessors(then_node).len() != 1 || graph.predecessors(else_node).len() != 1 {
+        if self.function.predecessor_blocks(then_node).count() != 1
+            || self.function.predecessor_blocks(else_node).count() != 1
+        {
             return false;
         }
 
@@ -44,7 +47,7 @@ impl GraphStructurer {
 
         let exit = then_successors[0];
         self.function
-            .set_block_terminator(entry, Some(Edges::jump(exit)));
+            .set_block_terminator(entry, Some(Terminator::jump(exit)));
         self.match_jump(entry, exit);
 
         true
@@ -53,19 +56,18 @@ impl GraphStructurer {
     // a -> b -> c + a -> c
     fn match_triangle_conditional(
         &mut self,
-        entry: NodeId,
-        then_node: NodeId,
-        else_node: NodeId,
+        entry: NodeIndex,
+        then_node: NodeIndex,
+        else_node: NodeIndex,
     ) -> bool {
         let mut _match_triangle_conditional = |then_node, else_node, inverted| {
-            let graph = self.function.graph();
-            let then_successors = graph.successors(then_node);
+            let then_successors = self.function.successor_blocks(then_node).collect_vec();
 
             if then_successors.len() != 1 {
                 return false;
             }
 
-            if graph.predecessors(then_node).len() != 1 {
+            if self.function.predecessor_blocks(then_node).count() != 1 {
                 return false;
             }
 
@@ -88,7 +90,7 @@ impl GraphStructurer {
             //Self::simplify_if(if_stat);
 
             self.function
-                .set_block_terminator(entry, Some(Edges::jump(else_node)));
+                .set_block_terminator(entry, Some(Terminator::jump(else_node)));
             self.match_jump(entry, else_node);
 
             true
@@ -101,9 +103,9 @@ impl GraphStructurer {
     // this may not succeed if loop refinement is required
     pub(crate) fn match_conditional(
         &mut self,
-        entry: NodeId,
-        then_node: NodeId,
-        else_node: NodeId,
+        entry: NodeIndex,
+        then_node: NodeIndex,
+        else_node: NodeIndex,
     ) -> bool {
         self.match_diamond_conditional(entry, then_node, else_node)
             || self.match_triangle_conditional(entry, then_node, else_node)

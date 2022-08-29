@@ -1,5 +1,6 @@
-use cfg::{block::Edges, dot};
-use graph::NodeId;
+use cfg::{block::Terminator, dot};
+use itertools::Itertools;
+use petgraph::stable_graph::NodeIndex;
 
 struct CompoundAssignment {
     target: ast::RcLocal,
@@ -8,13 +9,13 @@ struct CompoundAssignment {
 
 impl super::GraphStructurer {
     // todo: there may be instructions unrelated to the compound conditional earlier in the block
-    fn compound_info(&self, node: NodeId) -> Option<CompoundAssignment> {
+    fn compound_info(&self, node: NodeIndex) -> Option<CompoundAssignment> {
         let mut statements = self.function.block(node).unwrap().ast.iter();
         if let Some(assign) = statements.next().unwrap().as_assign() {
             if assign.left.len() != 1 || assign.right.len() != 1 {
                 return None;
             }
-            let target = assign.left[0].clone();
+            let target = assign.left[0].0.clone();
             if let Ok(target) = target.into_local() {
                 if let Some(statement) = statements.next() {
                     if let Some(if_stat) = statement.as_if() {
@@ -38,7 +39,7 @@ impl super::GraphStructurer {
         None
     }
 
-    fn simplify_condition(&mut self, node: NodeId) {
+    fn simplify_condition(&mut self, node: NodeIndex) {
         let block = self.function.block_mut(node).unwrap();
         let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
         if let Some(unary) = if_stat.condition.as_unary() {
@@ -49,8 +50,8 @@ impl super::GraphStructurer {
 
     fn target_expression(
         &mut self,
-        first_conditional: NodeId,
-        second_conditional: NodeId,
+        first_conditional: NodeIndex,
+        second_conditional: NodeIndex,
         first_info: Option<CompoundAssignment>,
         second_info: Option<CompoundAssignment>,
     ) -> (&mut ast::RValue, ast::RValue) {
@@ -107,10 +108,10 @@ impl super::GraphStructurer {
 
     fn combine_conditionals(
         &mut self,
-        first_conditional: NodeId,
-        second_conditional: NodeId,
-        short_circuit: NodeId,
-        end: NodeId,
+        first_conditional: NodeIndex,
+        second_conditional: NodeIndex,
+        short_circuit: NodeIndex,
+        end: NodeIndex,
     ) -> bool {
         self.simplify_condition(first_conditional);
         self.simplify_condition(second_conditional);
@@ -183,14 +184,14 @@ impl super::GraphStructurer {
         //*target_expression = target_expression.clone().reduce();
 
         self.function
-            .replace_edge(&(first_conditional, second_conditional), end);
+            .replace_edge(first_conditional, second_conditional, end);
         self.function.remove_block(second_conditional);
 
         true
     }
 
-    pub fn match_and_or(&mut self, node: NodeId, assigner: NodeId, end: NodeId) -> bool {
-        println!("assigner: {} end: {}", assigner, end);
+    pub fn match_and_or(&mut self, node: NodeIndex, assigner: NodeIndex, end: NodeIndex) -> bool {
+        println!("assigner: {:?} end: {:?}", assigner, end);
         let info = self.compound_info(assigner);
         if info.is_none() {
             return false;
@@ -225,7 +226,7 @@ impl super::GraphStructurer {
         block.ast.push(assign.into());
 
         self.function
-            .set_block_terminator(node, Some(Edges::jump(end)));
+            .set_block_terminator(node, Some(Terminator::jump(end)));
         self.function.remove_block(assigner);
 
         true
@@ -233,18 +234,18 @@ impl super::GraphStructurer {
 
     pub(crate) fn match_compound_conditional(
         &mut self,
-        entry: NodeId,
-        then_node: NodeId,
-        else_node: NodeId,
+        entry: NodeIndex,
+        then_node: NodeIndex,
+        else_node: NodeIndex,
     ) -> bool {
         let graph = self.function.graph();
-        let else_successors = graph.successors(else_node);
-        let then_successors = graph.successors(then_node);
+        let else_successors = self.function.successor_blocks(else_node).collect_vec();
+        let then_successors = self.function.successor_blocks(then_node).collect_vec();
 
         let mut changed = false;
         if else_node != entry
             && else_successors.contains(&then_node)
-            && graph.predecessors(else_node).len() == 1
+            && self.function.predecessor_blocks(else_node).count() == 1
         {
             assert!(!self.is_loop_header(then_node));
             if else_successors.len() == 2 {
@@ -255,7 +256,7 @@ impl super::GraphStructurer {
             }
         } else if then_node != entry
             && then_successors.contains(&else_node)
-            && graph.predecessors(then_node).len() == 1
+            && self.function.predecessor_blocks(then_node).count() == 1
         {
             assert!(!self.is_loop_header(else_node));
             if then_successors.len() == 2 {

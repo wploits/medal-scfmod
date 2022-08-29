@@ -35,11 +35,11 @@ impl SideEffects for If {
 }
 
 impl LocalRw for If {
-    fn values_read(&self) -> Vec<&RcLocal> {
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
         self.condition.values_read()
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
         self.condition.values_read_mut()
     }
 }

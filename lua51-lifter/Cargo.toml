@@ -13,7 +13,8 @@ clap = { version = "3.1.0", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
 cfg = { path = "../cfg" }
 lua51-deserializer = { path = "../lua51-deserializer" }
-graph = { path = "../graph", features = ["dot"] }
+# graph = { path = "../graph", features = ["dot"] }
+petgraph = "0.6.2"
 ast = { path = "../ast" }
 dhat = "0.3.0"
 fxhash = "0.2.1"

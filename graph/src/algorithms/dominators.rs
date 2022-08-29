@@ -54,8 +54,6 @@ pub fn common_dominator(
         let set = dominators[node].iter().cloned().collect::<FxHashSet<_>>();
         res.retain(|i| set.contains(i));
     }
-    // TODO: use .first() when map_first_last stabilized
-    // res.first().cloned()
     res.first().cloned()
 }
 
@@ -86,7 +84,7 @@ pub fn post_dominator_tree(graph: &Graph<Directed>, dfs: &Graph<Directed>) -> Gr
     let idoms = compute_immediate_dominators(
         &reverse_graph,
         single_exit_node,
-        &dfs_tree(&reverse_graph, single_exit_node),
+        &dfs_tree(&reverse_graph, Some(single_exit_node)),
     );
     for (vertex, idom) in idoms {
         if idom != single_exit_node {

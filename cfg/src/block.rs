@@ -1,41 +1,41 @@
-use std::ops::{Deref, DerefMut};
-
 use ast::RcLocal;
 use enum_as_inner::EnumAsInner;
-use fxhash::FxHashMap;
-use graph::NodeId;
+use petgraph::stable_graph::NodeIndex;
 
 #[derive(Debug, Clone)]
-pub struct BlockEdge {
-    pub node: NodeId,
-    pub arguments: FxHashMap<RcLocal, RcLocal>,
+pub struct BasicBlockEdge {
+    pub node: NodeIndex,
+    pub arguments: Vec<(RcLocal, RcLocal)>,
 }
 
-impl BlockEdge {
-    fn new(node: NodeId) -> Self {
+impl BasicBlockEdge {
+    fn new(node: NodeIndex) -> Self {
         Self {
             node,
-            arguments: FxHashMap::default(),
+            arguments: Vec::new(),
         }
     }
 }
 
 #[derive(Debug, Clone, EnumAsInner)]
-pub enum Edges {
-    Jump(BlockEdge),
-    Conditional(BlockEdge, BlockEdge),
+pub enum Terminator {
+    Jump(BasicBlockEdge),
+    Conditional(BasicBlockEdge, BasicBlockEdge),
 }
 
-impl Edges {
-    pub fn jump(node: NodeId) -> Self {
-        Self::Jump(BlockEdge::new(node))
+impl Terminator {
+    pub fn jump(node: NodeIndex) -> Self {
+        Self::Jump(BasicBlockEdge::new(node))
     }
 
-    pub fn conditional(then_node: NodeId, else_node: NodeId) -> Self {
-        Self::Conditional(BlockEdge::new(then_node), BlockEdge::new(else_node))
+    pub fn conditional(then_node: NodeIndex, else_node: NodeIndex) -> Self {
+        Self::Conditional(
+            BasicBlockEdge::new(then_node),
+            BasicBlockEdge::new(else_node),
+        )
     }
 
-    pub fn replace_branch(&mut self, old: NodeId, new: NodeId) {
+    pub fn replace_branch(&mut self, old: NodeIndex, new: NodeIndex) {
         match self {
             Self::Jump(edge) => {
                 assert!(edge.node == old);
@@ -56,16 +56,34 @@ impl Edges {
             std::mem::swap(then_edge, else_edge);
         }
     }
+
+    pub fn edges(&self) -> Vec<&BasicBlockEdge> {
+        match self {
+            Terminator::Jump(edge) => vec![edge],
+            Terminator::Conditional(then_edge, else_edge) => vec![then_edge, else_edge],
+        }
+    }
+
+    pub fn edges_mut(&mut self) -> Vec<&mut BasicBlockEdge> {
+        match self {
+            Terminator::Jump(edge) => vec![edge],
+            Terminator::Conditional(then_edge, else_edge) => vec![then_edge, else_edge],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct BasicBlock {
     pub ast: ast::Block,
-    pub terminator: Option<Edges>,
+    pub terminator: Option<Terminator>,
 }
 
 impl BasicBlock {
-    pub fn terminator(&self) -> &Option<Edges> {
+    pub fn terminator(&self) -> &Option<Terminator> {
         &self.terminator
+    }
+
+    pub fn terminator_mut(&mut self) -> Option<&mut Terminator> {
+        self.terminator.as_mut()
     }
 }

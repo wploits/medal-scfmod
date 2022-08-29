@@ -65,7 +65,7 @@ pub enum Instruction {
     SetTable {
         table: Register,
         key: RegisterOrConstant,
-        value: Register,
+        value: RegisterOrConstant,
     },
     NewTable {
         destination: Register,
@@ -229,7 +229,7 @@ impl Instruction {
             RawInstruction(OperationCode::SetTable, Layout::ABC { a, b, c }) => Self::SetTable {
                 table: Register(a),
                 key: RegisterOrConstant::from(b as u32),
-                value: Register(c as u8),
+                value: RegisterOrConstant::from(c as u32),
             },
             RawInstruction(OperationCode::NewTable, Layout::ABC { a, b, c }) => Self::NewTable {
                 destination: Register(a),

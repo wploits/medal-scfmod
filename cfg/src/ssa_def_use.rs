@@ -1,27 +1,28 @@
-use ast::LocalRw;
+use ast::{LocalRw, RcLocal};
 
 use fxhash::FxHashMap;
-use graph::{Edge, NodeId};
+use petgraph::stable_graph::NodeIndex;
 
-use crate::{block::Edges, function::Function};
+use crate::{block::Terminator, function::Function};
 
 #[derive(Debug)]
 pub enum Location {
-    Block(NodeId, usize),
-    Edge(Edge),
+    Block(NodeIndex, usize),
+    Edge((NodeIndex, NodeIndex)),
 }
 
 #[derive(Debug)]
 pub enum Definition {
-    Variable(NodeId, usize),
-    Parameter(Vec<Edge>),
+    Variable(NodeIndex, usize),
+    Parameter(Vec<(NodeIndex, NodeIndex)>),
 }
 
 #[derive(Debug, Default)]
 pub struct SsaDefUse {
-    pub definitions: FxHashMap<String, Definition>,
-    pub parameters: FxHashMap<String, Vec<Edge>>,
-    pub references: FxHashMap<String, Vec<Location>>,
+    // TODO: one hash map to a structure containing the stuff
+    pub definitions: FxHashMap<RcLocal, Definition>,
+    pub parameters: FxHashMap<RcLocal, Vec<(NodeIndex, NodeIndex)>>,
+    pub references: FxHashMap<RcLocal, Vec<Location>>,
 }
 
 impl SsaDefUse {
@@ -31,51 +32,51 @@ impl SsaDefUse {
             parameters: FxHashMap::default(),
             references: FxHashMap::default(),
         };
-        for (&node, block) in function.blocks() {
+        for (node, block) in function.blocks() {
             for (index, statement) in block.ast.iter().enumerate() {
                 for value in statement.values_written() {
                     this.definitions
-                        .insert(value.0.to_string(), Definition::Variable(node, index));
+                        .insert(value.clone(), Definition::Variable(node, index));
                 }
                 for value in statement.values_read() {
                     this.references
-                        .entry(value.0.to_string())
-                        .or_insert_with(Vec::new)
+                        .entry(value.clone())
+                        .or_default()
                         .push(Location::Block(node, index));
                 }
             }
             match &block.terminator {
-                Some(Edges::Jump(edge)) => {
+                Some(Terminator::Jump(edge)) => {
                     for (target, value) in edge.arguments.iter() {
                         this.parameters
-                            .entry(target.0.to_string())
-                            .or_insert_with(Vec::new)
+                            .entry(target.clone())
+                            .or_default()
                             .push((node, edge.node));
                         this.references
-                            .entry(value.0.to_string())
-                            .or_insert_with(Vec::new)
+                            .entry(value.clone())
+                            .or_default()
                             .push(Location::Edge((node, edge.node)));
                     }
                 }
-                Some(Edges::Conditional(then_edge, else_edge)) => {
+                Some(Terminator::Conditional(then_edge, else_edge)) => {
                     for (target, value) in then_edge.arguments.iter() {
                         this.parameters
-                            .entry(target.0.to_string())
-                            .or_insert_with(Vec::new)
+                            .entry(target.clone())
+                            .or_default()
                             .push((node, then_edge.node));
                         this.references
-                            .entry(value.0.to_string())
-                            .or_insert_with(Vec::new)
+                            .entry(value.clone())
+                            .or_default()
                             .push(Location::Edge((node, then_edge.node)));
                     }
                     for (target, value) in else_edge.arguments.iter() {
                         this.parameters
-                            .entry(target.0.to_string())
-                            .or_insert_with(Vec::new)
+                            .entry(target.clone())
+                            .or_default()
                             .push((node, else_edge.node));
                         this.references
-                            .entry(value.0.to_string())
-                            .or_insert_with(Vec::new)
+                            .entry(value.clone())
+                            .or_default()
                             .push(Location::Edge((node, else_edge.node)));
                     }
                 }

@@ -1,6 +1,11 @@
+use std::collections::HashSet;
 use cfg::{dot, function::Function};
 use fxhash::FxHashMap;
+use itertools::Itertools;
+use cfg::block::BasicBlock;
 use graph::{algorithms::*, Directed, Edge, Graph, NodeId};
+
+use petgraph::{visit::*, stable_graph::{StableDiGraph, NodeIndex}, algo::dominators::simple_fast};
 
 mod compound;
 mod conditional;
@@ -9,19 +14,35 @@ mod r#loop;
 
 struct GraphStructurer {
     pub function: Function,
-    root: NodeId,
+    root: NodeIndex,
     back_edges: Vec<Edge>,
 }
 
 impl GraphStructurer {
     fn new(
         function: Function,
-        graph: Graph<Directed>,
-        blocks: FxHashMap<NodeId, ast::Block>,
-        root: NodeId,
+        graph: StableDiGraph<BasicBlock, ()>,
+        blocks: FxHashMap<NodeIndex, ast::Block>,
+        root: NodeIndex,
     ) -> Self {
-        let back_edges = back_edges(&graph, root).unwrap();
+        pub fn back_edges(graph: &StableDiGraph<BasicBlock, ()>, root: NodeIndex) -> Vec<Edge> {
+            let mut back_edges = Vec::new();
+            let dominators = simple_fast(graph, root);
+
+            for node in graph.node_indices() {
+                /*for successor in graph.successors(node) {
+                    if dominators.contains(&successor) {
+                        back_edges.push((node, successor));
+                    }
+                }*/
+            }
+
+            back_edges
+        }
+
+        let back_edges = back_edges(&graph, root);
         let root = function.entry().unwrap();
+
         Self {
             function,
             root,
@@ -37,12 +58,12 @@ impl GraphStructurer {
             == block.len()
     }
 
-    fn try_match_pattern(&mut self, node: NodeId) -> bool {
-        let successors = self.function.graph().successors(node);
+    fn try_match_pattern(&mut self, node: NodeIndex) -> bool {
+        let successors = self.function.successor_blocks(node).collect_vec();
 
-        if self.try_collapse_loop(node) {
+        /*if self.try_collapse_loop(node) {
             return true;
-        }
+        }*/
 
         let changed = match successors.len() {
             0 => false,
@@ -74,22 +95,31 @@ impl GraphStructurer {
     }
 
     fn match_blocks(&mut self) -> bool {
-        let dfs = dfs_tree(self.function.graph(), self.root);
+        let dfs = {
+            let mut dfs = Dfs::new(self.function.graph(), self.root);
+            let mut result = HashSet::new();
+
+            while let Some(n) = dfs.next(self.function.graph()) {
+                result.insert(n);
+            }
+
+            result
+        };
+        let mut dfs_postorder = DfsPostOrder::new(self.function.graph(), self.root);
+
         for node in self
             .function
             .graph()
-            .nodes()
-            .iter()
-            .filter(|&&node| !dfs.has_node(node))
-            .cloned()
-            .collect::<Vec<_>>()
+            .node_indices()
+            .filter(|node| !dfs.contains(node))
+            .collect_vec()
         {
             self.function.remove_block(node);
         }
 
         let mut changed = false;
-        for node in dfs.post_order(self.root) {
-            println!("matching {}", node);
+        while let Some(node) = dfs_postorder.next(self.function.graph()) {
+            println!("matching {:?}", node);
             changed |= self.try_match_pattern(node);
         }
 
@@ -101,8 +131,8 @@ impl GraphStructurer {
     fn collapse(&mut self) {
         while self.match_blocks() {}
 
-        let nodes = self.function.graph().nodes().len();
-        if self.function.graph().nodes().len() != 1 {
+        let nodes = self.function.graph().node_count();
+        if self.function.graph().node_count() != 1 {
             println!("failed to collapse! total nodes: {}", nodes);
         }
     }
@@ -121,8 +151,7 @@ pub fn lift(function: cfg::function::Function) -> ast::Block {
 
     let blocks = function
         .blocks()
-        .iter()
-        .map(|(&node, block)| (node, block.ast.clone()))
+        .map(|(node, block)| (node, block.ast.clone()))
         .collect();
 
     let structurer = GraphStructurer::new(function, graph, blocks, root);

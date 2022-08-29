@@ -10,14 +10,17 @@ edition = "2021"
 thiserror = "1.0.30"
 enum_dispatch = "0.3.8"
 enum-as-inner = "0.5.0"
-graph = { path = "../graph" }
+# graph = { path = "../graph", features = ["dot"] }
+petgraph = "0.6.2"
+indexmap = "1.8.2"
 ast = { path = "../ast" }
 dot = { version = "0.1.4" }
 fxhash = "0.2.1"
 itertools = "0.10.3"
 by_address = "1.0.4"
 contracts = "0.6.3"
-linked_hash_set = "0.1.4"
+# ritelinked = "0.3.2"
+hashlink = "0.8.0"
 
 [profile.release]
 debug = true

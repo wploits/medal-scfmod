@@ -3,6 +3,7 @@
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 use itertools::Itertools;
+
 use std::{
     fmt,
     ops::{Deref, DerefMut},
@@ -28,7 +29,9 @@ mod r#return;
 mod side_effects;
 mod table;
 mod traverse;
+pub mod type_system;
 mod unary;
+mod vararg;
 mod r#while;
 
 pub use assign::*;
@@ -49,7 +52,9 @@ pub use r#while::*;
 pub use side_effects::*;
 pub use table::*;
 pub use traverse::*;
+use type_system::{Type, TypeSystem};
 pub use unary::*;
+pub use vararg::*;
 
 pub trait Reduce {
     fn reduce(self) -> RValue;
@@ -67,6 +72,24 @@ pub enum RValue {
     Unary(Unary),
     Binary(Binary),
     Closure(Closure),
+    VarArg(VarArg),
+}
+
+impl type_system::Infer for RValue {
+    fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
+        match self {
+            RValue::Local(local) => local.infer(system),
+            RValue::Global(_) => Type::Any,
+            RValue::Call(_) => Type::Any,
+            RValue::Table(table) => table.infer(system),
+            RValue::Literal(literal) => literal.infer(system),
+            RValue::Index(_) => Type::Any,
+            RValue::Unary(_) => Type::Any,
+            RValue::Binary(_) => Type::Any,
+            RValue::Closure(closure) => closure.infer(system),
+            _ => Type::VarArg,
+        }
+    }
 }
 
 impl<'a: 'b, 'b> Reduce for RValue {
@@ -109,6 +132,7 @@ impl fmt::Display for RValue {
             RValue::Unary(unary) => write!(f, "{}", unary),
             RValue::Binary(binary) => write!(f, "{}", binary),
             RValue::Closure(closure) => write!(f, "{}", closure),
+            _ => write!(f, "..."),
         }
     }
 }
@@ -122,33 +146,33 @@ pub enum LValue {
 }
 
 impl LocalRw for LValue {
-    fn values_read(&self) -> Vec<&RcLocal> {
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
         match self {
-            LValue::Local(_) => Vec::new(),
+            LValue::Local(_) => Box::new(std::iter::empty()),
             LValue::Global(global) => global.values_read(),
             LValue::Index(index) => index.values_read(),
         }
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
         match self {
-            LValue::Local(_) => Vec::new(),
+            LValue::Local(_) => Box::new(std::iter::empty()),
             LValue::Global(global) => global.values_read_mut(),
             LValue::Index(index) => index.values_read_mut(),
         }
     }
 
-    fn values_written(&self) -> Vec<&RcLocal> {
+    fn values_written<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
         match self {
-            LValue::Local(local) => vec![local],
+            LValue::Local(local) => Box::new(std::iter::once(local)),
             LValue::Global(global) => global.values_written(),
             LValue::Index(index) => index.values_written(),
         }
     }
 
-    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
+    fn values_written_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
         match self {
-            LValue::Local(local) => vec![local],
+            LValue::Local(local) => Box::new(std::iter::once(local)),
             LValue::Global(global) => global.values_written_mut(),
             LValue::Index(index) => index.values_written_mut(),
         }
@@ -209,6 +233,7 @@ impl fmt::Display for Statement {
         match self {
             Statement::Call(call) => write!(f, "{}", call),
             Statement::Assign(assign) => write!(f, "{}", assign),
+            // TODO: replace all `if_` with `r#if`
             Statement::If(if_) => write!(f, "{}", if_),
             Statement::Goto(goto) => write!(f, "{}", goto),
             Statement::Label(label) => write!(f, "{}", label),

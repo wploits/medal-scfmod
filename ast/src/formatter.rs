@@ -6,7 +6,7 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, LValue, RValue, Return, Statement};
+use crate::{Assign, Block, LValue, RValue, Return, Statement, Type, TypeSystem};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -44,19 +44,17 @@ impl Default for IndentationMode {
     }
 }
 
-pub struct Formatter<'a> {
+pub struct Formatter {
     indentation_level: usize,
     indentation_mode: IndentationMode,
-    locals_stack: Vec<HashSet<&'a String>>,
     output: String,
 }
 
-impl<'a> Formatter<'a> {
+impl Formatter {
     pub fn format(main: &Block, indentation_mode: IndentationMode) -> String {
         let mut formatter = Self {
             indentation_level: 0,
             indentation_mode,
-            locals_stack: vec![HashSet::new()],
             output: String::new(),
         };
 
@@ -79,7 +77,7 @@ impl<'a> Formatter<'a> {
         );
     }
 
-    fn format_block(&mut self, block: &'a Block) {
+    fn format_block(&mut self, block: &Block) {
         self.indentation_level += 1;
 
         for statement in &block.0[..block.len()
@@ -89,7 +87,7 @@ impl<'a> Formatter<'a> {
                     Statement::Return(Return { values }) => values.is_empty(),
                     _ => false,
                 })
-                .unwrap_or(false) as usize]
+                .unwrap_or_default() as usize]
         {
             self.format_statement(statement);
         }
@@ -97,7 +95,7 @@ impl<'a> Formatter<'a> {
         self.indentation_level -= 1;
     }
 
-    fn format_statement(&mut self, statement: &'a Statement) {
+    fn format_statement(&mut self, statement: &Statement) {
         self.indent();
 
         match statement {
@@ -105,7 +103,7 @@ impl<'a> Formatter<'a> {
                 let mut left = Vec::new();
                 let mut right = Vec::new();
 
-                for (lvalue, rvalue) in assign.left.iter().zip(assign.right.iter()) {
+                for ((lvalue, annotation), rvalue) in assign.left.iter().zip(assign.right.iter()) {
                     if let (Some(name), RValue::Closure(function)) = (
                         match lvalue {
                             LValue::Local(local) => Some(local.0.to_string()),
@@ -114,11 +112,29 @@ impl<'a> Formatter<'a> {
                         },
                         rvalue,
                     ) {
+                        let (parameters_types, return_values_types) =
+                            match annotation.as_ref().unwrap() {
+                                Type::Function(p, r) => (p, r),
+                                _ => unreachable!(),
+                            };
+
                         self.write(
                             format!(
-                                "function {}({})\n",
+                                "function {}({}){}\n",
                                 name,
-                                function.parameters.iter().join(", ")
+                                function
+                                    .parameters
+                                    .iter()
+                                    .zip(parameters_types.iter())
+                                    .map(|(l, t)| format!("{}: {}", l, t))
+                                    .join(", "),
+                                if return_values_types.is_empty() {
+                                    String::new()
+                                } else if return_values_types.len() == 1 {
+                                    format!(": {}", return_values_types[0])
+                                } else {
+                                    format!(": ({})", return_values_types.iter().join(", "))
+                                }
                             )
                             .chars(),
                         );
@@ -126,7 +142,7 @@ impl<'a> Formatter<'a> {
                         self.indent();
                         self.write("end".chars());
                     } else {
-                        left.push(lvalue);
+                        left.push((lvalue, annotation));
                         right.push(rvalue);
                     }
                 }
@@ -134,24 +150,50 @@ impl<'a> Formatter<'a> {
                 if let Some(RValue::Call(_)) = assign.right.last() {
                     let len = assign.left.len();
 
-                    left.extend(&assign.left[len - 1..2 * len - 2])
+                    left.extend(
+                        assign.left[len - 1..2 * len - 2]
+                            .iter()
+                            .map(|(a, b)| (a, b)),
+                    )
                 }
 
                 if !(left.is_empty() || right.is_empty()) {
                     self.write(
-                        format!("{} = {}", left.iter().join(", "), right.iter().join(", "),)
-                            .chars(),
+                        format!(
+                            "{} = {}",
+                            left.iter()
+                                .map(|(lvalue, annotation)| {
+                                    format!(
+                                        "{}{}",
+                                        lvalue,
+                                        annotation
+                                            .as_ref()
+                                            .map(|t| format!(": {}", t))
+                                            .unwrap_or_default(),
+                                    )
+                                })
+                                .join(", "),
+                            right.iter().join(", ")
+                        )
+                        .chars(),
                     );
                 }
             }
             Statement::If(r#if) => {
+                self.write(format!("if {} then\n", r#if.condition).chars());
+
                 if let Some(b) = &r#if.then_block {
                     self.format_block(b);
                 }
 
                 if let Some(b) = &r#if.else_block {
+                    self.indent();
+                    self.write("else\n".chars());
                     self.format_block(b);
                 }
+
+                self.indent();
+                self.write("end".chars());
             }
             Statement::While(r#while) => self.format_block(&r#while.block),
             _ => self.write(statement.to_string().chars()),

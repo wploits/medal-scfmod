@@ -1,40 +1,41 @@
-use graph::{
-    algorithms::{dfs_tree, dominators::post_dominator_tree},
-    NodeId,
-};
+use std::collections::HashMap;
+use itertools::Itertools;
+use graph::algorithms::{dfs_tree, dominators::post_dominator_tree};
+use graph::NodeId;
 
 use crate::GraphStructurer;
+use petgraph::stable_graph::NodeIndex;
 
 impl GraphStructurer {
-    pub(crate) fn is_loop_header(&self, node: NodeId) -> bool {
-        self.back_edges.iter().any(|edge| edge.1 == node)
+    pub(crate) fn is_loop_header(&self, node: NodeIndex) -> bool {
+        self.back_edges.iter().any(|edge| edge.1 == NodeId(node.index()))
     }
 
-    fn refine_breaks(&mut self, header: NodeId, exit: NodeId, exit_predecessors: Vec<NodeId>) {
+    fn refine_breaks(&mut self, header: NodeIndex, exit: NodeIndex, exit_predecessors: Vec<NodeIndex>) {
         for predecessor in exit_predecessors {
             if predecessor != header {
-                self.function.remove_edge(&(predecessor, exit));
+                self.function.remove_edge(predecessor, exit);
             }
         }
     }
 
-    fn try_match_natural_loop(&mut self, header: NodeId) -> bool {
-        let successors = self.function.graph().successors(header);
+    fn try_match_natural_loop(&mut self, header: NodeIndex) -> bool {
+        let successors = self.function.successor_blocks(header).collect_vec();
         if successors.len() == 1 && successors[0] == header {
-            let blocks = self.function.blocks_mut();
+            let mut blocks: HashMap<_, _> = self.function.blocks_mut();
             let while_stat = ast::While::new(
                 ast::Literal::Boolean(true).into(),
                 blocks[&header].ast.clone(),
             );
-            blocks.get_mut(&header).unwrap().ast = ast::Block::from_vec(vec![while_stat.into()]);
-            self.function.remove_edge(&(header, header));
+            *blocks.get_mut(&header).unwrap().ast = vec![while_stat.into()];
+            self.function.remove_edge(header, header);
             true
         } else {
             false
         }
     }
 
-    pub(crate) fn try_collapse_loop(&mut self, header: NodeId) -> bool {
+    /*pub(crate) fn try_collapse_loop(&mut self, header: NodeIndex) -> bool {
         return false;
 
         if !self.is_loop_header(header) {
@@ -46,7 +47,7 @@ impl GraphStructurer {
         }
 
         let graph = self.function.graph();
-        let post_dom_tree = post_dominator_tree(graph, &dfs_tree(graph, self.root));
+        let post_dom_tree = post_dominator_tree(graph, &dfs_tree(graph, Some(self.root)));
         return false;
 
         let exit_node = post_dom_tree.predecessors(header).first().cloned();
@@ -87,5 +88,5 @@ impl GraphStructurer {
         // println!("exit: {}", while_loop);
 
         return true;
-    }
+    }*/
 }

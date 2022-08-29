@@ -1,40 +1,46 @@
-use ast::LocalRw;
-use fxhash::FxHashMap;
-use graph::{algorithms::dfs_tree, Directed, Graph, NodeId};
-use itertools::Itertools;
+use std::iter;
 
-use crate::{block::Edges, function::Function, ssa_def_use};
+use ast::{LocalRw, RcLocal};
+use fxhash::{FxHashMap, FxHashSet};
+use petgraph::{stable_graph::NodeIndex, visit::Dfs, Direction};
 
-use super::upvalues;
+use crate::{
+    block::Terminator, function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
+    ssa_def_use,
+};
 
 struct SsaConstructor<'a> {
     function: &'a mut Function,
-    dfs: Graph<Directed>,
-    current_definition: FxHashMap<ast::RcLocal, FxHashMap<(NodeId, usize), ast::RcLocal>>,
+    incomplete_params: FxHashMap<NodeIndex, FxHashMap<RcLocal, RcLocal>>,
+    filled_blocks: FxHashSet<NodeIndex>,
+    sealed_blocks: FxHashSet<NodeIndex>,
+    current_definition: FxHashMap<RcLocal, FxHashMap<NodeIndex, RcLocal>>,
+    all_definitions: FxHashMap<RcLocal, FxHashSet<RcLocal>>,
+    local_count: usize,
 }
 
 // based on "Simple and Efficient Construction of Static Single Assignment Form" (https://pp.info.uni-karlsruhe.de/uploads/publikationen/braun13cc.pdf)
 impl<'a> SsaConstructor<'a> {
     fn remove_unused_parameters(&mut self) {
+        // TODO: does this ssa algorithm even result in unused parameters?
         let def_use = ssa_def_use::SsaDefUse::new(self.function);
 
         let to_remove = def_use
             .parameters
             .into_iter()
-            .filter(|(local, _)| !def_use.references.contains_key(local))
-            .collect::<Vec<_>>();
+            .filter(|(local, _)| !def_use.references.contains_key(local));
 
         for (local, locations) in to_remove {
             for edge in locations {
                 match self.function.block_mut(edge.0).unwrap().terminator.as_mut() {
-                    Some(Edges::Jump(edge)) => {
-                        edge.arguments.retain(|target, _| target.name != local);
+                    Some(Terminator::Jump(edge)) => {
+                        edge.arguments.retain(|(target, _)| target != &local);
                     }
-                    Some(Edges::Conditional(then_edge, else_edge)) => {
+                    Some(Terminator::Conditional(then_edge, else_edge)) => {
                         if then_edge.node == edge.1 {
-                            then_edge.arguments.retain(|target, _| target.name != local);
+                            then_edge.arguments.retain(|(target, _)| target != &local);
                         } else if else_edge.node == edge.1 {
-                            else_edge.arguments.retain(|target, _| target.name != local);
+                            else_edge.arguments.retain(|(target, _)| target != &local);
                         } else {
                             unreachable!();
                         }
@@ -45,118 +51,247 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-    fn find_local_in_block(
-        &self,
-        node: NodeId,
-        local: &ast::RcLocal,
-        index: usize,
-    ) -> Option<&ast::RcLocal> {
-        self.current_definition[local]
-            .iter()
-            .filter(|(&(def_node, def_index), _)| def_node == node && def_index < index)
-            .sorted_by(|&((_, a), _), ((_, b), _)| a.cmp(b))
-            .last()
-            .map(|(_, local)| local)
+    fn write_local(&mut self, node: NodeIndex, local: &RcLocal, new_local: &RcLocal) {
+        self.all_definitions
+            .entry(local.clone())
+            .or_default()
+            .insert(new_local.clone());
+        self.current_definition
+            .entry(local.clone())
+            .or_default()
+            .insert(node, new_local.clone());
     }
 
-    fn find_local(&mut self, node: NodeId, local: &ast::RcLocal, index: usize) -> ast::RcLocal {
-        if let Some(new_local) = self.find_local_in_block(node, local, index) {
+    fn add_param_args(&mut self, node: NodeIndex, local: &RcLocal, new_local: &RcLocal) {
+        let mut preds = self.function.predecessor_blocks(node).detach();
+        while let Some((_, pred)) = preds.next(self.function.graph()) {
+            let argument_local = self.find_local(pred, local);
+            match self
+                .function
+                .block_mut(pred)
+                .unwrap()
+                .terminator
+                .as_mut()
+                .unwrap()
+            {
+                Terminator::Jump(edge) => {
+                    assert!(edge.node == node);
+                    edge.arguments.push((new_local.clone(), argument_local));
+                }
+                Terminator::Conditional(then_edge, else_edge) => {
+                    if then_edge.node == node {
+                        then_edge
+                            .arguments
+                            .push((new_local.clone(), argument_local));
+                    } else if else_edge.node == node {
+                        else_edge
+                            .arguments
+                            .push((new_local.clone(), argument_local));
+                    } else {
+                        unreachable!();
+                    }
+                }
+            }
+        }
+    }
+
+    fn find_local(&mut self, node: NodeIndex, local: &RcLocal) -> RcLocal {
+        let res = if let Some(new_local) = self
+            .current_definition
+            .get(local)
+            .and_then(|x| x.get(&node))
+        {
             // local to block
             new_local.clone()
         } else {
-            // global
-            let preds = self
-                .function
-                .graph()
-                .predecessors(node)
-                .into_iter()
-                .filter(|&p| self.dfs.has_node(p))
-                .collect::<Vec<_>>();
-            if preds.len() == 1 {
-                self.find_local(*preds.first().unwrap(), local, 0)
+            // search globally
+            if !self.sealed_blocks.contains(&node) {
+                let param_local = self.function.local_allocator.borrow_mut().allocate();
+                self.local_count += 1;
+                self.incomplete_params
+                    .entry(node)
+                    .or_default()
+                    .insert(local.clone(), param_local.clone());
+                param_local
             } else {
-                let parameter_local = self.function.local_allocator.borrow_mut().allocate();
-                self.current_definition
-                    .entry(local.clone())
-                    .or_insert_with(FxHashMap::default)
-                    .insert((node, index), parameter_local.clone());
+                let mut preds = self.function.predecessor_blocks(node);
+                let first_pred = preds.next().unwrap();
+                if preds.next().is_none() {
+                    self.find_local(first_pred, local)
+                } else {
+                    let param_local = self.function.local_allocator.borrow_mut().allocate();
+                    self.local_count += 1;
+                    self.write_local(node, local, &param_local);
 
-                for pred in preds {
-                    let argument_local = self.find_local(pred, local, 0);
-                    match self
-                        .function
-                        .block_mut(pred)
-                        .unwrap()
-                        .terminator
-                        .as_mut()
-                        .unwrap()
+                    self.add_param_args(node, local, &param_local);
+                    // todo: try remove trivial parameter
+
+                    param_local
+                }
+            }
+        };
+        self.write_local(node, local, &res);
+        res
+    }
+
+    fn apply_local_map(&mut self, local_map: &FxHashMap<RcLocal, RcLocal>) {
+        // TODO: blocks_mut
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+            let block = self.function.block_mut(node).unwrap();
+            for stat in block.ast.iter_mut() {
+                // TODO: figure out values_mut
+                for (from, to) in stat
+                    .values_written_mut()
+                    .filter_map(|v| local_map.get(v).map(|t| (v, t)))
+                {
+                    *from = to.clone();
+                }
+                for (from, to) in stat
+                    .values_read_mut()
+                    .filter_map(|v| local_map.get(v).map(|t| (v, t)))
+                {
+                    *from = to.clone();
+                }
+            }
+            if let Some(terminator) = block.terminator_mut() {
+                for edge in terminator.edges_mut() {
+                    // TODO: rename Stat::values, Expr::values to locals() and refer to locals as locals everywhere
+                    for local in edge
+                        .arguments
+                        .iter_mut()
+                        .flat_map(|(p, a)| iter::once(p).chain(iter::once(a)))
                     {
-                        Edges::Jump(edge) => {
-                            assert!(edge.node == node);
-                            edge.arguments
-                                .insert(parameter_local.clone(), argument_local);
-                        }
-                        Edges::Conditional(then_edge, else_edge) => {
-                            if then_edge.node == node {
-                                then_edge
-                                    .arguments
-                                    .insert(parameter_local.clone(), argument_local);
-                            } else if else_edge.node == node {
-                                else_edge
-                                    .arguments
-                                    .insert(parameter_local.clone(), argument_local);
-                            } else {
-                                unreachable!();
-                            }
+                        if let Some(new_local) = local_map.get(local) {
+                            *local = new_local.clone();
                         }
                     }
                 }
-                // todo: try remove trivial parameter
-
-                parameter_local
             }
         }
     }
 
-    fn construct(mut self) {
-        let upvalue_open_defs = upvalues::compute_open_upvalues(self.function);
-
-        for &node in self.dfs.nodes() {
-            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
-                let statement = self
-                    .function
-                    .block_mut(node)
-                    .unwrap()
-                    .ast
-                    .get_mut(stat_index)
-                    .unwrap();
-                let written = statement
-                    .values_written()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                for local in written {
-                    let new_local = self.function.local_allocator.borrow_mut().allocate();
-                    self.current_definition
-                        .entry(local.clone())
-                        .or_insert_with(FxHashMap::default)
-                        .insert((node, stat_index), new_local.clone());
-                    let statement = self
-                        .function
-                        .block_mut(node)
-                        .unwrap()
-                        .ast
-                        .get_mut(stat_index)
-                        .unwrap();
-                    statement
-                        .as_assign_mut()
-                        .unwrap()
-                        .replace_values_written(&local, &new_local);
+    fn propagate_copies(&mut self, local_map: &mut FxHashMap<RcLocal, RcLocal>) {
+        // TODO: blocks_mut
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+            let block = self.function.block_mut(node).unwrap();
+            let mut indices_to_remove = Vec::new();
+            for (index, assign) in block
+                .ast
+                .iter()
+                .enumerate()
+                .filter_map(|(i, s)| s.as_assign().map(|a| (i, a)))
+            {
+                if assign.left.len() == 1 && assign.right.len() == 1
+                    && let Some(from) = assign.left[0].0.as_local()
+                    && let Some(mut to) = assign.right[0].as_local()
+                {
+                    // TODO: wtf is this name lol
+                    while let Some(to_to) = local_map.get(to) {
+                        to = to_to;
+                    }
+                    local_map.insert(from.clone(), to.clone());
+                    indices_to_remove.push(index)
                 }
             }
+            for index in indices_to_remove.into_iter().rev() {
+                block.ast.remove(index);
+            }
         }
-        for node in self.dfs.nodes().clone() {
+    }
+
+    // https://github.com/fkie-cad/dewolf/blob/7afe5b46e79a7b56e9904e63f29d54bd8f7302d9/decompiler/pipeline/ssa/phi_cleaner.py
+    fn remove_unnecessary_params(&mut self, local_map: &mut FxHashMap<RcLocal, RcLocal>) {
+        for node in self.function.blocks().map(|(i, _)| i).collect::<Vec<_>>() {
+            let mut dependency_graph = ParamDependencyGraph::new(self.function, node);
+            let mut removable_params = FxHashMap::default();
+            let mut edges = self.function.edges_to_block_mut(node);
+            if !edges.is_empty() {
+                let params = edges[0].arguments.iter().map(|(p, _)| p);
+                let args_in_by_block = edges
+                    .iter()
+                    .map(|e| e.arguments.iter().map(|(_, a)| a).collect::<Vec<_>>())
+                    .collect::<Vec<_>>();
+                let mut params_to_remove = FxHashSet::default();
+                for (index, mut param) in params.enumerate() {
+                    let arg_set = args_in_by_block
+                        .iter()
+                        .map(|a| a[index])
+                        .collect::<FxHashSet<_>>();
+                    if arg_set.len() == 1 {
+                        while let Some(param_to) = local_map.get(param) {
+                            param = param_to;
+                        }
+                        let mut arg = arg_set.into_iter().next().unwrap();
+                        while let Some(arg_to) = local_map.get(arg) {
+                            arg = arg_to;
+                        }
+                        if arg != param {
+                            // param is not trivial, we must replace the param with the arg
+                            // y = phi(x, x, ..., x)
+                            removable_params.insert(param.clone(), arg.clone());
+                        } else {
+                            // param is trivial
+                            // x = phi(x, x, ..., x)
+                            let param_node = dependency_graph.local_to_node[param];
+                            dependency_graph.remove_node(param_node);
+                        }
+
+                        params_to_remove.insert(param.clone());
+                    }
+                }
+                for edge in &mut edges {
+                    edge.arguments
+                        .retain(|(p, _)| !params_to_remove.contains(p))
+                }
+            }
+
+            let mut removable_params_degree_zero = removable_params
+                .iter()
+                .map(|(p, a)| (p.clone(), a))
+                .filter(|(p, _)| {
+                    dependency_graph
+                        .graph
+                        .neighbors(dependency_graph.local_to_node[p])
+                        .count()
+                        == 0
+                })
+                .collect::<Vec<_>>();
+
+            while let Some((param, mut arg)) = removable_params_degree_zero.pop() {
+                let param_node = dependency_graph.local_to_node[&param];
+                for param_pred_node in dependency_graph
+                    .graph
+                    .neighbors_directed(param_node, Direction::Incoming)
+                {
+                    if dependency_graph.graph.neighbors(param_pred_node).count() == 1 {
+                        let param_pred = dependency_graph
+                            .graph
+                            .node_weight(param_pred_node)
+                            .unwrap()
+                            .clone();
+                        if let Some(param_pred_arg) = removable_params.get(&param_pred) {
+                            removable_params_degree_zero.push((param_pred, param_pred_arg));
+                        }
+                    }
+                }
+                dependency_graph.remove_node(param_node);
+
+                while let Some(arg_to) = local_map.get(arg) {
+                    arg = arg_to;
+                }
+                local_map.insert(param, arg.clone());
+            }
+        }
+    }
+
+    fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>) {
+        let entry = self.function.entry().unwrap();
+        let mut dfs = Dfs::new(self.function.graph(), entry);
+        let mut visited_nodes = Vec::with_capacity(self.function.graph().node_count());
+        while let Some(node) = dfs.next(self.function.graph()) {
+            visited_nodes.push(node);
             for stat_index in 0..self.function.block(node).unwrap().ast.len() {
+                // read
                 let statement = self
                     .function
                     .block_mut(node)
@@ -164,13 +299,9 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get_mut(stat_index)
                     .unwrap();
-                let read = statement
-                    .values_read()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
+                let read = statement.values_read().cloned().collect::<Vec<_>>();
                 for (local_index, local) in read.into_iter().enumerate() {
-                    let new_local = self.find_local(node, &local, stat_index);
+                    let new_local = self.find_local(node, &local);
                     let statement = self
                         .function
                         .block_mut(node)
@@ -178,25 +309,79 @@ impl<'a> SsaConstructor<'a> {
                         .ast
                         .get_mut(stat_index)
                         .unwrap();
-                    *statement.values_read_mut()[local_index] = new_local;
+                    *statement.values_read_mut().nth(local_index).unwrap() = new_local;
+                }
+
+                // write
+
+                let statement = self
+                    .function
+                    .block_mut(node)
+                    .unwrap()
+                    .ast
+                    .get_mut(stat_index)
+                    .unwrap();
+                let written = statement.values_written().cloned().collect::<Vec<_>>();
+                for (local_index, local) in written.into_iter().enumerate() {
+                    let new_local = self.function.local_allocator.borrow_mut().allocate();
+                    self.local_count += 1;
+                    self.write_local(node, &local, &new_local);
+                    let statement = self
+                        .function
+                        .block_mut(node)
+                        .unwrap()
+                        .ast
+                        .get_mut(stat_index)
+                        .unwrap();
+                    *statement.values_written_mut().nth(local_index).unwrap() = new_local;
+                }
+            }
+            self.filled_blocks.insert(node);
+
+            for &node in &visited_nodes {
+                if !self.sealed_blocks.contains(&node)
+                    && !self
+                        .function
+                        .predecessor_blocks(node)
+                        .any(|p| !self.filled_blocks.contains(&p))
+                {
+                    if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
+                        for (local, param_local) in incomplete_params {
+                            self.add_param_args(node, &local, &param_local);
+                        }
+                    }
+                    self.sealed_blocks.insert(node);
                 }
             }
         }
-
-        //println!("upvalue locals: {:#?}", upvalue_locals);
-
-        //upvalues::fix_upvalues(self.function);
 
         self.remove_unused_parameters();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+
+        // TODO: irreducible control flow (see the paper this algorithm is from)
+
+        let mut local_map = FxHashMap::default();
+        //self.propagate_copies(&mut local_map);
+        self.remove_unnecessary_params(&mut local_map);
+        self.apply_local_map(&local_map);
+
+        (
+            self.local_count,
+            self.all_definitions.into_values().collect(),
+        )
     }
 }
 
-pub fn construct(function: &mut Function) {
+pub fn construct(function: &mut Function) -> (usize, Vec<FxHashSet<RcLocal>>) {
+    let node_count = function.graph().node_count();
     SsaConstructor {
-        dfs: dfs_tree(function.graph(), function.entry().unwrap()),
         function,
+        incomplete_params: FxHashMap::with_capacity_and_hasher(node_count, Default::default()),
+        filled_blocks: FxHashSet::with_capacity_and_hasher(node_count, Default::default()),
+        sealed_blocks: FxHashSet::with_capacity_and_hasher(node_count, Default::default()),
         current_definition: FxHashMap::default(),
+        all_definitions: FxHashMap::default(),
+        local_count: 0,
     }
-    .construct();
+    .construct()
 }

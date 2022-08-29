@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 pub mod block;
 pub mod dot;
 pub mod function;

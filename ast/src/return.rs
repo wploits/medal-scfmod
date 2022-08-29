@@ -25,20 +25,17 @@ impl Traverse for Return {
 }
 
 impl LocalRw for Return {
-    fn values_read(&self) -> Vec<&RcLocal> {
-        self.values
-            .iter()
-            .rev()
-            .flat_map(|r| r.values_read())
-            .collect()
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+        Box::new(self.values.iter().rev().flat_map(|r| r.values_read()))
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
-        self.values
-            .iter_mut()
-            .rev()
-            .flat_map(|r| r.values_read_mut())
-            .collect()
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+        Box::new(
+            self.values
+                .iter_mut()
+                .rev()
+                .flat_map(|r| r.values_read_mut()),
+        )
     }
 }
 

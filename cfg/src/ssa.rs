@@ -1,8 +1,7 @@
 mod construct;
 mod destruct;
 pub mod error;
-pub mod interference_graph;
-pub mod liveness;
+mod param_dependency_graph;
 pub mod upvalues;
 
 pub use construct::construct;

@@ -1,5 +1,5 @@
 use fxhash::{FxHashMap, FxHashSet};
-use graph::{algorithms::dfs_tree, NodeId};
+use graph::{algorithms::dfs_tree, NodeIndex};
 
 use crate::{
     block::BasicBlock,
@@ -43,7 +43,7 @@ impl DefUse {
         def_use
     }
 
-    pub fn update_block_phi(&mut self, block: &BasicBlock, node: NodeId) {
+    pub fn update_block_phi(&mut self, block: &BasicBlock, node: NodeIndex) {
         for value_def_use in &mut self.0.values_mut() {
             value_def_use.reads.retain(|location| {
                 !(matches!(location.index, InstructionIndex::Phi(_)) && location.node == node)
@@ -75,7 +75,7 @@ impl DefUse {
         }
     }
 
-    pub fn update_block(&mut self, block: &BasicBlock, node: NodeId) {
+    pub fn update_block(&mut self, block: &BasicBlock, node: NodeIndex) {
         for value_def_use in &mut self.0.values_mut() {
             value_def_use.reads.retain(|location| location.node != node);
             value_def_use

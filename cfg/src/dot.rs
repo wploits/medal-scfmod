@@ -2,12 +2,11 @@ use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, LabelText, Labeller};
 
-use fxhash::FxHashMap;
-use graph::{Edge, NodeId};
+use petgraph::stable_graph::NodeIndex;
 
-use crate::{block::Edges, function::Function};
+use crate::{block::Terminator, function::Function};
 
-fn arguments(args: &FxHashMap<ast::RcLocal, ast::RcLocal>) -> String {
+fn arguments(args: &Vec<(ast::RcLocal, ast::RcLocal)>) -> String {
     let mut s = String::new();
     for (i, (local, new_local)) in args.iter().enumerate() {
         use std::fmt::Write;
@@ -19,21 +18,21 @@ fn arguments(args: &FxHashMap<ast::RcLocal, ast::RcLocal>) -> String {
     s
 }
 
-impl<'a> Labeller<'a, NodeId, Edge> for Function {
+impl<'a> Labeller<'a, NodeIndex, (NodeIndex, NodeIndex)> for Function {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("cfg").unwrap()
     }
 
-    fn node_label<'b>(&'b self, n: &NodeId) -> dot::LabelText<'b> {
+    fn node_label<'b>(&'b self, n: &NodeIndex) -> dot::LabelText<'b> {
         let block = self.block(*n).unwrap();
         dot::LabelText::LabelStr(block.ast.to_string().into())
-            .prefix_line(dot::LabelText::LabelStr(n.to_string().into()))
+            .prefix_line(dot::LabelText::LabelStr(n.index().to_string().into()))
     }
 
-    fn edge_label<'b>(&'b self, e: &Edge) -> dot::LabelText<'b> {
+    fn edge_label<'b>(&'b self, e: &(NodeIndex, NodeIndex)) -> dot::LabelText<'b> {
         if let Some(terminator) = self.block(e.0).unwrap().terminator.as_ref() {
             match terminator {
-                Edges::Conditional(then_edge, else_edge) => {
+                Terminator::Conditional(then_edge, else_edge) => {
                     if e.1 == then_edge.node {
                         let arguments = arguments(&then_edge.arguments);
                         if !arguments.is_empty() {
@@ -50,36 +49,43 @@ impl<'a> Labeller<'a, NodeId, Edge> for Function {
                         }
                     }
                 }
-                Edges::Jump(edge) => dot::LabelText::LabelStr(arguments(&edge.arguments).into()),
+                Terminator::Jump(edge) => {
+                    dot::LabelText::LabelStr(arguments(&edge.arguments).into())
+                }
             }
         } else {
             dot::LabelText::LabelStr("".into())
         }
     }
 
-    fn node_id(&'a self, n: &NodeId) -> dot::Id<'a> {
-        dot::Id::new(n.to_string()).unwrap()
+    fn node_id(&'a self, n: &NodeIndex) -> dot::Id<'a> {
+        dot::Id::new(format!("N{}", n.index())).unwrap()
     }
 
-    fn node_shape(&'a self, _n: &NodeId) -> Option<LabelText<'a>> {
+    fn node_shape(&'a self, _n: &NodeIndex) -> Option<LabelText<'a>> {
         Some(LabelText::LabelStr("rect".into()))
     }
 }
 
-impl<'a> GraphWalk<'a, NodeId, Edge> for Function {
-    fn nodes(&'a self) -> dot::Nodes<'a, NodeId> {
-        Cow::Borrowed(self.graph().nodes())
+impl<'a> GraphWalk<'a, NodeIndex, (NodeIndex, NodeIndex)> for Function {
+    fn nodes(&'a self) -> dot::Nodes<'a, NodeIndex> {
+        Cow::Owned(self.graph().node_indices().collect())
     }
 
-    fn edges(&'a self) -> dot::Edges<'a, Edge> {
-        Cow::Borrowed(self.graph().edges())
+    fn edges(&'a self) -> dot::Edges<'a, (NodeIndex, NodeIndex)> {
+        Cow::Owned(
+            self.graph()
+                .edge_indices()
+                .map(|i| self.graph().edge_endpoints(i).unwrap())
+                .collect(),
+        )
     }
 
-    fn source(&self, e: &Edge) -> NodeId {
+    fn source(&self, e: &(NodeIndex, NodeIndex)) -> NodeIndex {
         e.0
     }
 
-    fn target(&self, e: &Edge) -> NodeId {
+    fn target(&self, e: &(NodeIndex, NodeIndex)) -> NodeIndex {
         e.1
     }
 }

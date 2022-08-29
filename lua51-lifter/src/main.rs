@@ -1,4 +1,6 @@
-use std::{fs::File, io::Read, rc::Rc, time};
+#![feature(box_patterns)]
+
+use std::{fs::File, io::Read, time};
 
 use clap::Parser;
 
@@ -36,38 +38,32 @@ fn main() -> anyhow::Result<()> {
 
     let now = time::Instant::now();
     //let main = Lifter::new(&chunk.function).lift_function()?;
-    let mut main = lifter::LifterContext::lift(&chunk.function, Vec::new(), Default::default());
-    let _lifted = now.elapsed();
+    let mut main = lifter::LifterContext::lift(&chunk.function);
+    let lifted = now.elapsed();
+    println!("lifting: {:?}", lifted);
 
-    cfg::dot::render_to(&main, &mut std::io::stdout());
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    println!("ssa");
     let now = time::Instant::now();
-    cfg::ssa::construct(&mut main);
+    let (local_count, local_groups) = cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
-    //println!("ssa construction: {:?}", ssa_constructed);
+    println!("ssa construction: {:?}", ssa_constructed);
 
-    cfg::dot::render_to(&main, &mut std::io::stdout());
-
-    /*let now = time::Instant::now();
-    let liveness = cfg::ssa::liveness::Liveness::new(&main);
-    let liveness_constructed = now.elapsed();
-    println!("liveness: {:?}", liveness_constructed);
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
-    let interference = cfg::ssa::interference_graph::InterferenceGraph::new(&main, &liveness);
-    let interference_constructed = now.elapsed();
-    println!("interference: {:?}", interference_constructed);
+    /*for node in main.graph().node_indices().collect::<Vec<_>>() {
+        cfg::inline::inline_expressions(&mut main, node);
+    }*/
+    let inlined = now.elapsed();
+    println!("inline: {:?}", inlined);
 
-    graph::dot::render_to(&interference.graph, &mut std::io::stdout());
-    println!("{:#?}", interference.variable_to_node);*/
+    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    //println!("{:#?}", liveness);
-
-    // cfg::dot::render_to(&main, &mut std::io::stdout())?;
-    // for node in main.graph().nodes().clone() {
-    //     cfg::inline::inline_expressions(&mut main, node);
-    // }
+    let now = time::Instant::now();
+    //cfg::ssa::destruct(&mut main, local_count, &local_groups);
+    let ssa_destructed = now.elapsed();
+    println!("ssa destruction: {:?}", ssa_destructed);
 
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
@@ -78,11 +74,15 @@ fn main() -> anyhow::Result<()> {
 
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    //println!("lifting: {:?}", lifted);
-    //let main = restructure::lift(main);
-    //let formatted = ast::formatter::Formatter::format(&main, Default::default());
+    let mut main = restructure::lift(main);
 
-    //println!("{}", formatted);
+    let now = time::Instant::now();
+    ast::type_system::TypeSystem::analyze(&mut main);
+    let type_analysis = now.elapsed();
+    println!("type analysis: {:?}", type_analysis);
+
+    let formatted = ast::formatter::Formatter::format(&main, Default::default());
+    println!("{}", formatted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

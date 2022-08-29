@@ -1,31 +1,54 @@
-use crate::{SideEffects, Traverse};
+use crate::{type_system::Infer, SideEffects, Traverse, Type, TypeSystem};
+use by_address::ByAddress;
 use derive_more::{Deref, DerefMut, Display, From};
 use enum_dispatch::enum_dispatch;
-use std::{fmt, rc::Rc};
+use std::{
+    collections::hash_map::DefaultHasher,
+    fmt::{self, Display},
+    hash::{Hash, Hasher},
+    iter,
+    rc::Rc,
+};
 
-#[derive(Debug, From, Clone, PartialEq, Eq, Hash)]
-pub struct Local {
-    pub name: String,
-    pub is_captured: bool,
-}
+#[derive(Debug, From, Clone)]
+pub struct Local(pub Option<String>);
 
 impl Local {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            is_captured: false,
-        }
+    pub fn new(name: Option<String>) -> Self {
+        Self(name)
     }
 }
 
 impl fmt::Display for Local {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name)
+        match &self.0 {
+            Some(name) => write!(f, "{}", name),
+            None => write!(f, "UNNAMED_LOCAL"),
+        }
     }
 }
 
-#[derive(Debug, Clone, Display, Deref, DerefMut, PartialEq, Eq, Hash)]
-pub struct RcLocal(pub Rc<Local>);
+#[derive(Debug, Clone, Deref, DerefMut, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RcLocal(pub ByAddress<Rc<Local>>);
+
+impl Infer for RcLocal {
+    fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
+        system.type_of(self).clone()
+    }
+}
+
+impl Display for RcLocal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 .0 .0 {
+            Some(name) => write!(f, "{}", name),
+            None => {
+                let mut hasher = DefaultHasher::new();
+                self.hash(&mut hasher);
+                write!(f, "UNNAMED_{}", hasher.finish())
+            }
+        }
+    }
+}
 
 impl SideEffects for RcLocal {}
 
@@ -33,47 +56,45 @@ impl Traverse for RcLocal {}
 
 impl RcLocal {
     pub fn new(rc: Rc<Local>) -> Self {
-        Self(rc)
+        Self(ByAddress(rc))
     }
 }
 
 impl LocalRw for RcLocal {
-    fn values_read(&self) -> Vec<&RcLocal> {
-        vec![self]
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+        Box::new(iter::once(self))
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
-        vec![self]
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+        Box::new(iter::once(self))
     }
 }
 
 #[enum_dispatch]
 pub trait LocalRw {
-    fn values_read(&self) -> Vec<&RcLocal> {
-        Vec::new()
+    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+        Box::new(iter::empty())
     }
 
-    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
-        Vec::new()
+    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+        Box::new(iter::empty())
     }
 
-    fn values_written(&self) -> Vec<&RcLocal> {
-        Vec::new()
+    fn values_written<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+        Box::new(iter::empty())
     }
 
-    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
-        Vec::new()
+    fn values_written_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+        Box::new(iter::empty())
     }
 
-    fn values(&self) -> Vec<&RcLocal> {
-        let mut res = self.values_read();
-        res.extend(self.values_written());
-        res
+    fn values<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+        Box::new(self.values_read().chain(self.values_written()))
     }
 
     fn replace_values_read(&mut self, old: &RcLocal, new: &RcLocal) {
         for value in self.values_read_mut() {
-            if Rc::ptr_eq(value, old) {
+            if value == old {
                 *value = new.clone();
             }
         }
@@ -81,7 +102,7 @@ pub trait LocalRw {
 
     fn replace_values_written(&mut self, old: &RcLocal, new: &RcLocal) {
         for value in self.values_written_mut() {
-            if Rc::ptr_eq(value, old) {
+            if value == old {
                 *value = new.clone();
             }
         }

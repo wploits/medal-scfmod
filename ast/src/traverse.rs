@@ -27,10 +27,27 @@ pub trait Traverse {
         });
     }
 
-    fn traverse_rvalues(&mut self, callback: &impl Fn(&mut RValue)) {
-        self.rvalues_mut().into_iter().for_each(callback);
-        self.rvalues_mut().into_iter().for_each(|rvalue| {
+    fn traverse_rvalues<F>(&mut self, callback: &mut F)
+    where
+        F: FnMut(&mut RValue),
+    {
+        for rvalue in self.rvalues_mut() {
+            callback(rvalue);
+        }
+        for rvalue in self.rvalues_mut() {
             rvalue.traverse_rvalues(callback);
-        });
+        }
+    }
+
+    fn post_traverse_rvalues<F>(&mut self, callback: &mut F)
+    where
+        F: FnMut(&mut RValue),
+    {
+        for rvalue in self.rvalues_mut() {
+            rvalue.traverse_rvalues(callback);
+        }
+        for rvalue in self.rvalues_mut() {
+            callback(rvalue);
+        }
     }
 }
