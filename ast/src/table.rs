@@ -45,12 +45,15 @@ impl Infer for Table {
 }
 
 impl LocalRw for Table {
-    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(self.0.iter().flat_map(|(_, r)| r.values_read()))
+    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+        self.0.iter().flat_map(|(_, r)| r.values_read()).collect()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(self.0.iter_mut().flat_map(|(_, r)| r.values_read_mut()))
+    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        self.0
+            .iter_mut()
+            .flat_map(|(_, r)| r.values_read_mut())
+            .collect()
     }
 }
 

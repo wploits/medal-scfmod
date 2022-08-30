@@ -35,20 +35,20 @@ impl Traverse for Call {
 }
 
 impl LocalRw for Call {
-    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(
-            self.value
-                .values_read()
-                .chain(self.arguments.iter().flat_map(|r| r.values_read())),
-        )
+    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+        self.value
+            .values_read()
+            .into_iter()
+            .chain(self.arguments.iter().flat_map(|r| r.values_read()))
+            .collect()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(
-            self.value
-                .values_read_mut()
-                .chain(self.arguments.iter_mut().flat_map(|r| r.values_read_mut())),
-        )
+    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        self.value
+            .values_read_mut()
+            .into_iter()
+            .chain(self.arguments.iter_mut().flat_map(|r| r.values_read_mut()))
+            .collect()
     }
 }
 

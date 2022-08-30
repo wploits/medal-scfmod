@@ -9,6 +9,8 @@ use crate::{
     ssa_def_use,
 };
 
+use super::upvalues::UpvaluesOpen;
+
 struct SsaConstructor<'a> {
     function: &'a mut Function,
     incomplete_params: FxHashMap<NodeIndex, FxHashMap<RcLocal, RcLocal>>,
@@ -16,6 +18,7 @@ struct SsaConstructor<'a> {
     sealed_blocks: FxHashSet<NodeIndex>,
     current_definition: FxHashMap<RcLocal, FxHashMap<NodeIndex, RcLocal>>,
     all_definitions: FxHashMap<RcLocal, FxHashSet<RcLocal>>,
+    old_locals: FxHashMap<RcLocal, RcLocal>,
     local_count: usize,
 }
 
@@ -107,6 +110,7 @@ impl<'a> SsaConstructor<'a> {
             // search globally
             if !self.sealed_blocks.contains(&node) {
                 let param_local = self.function.local_allocator.borrow_mut().allocate();
+                self.old_locals.insert(param_local.clone(), local.clone());
                 self.local_count += 1;
                 self.incomplete_params
                     .entry(node)
@@ -120,6 +124,7 @@ impl<'a> SsaConstructor<'a> {
                     self.find_local(first_pred, local)
                 } else {
                     let param_local = self.function.local_allocator.borrow_mut().allocate();
+                    self.old_locals.insert(param_local.clone(), local.clone());
                     self.local_count += 1;
                     self.write_local(node, local, &param_local);
 
@@ -142,12 +147,14 @@ impl<'a> SsaConstructor<'a> {
                 // TODO: figure out values_mut
                 for (from, to) in stat
                     .values_written_mut()
+                    .into_iter()
                     .filter_map(|v| local_map.get(v).map(|t| (v, t)))
                 {
                     *from = to.clone();
                 }
                 for (from, to) in stat
                     .values_read_mut()
+                    .into_iter()
                     .filter_map(|v| local_map.get(v).map(|t| (v, t)))
                 {
                     *from = to.clone();
@@ -284,6 +291,60 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
+    fn fix_upvalues(&mut self, local_map: &mut FxHashMap<ast::RcLocal, ast::RcLocal>) {
+        let upvalues_open = UpvaluesOpen::new(self.function);
+        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
+        while let Some(node) = dfs.next(self.function.graph()) {
+            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
+                let statement = self
+                    .function
+                    .block(node)
+                    .unwrap()
+                    .ast
+                    .get(stat_index)
+                    .unwrap();
+                let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for value in written {
+                    if let Some(open_local) = upvalues_open.find_open(
+                        node,
+                        stat_index,
+                        &value,
+                        &self.old_locals,
+                        self.function,
+                    ) {
+                        local_map.insert(value, open_local.clone());
+                    }
+                }
+            }
+            self.function
+                .block_mut(node)
+                .unwrap()
+                .ast
+                .retain(|statement| !matches!(statement, ast::Statement::Close(_)));
+        }
+        let mut changed = true;
+        while changed {
+            changed = false;
+            let locals = local_map
+                .iter()
+                .filter_map(|(old, new)| {
+                    local_map
+                        .get(new)
+                        .map(|new_local| (old.clone(), new.clone(), new_local.clone()))
+                })
+                .collect::<Vec<_>>();
+            for (old, new, new_local) in locals {
+                local_map.insert(old, new_local.clone());
+                local_map.insert(new, new_local);
+                changed = true;
+            }
+        }
+    }
+
     fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>) {
         let entry = self.function.entry().unwrap();
         let mut dfs = Dfs::new(self.function.graph(), entry);
@@ -299,7 +360,11 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get_mut(stat_index)
                     .unwrap();
-                let read = statement.values_read().cloned().collect::<Vec<_>>();
+                let read = statement
+                    .values_read()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
                 for (local_index, local) in read.into_iter().enumerate() {
                     let new_local = self.find_local(node, &local);
                     let statement = self
@@ -309,7 +374,7 @@ impl<'a> SsaConstructor<'a> {
                         .ast
                         .get_mut(stat_index)
                         .unwrap();
-                    *statement.values_read_mut().nth(local_index).unwrap() = new_local;
+                    *statement.values_read_mut()[local_index] = new_local;
                 }
 
                 // write
@@ -321,11 +386,16 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get_mut(stat_index)
                     .unwrap();
-                let written = statement.values_written().cloned().collect::<Vec<_>>();
-                for (local_index, local) in written.into_iter().enumerate() {
+                let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for (local_index, local) in written.iter().enumerate() {
                     let new_local = self.function.local_allocator.borrow_mut().allocate();
+                    self.old_locals.insert(new_local.clone(), local.clone());
                     self.local_count += 1;
-                    self.write_local(node, &local, &new_local);
+                    self.write_local(node, local, &new_local);
                     let statement = self
                         .function
                         .block_mut(node)
@@ -333,7 +403,7 @@ impl<'a> SsaConstructor<'a> {
                         .ast
                         .get_mut(stat_index)
                         .unwrap();
-                    *statement.values_written_mut().nth(local_index).unwrap() = new_local;
+                    *statement.values_written_mut()[local_index] = new_local;
                 }
             }
             self.filled_blocks.insert(node);
@@ -363,6 +433,7 @@ impl<'a> SsaConstructor<'a> {
         let mut local_map = FxHashMap::default();
         //self.propagate_copies(&mut local_map);
         self.remove_unnecessary_params(&mut local_map);
+        self.fix_upvalues(&mut local_map);
         self.apply_local_map(&local_map);
 
         (
@@ -381,6 +452,7 @@ pub fn construct(function: &mut Function) -> (usize, Vec<FxHashSet<RcLocal>>) {
         sealed_blocks: FxHashSet::with_capacity_and_hasher(node_count, Default::default()),
         current_definition: FxHashMap::default(),
         all_definitions: FxHashMap::default(),
+        old_locals: FxHashMap::default(),
         local_count: 0,
     }
     .construct()

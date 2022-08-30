@@ -146,33 +146,33 @@ pub enum LValue {
 }
 
 impl LocalRw for LValue {
-    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
         match self {
-            LValue::Local(_) => Box::new(std::iter::empty()),
+            LValue::Local(_) => Vec::new(),
             LValue::Global(global) => global.values_read(),
             LValue::Index(index) => index.values_read(),
         }
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
         match self {
-            LValue::Local(_) => Box::new(std::iter::empty()),
+            LValue::Local(_) => Vec::new(),
             LValue::Global(global) => global.values_read_mut(),
             LValue::Index(index) => index.values_read_mut(),
         }
     }
 
-    fn values_written<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
+    fn values_written<'a>(&'a self) -> Vec<&'a RcLocal> {
         match self {
-            LValue::Local(local) => Box::new(std::iter::once(local)),
+            LValue::Local(local) => vec![local],
             LValue::Global(global) => global.values_written(),
             LValue::Index(index) => index.values_written(),
         }
     }
 
-    fn values_written_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
+    fn values_written_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
         match self {
-            LValue::Local(local) => Box::new(std::iter::once(local)),
+            LValue::Local(local) => vec![local],
             LValue::Global(global) => global.values_written_mut(),
             LValue::Index(index) => index.values_written_mut(),
         }

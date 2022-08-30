@@ -31,14 +31,23 @@ impl fmt::Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "function({})\n{}\nend",
+            "function({})\n-- upvalues: {}\n{}\nend",
             self.parameters.iter().join(", "),
+            self.upvalues.iter().join(", "),
             self.body.0.iter().join("\n"),
         )
     }
 }
 
-impl LocalRw for Closure {}
+impl LocalRw for Closure {
+    fn values_read(&self) -> Vec<&RcLocal> {
+        self.upvalues.iter().collect()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.upvalues.iter_mut().collect()
+    }
+}
 
 impl SideEffects for Closure {}
 

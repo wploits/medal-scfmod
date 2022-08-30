@@ -138,10 +138,8 @@ impl<'a> LifterContext<'a> {
     }
 
     fn lift_instruction(&mut self, start: usize, end: usize, statements: &mut Vec<Statement>) {
-        let mut table_to_index: HashMap<Register, usize> = HashMap::new();
-        let mut table_to_definition: HashMap<Register, usize> = HashMap::new();
-
-        for (index, instruction) in self.bytecode.code[start..=end].iter().enumerate() {
+        let mut iter = self.bytecode.code[start..=end].iter();
+        while let Some(instruction) = iter.next() {
             match instruction {
                 Instruction::Move {
                     destination,
@@ -149,8 +147,8 @@ impl<'a> LifterContext<'a> {
                 } => {
                     statements.push(
                         ast::Assign {
-                            left: vec![(self.locals[&destination].clone().into(), None)],
-                            right: vec![self.locals[&source].clone().into()],
+                            left: vec![(self.locals[destination].clone().into(), None)],
+                            right: vec![self.locals[source].clone().into()],
                         }
                         .into(),
                     );
@@ -182,7 +180,7 @@ impl<'a> LifterContext<'a> {
                     for register in registers {
                         statements.push(
                             ast::Assign::new(
-                                vec![self.locals[&register].clone().into()],
+                                vec![self.locals[register].clone().into()],
                                 vec![ast::Literal::Nil.into()],
                             )
                             .into(),
@@ -325,9 +323,9 @@ impl<'a> LifterContext<'a> {
                     value,
                     comparison_value,
                 } => {
-                    let value: ast::RValue = self.locals[&value].clone().into();
+                    let value: ast::RValue = self.locals[value].clone().into();
                     let assign = ast::Assign {
-                        left: vec![(self.locals[&destination].clone().into(), None)],
+                        left: vec![(self.locals[destination].clone().into(), None)],
                         right: vec![value.clone()],
                     };
                     let new_block = self.function.new_block();
@@ -430,7 +428,7 @@ impl<'a> LifterContext<'a> {
                     destination,
                     function,
                 } => {
-                    let closure = Self::lift(&self.bytecode.closures[function.0 as usize]);
+                    /*let closure = Self::lift(&self.bytecode.closures[function.0 as usize]);
                     let parameters = closure.parameters.clone();
                     let body = restructure::lift(closure);
 
@@ -445,113 +443,42 @@ impl<'a> LifterContext<'a> {
                             .into()],
                         }
                         .into(),
+                    );*/
+
+                    let mut upvalues = Vec::new();
+                    for _ in 0..self.bytecode.closures[function.0 as usize].number_of_upvalues {
+                        let local = match iter.next().as_ref().unwrap() {
+                            Instruction::Move {
+                                destination: _,
+                                source,
+                            } => self.locals[source].clone(),
+                            Instruction::GetUpvalue {
+                                destination: _,
+                                upvalue,
+                            } => self.function.upvalues_captured[upvalue.0 as usize].clone(),
+                            _ => panic!(),
+                        };
+                        upvalues.push(local);
+                    }
+
+                    statements.push(
+                        ast::Assign {
+                            left: vec![(self.locals[destination].clone().into(), None)],
+                            right: vec![ast::Closure {
+                                parameters: Vec::new(),
+                                body: Default::default(),
+                                upvalues,
+                            }
+                            .into()],
+                        }
+                        .into(),
                     );
                 }
-                &Instruction::NewTable { destination, .. } => {
-                    table_to_index.insert(destination, statements.len());
-                }
-                Instruction::SetList {
-                    table,
-                    number_of_elements,
-                    block_number,
-                } => {
-                    let mut elements = Vec::new();
-                    let mut original_to_new: HashMap<_, RcLocal> = HashMap::new();
-                    let mut i = 0;
-
-                    statements.retain_mut(|statement| {
-                        if i < table_to_index[table] {
-                            i += 1;
-
-                            return true;
-                        }
-
-                        if let Statement::Assign(assign) = statement {
-                            if let Some((LValue::Index(ast::Index { box right, .. }), _)) =
-                                assign.left.first()
-                            {
-                                if let RValue::Literal(ast::Literal::String(field)) = &right {
-                                    elements.push((
-                                        Some(field.clone()),
-                                        assign.right.first().unwrap().clone(),
-                                    ));
-                                }
-
-                                return false;
-                            }
-
-                            if !matches!(assign.right.first(), Some(RValue::Local(_))) {
-                                let count = assign.values_read().count();
-
-                                if elements.len() >= count {
-                                    elements.drain(elements.len() - count..).collect_vec();
-                                }
-                            }
-                        }
-
-                        for v in statement.values_read_mut() {
-                            if let Some(new_local) = original_to_new.get(v) {
-                                *v = new_local.clone();
-                            }
-                        }
-
-                        for v in statement.values_written_mut() {
-                            let is_not_self = v != &self.locals[table];
-
-                            if *block_number > 1 {
-                                let mut new_local =
-                                    self.function.local_allocator.borrow_mut().allocate();
-                                std::mem::swap(v, &mut new_local);
-                                original_to_new.insert(new_local, v.clone());
-                            }
-
-                            if is_not_self {
-                                elements.push((None, v.clone().into()));
-                            }
-                        }
-
-                        i += 1;
-
-                        true
-                    });
-
-                    if *number_of_elements == 0 {
-                        let variadic_expression: RValue = match &self.bytecode.code[index - 1] {
-                            Instruction::VarArg(_) => ast::VarArg.into(), // TODO: lift vararg
-                            _ => match statements.pop().unwrap() {
-                                Statement::Call(call) => call.into(),
-                                _ => unreachable!(),
-                            },
-                        };
-                        let values_read = variadic_expression.values_read().count();
-
-                        elements.drain(elements.len() - values_read..);
-                        elements.push((None, variadic_expression));
-                    }
-
-                    if *block_number > 1 {
-                        let mut table_assignment =
-                            statements.remove(table_to_definition.remove(table).unwrap());
-                        let table = match &mut table_assignment {
-                            Statement::Assign(assign) => match assign.right.first_mut().unwrap() {
-                                RValue::Table(table) => table,
-                                _ => unreachable!(),
-                            },
-                            _ => unreachable!(),
-                        };
-
-                        table.0.extend(elements.into_iter());
-                        statements.push(table_assignment);
-                    } else {
-                        table_to_definition.insert(*table, statements.len());
-                        statements.push(
-                            ast::Assign {
-                                left: vec![(self.locals[table].clone().into(), None)],
-                                right: vec![ast::Table(elements).into()],
-                            }
-                            .into(),
-                        );
-                    }
+                Instruction::Close(start) => {
+                    let locals = (start.0..self.bytecode.maximum_stack_size)
+                        .map(|i| self.locals[&Register(i)].clone())
+                        .collect();
+                    statements.push(ast::Close { locals }.into());
                 }
                 &Instruction::SetTable { table, key, value } => {
                     let key = self.register_or_constant(key);
@@ -585,13 +512,8 @@ impl<'a> LifterContext<'a> {
         let ranges = self.code_ranges();
         for (start, end) in ranges {
             let mut block = ast::Block::default();
-
             self.lift_instruction(start, end, &mut block);
-            self.function
-                .block_mut(self.nodes[&start])
-                .unwrap()
-                .ast
-                .extend(block.0);
+            self.function.block_mut(self.nodes[&start]).unwrap().ast = block;
 
             match self.bytecode.code[end] {
                 Instruction::Equal { .. }

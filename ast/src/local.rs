@@ -61,35 +61,35 @@ impl RcLocal {
 }
 
 impl LocalRw for RcLocal {
-    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(iter::once(self))
+    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+        vec![self]
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(iter::once(self))
+    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        vec![self]
     }
 }
 
 #[enum_dispatch]
 pub trait LocalRw {
-    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(iter::empty())
+    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+        Vec::new()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(iter::empty())
+    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        Vec::new()
     }
 
-    fn values_written<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(iter::empty())
+    fn values_written<'a>(&'a self) -> Vec<&'a RcLocal> {
+        Vec::new()
     }
 
-    fn values_written_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(iter::empty())
+    fn values_written_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        Vec::new()
     }
 
-    fn values<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(self.values_read().chain(self.values_written()))
+    fn values<'a>(&'a self) -> Vec<&'a RcLocal> {
+        self.values_read().into_iter().chain(self.values_written()).collect()
     }
 
     fn replace_values_read(&mut self, old: &RcLocal, new: &RcLocal) {

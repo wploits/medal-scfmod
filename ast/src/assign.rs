@@ -43,34 +43,34 @@ impl SideEffects for Assign {
 }
 
 impl LocalRw for Assign {
-    fn values_read<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(
-            self.left
-                .iter()
-                .flat_map(|(l, _)| l.values_read())
-                .chain(self.right.iter().flat_map(|r| r.values_read())),
-        )
+    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+        self.left
+            .iter()
+            .flat_map(|(l, _)| l.values_read())
+            .chain(self.right.iter().flat_map(|r| r.values_read()))
+            .collect()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(
-            self.left
-                .iter_mut()
-                .flat_map(|(l, _)| l.values_read_mut())
-                .chain(self.right.iter_mut().flat_map(|r| r.values_read_mut())),
-        )
+    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        self.left
+            .iter_mut()
+            .flat_map(|(l, _)| l.values_read_mut())
+            .chain(self.right.iter_mut().flat_map(|r| r.values_read_mut()))
+            .collect()
     }
 
-    fn values_written<'a>(&'a self) -> Box<dyn Iterator<Item = &'a RcLocal> + 'a> {
-        Box::new(self.left.iter().flat_map(|(l, _)| l.values_written()))
+    fn values_written<'a>(&'a self) -> Vec<&'a RcLocal> {
+        self.left
+            .iter()
+            .flat_map(|(l, _)| l.values_written())
+            .collect()
     }
 
-    fn values_written_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut RcLocal> + 'a> {
-        Box::new(
-            self.left
-                .iter_mut()
-                .flat_map(|(l, _)| l.values_written_mut()),
-        )
+    fn values_written_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+        self.left
+            .iter_mut()
+            .flat_map(|(l, _)| l.values_written_mut())
+            .collect()
     }
 }
 

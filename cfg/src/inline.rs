@@ -36,7 +36,12 @@ pub fn inline_expressions(function: &mut Function, node: NodeIndex) {
     let mut index = 0;
     while index < block.ast.len() {
         'outer: for stat_index in (0..index).rev() {
-            for read in block.ast[index].values_read().cloned().collect::<Vec<_>>() {
+            for read in block.ast[index]
+                .values_read()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+            {
                 let mut use_count = 0;
                 block
                     .ast
