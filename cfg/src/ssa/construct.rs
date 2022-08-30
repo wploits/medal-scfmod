@@ -314,7 +314,8 @@ impl<'a> SsaConstructor<'a> {
                     if let Some(open_local) =
                         upvalues_open.find_open(node, stat_index, &value, self.function)
                     {
-                        local_map.insert(value, open_local.clone());
+                        println!("open local: {}", open_local);
+                        local_map.insert(value, open_local);
                     }
                 }
             }

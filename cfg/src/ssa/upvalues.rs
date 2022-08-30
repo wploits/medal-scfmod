@@ -79,23 +79,52 @@ impl UpvaluesOpen {
         index: usize,
         local: &ast::RcLocal,
         function: &Function,
-    ) -> Option<&ast::RcLocal> {
+    ) -> Option<ast::RcLocal> {
         println!("looking for upvalue: {:?} {} {}", node, index, local);
         let old_local = &self.old_locals[local];
-        self.open[&node]
-            .iter()
-            .filter(|(open_local, (open_node, _))| {
-                &self.old_locals[open_local] == old_local && *open_node == node
+        println!("old: {}", old_local);
+        for pred in function.predecessor_blocks(node) {
+            if let Some(pred_open) =
+                self.open[&pred]
+                    .iter()
+                    .find(|(open_local, (open_node, open_index))| {
+                        &self.old_locals[open_local] == old_local
+                            && *open_node == node
+                            && *open_index < index
+                    })
+            {
+                return Some(pred_open.0.clone());
+            }
+        }
+        for statement in function.block(node).unwrap().ast.iter().take(index).rev() {
+            for opened in statement_upvalues_opened(statement) {
+                if &self.old_locals[opened] == old_local {
+                    return Some(opened.clone());
+                }
+            }
+            for closed in statement_upvalues_closed(statement) {
+                if closed == old_local {
+                    return None;
+                }
+            }
+        }
+
+        None
+
+        /*self.open[&node]
+        .iter()
+        .filter(|(open_local, (open_node, _))| {
+            &self.old_locals[open_local] == old_local && *open_node == node
+        })
+        .find(|(_, (_, open_index))| *open_index < index)
+        .map(|(local, _)| local)
+        .or_else(|| {
+            function.predecessor_blocks(node).find_map(|pred| {
+                self.open[&pred]
+                    .iter()
+                    .find(|(open_local, _)| &self.old_locals[open_local] == old_local)
+                    .map(|(local, _)| local)
             })
-            .find(|(_, (_, open_index))| *open_index < index)
-            .map(|(local, _)| local)
-            .or_else(|| {
-                function.predecessor_blocks(node).find_map(|pred| {
-                    self.open[&pred]
-                        .iter()
-                        .find(|(open_local, _)| &self.old_locals[open_local] == old_local)
-                        .map(|(local, _)| local)
-                })
-            })
+        })*/
     }
 }
