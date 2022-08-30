@@ -23,18 +23,24 @@ pub(crate) fn statement_upvalues_closed(statement: &ast::Statement) -> Vec<&ast:
 }
 
 #[derive(Debug)]
-pub(crate) struct UpvaluesOpen(FxHashMap<NodeIndex, FxHashSet<(ast::RcLocal, (NodeIndex, usize))>>);
+pub(crate) struct UpvaluesOpen {
+    open: FxHashMap<NodeIndex, FxHashSet<(ast::RcLocal, (NodeIndex, usize))>>,
+    old_locals: FxHashMap<ast::RcLocal, ast::RcLocal>,
+}
 
 impl UpvaluesOpen {
-    pub fn new(function: &Function) -> Self {
-        let mut this = Self(Default::default());
+    pub fn new(function: &Function, old_locals: FxHashMap<ast::RcLocal, ast::RcLocal>) -> Self {
+        let mut this = Self {
+            open: Default::default(),
+            old_locals,
+        };
         let entry = function.entry().unwrap();
         let mut stack = vec![entry];
         let mut visited = FxHashSet::default();
         while let Some(node) = stack.pop() {
             visited.insert(node);
             let block = function.block(node).unwrap();
-            let mut block_opened = FxHashSet::default();
+            let block_opened = this.open.entry(node).or_default();
             for (stat_index, statement) in block.ast.iter().enumerate() {
                 let statement_opened = statement_upvalues_opened(statement);
                 if !statement_opened.is_empty() {
@@ -46,19 +52,20 @@ impl UpvaluesOpen {
                     );
                 } else {
                     let statement_closed = statement_upvalues_closed(statement);
-                    block_opened.retain(|(opened, _)| !statement_closed.contains(&opened));
+                    println!("closed: {:?}", statement_closed);
+                    block_opened.retain(|(opened, _)| {
+                        !statement_closed.contains(&&this.old_locals[opened])
+                    });
                 }
             }
-            this.0
-                .entry(node)
-                .or_default()
-                .extend(block_opened.iter().cloned());
             for successor in function.successor_blocks(node) {
                 if !visited.contains(&successor) {
-                    this.0
+                    let successor_opened =
+                        this.open[&node].iter().cloned().collect::<FxHashSet<_>>();
+                    this.open
                         .entry(successor)
                         .or_default()
-                        .extend(block_opened.iter().cloned());
+                        .extend(successor_opened);
                     stack.push(successor);
                 }
             }
@@ -71,22 +78,22 @@ impl UpvaluesOpen {
         node: NodeIndex,
         index: usize,
         local: &ast::RcLocal,
-        old_locals: &FxHashMap<ast::RcLocal, ast::RcLocal>,
         function: &Function,
     ) -> Option<&ast::RcLocal> {
-        let old_local = &old_locals[local];
-        self.0[&node]
+        println!("looking for upvalue: {:?} {} {}", node, index, local);
+        let old_local = &self.old_locals[local];
+        self.open[&node]
             .iter()
             .filter(|(open_local, (open_node, _))| {
-                &old_locals[open_local] == old_local && *open_node == node
+                &self.old_locals[open_local] == old_local && *open_node == node
             })
             .find(|(_, (_, open_index))| *open_index < index)
             .map(|(local, _)| local)
             .or_else(|| {
                 function.predecessor_blocks(node).find_map(|pred| {
-                    self.0[&pred]
+                    self.open[&pred]
                         .iter()
-                        .find(|(open_local, _)| &old_locals[open_local] == old_local)
+                        .find(|(open_local, _)| &self.old_locals[open_local] == old_local)
                         .map(|(local, _)| local)
                 })
             })
