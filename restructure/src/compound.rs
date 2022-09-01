@@ -60,13 +60,13 @@ impl super::GraphStructurer {
         let second_block = self.function.block(second_conditional).unwrap();
         if first_block.ast.len() == 2
             && second_block.ast.len() == 2
-            && first_info.is_some()
-            && second_info.is_some()
-            && first_info.as_ref().unwrap().target == second_info.as_ref().unwrap().target
+            && let Some(first_info) = first_info.as_ref()
+            && let Some(second_info) = second_info.as_ref()
+            && first_info.target == second_info.target
         {
             let assign = ast::Assign::new(
-                vec![first_info.as_ref().unwrap().target.clone().into()],
-                vec![first_info.as_ref().unwrap().target.clone().into()],
+                vec![first_info.target.clone().into()],
+                vec![first_info.target.clone().into()],
             );
             let block = self.function.block_mut(first_conditional).unwrap();
             block.ast.insert(1, assign.into());
@@ -80,7 +80,7 @@ impl super::GraphStructurer {
                     .as_assign_mut()
                     .unwrap()
                     .right[0],
-                second_info.unwrap().value,
+                second_info.value.clone(),
             )
         } else {
             let operand = *second_block
