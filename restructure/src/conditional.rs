@@ -4,7 +4,7 @@ use graph::NodeId;
 use itertools::Itertools;
 
 use crate::GraphStructurer;
-use petgraph::stable_graph::NodeIndex;
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 impl GraphStructurer {
     fn simplify_if(if_stat: &mut ast::If) {
@@ -22,6 +22,7 @@ impl GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let then_successors = self.function.successor_blocks(then_node).collect_vec();
         let else_successors = self.function.successor_blocks(else_node).collect_vec();
@@ -48,7 +49,7 @@ impl GraphStructurer {
         let exit = then_successors[0];
         self.function
             .set_block_terminator(entry, Some(Terminator::jump(exit)));
-        self.match_jump(entry, exit);
+        self.match_jump(entry, exit, dominators);
 
         true
     }
@@ -59,6 +60,7 @@ impl GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let mut _match_triangle_conditional = |then_node, else_node, inverted| {
             let then_successors = self.function.successor_blocks(then_node).collect_vec();
@@ -91,7 +93,7 @@ impl GraphStructurer {
 
             self.function
                 .set_block_terminator(entry, Some(Terminator::jump(else_node)));
-            self.match_jump(entry, else_node);
+            self.match_jump(entry, else_node, dominators);
 
             true
         };
@@ -106,8 +108,9 @@ impl GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
     ) -> bool {
-        self.match_diamond_conditional(entry, then_node, else_node)
-            || self.match_triangle_conditional(entry, then_node, else_node)
+        self.match_diamond_conditional(entry, then_node, else_node, dominators)
+            || self.match_triangle_conditional(entry, then_node, else_node, dominators)
     }
 }

@@ -52,7 +52,6 @@ impl UpvaluesOpen {
                     );
                 } else {
                     let statement_closed = statement_upvalues_closed(statement);
-                    println!("closed: {:?}", statement_closed);
                     block_opened.retain(|(opened, _)| {
                         !statement_closed.contains(&&this.old_locals[opened])
                     });
@@ -80,9 +79,7 @@ impl UpvaluesOpen {
         local: &ast::RcLocal,
         function: &Function,
     ) -> Option<ast::RcLocal> {
-        println!("looking for upvalue: {:?} {} {}", node, index, local);
         let old_local = &self.old_locals[local];
-        println!("old: {}", old_local);
         for pred in function.predecessor_blocks(node) {
             if let Some(pred_open) =
                 self.open[&pred]

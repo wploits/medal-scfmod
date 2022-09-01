@@ -1,7 +1,6 @@
 [workspace]
 
 members = [
-    "graph",
     "cfg",
     "ast",
     "lua51-lifter",

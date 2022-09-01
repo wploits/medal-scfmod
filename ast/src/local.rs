@@ -1,5 +1,4 @@
 use crate::{type_system::Infer, SideEffects, Traverse, Type, TypeSystem};
-use by_address::ByAddress;
 use derive_more::{Deref, DerefMut, Display, From};
 use enum_dispatch::enum_dispatch;
 use std::{
@@ -10,7 +9,7 @@ use std::{
     rc::Rc,
 };
 
-#[derive(Debug, From, Clone)]
+#[derive(Debug, From, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Local(pub Option<String>);
 
 impl Local {
@@ -28,8 +27,8 @@ impl fmt::Display for Local {
     }
 }
 
-#[derive(Debug, Clone, Deref, DerefMut, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RcLocal(pub ByAddress<Rc<Local>>);
+#[derive(Debug, Clone, Deref, PartialEq, Eq, PartialOrd, Ord, DerefMut, Hash)]
+pub struct RcLocal(pub Rc<Local>);
 
 impl Infer for RcLocal {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
@@ -39,7 +38,7 @@ impl Infer for RcLocal {
 
 impl Display for RcLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 .0 .0 {
+        match &self.0 .0 {
             Some(name) => write!(f, "{}", name),
             None => {
                 let mut hasher = DefaultHasher::new();
@@ -56,7 +55,7 @@ impl Traverse for RcLocal {}
 
 impl RcLocal {
     pub fn new(rc: Rc<Local>) -> Self {
-        Self(ByAddress(rc))
+        Self(rc)
     }
 }
 
@@ -89,7 +88,10 @@ pub trait LocalRw {
     }
 
     fn values<'a>(&'a self) -> Vec<&'a RcLocal> {
-        self.values_read().into_iter().chain(self.values_written()).collect()
+        self.values_read()
+            .into_iter()
+            .chain(self.values_written())
+            .collect()
     }
 
     fn replace_values_read(&mut self, old: &RcLocal, new: &RcLocal) {

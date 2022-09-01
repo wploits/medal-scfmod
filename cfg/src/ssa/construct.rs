@@ -293,8 +293,6 @@ impl<'a> SsaConstructor<'a> {
 
     fn fix_upvalues(&mut self, local_map: &mut FxHashMap<ast::RcLocal, ast::RcLocal>) {
         let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
-        println!("upvalues open: {:#?}", upvalues_open);
-
         let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
         while let Some(node) = dfs.next(self.function.graph()) {
             for stat_index in 0..self.function.block(node).unwrap().ast.len() {
@@ -314,7 +312,6 @@ impl<'a> SsaConstructor<'a> {
                     if let Some(open_local) =
                         upvalues_open.find_open(node, stat_index, &value, self.function)
                     {
-                        println!("open local: {}", open_local);
                         local_map.insert(value, open_local);
                     }
                 }

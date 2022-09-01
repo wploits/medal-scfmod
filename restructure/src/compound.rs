@@ -1,7 +1,8 @@
-use cfg::{block::Terminator, dot};
+use cfg::{block::Terminator, dot, inline::inline_expressions};
 use itertools::Itertools;
 use petgraph::stable_graph::NodeIndex;
 
+#[derive(Debug)]
 struct CompoundAssignment {
     target: ast::RcLocal,
     value: ast::RValue,
@@ -140,8 +141,10 @@ impl super::GraphStructurer {
         let first_info = self.compound_info(first_conditional);
         let second_info = self.compound_info(second_conditional);
 
-        if first_info.is_none() {
-            assert!(second_info.is_none());
+        println!("{:#?} {:#?}", first_info, second_info);
+
+        if first_info.is_none() && second_info.is_none() {
+            return false;
         }
 
         let (target_expression, operand) = self.target_expression(
@@ -191,7 +194,6 @@ impl super::GraphStructurer {
     }
 
     pub fn match_and_or(&mut self, node: NodeIndex, assigner: NodeIndex, end: NodeIndex) -> bool {
-        println!("assigner: {:?} end: {:?}", assigner, end);
         let info = self.compound_info(assigner);
         if info.is_none() {
             return false;
@@ -207,7 +209,6 @@ impl super::GraphStructurer {
 
         let if_stat = block.ast.last().unwrap().as_if().unwrap();
         if if_stat.condition.as_local() != Some(&info.target) {
-            println!("{} {}", if_stat.condition, info.value);
             return false;
         }
 
@@ -238,7 +239,6 @@ impl super::GraphStructurer {
         then_node: NodeIndex,
         else_node: NodeIndex,
     ) -> bool {
-        let graph = self.function.graph();
         let else_successors = self.function.successor_blocks(else_node).collect_vec();
         let then_successors = self.function.successor_blocks(then_node).collect_vec();
 

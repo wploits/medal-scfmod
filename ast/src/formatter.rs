@@ -195,7 +195,12 @@ impl Formatter {
                 self.indent();
                 self.write("end".chars());
             }
-            Statement::While(r#while) => self.format_block(&r#while.block),
+            Statement::While(r#while) => {
+                self.write(format!("while {} then\n", r#while.condition).chars());
+                self.format_block(&r#while.block);
+                self.indent();
+                self.write("end".chars());
+            }
             _ => self.write(statement.to_string().chars()),
         }
 

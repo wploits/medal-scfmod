@@ -1,11 +1,14 @@
-use std::collections::HashSet;
-use cfg::{dot, function::Function};
-use fxhash::FxHashMap;
-use itertools::Itertools;
-use cfg::block::BasicBlock;
+use cfg::{block::BasicBlock, dot, function::Function, inline::inline_expressions};
+use fxhash::{FxHashMap, FxHashSet};
 use graph::{algorithms::*, Directed, Edge, Graph, NodeId};
+use itertools::Itertools;
+use std::collections::HashSet;
 
-use petgraph::{visit::*, stable_graph::{StableDiGraph, NodeIndex}, algo::dominators::simple_fast};
+use petgraph::{
+    algo::dominators::{simple_fast, Dominators},
+    stable_graph::{NodeIndex, StableDiGraph},
+    visit::*,
+};
 
 mod compound;
 mod conditional;
@@ -58,18 +61,22 @@ impl GraphStructurer {
             == block.len()
     }
 
-    fn try_match_pattern(&mut self, node: NodeIndex) -> bool {
+    fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>) -> bool {
         let successors = self.function.successor_blocks(node).collect_vec();
 
-        /*if self.try_collapse_loop(node) {
+        if self.try_collapse_loop(node) {
             return true;
-        }*/
+        }
+
+        /*println!("before: {}", self.function.block(node).unwrap().ast);
+        inline_expressions(&mut self.function, node);
+        println!("after: {}", self.function.block(node).unwrap().ast);*/
 
         let changed = match successors.len() {
             0 => false,
             1 => {
                 // remove unnecessary jumps to allow pattern matching
-                self.match_jump(node, successors[0])
+                self.match_jump(node, successors[0], dominators)
             }
             2 => {
                 let (then_edge, else_edge) = self
@@ -83,29 +90,23 @@ impl GraphStructurer {
                     .unwrap();
                 let (then_node, else_node) = (then_edge.node, else_edge.node);
                 self.match_compound_conditional(node, then_node, else_node)
-                //|| self.match_conditional(node, then_node, else_node)
+                    || self.match_conditional(node, then_node, else_node, dominators)
             }
 
             _ => unreachable!(),
         };
 
-        //dot::render_to(&self.function, &mut std::io::stdout());
+        dot::render_to(&self.function, &mut std::io::stdout());
 
         changed
     }
 
     fn match_blocks(&mut self) -> bool {
-        let dfs = {
-            let mut dfs = Dfs::new(self.function.graph(), self.root);
-            let mut result = HashSet::new();
-
-            while let Some(n) = dfs.next(self.function.graph()) {
-                result.insert(n);
-            }
-
-            result
-        };
+        let dfs = Dfs::new(self.function.graph(), self.root)
+            .iter(self.function.graph())
+            .collect::<FxHashSet<_>>();
         let mut dfs_postorder = DfsPostOrder::new(self.function.graph(), self.root);
+        let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
 
         for node in self
             .function
@@ -120,7 +121,7 @@ impl GraphStructurer {
         let mut changed = false;
         while let Some(node) = dfs_postorder.next(self.function.graph()) {
             println!("matching {:?}", node);
-            changed |= self.try_match_pattern(node);
+            changed |= self.try_match_pattern(node, &dominators);
         }
 
         cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();

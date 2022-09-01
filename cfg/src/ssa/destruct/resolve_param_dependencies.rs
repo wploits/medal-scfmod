@@ -65,7 +65,7 @@ fn remove_dependency(
         .neighbors(dependency_graph_node)
         .collect::<Vec<_>>();
     let variable = dependency_graph.remove_node(dependency_graph_node).unwrap();
-    let name = variable.0 .0 .0.as_ref().map(|n| format!("copy_{}", n));
+    let name = variable.0 .0.as_ref().map(|n| format!("copy_{}", n));
     let copy_variable = ast::RcLocal::new(Rc::new(ast::Local::new(name)));
     let new_dependency_graph_node = dependency_graph.add_node(copy_variable.clone());
     for successor in successors {
