@@ -12,7 +12,7 @@ use petgraph::{
 
 impl GraphStructurer {
     pub(crate) fn is_loop_header(&self, node: NodeIndex) -> bool {
-        self.back_edges.iter().any(|edge| edge.1 == node)
+        self.loop_headers.contains(&node)
     }
 
     fn refine_breaks(

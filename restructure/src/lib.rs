@@ -16,42 +16,25 @@ mod r#loop;
 struct GraphStructurer {
     pub function: Function,
     root: NodeIndex,
-    back_edges: Vec<(NodeIndex, NodeIndex)>,
+    loop_headers: FxHashSet<NodeIndex>,
 }
 
 impl GraphStructurer {
-    fn new(
-        function: Function,
-        graph: StableDiGraph<BasicBlock, ()>,
-        blocks: FxHashMap<NodeIndex, ast::Block>,
-        root: NodeIndex,
-    ) -> Self {
-        pub fn back_edges(
-            graph: &StableDiGraph<BasicBlock, ()>,
-            root: NodeIndex,
-        ) -> Vec<(NodeIndex, NodeIndex)> {
-            let mut back_edges = Vec::new();
-            let dominators = simple_fast(graph, root);
-
-            for node in graph.node_indices() {
-                back_edges.extend(
-                    graph
-                        .neighbors(root)
-                        .filter(|&n| dominators.dominators(node).unwrap().contains(&n))
-                        .map(|n| (n, node)),
-                );
-            }
-
-            back_edges
-        }
-
-        let back_edges = back_edges(&graph, root);
+    fn new(function: Function, graph: StableDiGraph<BasicBlock, ()>, root: NodeIndex) -> Self {
         let root = function.entry().unwrap();
+        let mut loop_headers = FxHashSet::default();
+        depth_first_search(&graph, Some(root), |event| {
+            if let DfsEvent::BackEdge(_, header) = event {
+                loop_headers.insert(header);
+            }
+        });
+
+        println!("loop headers: {:#?}", loop_headers);
 
         Self {
             function,
             root,
-            back_edges,
+            loop_headers,
         }
     }
 
@@ -152,13 +135,6 @@ pub fn lift(function: cfg::function::Function) -> ast::Block {
     let graph = function.graph().clone();
     let root = function.entry().unwrap();
 
-    //dot::render_to(&graph, &mut std::io::stdout());
-
-    let blocks = function
-        .blocks()
-        .map(|(node, block)| (node, block.ast.clone()))
-        .collect();
-
-    let structurer = GraphStructurer::new(function, graph, blocks, root);
+    let structurer = GraphStructurer::new(function, graph, root);
     structurer.structure()
 }
