@@ -1,12 +1,5 @@
-<<<<<<< HEAD
 use ast::Reduce;
 use cfg::block::Terminator;
-use graph::{
-    algorithms::{dfs_tree, dominators::post_dominator_tree},
-    NodeId,
-};
-=======
->>>>>>> 7398f9065423b14e08827e24dec7bdf357f193cb
 use itertools::Itertools;
 use std::collections::HashMap;
 

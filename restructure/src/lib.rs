@@ -96,12 +96,8 @@ impl GraphStructurer {
             _ => unreachable!(),
         };
 
-<<<<<<< HEAD
         println!("after");
-        dot::render_to(&self.function, &mut std::io::stdout());
-=======
         dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
->>>>>>> 7398f9065423b14e08827e24dec7bdf357f193cb
 
         changed
     }
