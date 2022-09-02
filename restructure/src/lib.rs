@@ -34,11 +34,12 @@ impl GraphStructurer {
             let dominators = simple_fast(graph, root);
 
             for node in graph.node_indices() {
-                /*for successor in graph.successors(node) {
-                    if dominators.contains(&successor) {
-                        back_edges.push((node, successor));
-                    }
-                }*/
+                back_edges.extend(
+                    graph
+                        .neighbors(root)
+                        .filter(|&n| dominators.dominators(node).unwrap().contains(&n))
+                        .map(|n| (n, node)),
+                );
             }
 
             back_edges
