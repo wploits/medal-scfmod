@@ -145,18 +145,24 @@ impl<'a> SsaConstructor<'a> {
             let block = self.function.block_mut(node).unwrap();
             for stat in block.ast.iter_mut() {
                 // TODO: figure out values_mut
-                for (from, to) in stat
+                for (from, mut to) in stat
                     .values_written_mut()
                     .into_iter()
                     .filter_map(|v| local_map.get(v).map(|t| (v, t)))
                 {
+                    while let Some(to_to) = local_map.get(to) {
+                        to = to_to;
+                    }
                     *from = to.clone();
                 }
-                for (from, to) in stat
+                for (from, mut to) in stat
                     .values_read_mut()
                     .into_iter()
                     .filter_map(|v| local_map.get(v).map(|t| (v, t)))
                 {
+                    while let Some(to_to) = local_map.get(to) {
+                        to = to_to;
+                    }
                     *from = to.clone();
                 }
             }
@@ -168,7 +174,10 @@ impl<'a> SsaConstructor<'a> {
                         .iter_mut()
                         .flat_map(|(p, a)| iter::once(p).chain(iter::once(a)))
                     {
-                        if let Some(new_local) = local_map.get(local) {
+                        if let Some(mut new_local) = local_map.get(local) {
+                            while let Some(new_to) = local_map.get(new_local) {
+                                new_local = new_to;
+                            }
                             *local = new_local.clone();
                         }
                     }

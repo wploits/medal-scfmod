@@ -49,39 +49,37 @@ fn main() -> anyhow::Result<()> {
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
-    for node in main.graph().node_indices().collect::<Vec<_>>() {
-        cfg::inline::inline_expressions(&mut main, node);
-    }
+    cfg::inline::inline_expressions(&mut main);
     let inlined = now.elapsed();
     println!("inline: {:?}", inlined);
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
     cfg::ssa::destruct(&mut main, local_count, &local_groups);
     let ssa_destructed = now.elapsed();
     println!("ssa destruction: {:?}", ssa_destructed);
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     /*process_function(&mut main)?;
     for function in descendants {
         process_function(&mut function.borrow_mut())?;
     }*/
 
-    cfg::dot::render_to(&main, &mut std::io::stdout())?;
-    let mut main = restructure::lift(main);
+    // cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    // let mut main = restructure::lift(main);
 
-    let now = time::Instant::now();
-    //ast::type_system::TypeSystem::analyze(&mut main);
-    let type_analysis = now.elapsed();
-    println!("type analysis: {:?}", type_analysis);
+    // let now = time::Instant::now();
+    // //ast::type_system::TypeSystem::analyze(&mut main);
+    // let type_analysis = now.elapsed();
+    // println!("type analysis: {:?}", type_analysis);
 
-    let formatted = ast::formatter::Formatter::format(&main, Default::default());
-    println!("{}", formatted);
+    // let formatted = ast::formatter::Formatter::format(&main, Default::default());
+    // println!("{}", formatted);
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;

@@ -1,6 +1,6 @@
 use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
-use fxhash::FxHashSet;
+use fxhash::{FxHashSet, FxHashMap};
 use petgraph::stable_graph::NodeIndex;
 
 fn assigns(
@@ -22,76 +22,83 @@ fn assigns(
 }
 
 // TODO: move to ssa module?
-pub fn inline_expressions(function: &mut Function, node: NodeIndex) {
-    let block = function.block_mut(node).unwrap();
-    let mut locals_out = FxHashSet::default();
-    if let Some(terminator) = &block.terminator {
-        locals_out.extend(
-            terminator
-                .edges()
-                .into_iter()
-                .flat_map(|e| e.arguments.iter().map(|(_, a)| a)),
-        );
-    }
-    let mut index = 0;
-    while index < block.ast.len() {
-        'outer: for stat_index in (0..index).rev() {
-            for read in block.ast[index]
-                .values_read()
-                .into_iter()
-                .cloned()
-                .collect::<Vec<_>>()
-            {
-                let mut use_count = 0;
-                block
-                    .ast
-                    .get_mut(index)
-                    .unwrap()
-                    .post_traverse_rvalues(&mut |rvalue| {
-                        if let ast::RValue::Local(rvalue_local) = rvalue {
-                            if *rvalue_local == read {
-                                use_count += 1;
-                            }
-                        }
-                    });
-                if use_count > 1 {
-                    continue;
+pub fn inline_expressions(function: &mut Function) {
+    let node_indices = function.graph().node_indices().collect::<Vec<_>>();
+    let mut local_usages = FxHashMap::default();
+    for &node in &node_indices {
+        let block = function.block(node).unwrap();
+        for stat in &block.ast.0 {
+            for read in stat.values_read() {
+                *local_usages.entry(read.clone()).or_insert(0usize) += 1;
+            }
+        }
+        if let Some(terminator) = block.terminator() {
+            for edge in terminator.edges() {
+                for (_, arg) in &edge.arguments {
+                    *local_usages.entry(arg.clone()).or_insert(0usize) += 1;
                 }
-
-                if let Some(new_expression) = assigns(&block.ast, &locals_out, stat_index, &read) {
-                    let new_has_side_effects = new_expression.has_side_effects();
-                    if new_has_side_effects
-                        && block.ast[stat_index + 1..index]
-                            .iter()
-                            .any(|s| s.has_side_effects())
-                    {
-                        break;
+            }
+        }
+    }
+    for node in node_indices {
+        let block = function.block_mut(node).unwrap();
+        let mut locals_out = FxHashSet::default();
+        if let Some(terminator) = &block.terminator {
+            locals_out.extend(
+                terminator
+                    .edges()
+                    .into_iter()
+                    .flat_map(|e| e.arguments.iter().map(|(_, a)| a)),
+            );
+        }
+        let mut index = 0;
+        while index < block.ast.len() {
+            'outer: for stat_index in (0..index).rev() {
+                for read in block.ast[index]
+                    .values_read()
+                    .into_iter()
+                    .cloned()
+                    .collect::<FxHashSet<_>>()
+                {
+                    if local_usages[&read] > 1 {
+                        continue;
                     }
-                    let statement = block.ast.get_mut(index).unwrap();
-                    let rvalues = match statement {
-                        ast::Statement::Assign(assign) => {
-                            assert_eq!(assign.right.len(), 1);
-                            assign.right.get_mut(0).unwrap().rvalues_mut()
-                        }
-                        ast::Statement::If(r#if) => r#if.condition.rvalues_mut(),
-                        _ => statement.rvalues_mut(),
-                    };
-                    for rvalue in rvalues {
-                        if new_has_side_effects && rvalue.has_side_effects() {
+
+                    if let Some(new_expression) = assigns(&block.ast, &locals_out, stat_index, &read) {
+                        let new_has_side_effects = new_expression.has_side_effects();
+                        if new_has_side_effects
+                            && block.ast[stat_index + 1..index]
+                                .iter()
+                                .any(|s| s.has_side_effects())
+                        {
                             break;
                         }
-                        if let ast::RValue::Local(rvalue_local) = rvalue {
-                            if *rvalue_local == read {
-                                *rvalue = new_expression;
-                                block.ast.remove(stat_index);
-                                index -= 1;
-                                continue 'outer;
+                        let statement = block.ast.get_mut(index).unwrap();
+                        let rvalues = match statement {
+                            ast::Statement::Assign(assign) => {
+                                assert_eq!(assign.right.len(), 1);
+                                assign.right.get_mut(0).unwrap().rvalues_mut()
+                            }
+                            ast::Statement::If(r#if) => r#if.condition.rvalues_mut(),
+                            _ => statement.rvalues_mut(),
+                        };
+                        for rvalue in rvalues {
+                            if new_has_side_effects && rvalue.has_side_effects() {
+                                break;
+                            }
+                            if let ast::RValue::Local(rvalue_local) = rvalue {
+                                if *rvalue_local == read {
+                                    *rvalue = new_expression;
+                                    block.ast.remove(stat_index);
+                                    index -= 1;
+                                    continue 'outer;
+                                }
                             }
                         }
                     }
                 }
             }
+            index += 1;
         }
-        index += 1;
     }
 }
