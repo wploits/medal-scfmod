@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{EdgeIndex, NodeIndex, StableDiGraph},
+    stable_graph::NodeIndex,
     visit::*,
 };
 
@@ -22,30 +22,18 @@ struct GraphStructurer {
 impl GraphStructurer {
     fn new(
         function: Function,
-        graph: StableDiGraph<BasicBlock, ()>,
-        blocks: FxHashMap<NodeIndex, ast::Block>,
-        root: NodeIndex,
     ) -> Self {
-        pub fn back_edges(
-            graph: &StableDiGraph<BasicBlock, ()>,
-            root: NodeIndex,
-        ) -> Vec<(NodeIndex, NodeIndex)> {
-            let mut back_edges = Vec::new();
-            let dominators = simple_fast(graph, root);
-
-            for node in graph.node_indices() {
-                /*for successor in graph.successors(node) {
-                    if dominators.contains(&successor) {
-                        back_edges.push((node, successor));
-                    }
-                }*/
-            }
-
-            back_edges
-        }
-
-        let back_edges = back_edges(&graph, root);
         let root = function.entry().unwrap();
+        let mut back_edges = Vec::new();
+        let dominators = simple_fast(function.graph(), root);
+        for node in function.graph().node_indices() {
+            let dominated_by_node = dominators.immediately_dominated_by(node).collect::<FxHashSet<_>>();
+            for successor in function.successor_blocks(node) {
+                if dominated_by_node.contains(&successor) {
+                    back_edges.push((node, successor));
+                }
+            }
+        }
 
         Self {
             function,
@@ -148,16 +136,8 @@ impl GraphStructurer {
 }
 
 pub fn lift(function: cfg::function::Function) -> ast::Block {
-    let graph = function.graph().clone();
-    let root = function.entry().unwrap();
-
     //dot::render_to(&graph, &mut std::io::stdout());
 
-    let blocks = function
-        .blocks()
-        .map(|(node, block)| (node, block.ast.clone()))
-        .collect();
-
-    let structurer = GraphStructurer::new(function, graph, blocks, root);
+    let structurer = GraphStructurer::new(function);
     structurer.structure()
 }
