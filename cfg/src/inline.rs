@@ -2,7 +2,6 @@ use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
 use itertools::Either;
-use petgraph::stable_graph::NodeIndex;
 
 fn assigns(
     block: &ast::Block,

@@ -3,7 +3,7 @@ use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 use petgraph::{
     prelude::DiGraph,
-    stable_graph::{NodeIndex, StableDiGraph},
+    stable_graph::NodeIndex,
     visit::{DfsPostOrder, Walker},
 };
 

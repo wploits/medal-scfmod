@@ -1,7 +1,6 @@
 use ast::{LocalRw, RcLocal};
 use fxhash::FxHashMap;
 use indexmap::IndexSet;
-use itertools::Itertools;
 use petgraph::{matrix_graph::MatrixGraph, stable_graph::NodeIndex};
 
 use crate::function::Function;

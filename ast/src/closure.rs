@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fmt};
+use std::fmt;
 
 use itertools::Itertools;
 
 use crate::{
     type_system::{Infer, TypeSystem},
-    Block, LocalRw, RcLocal, SideEffects, Statement, Traverse, Type,
+    Block, LocalRw, RcLocal, SideEffects, Traverse, Type,
 };
 
 #[derive(Debug, PartialEq, Clone)]

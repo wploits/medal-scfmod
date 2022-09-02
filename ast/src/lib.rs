@@ -147,7 +147,7 @@ pub enum LValue {
 }
 
 impl LocalRw for LValue {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         match self {
             LValue::Local(_) => Vec::new(),
             LValue::Global(global) => global.values_read(),
@@ -155,7 +155,7 @@ impl LocalRw for LValue {
         }
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         match self {
             LValue::Local(_) => Vec::new(),
             LValue::Global(global) => global.values_read_mut(),
@@ -163,7 +163,7 @@ impl LocalRw for LValue {
         }
     }
 
-    fn values_written<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_written(&self) -> Vec<&RcLocal> {
         match self {
             LValue::Local(local) => vec![local],
             LValue::Global(global) => global.values_written(),
@@ -171,7 +171,7 @@ impl LocalRw for LValue {
         }
     }
 
-    fn values_written_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
         match self {
             LValue::Local(local) => vec![local],
             LValue::Global(global) => global.values_written_mut(),
@@ -190,7 +190,7 @@ impl fmt::Display for LValue {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Comment {
     pub text: String,
 }

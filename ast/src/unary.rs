@@ -131,11 +131,11 @@ impl Unary {
 }
 
 impl LocalRw for Unary {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.value.values_read()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.value.values_read_mut()
     }
 }

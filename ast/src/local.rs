@@ -1,11 +1,10 @@
 use crate::{type_system::Infer, SideEffects, Traverse, Type, TypeSystem};
-use derive_more::{Deref, DerefMut, Display, From};
+use derive_more::{Deref, DerefMut, From};
 use enum_dispatch::enum_dispatch;
 use std::{
     collections::hash_map::DefaultHasher,
     fmt::{self, Display},
     hash::{Hash, Hasher},
-    iter,
     rc::Rc,
 };
 
@@ -60,34 +59,34 @@ impl RcLocal {
 }
 
 impl LocalRw for RcLocal {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         vec![self]
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         vec![self]
     }
 }
 
 #[enum_dispatch]
 pub trait LocalRw {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         Vec::new()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         Vec::new()
     }
 
-    fn values_written<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_written(&self) -> Vec<&RcLocal> {
         Vec::new()
     }
 
-    fn values_written_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
         Vec::new()
     }
 
-    fn values<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values(&self) -> Vec<&RcLocal> {
         self.values_read()
             .into_iter()
             .chain(self.values_written())

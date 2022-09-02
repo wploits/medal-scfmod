@@ -1,7 +1,6 @@
 use cfg::{block::BasicBlock, dot, function::Function, inline::inline_expressions};
 use fxhash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
-use std::collections::HashSet;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
@@ -67,11 +66,11 @@ impl GraphStructurer {
         let successors = self.function.successor_blocks(node).collect_vec();
 
         println!("before");
-        cfg::dot::render_to(&self.function, &mut std::io::stdout());
+        cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         if self.try_collapse_loop(node, dominators) {
             println!("changed");
-            cfg::dot::render_to(&self.function, &mut std::io::stdout());
+            cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
             return true;
         }
 

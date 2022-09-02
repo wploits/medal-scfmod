@@ -1,8 +1,6 @@
 use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
-use fxhash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
-use petgraph::data::DataMapMut;
 use petgraph::{
     stable_graph::{Neighbors, NodeIndex, StableDiGraph},
     Direction,

@@ -43,7 +43,7 @@ impl SideEffects for Assign {
 }
 
 impl LocalRw for Assign {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.left
             .iter()
             .flat_map(|(l, _)| l.values_read())
@@ -51,7 +51,7 @@ impl LocalRw for Assign {
             .collect()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .iter_mut()
             .flat_map(|(l, _)| l.values_read_mut())
@@ -59,14 +59,14 @@ impl LocalRw for Assign {
             .collect()
     }
 
-    fn values_written<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_written(&self) -> Vec<&RcLocal> {
         self.left
             .iter()
             .flat_map(|(l, _)| l.values_written())
             .collect()
     }
 
-    fn values_written_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .iter_mut()
             .flat_map(|(l, _)| l.values_written_mut())

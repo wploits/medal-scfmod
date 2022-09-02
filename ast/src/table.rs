@@ -20,7 +20,7 @@ impl Infer for Table {
         let elements: BTreeSet<_> = elements
             .iter()
             .filter(|(f, t)| {
-                f.is_some() || !elements.iter().any(|(f, x)| t != x && t.is_subtype_of(x))
+                f.is_some() || !elements.iter().any(|(_, x)| t != x && t.is_subtype_of(x))
             })
             .cloned()
             .collect();
@@ -45,11 +45,11 @@ impl Infer for Table {
 }
 
 impl LocalRw for Table {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.0.iter().flat_map(|(_, r)| r.values_read()).collect()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.0
             .iter_mut()
             .flat_map(|(_, r)| r.values_read_mut())

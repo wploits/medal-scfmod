@@ -39,11 +39,11 @@ impl SideEffects for If {
 }
 
 impl LocalRw for If {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.condition.values_read()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.condition.values_read_mut()
     }
 }

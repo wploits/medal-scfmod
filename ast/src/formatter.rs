@@ -1,12 +1,11 @@
 use std::{
-    borrow::{Borrow, Cow},
-    collections::HashSet,
+    borrow::Cow,
     fmt,
 };
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, LValue, RValue, Return, Statement, Type, TypeSystem};
+use crate::{Block, LValue, RValue, Return, Statement, Type};
 
 pub enum IndentationMode {
     Spaces(u8),

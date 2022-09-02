@@ -95,7 +95,7 @@ impl Display for Type {
                         } else {
                             format!("[{}]: {}", indexer_type, element_type)
                         },
-                        (!fields.is_empty()).then(|| ", ").unwrap_or_default(),
+                        (!fields.is_empty()).then_some(", ").unwrap_or_default(),
                         fields
                             .iter()
                             .map(|(field, r#type)| { format!("{}: {}", field, r#type) })
@@ -110,7 +110,7 @@ impl Display for Type {
                     {
                         format!("({})", codomain.iter().join(", "))
                     } else {
-                        format!("{}", codomain.iter().join(", "))
+                        codomain.iter().join(", ")
                     }
                 )),
                 Type::Optional(r#type) => Cow::Owned(format!("{}?", r#type)),

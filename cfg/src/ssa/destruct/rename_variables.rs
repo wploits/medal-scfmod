@@ -4,7 +4,6 @@
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
 use petgraph::{
-    algo::kosaraju_scc,
     data::Build,
     prelude::UnGraphMap,
     stable_graph::NodeIndex,

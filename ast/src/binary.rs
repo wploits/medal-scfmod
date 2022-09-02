@@ -188,7 +188,7 @@ impl Binary {
 }
 
 impl LocalRw for Binary {
-    fn values_read<'a>(&'a self) -> Vec<&'a RcLocal> {
+    fn values_read(&self) -> Vec<&RcLocal> {
         self.left
             .values_read()
             .into_iter()
@@ -196,7 +196,7 @@ impl LocalRw for Binary {
             .collect()
     }
 
-    fn values_read_mut<'a>(&'a mut self) -> Vec<&'a mut RcLocal> {
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.left
             .values_read_mut()
             .into_iter()

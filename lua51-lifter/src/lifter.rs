@@ -1,7 +1,4 @@
 use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    io::Read,
     rc::Rc,
 };
 
@@ -9,7 +6,7 @@ use either::Either;
 use fxhash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
 
-use ast::{LValue, LocalRw, RValue, RcLocal, Statement};
+use ast::{RcLocal, Statement};
 use cfg::{block::Terminator, function::Function};
 
 use lua51_deserializer::{
@@ -259,7 +256,7 @@ impl<'a> LifterContext<'a> {
                     statements.push(
                         ast::Return::new(
                             values
-                                .into_iter()
+                                .iter()
                                 .map(|v| self.locals[v].clone().into())
                                 .collect(),
                         )

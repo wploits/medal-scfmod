@@ -1,9 +1,8 @@
 use derive_more::From;
 use enum_as_inner::EnumAsInner;
-use std::collections::HashMap;
 use std::fmt;
 
-use crate::{type_system::Infer, LocalRw, RcLocal, SideEffects, Traverse, Type, TypeSystem};
+use crate::{type_system::Infer, LocalRw, SideEffects, Traverse, Type, TypeSystem};
 
 #[derive(Debug, From, Clone, PartialEq, EnumAsInner)]
 pub enum Literal {
