@@ -1,14 +1,14 @@
-use std::collections::HashMap;
 use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
 use fxhash::{FxHashMap, FxHashSet};
-use std::{cell::RefCell, rc::Rc};
 use itertools::Itertools;
+use petgraph::data::DataMapMut;
 use petgraph::{
     stable_graph::{Neighbors, NodeIndex, StableDiGraph},
     Direction,
 };
-use petgraph::data::DataMapMut;
+use std::collections::HashMap;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 

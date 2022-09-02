@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{NodeIndex, StableDiGraph, EdgeIndex},
+    stable_graph::{EdgeIndex, NodeIndex, StableDiGraph},
     visit::*,
 };
 
@@ -27,7 +27,10 @@ impl GraphStructurer {
         blocks: FxHashMap<NodeIndex, ast::Block>,
         root: NodeIndex,
     ) -> Self {
-        pub fn back_edges(graph: &StableDiGraph<BasicBlock, ()>, root: NodeIndex) -> Vec<(NodeIndex, NodeIndex)> {
+        pub fn back_edges(
+            graph: &StableDiGraph<BasicBlock, ()>,
+            root: NodeIndex,
+        ) -> Vec<(NodeIndex, NodeIndex)> {
             let mut back_edges = Vec::new();
             let dominators = simple_fast(graph, root);
 

@@ -2,6 +2,7 @@
 
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
+use itertools::Either;
 use itertools::Itertools;
 
 use std::{

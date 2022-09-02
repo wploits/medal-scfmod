@@ -1,6 +1,7 @@
 use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
-use fxhash::{FxHashSet, FxHashMap};
+use fxhash::{FxHashMap, FxHashSet};
+use itertools::Either;
 use petgraph::stable_graph::NodeIndex;
 
 fn assigns(
@@ -64,7 +65,10 @@ pub fn inline_expressions(function: &mut Function) {
                         continue;
                     }
 
-                    if let Some(new_expression) = assigns(&block.ast, &locals_out, stat_index, &read) {
+                    if let Some(new_expression) =
+                        assigns(&block.ast, &locals_out, stat_index, &read)
+                    {
+                        println!("{:?}", new_expression);
                         let new_has_side_effects = new_expression.has_side_effects();
                         if new_has_side_effects
                             && block.ast[stat_index + 1..index]
@@ -74,25 +78,25 @@ pub fn inline_expressions(function: &mut Function) {
                             break;
                         }
                         let statement = block.ast.get_mut(index).unwrap();
-                        let rvalues = match statement {
-                            ast::Statement::Assign(assign) => {
-                                assert_eq!(assign.right.len(), 1);
-                                assign.right.get_mut(0).unwrap().rvalues_mut()
-                            }
-                            ast::Statement::If(r#if) => r#if.condition.rvalues_mut(),
-                            _ => statement.rvalues_mut(),
-                        };
-                        for rvalue in rvalues {
-                            if new_has_side_effects && rvalue.has_side_effects() {
-                                break;
-                            }
-                            if let ast::RValue::Local(rvalue_local) = rvalue {
-                                if *rvalue_local == read {
-                                    *rvalue = new_expression;
-                                    block.ast.remove(stat_index);
-                                    index -= 1;
-                                    continue 'outer;
+                        if let Some(replaced) = statement.post_traverse_values(&mut |v| {
+                            if let Either::Right(rvalue) = v {
+                                if new_has_side_effects && rvalue.has_side_effects() {
+                                    Some(false)
+                                } else if let ast::RValue::Local(rvalue_local) = rvalue
+                                    && *rvalue_local == read {
+                                        *rvalue = new_expression.clone();
+                                        Some(true)
+                                } else {
+                                    None
                                 }
+                            } else {
+                                None
+                            }
+                        }) {
+                            if replaced {
+                                block.ast.remove(stat_index);
+                                index -= 1;
+                                continue 'outer;
                             }
                         }
                     }

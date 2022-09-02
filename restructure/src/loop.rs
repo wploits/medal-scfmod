@@ -12,9 +12,7 @@ use petgraph::{
 
 impl GraphStructurer {
     pub(crate) fn is_loop_header(&self, node: NodeIndex) -> bool {
-        self.back_edges
-            .iter()
-            .any(|edge| edge.1 == node)
+        self.back_edges.iter().any(|edge| edge.1 == node)
     }
 
     fn refine_breaks(
@@ -35,6 +33,10 @@ impl GraphStructurer {
         header: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
+        if !self.is_loop_header(header) {
+            return false;
+        }
+
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
         if successors.len() == 1 && successors[0] == header {
             let mut blocks: HashMap<_, _> = self.function.blocks_mut();

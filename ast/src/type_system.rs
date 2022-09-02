@@ -1,6 +1,10 @@
-use std::{collections::{BTreeMap, BTreeSet}, fmt::{Display, Formatter}, borrow::Cow};
-use itertools::Itertools;
 use crate::{Block, LValue, RcLocal, Statement};
+use itertools::Itertools;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    fmt::{Display, Formatter},
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Type {
@@ -24,27 +28,31 @@ impl Type {
     pub fn is_subtype_of(&self, t: &Self) -> bool {
         match t {
             Self::Any => true,
-            Self::Table { box indexer, fields } => {
+            Self::Table {
+                box indexer,
+                fields,
+            } => {
                 let t_fields = fields;
                 let (indexer_type, element_type) = indexer;
 
                 match self {
-                    Self::Table { box indexer, fields }
-                    if indexer.0.is_subtype_of(indexer_type) && indexer.1.is_subtype_of(element_type) => {
-                        t_fields.keys()
+                    Self::Table {
+                        box indexer,
+                        fields,
+                    } if indexer.0.is_subtype_of(indexer_type)
+                        && indexer.1.is_subtype_of(element_type) =>
+                    {
+                        t_fields
+                            .keys()
                             .all(|k| fields[k].is_subtype_of(&t_fields[k]))
                     }
                     _ => false,
                 }
             }
-            Self::Union(union) => {
-                match self {
-                    Self::Union(u) =>
-                        union.iter()
-                            .all(|t| u.contains(t)),
-                    _ => union.contains(self),
-                }
-            }
+            Self::Union(union) => match self {
+                Self::Union(u) => union.iter().all(|t| u.contains(t)),
+                _ => union.contains(self),
+            },
             _ => false,
         }
     }
@@ -85,43 +93,34 @@ impl Display for Type {
                         if indexer_type == &Type::Number && fields.is_empty() {
                             element_type.to_string()
                         } else {
-                            format!(
-                                "[{}]: {}",
-                                indexer_type, element_type
-                            )
+                            format!("[{}]: {}", indexer_type, element_type)
                         },
                         (!fields.is_empty()).then(|| ", ").unwrap_or_default(),
-                        fields.iter().map(|(field, r#type)| {
-                            format!(
-                                "{}: {}",
-                                field, r#type
-                            )
-                        }).join(", ")
+                        fields
+                            .iter()
+                            .map(|(field, r#type)| { format!("{}: {}", field, r#type) })
+                            .join(", ")
                     ))
                 }
-                Type::Function(domain, codomain) => Cow::Owned(
-                    format!(
-                        "({}) -> {}",
-                        domain.iter().join(", "),
-                        if (codomain.len() == 1 && self.precedence() >= codomain[0].precedence()) || codomain.len() > 1 {
-                            format!("({})", codomain.iter().join(", "))
-                        } else {
-                            format!("{}", codomain.iter().join(", "))
-                        }
-                    )
-                ),
+                Type::Function(domain, codomain) => Cow::Owned(format!(
+                    "({}) -> {}",
+                    domain.iter().join(", "),
+                    if (codomain.len() == 1 && self.precedence() >= codomain[0].precedence())
+                        || codomain.len() > 1
+                    {
+                        format!("({})", codomain.iter().join(", "))
+                    } else {
+                        format!("{}", codomain.iter().join(", "))
+                    }
+                )),
                 Type::Optional(r#type) => Cow::Owned(format!("{}?", r#type)),
                 Type::Union(types) => {
-                    Cow::Owned(
-                        types.iter().join(" | ")
-                    )
+                    Cow::Owned(types.iter().join(" | "))
                 }
                 Type::Intersection(types) => {
-                    Cow::Owned(
-                        types.iter().join(" & ")
-                    )
+                    Cow::Owned(types.iter().join(" & "))
                 }
-                Type::VarArg => Cow::Borrowed("...")
+                Type::VarArg => Cow::Borrowed("..."),
             }
         )
     }
@@ -146,7 +145,9 @@ impl<'a> TypeSystem<'a> {
         for statement in &mut block.0 {
             match statement {
                 Statement::Assign(assign) => {
-                    for ((lvalue, annotation), rvalue) in assign.left.iter_mut().zip(assign.right.iter_mut()) {
+                    for ((lvalue, annotation), rvalue) in
+                        assign.left.iter_mut().zip(assign.right.iter_mut())
+                    {
                         let r#type = rvalue.infer(self);
 
                         if let LValue::Local(local) = lvalue {
@@ -177,12 +178,11 @@ impl<'a> TypeSystem<'a> {
                         self.analyze_block(b);
                     }
                 }
-                Statement::While(r#while) => { self.analyze_block(&mut r#while.block); }
+                Statement::While(r#while) => {
+                    self.analyze_block(&mut r#while.block);
+                }
                 Statement::Return(r#return) => {
-                    return_values.extend(
-                        r#return.values.iter_mut()
-                            .map(|v| v.infer(self))
-                    );
+                    return_values.extend(r#return.values.iter_mut().map(|v| v.infer(self)));
                 }
                 _ => {}
             }
@@ -192,7 +192,10 @@ impl<'a> TypeSystem<'a> {
     }
 
     pub fn type_of(&self, local: &RcLocal) -> &Type {
-        self.annotations.get(local).map(|t| t as &Type).unwrap_or(&Type::Any)
+        self.annotations
+            .get(local)
+            .map(|t| t as &Type)
+            .unwrap_or(&Type::Any)
     }
 }
 
