@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    fmt,
-};
+use std::{borrow::Cow, fmt};
 
 use itertools::Itertools;
 
