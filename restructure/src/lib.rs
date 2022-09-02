@@ -64,13 +64,14 @@ impl GraphStructurer {
     fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>) -> bool {
         let successors = self.function.successor_blocks(node).collect_vec();
 
-        if self.try_collapse_loop(node) {
+        println!("before");
+        cfg::dot::render_to(&self.function, &mut std::io::stdout());
+
+        if self.try_collapse_loop(node, dominators) {
+            println!("changed");
+            cfg::dot::render_to(&self.function, &mut std::io::stdout());
             return true;
         }
-
-        /*println!("before: {}", self.function.block(node).unwrap().ast);
-        inline_expressions(&mut self.function, node);
-        println!("after: {}", self.function.block(node).unwrap().ast);*/
 
         let changed = match successors.len() {
             0 => false,
@@ -96,6 +97,7 @@ impl GraphStructurer {
             _ => unreachable!(),
         };
 
+        println!("after");
         dot::render_to(&self.function, &mut std::io::stdout());
 
         changed

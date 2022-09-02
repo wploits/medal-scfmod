@@ -318,6 +318,21 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
+                &Instruction::LessThan {
+                    lhs,
+                    rhs,
+                    comparison_value,
+                } => {
+                    let lhs = self.register_or_constant(lhs);
+                    let rhs = self.register_or_constant(rhs);
+                    let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThan).into();
+                    let condition = if comparison_value {
+                        value
+                    } else {
+                        ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    };
+                    statements.push(ast::If::new(condition, None, None).into())
+                }
                 Instruction::TestSet {
                     destination,
                     value,
