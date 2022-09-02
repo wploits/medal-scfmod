@@ -427,9 +427,9 @@ impl<'a> SsaConstructor<'a> {
         // TODO: irreducible control flow (see the paper this algorithm is from)
 
         let mut local_map = FxHashMap::default();
-        //self.propagate_copies(&mut local_map);
+        self.propagate_copies(&mut local_map);
         self.remove_unnecessary_params(&mut local_map);
-        self.fix_upvalues(&mut local_map);
+        //self.fix_upvalues(&mut local_map);
         self.apply_local_map(&local_map);
 
         (

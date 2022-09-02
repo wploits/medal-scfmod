@@ -52,9 +52,9 @@ fn main() -> anyhow::Result<()> {
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
-    /*for node in main.graph().node_indices().collect::<Vec<_>>() {
+    for node in main.graph().node_indices().collect::<Vec<_>>() {
         cfg::inline::inline_expressions(&mut main, node);
-    }*/
+    }
     let inlined = now.elapsed();
     println!("inline: {:?}", inlined);
 
@@ -72,8 +72,7 @@ fn main() -> anyhow::Result<()> {
         process_function(&mut function.borrow_mut())?;
     }*/
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
-
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
     let mut main = restructure::lift(main);
 
     let now = time::Instant::now();
