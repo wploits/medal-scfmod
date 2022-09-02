@@ -61,6 +61,10 @@ impl Traverse for Table {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         self.0.iter_mut().map(|(_, v)| v).collect()
     }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        self.0.iter().map(|(_, v)| v).collect()
+    }
 }
 
 // TODO

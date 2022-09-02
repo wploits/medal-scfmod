@@ -32,6 +32,12 @@ impl Traverse for Call {
             .chain(self.arguments.iter_mut())
             .collect()
     }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        std::iter::once(self.value.as_ref())
+            .chain(self.arguments.iter())
+            .collect()
+    }
 }
 
 impl LocalRw for Call {

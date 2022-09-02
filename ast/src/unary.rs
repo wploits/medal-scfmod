@@ -37,6 +37,10 @@ impl Traverse for Unary {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.value]
     }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        vec![&self.value]
+    }
 }
 
 impl Reduce for Unary {

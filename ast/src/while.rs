@@ -20,6 +20,10 @@ impl Traverse for While {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.condition]
     }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        vec![&self.condition]
+    }
 }
 
 impl LocalRw for While {

@@ -42,6 +42,10 @@ impl Traverse for Index {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
         vec![&mut self.left, &mut self.right]
     }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        vec![&self.left, &self.right]
+    }
 }
 
 impl fmt::Display for Index {
