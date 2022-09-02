@@ -1,12 +1,11 @@
 use cfg::{block::BasicBlock, dot, function::Function, inline::inline_expressions};
 use fxhash::{FxHashMap, FxHashSet};
-use graph::{algorithms::*, Directed, Edge, Graph, NodeId};
 use itertools::Itertools;
 use std::collections::HashSet;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{NodeIndex, StableDiGraph},
+    stable_graph::{NodeIndex, StableDiGraph, EdgeIndex},
     visit::*,
 };
 
@@ -18,7 +17,7 @@ mod r#loop;
 struct GraphStructurer {
     pub function: Function,
     root: NodeIndex,
-    back_edges: Vec<Edge>,
+    back_edges: Vec<(NodeIndex, NodeIndex)>,
 }
 
 impl GraphStructurer {
@@ -28,7 +27,7 @@ impl GraphStructurer {
         blocks: FxHashMap<NodeIndex, ast::Block>,
         root: NodeIndex,
     ) -> Self {
-        pub fn back_edges(graph: &StableDiGraph<BasicBlock, ()>, root: NodeIndex) -> Vec<Edge> {
+        pub fn back_edges(graph: &StableDiGraph<BasicBlock, ()>, root: NodeIndex) -> Vec<(NodeIndex, NodeIndex)> {
             let mut back_edges = Vec::new();
             let dominators = simple_fast(graph, root);
 
@@ -97,8 +96,12 @@ impl GraphStructurer {
             _ => unreachable!(),
         };
 
+<<<<<<< HEAD
         println!("after");
         dot::render_to(&self.function, &mut std::io::stdout());
+=======
+        dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+>>>>>>> 7398f9065423b14e08827e24dec7bdf357f193cb
 
         changed
     }

@@ -1,9 +1,12 @@
+<<<<<<< HEAD
 use ast::Reduce;
 use cfg::block::Terminator;
 use graph::{
     algorithms::{dfs_tree, dominators::post_dominator_tree},
     NodeId,
 };
+=======
+>>>>>>> 7398f9065423b14e08827e24dec7bdf357f193cb
 use itertools::Itertools;
 use std::collections::HashMap;
 
@@ -18,7 +21,7 @@ impl GraphStructurer {
     pub(crate) fn is_loop_header(&self, node: NodeIndex) -> bool {
         self.back_edges
             .iter()
-            .any(|edge| edge.1 == NodeId(node.index()))
+            .any(|edge| edge.1 == node)
     }
 
     fn refine_breaks(

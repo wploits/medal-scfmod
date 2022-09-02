@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 petgraph = "*"
-graph = { path = "../graph", features=["dot"] }
 ast = { path="../ast" }
 fxhash = "0.2.1"
 derive_more = "0.99.17"

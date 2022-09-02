@@ -1,6 +1,5 @@
 use ast::Reduce;
 use cfg::block::Terminator;
-use graph::NodeId;
 use itertools::Itertools;
 
 use crate::GraphStructurer;
