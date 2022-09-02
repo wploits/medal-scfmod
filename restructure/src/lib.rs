@@ -26,13 +26,14 @@ impl GraphStructurer {
         let root = function.entry().unwrap();
         let mut back_edges = Vec::new();
         let dominators = simple_fast(function.graph(), root);
+
         for node in function.graph().node_indices() {
-            let dominated_by_node = dominators.immediately_dominated_by(node).collect::<FxHashSet<_>>();
-            for successor in function.successor_blocks(node) {
-                if dominated_by_node.contains(&successor) {
-                    back_edges.push((node, successor));
-                }
-            }
+            back_edges.extend(
+                function.graph()
+                    .neighbors(root)
+                    .filter(|&n| dominators.dominators(node).unwrap().contains(&n))
+                    .map(|n| (n, node)),
+            );
         }
 
         Self {
