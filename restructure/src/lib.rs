@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::NodeIndex,
+    stable_graph::{NodeIndex, StableDiGraph},
     visit::*,
 };
 
