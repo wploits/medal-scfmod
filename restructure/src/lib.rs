@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{EdgeIndex, NodeIndex, StableDiGraph},
+    stable_graph::NodeIndex,
     visit::*,
 };
 
@@ -28,8 +28,6 @@ impl GraphStructurer {
                 loop_headers.insert(header);
             }
         });
-
-        println!("loop headers: {:#?}", loop_headers);
 
         Self {
             function,
@@ -132,9 +130,15 @@ impl GraphStructurer {
 }
 
 pub fn lift(function: cfg::function::Function) -> ast::Block {
+<<<<<<< HEAD
     let graph = function.graph().clone();
     let root = function.entry().unwrap();
 
     let structurer = GraphStructurer::new(function, graph, root);
+=======
+    //dot::render_to(&graph, &mut std::io::stdout());
+
+    let structurer = GraphStructurer::new(function);
+>>>>>>> 1e49a6df213ccb1c6e0ccfd587c47c43a8cdb332
     structurer.structure()
 }
