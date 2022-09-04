@@ -101,13 +101,36 @@ impl GraphStructurer {
             || _match_triangle_conditional(else_node, then_node, true)
     }
 
-    // this may not succeed if loop refinement is required
+    pub(crate) fn refine_edge(
+        &mut self,
+        entry: NodeIndex,
+        back_edge: NodeIndex,
+        next: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
+        invert_condition: bool,
+        statement: ast::Statement,
+    ) -> bool {
+        let block = self.function.block_mut(entry).unwrap();
+        let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
+        if_stat.then_block = Some(ast::Block::from_vec(vec![statement]));
+        if invert_condition {
+            if_stat.condition = Box::new(
+                ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not).reduce(),
+            );
+        }
+        self.function
+            .set_block_terminator(entry, Some(Terminator::jump(next)));
+        self.match_jump(entry, next, dominators);
+        true
+    }
+
     pub(crate) fn match_conditional(
         &mut self,
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
+        loop_refinement: bool,
     ) -> bool {
         self.match_diamond_conditional(entry, then_node, else_node, dominators)
             || self.match_triangle_conditional(entry, then_node, else_node, dominators)

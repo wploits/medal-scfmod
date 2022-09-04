@@ -1,12 +1,11 @@
-use ast::{local_allocator::LocalAllocator, RcLocal};
+use ast::{local_allocator::LocalAllocator, RcLocal, SideEffects};
 use contracts::requires;
 use itertools::Itertools;
 use petgraph::{
     stable_graph::{Neighbors, NodeIndex, StableDiGraph},
     Direction,
 };
-use std::collections::HashMap;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 
@@ -58,12 +57,27 @@ impl Function {
         self.graph
             .remove_edge(self.graph.find_edge(source, old_target).unwrap());
         self.graph.add_edge(source, target, ());
-        self.block_mut(source)
-            .unwrap()
-            .terminator
-            .as_mut()
-            .unwrap()
-            .replace_branch(old_target, target);
+        let mut target_predecesors = self.predecessor_blocks(target);
+        if target_predecesors.next() == Some(source) && target_predecesors.next() == Some(source) {
+            println!("asd");
+            let source_block = &mut self.block_mut(source).unwrap().ast;
+            let condition = *source_block.pop().unwrap().into_if().unwrap().condition;
+            if condition.has_side_effects() {
+                let local = self.local_allocator.borrow_mut().allocate();
+                self.block_mut(source)
+                    .unwrap()
+                    .ast
+                    .push(ast::Assign::new(vec![local.into()], vec![condition]).into());
+            }
+            self.set_block_terminator(source, Some(Terminator::jump(target)));
+        } else {
+            self.block_mut(source)
+                .unwrap()
+                .terminator
+                .as_mut()
+                .unwrap()
+                .replace_branch(old_target, target);
+        }
     }
 
     // TODO: take EdgeIndex as argument
