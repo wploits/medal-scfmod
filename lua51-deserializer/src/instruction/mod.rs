@@ -205,7 +205,7 @@ impl Instruction {
                 }
             }
             RawInstruction(OperationCode::LoadNil, Layout::ABC { a, b, .. }) => {
-                Self::LoadNil((a..b as u8).map(Register).collect())
+                Self::LoadNil((a..=b as u8).map(Register).collect())
             }
             RawInstruction(OperationCode::GetUpvalue, Layout::ABC { a, b, .. }) => {
                 Self::GetUpvalue {
