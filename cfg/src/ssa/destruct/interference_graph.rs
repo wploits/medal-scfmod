@@ -1,5 +1,5 @@
 use ast::{LocalRw, RcLocal};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 use petgraph::{matrix_graph::MatrixGraph, stable_graph::NodeIndex};
 
@@ -22,10 +22,8 @@ impl InterferenceGraph {
     fn create_interference_in_nodes(&mut self, variables: &[NodeIndex<u16>]) {
         let len = variables.len();
         for a in 0..len {
-            for b in a + 1..len {
-                let va = variables[a];
-                let vb = variables[b];
-                assert!(va < vb);
+            let va = variables[a];
+            for &vb in variables.iter().take(len).skip(a + 1) {
                 self.graph.update_edge(va, vb, ());
             }
         }
@@ -44,7 +42,7 @@ impl InterferenceGraph {
                     .unwrap_or_else(|| self.add_node(var.clone())),
             );
         }
-        nodes.sort();
+        nodes.sort_unstable();
         self.create_interference_in_nodes(&nodes);
     }
 
@@ -62,7 +60,7 @@ impl InterferenceGraph {
             }
             nodes.push(new_var_node);
         }
-        nodes.sort();
+        nodes.sort_unstable();
         self.create_interference_in_nodes(&nodes);
     }
 
@@ -83,7 +81,7 @@ impl InterferenceGraph {
             }
             nodes.push(new_var_node);
         }
-        nodes.sort();
+        nodes.sort_unstable();
         self.create_interference_in_nodes(&nodes);
     }
 
@@ -127,7 +125,7 @@ impl InterferenceGraph {
         for (node, block) in function.blocks() {
             let block_liveness = &liveness.block_liveness[&node];
             let live_in = &block_liveness.live_in;
-            let mut live_in_nodes = Vec::new();
+            let mut live_in_nodes = Vec::with_capacity(live_in.len());
             for var in live_in {
                 live_in_nodes.push(
                     this.local_to_node
@@ -136,7 +134,7 @@ impl InterferenceGraph {
                         .unwrap_or_else(|| this.add_node(var.clone())),
                 );
             }
-            live_in_nodes.sort();
+            live_in_nodes.sort_unstable();
             this.create_interference_in_nodes(&live_in_nodes);
             this.create_interference(&block_liveness.live_out);
             let mut current_live_set = block_liveness.live_out.clone();
