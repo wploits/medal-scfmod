@@ -163,7 +163,6 @@ impl GraphStructurer {
                 self.match_jump(header, next, dominators);
                 true
             } else {
-                todo!("loop refinement");
                 false
             }
         } else {

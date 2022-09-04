@@ -22,7 +22,6 @@ use petgraph::stable_graph::NodeIndex;
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeIndex>,
-    blocks_to_skip: FxHashSet<usize>,
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
     function: Function,
@@ -76,11 +75,6 @@ impl<'a> LifterContext<'a> {
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-                    if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                        self.function.remove_block(jmp_block);
-                        self.nodes.insert(insn_index, dest_block);
-                        self.blocks_to_skip.insert(insn_index);
-                    }
                 }
                 Instruction::IterateNumericForLoop { step, .. }
                 | Instruction::PrepareNumericForLoop { step, .. } => {
@@ -109,12 +103,7 @@ impl<'a> LifterContext<'a> {
             .skip(1)
             .map(|&s| s - 1)
             .chain(std::iter::once(self.bytecode.code.len() - 1));
-        nodes
-            .iter()
-            .cloned()
-            .zip(ends)
-            .filter(|(s, _)| !self.blocks_to_skip.contains(s))
-            .collect()
+        nodes.iter().cloned().zip(ends).collect()
     }
 
     fn constant(&mut self, constant: Constant) -> ast::Literal {
@@ -259,7 +248,7 @@ impl<'a> LifterContext<'a> {
                     statements.push(
                         ast::Return::new(
                             values
-                                .into_iter()
+                                .iter()
                                 .map(|v| self.locals[v].clone().into())
                                 .collect(),
                         )
@@ -547,18 +536,16 @@ impl<'a> LifterContext<'a> {
                 Instruction::Jump(step)
                 | Instruction::IterateNumericForLoop { step, .. }
                 | Instruction::PrepareNumericForLoop { step, .. } => {
-                    let block = self.nodes[&start];
-
-                    if self.function.block(block).unwrap().terminator.is_none() {
-                        self.function.set_block_terminator(
-                            block,
-                            Some(Terminator::jump(
-                                self.nodes[&(end + step as usize - 131070)],
-                            )),
-                        );
-                    }
+                    self.function.set_block_terminator(
+                        self.nodes[&start],
+                        Some(Terminator::jump(
+                            self.nodes[&(end + step as usize - 131070)],
+                        )),
+                    );
                 }
-                Instruction::Return { .. } => {}
+                Instruction::Return { .. } => {
+                    //self.function.set_block_terminator(self.nodes[&start], None);
+                }
                 Instruction::LoadBoolean { skip_next, .. } => {
                     let successor = self.nodes[&(end + 1 + skip_next as usize)];
 
@@ -586,7 +573,6 @@ impl<'a> LifterContext<'a> {
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
             function: Function::default(),
-            blocks_to_skip: FxHashSet::default(),
         };
 
         context.create_block_map();
