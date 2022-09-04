@@ -1,8 +1,12 @@
-use std::{borrow::Cow, fmt};
+use std::{
+    borrow::{Borrow, Cow},
+    collections::HashSet,
+    fmt,
+};
 
 use itertools::Itertools;
 
-use crate::{Block, LValue, RValue, Return, Statement, Type};
+use crate::{Assign, Block, LValue, RValue, Return, Statement, Type, TypeSystem};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -153,6 +157,10 @@ impl Formatter {
                     )
                 }
 
+                if assign.prefix {
+                    self.write("local ".chars());
+                }
+
                 if !(left.is_empty() || right.is_empty()) {
                     self.write(
                         format!(
@@ -192,7 +200,7 @@ impl Formatter {
                 self.write("end".chars());
             }
             Statement::While(r#while) => {
-                self.write(format!("while {} then\n", r#while.condition).chars());
+                self.write(format!("while {} do\n", r#while.condition).chars());
                 self.format_block(&r#while.block);
                 self.indent();
                 self.write("end".chars());

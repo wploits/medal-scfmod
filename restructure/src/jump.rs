@@ -1,3 +1,4 @@
+use cfg::block::Terminator;
 use itertools::Itertools;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 

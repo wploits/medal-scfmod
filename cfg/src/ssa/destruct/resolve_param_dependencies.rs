@@ -94,10 +94,7 @@ fn remove_dependency(
 
     function.block_mut(node).unwrap().ast.insert(
         0,
-        ast::Statement::Assign(ast::Assign {
-            left: vec![(ast::LValue::Local(variable), None)],
-            right: vec![ast::RValue::Local(copy_variable)],
-        }),
+        ast::Assign::new(vec![variable.into()], vec![copy_variable.into()]).into(),
     )
 }
 

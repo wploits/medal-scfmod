@@ -251,7 +251,7 @@ impl super::GraphStructurer {
             } else {
                 changed = self.match_and_or(entry, else_node, then_node);
             }
-        } else if then_node != entry && else_node != entry && then_successors.contains(&else_node) {
+        } else if then_node != entry && then_successors.contains(&else_node) {
             if then_successors.len() == 2 {
                 if self.function.predecessor_blocks(then_node).count() == 1 {
                     let end = *then_successors.iter().find(|&&n| n != else_node).unwrap();

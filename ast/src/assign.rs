@@ -10,6 +10,7 @@ use super::{LValue, LocalRw, RValue};
 pub struct Assign {
     pub left: Vec<(LValue, Option<Type>)>,
     pub right: Vec<RValue>,
+    pub prefix: bool,
 }
 
 impl Assign {
@@ -17,6 +18,7 @@ impl Assign {
         Self {
             left: left.into_iter().map(|v| (v, None)).collect(),
             right,
+            prefix: false,
         }
     }
 }

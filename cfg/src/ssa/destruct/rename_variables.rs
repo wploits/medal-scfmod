@@ -22,6 +22,7 @@ pub struct VariableRenamer<'a> {
     function: &'a mut Function,
     interference_graph: &'a mut InterferenceGraph,
     renaming_map: FxHashMap<RcLocal, RcLocal>,
+    local_nodes: &'a mut FxHashMap<RcLocal, FxHashSet<NodeIndex>>,
 }
 
 impl<'a> VariableRenamer<'a> {
@@ -29,18 +30,20 @@ impl<'a> VariableRenamer<'a> {
         function: &'a mut Function,
         local_groups: &[FxHashSet<RcLocal>],
         interference_graph: &'a mut InterferenceGraph,
+        local_nodes: &'a mut FxHashMap<RcLocal, FxHashSet<NodeIndex>>,
     ) -> Self {
         let mut res = Self {
             function,
             interference_graph,
             renaming_map: FxHashMap::default(),
+            local_nodes,
         };
         res.generate_renaming_map(local_groups);
         res
     }
 
     pub fn rename(mut self) {
-        for block in self.function.graph_mut().node_weights_mut() {
+        for (node, block) in self.function.blocks_mut() {
             for stat in block.ast.iter_mut() {
                 // TODO: values_mut or maybe LocalRw::apply_renaming_map (similar code in construction)
                 for (to, from) in stat
@@ -49,6 +52,7 @@ impl<'a> VariableRenamer<'a> {
                     .map(|v| (&self.renaming_map[v], v))
                 {
                     *from = to.clone();
+                    self.local_nodes.entry(to.clone()).or_default().insert(node);
                 }
                 for (to, from) in stat
                     .values_read_mut()
@@ -56,6 +60,7 @@ impl<'a> VariableRenamer<'a> {
                     .map(|v| (&self.renaming_map[v], v))
                 {
                     *from = to.clone();
+                    self.local_nodes.entry(to.clone()).or_default().insert(node);
                 }
             }
         }

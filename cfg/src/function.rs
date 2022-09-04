@@ -45,7 +45,12 @@ impl Function {
             }
             Some(Terminator::Conditional(then_edge, else_edge)) => {
                 self.graph.add_edge(block, then_edge.node, ());
-                self.graph.add_edge(block, else_edge.node, ());
+                if then_edge.node != else_edge.node {
+                    self.graph.add_edge(block, else_edge.node, ());
+                } else {
+                    new_terminator = Some(Terminator::jump(then_edge.node));
+                }
+
                 /*lif then_edge.node != else_edge.node {
                     self.graph.add_edge(block, else_edge.node, ());
                 } else {
@@ -66,17 +71,22 @@ impl Function {
         self.block_mut(block).unwrap().terminator = new_terminator;
     }
 
-    #[requires(self.graph.find_edge(source, old_target).is_some() && self.has_block(target) && self.graph.find_edge(source, target).is_none())]
+    #[requires(self.graph.find_edge(source, old_target).is_some())]
+    #[requires(self.has_block(target))]
     pub fn replace_edge(&mut self, source: NodeIndex, old_target: NodeIndex, target: NodeIndex) {
-        self.graph
-            .remove_edge(self.graph.find_edge(source, old_target).unwrap());
-        self.graph.add_edge(source, target, ());
-        self.block_mut(source)
-            .unwrap()
-            .terminator
-            .as_mut()
-            .unwrap()
-            .replace_branch(old_target, target);
+        if self.successor_blocks(source).contains(&target) {
+            self.set_block_terminator(source, Some(Terminator::jump(target)));
+        } else {
+            self.graph
+                .remove_edge(self.graph.find_edge(source, old_target).unwrap());
+            self.graph.add_edge(source, target, ());
+            self.block_mut(source)
+                .unwrap()
+                .terminator
+                .as_mut()
+                .unwrap()
+                .replace_branch(old_target, target);
+        }
     }
 
     // TODO: take EdgeIndex as argument

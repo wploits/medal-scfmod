@@ -20,6 +20,7 @@ itertools = "0.10.3"
 contracts = "0.6.3"
 # ritelinked = "0.3.2"
 hashlink = "0.8.0"
+array_tool = "1.0.3"
 
 [profile.release]
 debug = true

@@ -65,10 +65,9 @@ impl<'a> ParamLifter<'a> {
                 }
                 defined_vars.insert(param);
 
-                assign_instrs.push(ast::Statement::Assign(ast::Assign {
-                    left: vec![(ast::LValue::Local(param.clone()), None)],
-                    right: vec![ast::RValue::Local(arg.clone())],
-                }));
+                assign_instrs.push(
+                    ast::Assign::new(vec![(param.clone().into())], vec![arg.clone().into()]).into(),
+                );
             }
 
             // update interference graph

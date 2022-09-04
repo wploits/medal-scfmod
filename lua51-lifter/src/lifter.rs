@@ -148,10 +148,10 @@ impl<'a> LifterContext<'a> {
                     source,
                 } => {
                     statements.push(
-                        ast::Assign {
-                            left: vec![(self.locals[destination].clone().into(), None)],
-                            right: vec![self.locals[source].clone().into()],
-                        }
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![self.locals[source].clone().into()],
+                        )
                         .into(),
                     );
                 }
@@ -159,10 +159,10 @@ impl<'a> LifterContext<'a> {
                     destination, value, ..
                 } => {
                     statements.push(
-                        ast::Assign {
-                            left: vec![(self.locals[&destination].clone().into(), None)],
-                            right: vec![ast::Literal::Boolean(value).into()],
-                        }
+                        ast::Assign::new(
+                            vec![self.locals[&destination].clone().into()],
+                            vec![ast::Literal::Boolean(value).into()],
+                        )
                         .into(),
                     );
                 }
@@ -171,10 +171,10 @@ impl<'a> LifterContext<'a> {
                     source,
                 } => {
                     statements.push(
-                        ast::Assign {
-                            left: vec![(self.locals[&destination].clone().into(), None)],
-                            right: vec![self.constant(source).into()],
-                        }
+                        ast::Assign::new(
+                            vec![self.locals[&destination].clone().into()],
+                            vec![self.constant(source).into()],
+                        )
                         .into(),
                     );
                 }
@@ -356,10 +356,10 @@ impl<'a> LifterContext<'a> {
                     comparison_value,
                 } => {
                     let value: ast::RValue = self.locals[value].clone().into();
-                    let assign = ast::Assign {
-                        left: vec![(self.locals[destination].clone().into(), None)],
-                        right: vec![value.clone()],
-                    };
+                    let assign = ast::Assign::new(
+                        vec![self.locals[destination].clone().into()],
+                        vec![value.clone()],
+                    );
                     let new_block = self.function.new_block();
 
                     statements.push(
@@ -423,19 +423,16 @@ impl<'a> LifterContext<'a> {
                     };
 
                     statements.push(if *return_values > 1 {
-                        ast::Assign {
-                            left: (0..return_values - 1)
+                        ast::Assign::new(
+                            (0..return_values - 1)
                                 .map(|return_value| {
-                                    (
-                                        self.locals[&Register(function.0 + return_value)]
-                                            .clone()
-                                            .into(),
-                                        None,
-                                    )
+                                    self.locals[&Register(function.0 + return_value)]
+                                        .clone()
+                                        .into()
                                 })
                                 .collect_vec(),
-                            right: vec![call.into()],
-                        }
+                            vec![call.into()],
+                        )
                         .into()
                     } else {
                         call.into()
@@ -446,13 +443,13 @@ impl<'a> LifterContext<'a> {
                     upvalue,
                 } => {
                     statements.push(
-                        ast::Assign {
-                            left: vec![(self.locals[destination].clone().into(), None)],
-                            right: vec![RcLocal::new(Rc::new(ast::Local(Some(
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![RcLocal::new(Rc::new(ast::Local(Some(
                                 self.bytecode.upvalues[upvalue.0 as usize].to_string(),
                             ))))
                             .into()],
-                        }
+                        )
                         .into(),
                     );
                 }
@@ -494,15 +491,15 @@ impl<'a> LifterContext<'a> {
                     }
 
                     statements.push(
-                        ast::Assign {
-                            left: vec![(self.locals[destination].clone().into(), None)],
-                            right: vec![ast::Closure {
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![ast::Closure {
                                 parameters: Vec::new(),
                                 body: Default::default(),
                                 upvalues,
                             }
                             .into()],
-                        }
+                        )
                         .into(),
                     );
                 }
@@ -517,17 +514,14 @@ impl<'a> LifterContext<'a> {
                     let value = self.register_or_constant(value);
 
                     statements.push(
-                        ast::Assign {
-                            left: vec![(
-                                ast::Index {
-                                    left: Box::new(self.locals[&table].clone().into()),
-                                    right: Box::new(key),
-                                }
-                                .into(),
-                                None,
-                            )],
-                            right: vec![value],
-                        }
+                        ast::Assign::new(
+                            vec![ast::Index {
+                                left: Box::new(self.locals[&table].clone().into()),
+                                right: Box::new(key),
+                            }
+                            .into()],
+                            vec![value],
+                        )
                         .into(),
                     );
                 }

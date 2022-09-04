@@ -1,7 +1,8 @@
 use std::time;
 
 use ast::RcLocal;
-use fxhash::FxHashSet;
+use fxhash::{FxHashMap, FxHashSet};
+use petgraph::algo::dominators::simple_fast;
 
 use crate::function::Function;
 
@@ -9,6 +10,7 @@ mod interference_graph;
 // mod lexicographical_bfs;
 mod lift_params;
 mod liveness;
+mod local_declarations;
 mod rename_variables;
 mod resolve_param_dependencies;
 
@@ -39,9 +41,24 @@ pub fn destruct(function: &mut Function, local_count: usize, local_groups: &[FxH
     ParamLifter::new(function, Some(&mut interference_graph)).lift();
     let elapsed = now.elapsed();
     println!("param lifter: {:?}", elapsed);
+
+    let mut local_nodes = FxHashMap::default();
+
     // interference graph is no longer chordal, coloring is not optimal
     let now = time::Instant::now();
-    VariableRenamer::new(function, local_groups, &mut interference_graph).rename();
+    VariableRenamer::new(
+        function,
+        local_groups,
+        &mut interference_graph,
+        &mut local_nodes,
+    )
+    .rename();
     let elapsed = now.elapsed();
     println!("var renamer: {:?}", elapsed);
+
+    let now = time::Instant::now();
+    let dominators = simple_fast(function.graph(), function.entry().unwrap());
+    local_declarations::declare_locals(function, local_nodes, &dominators);
+    let elapsed = now.elapsed();
+    println!("local declarations: {:?}", elapsed);
 }
