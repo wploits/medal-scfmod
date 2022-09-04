@@ -23,7 +23,8 @@ impl InterferenceGraph {
         let len = variables.len();
         for a in 0..len {
             let va = variables[a];
-            for &vb in variables.iter().take(len).skip(a + 1) {
+            for b in a + 1..len {
+                let vb = variables[b];
                 self.graph.update_edge(va, vb, ());
             }
         }
@@ -32,7 +33,7 @@ impl InterferenceGraph {
         // }
     }
 
-    fn create_interference(&mut self, variables: &IndexSet<RcLocal>) {
+    fn create_interference(&mut self, variables: &FxHashSet<RcLocal>) {
         let mut nodes = Vec::with_capacity(variables.len());
         for var in variables {
             nodes.push(
@@ -46,7 +47,7 @@ impl InterferenceGraph {
         self.create_interference_in_nodes(&nodes);
     }
 
-    fn add_edges(&mut self, new_variables: &[RcLocal], current_variables: &IndexSet<RcLocal>) {
+    fn add_edges(&mut self, new_variables: &[RcLocal], current_variables: &FxHashSet<RcLocal>) {
         let mut nodes = Vec::with_capacity(new_variables.len());
         for new_var in new_variables {
             let new_var_node = self
@@ -88,7 +89,7 @@ impl InterferenceGraph {
     fn update_live_set(
         &mut self,
         statement: &ast::Statement,
-        current_live_set: &mut IndexSet<RcLocal>,
+        current_live_set: &mut FxHashSet<RcLocal>,
     ) {
         let mut new_variables = statement
             .values_read()
@@ -102,7 +103,7 @@ impl InterferenceGraph {
             .values_written()
             .into_iter()
             .cloned()
-            .collect::<IndexSet<_>>();
+            .collect::<FxHashSet<_>>();
         let unused_variables = removed_variables
             .difference(current_live_set)
             .cloned()
@@ -125,15 +126,11 @@ impl InterferenceGraph {
         for (node, block) in function.blocks() {
             let block_liveness = &liveness.block_liveness[&node];
             let live_in = &block_liveness.live_in;
-            let mut live_in_nodes = Vec::with_capacity(live_in.len());
-            for var in live_in {
-                live_in_nodes.push(
-                    this.local_to_node
-                        .get(var)
-                        .cloned()
-                        .unwrap_or_else(|| this.add_node(var.clone())),
-                );
-            }
+            let mut live_in_nodes = live_in.iter().map(|l| this.local_to_node
+                .get(l)
+                .cloned()
+                .unwrap_or_else(|| this.add_node(l.clone()))).collect::<Vec<_>>();
+            
             live_in_nodes.sort_unstable();
             this.create_interference_in_nodes(&live_in_nodes);
             this.create_interference(&block_liveness.live_out);

@@ -1,5 +1,5 @@
 use ast::{LocalRw, RcLocal};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 use petgraph::stable_graph::NodeIndex;
 
@@ -7,12 +7,12 @@ use crate::function::Function;
 
 #[derive(Debug, Default)]
 pub struct BlockLiveness {
-    pub uses: IndexSet<RcLocal>,
-    pub defs: IndexSet<RcLocal>,
-    pub uses_phi: IndexSet<RcLocal>,
-    pub defs_phi: IndexSet<RcLocal>,
-    pub live_in: IndexSet<RcLocal>,
-    pub live_out: IndexSet<RcLocal>,
+    pub uses: FxHashSet<RcLocal>,
+    pub defs: FxHashSet<RcLocal>,
+    pub uses_phi: FxHashSet<RcLocal>,
+    pub defs_phi: FxHashSet<RcLocal>,
+    pub live_in: FxHashSet<RcLocal>,
+    pub live_out: FxHashSet<RcLocal>,
 }
 
 #[derive(Debug)]
@@ -48,7 +48,7 @@ impl Liveness {
 
     pub fn new(function: &Function) -> Self {
         let mut liveness = Liveness {
-            block_liveness: FxHashMap::default(),
+            block_liveness: FxHashMap::with_capacity_and_hasher(function.graph().node_count(), Default::default()),
         };
         for (node, block) in function.blocks() {
             let block_liveness = liveness.block_liveness.entry(node).or_default();
