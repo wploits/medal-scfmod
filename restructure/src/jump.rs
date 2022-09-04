@@ -9,7 +9,6 @@ impl super::GraphStructurer {
         target: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
-        println!("{:?} -> {:?}", node, target);
         if node == target {
             return false;
         }

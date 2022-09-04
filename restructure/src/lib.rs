@@ -47,8 +47,8 @@ impl GraphStructurer {
     fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>) -> bool {
         let successors = self.function.successor_blocks(node).collect_vec();
 
-        println!("before");
-        cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+        //println!("before");
+        //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         if successors.len() == 2 {
             let (then_edge, else_edge) = self
@@ -64,8 +64,8 @@ impl GraphStructurer {
         }
 
         if self.try_collapse_loop(node, dominators) {
-            println!("changed");
-            cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+            //println!("changed");
+            //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
             return true;
         }
 
@@ -91,8 +91,8 @@ impl GraphStructurer {
             _ => unreachable!(),
         };
 
-        println!("after");
-        dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+        //println!("after");
+        //dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         changed
     }
@@ -116,11 +116,11 @@ impl GraphStructurer {
 
         let mut changed = false;
         while let Some(node) = dfs_postorder.next(self.function.graph()) {
-            println!("matching {:?}", node);
+            //println!("matching {:?}", node);
             changed |= self.try_match_pattern(node, &dominators);
         }
 
-        cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+        //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         changed
     }

@@ -101,8 +101,6 @@ impl GraphStructurer {
             println!("latches: {:#?}", latches);
             println!("breaks: {:#?}", breaks);*/
 
-            println!("next: {:?}", next);
-
             let breaks = self
                 .function
                 .predecessor_blocks(next)
@@ -118,7 +116,6 @@ impl GraphStructurer {
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect::<FxHashSet<_>>()
             {
-                println!("{:?}", node);
                 match self
                     .function
                     .block(node)

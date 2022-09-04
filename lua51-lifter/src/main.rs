@@ -30,6 +30,7 @@ fn main() -> anyhow::Result<()> {
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
+    let total_now = time::Instant::now();
     let now = time::Instant::now();
     let chunk = Chunk::parse(&buffer).unwrap().1;
     //println!("{:#?}", chunk);
@@ -42,14 +43,14 @@ fn main() -> anyhow::Result<()> {
     let lifted = now.elapsed();
     println!("lifting: {:?}", lifted);
 
-    cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
     let (local_count, local_groups) = cfg::ssa::construct(&mut main);
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
 
-    cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
     cfg::inline::inline_expressions(&mut main);
@@ -76,10 +77,12 @@ fn main() -> anyhow::Result<()> {
     let now = time::Instant::now();
     //ast::type_system::TypeSystem::analyze(&mut main);
     let type_analysis = now.elapsed();
-    println!("type analysis: {:?}", type_analysis);
+    //println!("type analysis: {:?}", type_analysis);
 
     let formatted = ast::formatter::Formatter::format(&main, Default::default());
-    println!("{}", formatted);
+    //println!("{}", formatted);
+
+    println!("total time: {:?}", total_now.elapsed());
 
     //let dfs = graph::algorithms::dfs_tree(graph, graph.entry().unwrap())?;
     // graph::dot::render_to(&main.graph(), &mut std::io::stdout())?;
