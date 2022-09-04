@@ -20,7 +20,7 @@ impl super::GraphStructurer {
             if let Ok(target) = target.into_local() {
                 if let Some(statement) = statements.next() {
                     if let Some(if_stat) = statement.as_if() {
-                        if let ast::RValue::Local(if_condition) = &*if_stat.condition {
+                        if let ast::RValue::Local(if_condition) = &if_stat.condition {
                             if &target == if_condition {
                                 return Some(CompoundAssignment {
                                     target,
@@ -44,7 +44,7 @@ impl super::GraphStructurer {
         let block = self.function.block_mut(node).unwrap();
         let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
         if let Some(unary) = if_stat.condition.as_unary() {
-            if_stat.condition = unary.value.clone();
+            if_stat.condition = *unary.value.clone();
             block.terminator.as_mut().unwrap().swap_edges();
         }
     }
@@ -83,16 +83,15 @@ impl super::GraphStructurer {
                 second_info.value.clone(),
             )
         } else {
-            let operand = *second_block
+            let operand = second_block
                 .ast
                 .last()
                 .unwrap()
                 .as_if()
                 .unwrap()
-                .condition
-                .clone();
+                .condition.clone();
             (
-                self.function
+                &mut self.function
                     .block_mut(first_conditional)
                     .unwrap()
                     .ast
@@ -101,7 +100,7 @@ impl super::GraphStructurer {
                     .as_if_mut()
                     .unwrap()
                     .condition
-                    .as_mut(),
+                    ,
                 operand,
             )
         }
@@ -239,6 +238,10 @@ impl super::GraphStructurer {
         then_node: NodeIndex,
         else_node: NodeIndex,
     ) -> bool {
+        if self.is_loop_header(then_node) || self.is_loop_header(else_node) {
+            return false;
+        }
+
         let else_successors = self.function.successor_blocks(else_node).collect_vec();
         let then_successors = self.function.successor_blocks(then_node).collect_vec();
 
@@ -247,7 +250,6 @@ impl super::GraphStructurer {
             && else_successors.contains(&then_node)
             && self.function.predecessor_blocks(else_node).count() == 1
         {
-            assert!(!self.is_loop_header(then_node));
             if else_successors.len() == 2 {
                 let end = *else_successors.iter().find(|&&n| n != then_node).unwrap();
                 changed = self.combine_conditionals(entry, else_node, then_node, end);
@@ -255,10 +257,10 @@ impl super::GraphStructurer {
                 changed = self.match_and_or(entry, else_node, then_node);
             }
         } else if then_node != entry
+            && else_node != entry
             && then_successors.contains(&else_node)
             && self.function.predecessor_blocks(then_node).count() == 1
         {
-            assert!(!self.is_loop_header(else_node));
             if then_successors.len() == 2 {
                 let end = *then_successors.iter().find(|&&n| n != else_node).unwrap();
                 changed = self.combine_conditionals(entry, then_node, else_node, end);

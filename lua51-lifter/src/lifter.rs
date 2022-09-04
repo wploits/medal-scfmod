@@ -1,10 +1,15 @@
-use std::rc::Rc;
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    io::Read,
+    rc::Rc,
+};
 
 use either::Either;
 use fxhash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
 
-use ast::{RcLocal, Statement};
+use ast::{LValue, LocalRw, RValue, RcLocal, Statement};
 use cfg::{block::Terminator, function::Function};
 
 use lua51_deserializer::{
@@ -255,7 +260,7 @@ impl<'a> LifterContext<'a> {
                     statements.push(
                         ast::Return::new(
                             values
-                                .iter()
+                                .into_iter()
                                 .map(|v| self.locals[v].clone().into())
                                 .collect(),
                         )
@@ -343,7 +348,7 @@ impl<'a> LifterContext<'a> {
 
                     statements.push(
                         ast::If {
-                            condition: Box::new(if *comparison_value {
+                            condition: if *comparison_value {
                                 ast::Unary {
                                     value: Box::new(value.clone()),
                                     operation: ast::UnaryOperation::Not,
@@ -351,7 +356,7 @@ impl<'a> LifterContext<'a> {
                                 .into()
                             } else {
                                 value.clone()
-                            }),
+                            },
                             then_block: None,
                             else_block: None,
                         }

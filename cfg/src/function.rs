@@ -1,12 +1,11 @@
-use ast::{local_allocator::LocalAllocator, RcLocal};
+use ast::{local_allocator::LocalAllocator, RcLocal, SideEffects};
 use contracts::requires;
 use itertools::Itertools;
 use petgraph::{
     stable_graph::{Neighbors, NodeIndex, StableDiGraph},
     Direction,
 };
-use std::collections::HashMap;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 
@@ -32,25 +31,38 @@ impl Function {
         self.entry = Some(new_entry);
     }
 
-    #[requires(self.has_block(block_id))]
+    #[requires(self.has_block(block))]
     pub fn set_block_terminator(
         &mut self,
-        block_id: NodeIndex,
-        new_terminator: Option<Terminator>,
+        block: NodeIndex,
+        mut new_terminator: Option<Terminator>,
     ) {
         self.graph
-            .retain_edges(|g, e| g.edge_endpoints(e).unwrap().0 != block_id);
+            .retain_edges(|g, e| g.edge_endpoints(e).unwrap().0 != block);
         match &new_terminator {
             Some(Terminator::Jump(edge)) => {
-                self.graph.add_edge(block_id, edge.node, ());
+                self.graph.add_edge(block, edge.node, ());
             }
             Some(Terminator::Conditional(then_edge, else_edge)) => {
-                self.graph.add_edge(block_id, then_edge.node, ());
-                self.graph.add_edge(block_id, else_edge.node, ());
+                self.graph.add_edge(block, then_edge.node, ());
+                if then_edge.node != else_edge.node {
+                    self.graph.add_edge(block, else_edge.node, ());
+                } else {
+                    let source_block = &mut self.block_mut(block).unwrap().ast;
+                    let condition = source_block.pop().unwrap().into_if().unwrap().condition;
+                    if condition.has_side_effects() {
+                        let local = self.local_allocator.borrow_mut().allocate();
+                        self.block_mut(block)
+                            .unwrap()
+                            .ast
+                            .push(ast::Assign::new(vec![local.into()], vec![condition]).into());
+                    }
+                    new_terminator = Some(Terminator::jump(then_edge.node));
+                }
             }
             _ => {}
         }
-        self.block_mut(block_id).unwrap().terminator = new_terminator;
+        self.block_mut(block).unwrap().terminator = new_terminator;
     }
 
     #[requires(self.graph.find_edge(source, old_target).is_some() && self.has_block(target))]

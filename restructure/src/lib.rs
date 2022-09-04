@@ -74,7 +74,7 @@ impl GraphStructurer {
                     .unwrap();
                 let (then_node, else_node) = (then_edge.node, else_edge.node);
                 self.match_compound_conditional(node, then_node, else_node)
-                    || self.match_conditional(node, then_node, else_node, dominators)
+                    || self.match_conditional(node, then_node, else_node, dominators, false)
             }
 
             _ => unreachable!(),
@@ -130,8 +130,5 @@ impl GraphStructurer {
 }
 
 pub fn lift(function: cfg::function::Function) -> ast::Block {
-    //dot::render_to(&graph, &mut std::io::stdout());
-
-    let structurer = GraphStructurer::new(function);
-    structurer.structure()
+    GraphStructurer::new(function).structure()
 }
