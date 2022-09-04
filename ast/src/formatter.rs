@@ -211,6 +211,18 @@ impl Formatter {
                 self.indent();
                 self.write(format!("until {}", repeat.condition).chars());
             }
+            Statement::For(r#for) => {
+                self.write(
+                    format!(
+                        "for {} = {}, {}, {} do\n",
+                        r#for.counter, r#for.initial, r#for.limit, r#for.step
+                    )
+                    .chars(),
+                );
+                self.format_block(&r#for.block);
+                self.indent();
+                self.write("end".chars());
+            }
             _ => self.write(statement.to_string().chars()),
         }
 

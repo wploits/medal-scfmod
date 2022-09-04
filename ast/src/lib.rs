@@ -16,6 +16,7 @@ mod call;
 mod close;
 mod closure;
 mod r#continue;
+mod r#for;
 pub mod formatter;
 mod global;
 mod goto;
@@ -47,6 +48,7 @@ pub use literal::*;
 pub use local::*;
 pub use r#break::*;
 pub use r#continue::*;
+pub use r#for::*;
 pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
@@ -218,6 +220,7 @@ pub enum Statement {
     Label(Label),
     While(While),
     Repeat(Repeat),
+    For(For),
     Return(Return),
     Continue(Continue),
     Break(Break),
@@ -242,6 +245,7 @@ impl fmt::Display for Statement {
             Statement::Label(label) => write!(f, "{}", label),
             Statement::While(while_) => write!(f, "{}", while_),
             Statement::Repeat(repeat) => write!(f, "{}", repeat),
+            Statement::For(r#for) => write!(f, "{}", r#for),
             Statement::Return(return_) => write!(f, "{}", return_),
             Statement::Continue(continue_) => write!(f, "{}", continue_),
             Statement::Break(break_) => write!(f, "{}", break_),

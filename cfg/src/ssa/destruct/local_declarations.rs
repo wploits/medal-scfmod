@@ -15,8 +15,9 @@ fn push_declaration(block: &mut ast::Block, local: ast::RcLocal) {
             block.insert(index, assignment.into());
             return;
         } else if statement.values_written().contains(&&local) {
-            let assign = statement.as_assign_mut().unwrap();
-            assign.prefix = true;
+            if let Some(assign) = statement.as_assign_mut() {
+                assign.prefix = true;
+            }
             return;
         }
     }

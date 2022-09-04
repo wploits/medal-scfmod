@@ -524,6 +524,28 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
+                Instruction::PrepareNumericForLoop { control, step } => {
+                    //statements.push();
+                }
+                Instruction::IterateNumericForLoop { control, .. } => {
+                    println!("{:?}", control);
+                    let (initial, limit, step, counter) = (
+                        self.locals[&control[0]].clone(),
+                        self.locals[&control[1]].clone(),
+                        self.locals[&control[2]].clone(),
+                        self.locals[&control[3]].clone(),
+                    );
+                    statements.push(
+                        ast::For::new(
+                            initial.into(),
+                            limit.into(),
+                            step.into(),
+                            counter,
+                            ast::Block::default(),
+                        )
+                        .into(),
+                    );
+                }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
 

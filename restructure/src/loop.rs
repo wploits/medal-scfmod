@@ -154,38 +154,45 @@ impl GraphStructurer {
 
             let mut body_successors = self.function.successor_blocks(body);
             if body_successors.next() == Some(header) && body_successors.next().is_none() {
-                let mut if_condition = self
-                    .function
-                    .block_mut(header)
-                    .unwrap()
-                    .ast
-                    .remove(0)
-                    .into_if()
-                    .unwrap()
-                    .condition;
-                if self
-                    .function
-                    .block(header)
-                    .unwrap()
-                    .terminator
-                    .as_ref()
-                    .unwrap()
-                    .as_conditional()
-                    .unwrap()
-                    .1
-                    .node
-                    == body
-                {
-                    if_condition = ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce();
-                }
+                let statement = self.function.block_mut(header).unwrap().ast.remove(0);
+                if let ast::Statement::If(if_stat) = statement {
+                    let mut if_condition = if_stat.condition;
+                    if self
+                        .function
+                        .block(header)
+                        .unwrap()
+                        .terminator
+                        .as_ref()
+                        .unwrap()
+                        .as_conditional()
+                        .unwrap()
+                        .1
+                        .node
+                        == body
+                    {
+                        if_condition =
+                            ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce();
+                    }
 
-                let while_stat =
-                    ast::While::new(if_condition, self.function.remove_block(body).unwrap().ast);
-                self.function
-                    .block_mut(header)
-                    .unwrap()
-                    .ast
-                    .push(while_stat.into());
+                    let while_stat = ast::While::new(
+                        if_condition,
+                        self.function.remove_block(body).unwrap().ast,
+                    );
+                    self.function
+                        .block_mut(header)
+                        .unwrap()
+                        .ast
+                        .push(while_stat.into());
+                } else if let ast::Statement::For(mut for_stat) = statement {
+                    for_stat.block = self.function.remove_block(body).unwrap().ast;
+                    self.function
+                        .block_mut(header)
+                        .unwrap()
+                        .ast
+                        .push(for_stat.into());
+                } else {
+                    panic!()
+                }
                 self.function
                     .set_block_terminator(header, Some(Terminator::jump(next)));
                 self.match_jump(header, next, dominators);
