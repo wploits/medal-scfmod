@@ -45,10 +45,11 @@ impl Function {
             }
             Some(Terminator::Conditional(then_edge, else_edge)) => {
                 self.graph.add_edge(block, then_edge.node, ());
-                if then_edge.node != else_edge.node {
+                self.graph.add_edge(block, else_edge.node, ());
+                /*lif then_edge.node != else_edge.node {
                     self.graph.add_edge(block, else_edge.node, ());
                 } else {
-                    let source_block = &mut self.block_mut(block).unwrap().ast;
+                    et source_block = &mut self.block_mut(block).unwrap().ast;
                     let condition = source_block.pop().unwrap().into_if().unwrap().condition;
                     if condition.has_side_effects() {
                         let local = self.local_allocator.borrow_mut().allocate();
@@ -58,14 +59,14 @@ impl Function {
                             .push(ast::Assign::new(vec![local.into()], vec![condition]).into());
                     }
                     new_terminator = Some(Terminator::jump(then_edge.node));
-                }
+                }*/
             }
             _ => {}
         }
         self.block_mut(block).unwrap().terminator = new_terminator;
     }
 
-    #[requires(self.graph.find_edge(source, old_target).is_some() && self.has_block(target))]
+    #[requires(self.graph.find_edge(source, old_target).is_some() && self.has_block(target) && self.graph.find_edge(source, target).is_none())]
     pub fn replace_edge(&mut self, source: NodeIndex, old_target: NodeIndex, target: NodeIndex) {
         self.graph
             .remove_edge(self.graph.find_edge(source, old_target).unwrap());

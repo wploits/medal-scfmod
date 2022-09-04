@@ -99,8 +99,7 @@ impl super::GraphStructurer {
                     .unwrap()
                     .as_if_mut()
                     .unwrap()
-                    .condition
-                    ,
+                    .condition,
                 operand,
             )
         }
@@ -141,10 +140,6 @@ impl super::GraphStructurer {
         let second_info = self.compound_info(second_conditional);
 
         println!("{:#?} {:#?}", first_info, second_info);
-
-        if first_info.is_none() && second_info.is_none() {
-            return false;
-        }
 
         let (target_expression, operand) = self.target_expression(
             first_conditional,
@@ -238,32 +233,25 @@ impl super::GraphStructurer {
         then_node: NodeIndex,
         else_node: NodeIndex,
     ) -> bool {
-        if self.is_loop_header(then_node) || self.is_loop_header(else_node) {
-            return false;
-        }
-
         let else_successors = self.function.successor_blocks(else_node).collect_vec();
         let then_successors = self.function.successor_blocks(then_node).collect_vec();
 
         let mut changed = false;
-        if else_node != entry
-            && else_successors.contains(&then_node)
-            && self.function.predecessor_blocks(else_node).count() == 1
-        {
+        if else_node != entry && else_successors.contains(&then_node) {
             if else_successors.len() == 2 {
-                let end = *else_successors.iter().find(|&&n| n != then_node).unwrap();
-                changed = self.combine_conditionals(entry, else_node, then_node, end);
+                if self.function.predecessor_blocks(else_node).count() == 1 {
+                    let end = *else_successors.iter().find(|&&n| n != then_node).unwrap();
+                    changed = self.combine_conditionals(entry, else_node, then_node, end);
+                }
             } else {
                 changed = self.match_and_or(entry, else_node, then_node);
             }
-        } else if then_node != entry
-            && else_node != entry
-            && then_successors.contains(&else_node)
-            && self.function.predecessor_blocks(then_node).count() == 1
-        {
+        } else if then_node != entry && else_node != entry && then_successors.contains(&else_node) {
             if then_successors.len() == 2 {
-                let end = *then_successors.iter().find(|&&n| n != else_node).unwrap();
-                changed = self.combine_conditionals(entry, then_node, else_node, end);
+                if self.function.predecessor_blocks(then_node).count() == 1 {
+                    let end = *then_successors.iter().find(|&&n| n != else_node).unwrap();
+                    changed = self.combine_conditionals(entry, then_node, else_node, end);
+                }
             } else {
                 changed = self.match_and_or(entry, then_node, else_node);
             }

@@ -260,7 +260,7 @@ impl<'a> LifterContext<'a> {
                     statements.push(
                         ast::Return::new(
                             values
-                                .into_iter()
+                                .iter()
                                 .map(|v| self.locals[v].clone().into())
                                 .collect(),
                         )

@@ -94,6 +94,10 @@ impl GraphStructurer {
                 std::mem::swap(&mut next, &mut body);
             }
 
+            if self.function.predecessor_blocks(body).count() != 1 {
+                return false;
+            }
+
             /*let latches = self
                 .function
                 .graph()
@@ -163,7 +167,6 @@ impl GraphStructurer {
                 self.match_jump(header, next, dominators);
                 true
             } else {
-                todo!("loop refinement");
                 false
             }
         } else {
