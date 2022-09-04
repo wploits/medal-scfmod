@@ -80,7 +80,8 @@ impl<'a> LifterContext<'a> {
                         self.function.remove_block(jmp_block);
                         println!("{}", insn_index);
                         self.nodes.insert(insn_index, dest_block);
-                        self.blocks_to_skip.insert(insn_index, insn_index + step as usize - 131070);
+                        self.blocks_to_skip
+                            .insert(insn_index, insn_index + step as usize - 131070);
                     }
                 }
                 Instruction::IterateNumericForLoop { step, .. }
@@ -327,6 +328,21 @@ impl<'a> LifterContext<'a> {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThan).into();
+                    let condition = if comparison_value {
+                        value
+                    } else {
+                        ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    };
+                    statements.push(ast::If::new(condition, None, None).into())
+                }
+                &Instruction::Equal {
+                    lhs,
+                    rhs,
+                    comparison_value,
+                } => {
+                    let lhs = self.register_or_constant(lhs);
+                    let rhs = self.register_or_constant(rhs);
+                    let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::Equal).into();
                     let condition = if comparison_value {
                         value
                     } else {

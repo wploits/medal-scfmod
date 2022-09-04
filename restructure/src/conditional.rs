@@ -100,25 +100,58 @@ impl GraphStructurer {
             || _match_triangle_conditional(else_node, then_node, true)
     }
 
-    pub(crate) fn refine_edge(
+    pub(crate) fn refine_virtual_edge_jump(
         &mut self,
         entry: NodeIndex,
-        back_edge: NodeIndex,
+        node: NodeIndex,
+        header: NodeIndex,
+        next: NodeIndex,
+    ) -> bool {
+        /* let block = &mut self.function.block_mut(entry).unwrap().ast;
+        if node == header {
+            block.push(ast::Continue {}.into());
+        } else if node == next {
+            block.push(ast::Break {}.into());
+        }
+        self.function.set_block_terminator(entry, None); */
+        false
+    }
+
+    pub(crate) fn refine_virtual_edge_conditional(
+        &mut self,
+        entry: NodeIndex,
+        then_node: NodeIndex,
+        else_node: NodeIndex,
+        header: NodeIndex,
         next: NodeIndex,
         dominators: &Dominators<NodeIndex>,
-        invert_condition: bool,
-        statement: ast::Statement,
     ) -> bool {
+        let header_successors = self.function.successor_blocks(header).collect_vec();
         let block = self.function.block_mut(entry).unwrap();
         let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
-        if_stat.then_block = Some(ast::Block::from_vec(vec![statement]));
-        if invert_condition {
+
+        if then_node == header && !header_successors.contains(&entry) {
+            if_stat.then_block = Some(ast::Block::from_vec(vec![ast::Continue {}.into()]));
+        } else if then_node == next {
+            if_stat.then_block = Some(ast::Block::from_vec(vec![ast::Break {}.into()]));
+        }
+        if else_node == header && !header_successors.contains(&entry) {
+            if_stat.else_block = Some(ast::Block::from_vec(vec![ast::Continue {}.into()]));
+        } else if else_node == next {
+            if_stat.else_block = Some(ast::Block::from_vec(vec![ast::Break {}.into()]));
+        }
+        if if_stat.then_block.is_some() && if_stat.else_block.is_none() {
+            self.function
+                .set_block_terminator(entry, Some(Terminator::jump(else_node)));
+        } else if if_stat.then_block.is_none() && if_stat.else_block.is_some() {
             if_stat.condition =
                 ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
+            std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
+            self.function
+                .set_block_terminator(entry, Some(Terminator::jump(then_node)));
+        } else if if_stat.then_block.is_some() && if_stat.else_block.is_some() {
+            self.function.set_block_terminator(entry, None);
         }
-        self.function
-            .set_block_terminator(entry, Some(Terminator::jump(next)));
-        self.match_jump(entry, next, dominators);
         true
     }
 
@@ -128,7 +161,6 @@ impl GraphStructurer {
         then_node: NodeIndex,
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
-        loop_refinement: bool,
     ) -> bool {
         self.match_diamond_conditional(entry, then_node, else_node, dominators)
             || self.match_triangle_conditional(entry, then_node, else_node, dominators)

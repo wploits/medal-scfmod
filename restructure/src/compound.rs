@@ -141,6 +141,11 @@ impl super::GraphStructurer {
 
         println!("{:#?} {:#?}", first_info, second_info);
 
+        if (first_info.is_some() || second_info.is_some()) && self.is_loop_header(first_conditional)
+        {
+            return false;
+        }
+
         let (target_expression, operand) = self.target_expression(
             first_conditional,
             second_conditional,

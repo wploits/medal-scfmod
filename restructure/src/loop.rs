@@ -31,19 +31,6 @@ impl GraphStructurer {
         self.loop_headers.contains(&node)
     }
 
-    fn refine_breaks(
-        &mut self,
-        header: NodeIndex,
-        exit: NodeIndex,
-        exit_predecessors: Vec<NodeIndex>,
-    ) {
-        for predecessor in exit_predecessors {
-            if predecessor != header {
-                self.function.remove_edge(predecessor, exit);
-            }
-        }
-    }
-
     pub(crate) fn try_collapse_loop(
         &mut self,
         header: NodeIndex,
@@ -126,7 +113,35 @@ impl GraphStructurer {
                 .predecessor_blocks(header)
                 .filter(|&n| n != next);
 
-            for node in breaks.chain(continues).collect::<FxHashSet<_>>() {}
+            for node in breaks
+                .chain(continues)
+                .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
+                .collect::<FxHashSet<_>>()
+            {
+                println!("{:?}", node);
+                match self
+                    .function
+                    .block(node)
+                    .unwrap()
+                    .terminator
+                    .as_ref()
+                    .unwrap()
+                {
+                    Terminator::Conditional(then_edge, else_edge) => {
+                        self.refine_virtual_edge_conditional(
+                            node,
+                            then_edge.node,
+                            else_edge.node,
+                            header,
+                            next,
+                            dominators,
+                        );
+                    }
+                    Terminator::Jump(edge) => {
+                        self.refine_virtual_edge_jump(node, edge.node, header, next);
+                    }
+                };
+            }
 
             let mut body_successors = self.function.successor_blocks(body);
             if body_successors.next() == Some(header) && body_successors.next().is_none() {
