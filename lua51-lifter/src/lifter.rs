@@ -17,7 +17,7 @@ use petgraph::stable_graph::NodeIndex;
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeIndex>,
-    blocks_to_skip: FxHashSet<usize>,
+    blocks_to_skip: FxHashMap<usize, usize>,
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
     function: Function,
@@ -73,8 +73,9 @@ impl<'a> LifterContext<'a> {
                         .or_insert_with(|| self.function.new_block());
                     if let Some(jmp_block) = self.nodes.remove(&insn_index) {
                         self.function.remove_block(jmp_block);
+                        println!("{}", insn_index);
                         self.nodes.insert(insn_index, dest_block);
-                        self.blocks_to_skip.insert(insn_index);
+                        self.blocks_to_skip.insert(insn_index, insn_index + step as usize - 131070);
                     }
                 }
                 Instruction::IterateNumericForLoop { step, .. }
@@ -108,7 +109,7 @@ impl<'a> LifterContext<'a> {
             .iter()
             .cloned()
             .zip(ends)
-            .filter(|(s, _)| !self.blocks_to_skip.contains(s))
+            .filter(|(s, _)| !self.blocks_to_skip.contains_key(s))
             .collect()
     }
 
@@ -518,6 +519,13 @@ impl<'a> LifterContext<'a> {
         }
     }
 
+    fn get_node(&'a self, mut index: &'a usize) -> NodeIndex {
+        while let Some(index_to) = self.blocks_to_skip.get(index) {
+            index = index_to;
+        }
+        self.nodes[index]
+    }
+
     fn lift_blocks(&mut self) {
         let ranges = self.code_ranges();
         for (start, end) in ranges {
@@ -534,8 +542,8 @@ impl<'a> LifterContext<'a> {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::conditional(
-                            self.nodes[&(end + 1)],
-                            self.nodes[&(end + 2)],
+                            self.get_node(&(end + 1)),
+                            self.get_node(&(end + 2)),
                         )),
                     );
                 }
@@ -548,14 +556,14 @@ impl<'a> LifterContext<'a> {
                         self.function.set_block_terminator(
                             block,
                             Some(Terminator::jump(
-                                self.nodes[&(end + step as usize - 131070)],
+                                self.get_node(&(end + step as usize - 131070)),
                             )),
                         );
                     }
                 }
                 Instruction::Return { .. } => {}
                 Instruction::LoadBoolean { skip_next, .. } => {
-                    let successor = self.nodes[&(end + 1 + skip_next as usize)];
+                    let successor = self.get_node(&(end + 1 + skip_next as usize));
 
                     self.function.set_block_terminator(
                         self.nodes[&start],
@@ -566,7 +574,7 @@ impl<'a> LifterContext<'a> {
                     if end + 1 != self.bytecode.code.len() {
                         self.function.set_block_terminator(
                             self.nodes[&start],
-                            Some(Terminator::jump(self.nodes[&(end + 1)])),
+                            Some(Terminator::jump(self.get_node(&(end + 1)))),
                         );
                     }
                 }
@@ -581,7 +589,7 @@ impl<'a> LifterContext<'a> {
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
             function: Function::default(),
-            blocks_to_skip: FxHashSet::default(),
+            blocks_to_skip: FxHashMap::default(),
         };
 
         context.create_block_map();
