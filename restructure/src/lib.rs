@@ -50,6 +50,19 @@ impl GraphStructurer {
         println!("before");
         cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
+        if successors.len() == 2 {
+            let (then_edge, else_edge) = self
+                .function
+                .block(node)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .as_conditional()
+                .unwrap();
+            self.match_compound_conditional(node, then_edge.node, else_edge.node);
+        }
+
         if self.try_collapse_loop(node, dominators) {
             println!("changed");
             cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
@@ -72,9 +85,7 @@ impl GraphStructurer {
                     .unwrap()
                     .as_conditional()
                     .unwrap();
-                let (then_node, else_node) = (then_edge.node, else_edge.node);
-                self.match_compound_conditional(node, then_node, else_node)
-                    || self.match_conditional(node, then_node, else_node, dominators)
+                self.match_conditional(node, then_edge.node, else_edge.node, dominators)
             }
 
             _ => unreachable!(),

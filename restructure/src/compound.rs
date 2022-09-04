@@ -118,10 +118,6 @@ impl super::GraphStructurer {
         let first_block = self.function.block(first_conditional).unwrap();
         let second_block = self.function.block(second_conditional).unwrap();
 
-        if first_block.ast.len() > 2 || second_block.ast.len() > 2 {
-            return false;
-        }
-
         let first_terminator = first_block
             .terminator
             .as_ref()
@@ -135,6 +131,10 @@ impl super::GraphStructurer {
             .as_conditional()
             .unwrap();
         let (first_else, second_else) = (first_terminator.1.node, second_terminator.1.node);
+
+        if self.function.block(second_conditional).unwrap().ast.len() > 2 {
+            return false;
+        }
 
         let first_info = self.compound_info(first_conditional);
         let second_info = self.compound_info(second_conditional);
