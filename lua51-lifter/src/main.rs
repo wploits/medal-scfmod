@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
     let lifted = now.elapsed();
     println!("lifting: {:?}", lifted);
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
     let (local_count, local_groups) = cfg::ssa::construct(&mut main);

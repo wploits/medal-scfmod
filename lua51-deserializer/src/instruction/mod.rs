@@ -159,11 +159,11 @@ pub enum Instruction {
     },
     Return(Vec<Register>, bool),
     IterateNumericForLoop {
-        initial_value: Register,
+        control: Vec<Register>,
         step: i32,
     },
     PrepareNumericForLoop {
-        internal_index: Register,
+        control: Vec<Register>,
         step: i32,
     },
     IterateGenericForLoop {
@@ -330,13 +330,13 @@ impl Instruction {
             }
             RawInstruction(OperationCode::IterateNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::IterateNumericForLoop {
-                    initial_value: Register(a),
+                    control: (a..=a + 4).map(Register).collect(),
                     step: sbx,
                 }
             }
             RawInstruction(OperationCode::PrepareNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::PrepareNumericForLoop {
-                    internal_index: Register(a),
+                    control: (a..=a + 4).map(Register).collect(),
                     step: sbx,
                 }
             }

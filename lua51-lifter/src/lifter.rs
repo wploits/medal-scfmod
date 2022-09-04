@@ -561,19 +561,22 @@ impl<'a> LifterContext<'a> {
                         )),
                     );
                 }
-                Instruction::Jump(step)
-                | Instruction::IterateNumericForLoop { step, .. }
-                | Instruction::PrepareNumericForLoop { step, .. } => {
-                    let block = self.nodes[&start];
-
-                    if self.function.block(block).unwrap().terminator.is_none() {
-                        self.function.set_block_terminator(
-                            block,
-                            Some(Terminator::jump(
-                                self.get_node(&(end + step as usize - 131070)),
-                            )),
-                        );
-                    }
+                Instruction::IterateNumericForLoop { step, .. } => {
+                    self.function.set_block_terminator(
+                        self.nodes[&start],
+                        Some(Terminator::conditional(
+                            self.get_node(&(end + step as usize - 131070)),
+                            self.get_node(&(end + 1)),
+                        )),
+                    );
+                }
+                Instruction::Jump(step) | Instruction::PrepareNumericForLoop { step, .. } => {
+                    self.function.set_block_terminator(
+                        self.nodes[&start],
+                        Some(Terminator::jump(
+                            self.get_node(&(end + step as usize - 131070)),
+                        )),
+                    );
                 }
                 Instruction::Return { .. } => {}
                 Instruction::LoadBoolean { skip_next, .. } => {
