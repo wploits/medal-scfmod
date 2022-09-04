@@ -67,7 +67,6 @@ pub fn inline_expressions(function: &mut Function) {
                     if let Some(new_expression) =
                         assigns(&block.ast, &locals_out, stat_index, &read)
                     {
-                        //println!("{:?}", new_expression);
                         let new_has_side_effects = new_expression.has_side_effects();
                         if new_has_side_effects
                             && block.ast[stat_index + 1..index]

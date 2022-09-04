@@ -1,5 +1,5 @@
 use ast::{LocalRw, RcLocal};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 use petgraph::{matrix_graph::MatrixGraph, stable_graph::NodeIndex};
 
@@ -22,10 +22,9 @@ impl InterferenceGraph {
     fn create_interference_in_nodes(&mut self, variables: &[NodeIndex<u16>]) {
         let len = variables.len();
         for a in 0..len {
+            let va = variables[a];
             for b in a + 1..len {
-                let va = variables[a];
                 let vb = variables[b];
-                assert!(va < vb);
                 self.graph.update_edge(va, vb, ());
             }
         }
@@ -34,7 +33,7 @@ impl InterferenceGraph {
         // }
     }
 
-    fn create_interference(&mut self, variables: &IndexSet<RcLocal>) {
+    fn create_interference(&mut self, variables: &FxHashSet<RcLocal>) {
         let mut nodes = Vec::with_capacity(variables.len());
         for var in variables {
             nodes.push(
@@ -44,11 +43,11 @@ impl InterferenceGraph {
                     .unwrap_or_else(|| self.add_node(var.clone())),
             );
         }
-        nodes.sort();
+        nodes.sort_unstable();
         self.create_interference_in_nodes(&nodes);
     }
 
-    fn add_edges(&mut self, new_variables: &[RcLocal], current_variables: &IndexSet<RcLocal>) {
+    fn add_edges(&mut self, new_variables: &[RcLocal], current_variables: &FxHashSet<RcLocal>) {
         let mut nodes = Vec::with_capacity(new_variables.len());
         for new_var in new_variables {
             let new_var_node = self
@@ -62,7 +61,7 @@ impl InterferenceGraph {
             }
             nodes.push(new_var_node);
         }
-        nodes.sort();
+        nodes.sort_unstable();
         self.create_interference_in_nodes(&nodes);
     }
 
@@ -83,14 +82,14 @@ impl InterferenceGraph {
             }
             nodes.push(new_var_node);
         }
-        nodes.sort();
+        nodes.sort_unstable();
         self.create_interference_in_nodes(&nodes);
     }
 
     fn update_live_set(
         &mut self,
         statement: &ast::Statement,
-        current_live_set: &mut IndexSet<RcLocal>,
+        current_live_set: &mut FxHashSet<RcLocal>,
     ) {
         let mut new_variables = statement
             .values_read()
@@ -104,7 +103,7 @@ impl InterferenceGraph {
             .values_written()
             .into_iter()
             .cloned()
-            .collect::<IndexSet<_>>();
+            .collect::<FxHashSet<_>>();
         let unused_variables = removed_variables
             .difference(current_live_set)
             .cloned()
@@ -127,16 +126,12 @@ impl InterferenceGraph {
         for (node, block) in function.blocks() {
             let block_liveness = &liveness.block_liveness[&node];
             let live_in = &block_liveness.live_in;
-            let mut live_in_nodes = Vec::new();
-            for var in live_in {
-                live_in_nodes.push(
-                    this.local_to_node
-                        .get(var)
-                        .cloned()
-                        .unwrap_or_else(|| this.add_node(var.clone())),
-                );
-            }
-            live_in_nodes.sort();
+            let mut live_in_nodes = live_in.iter().map(|l| this.local_to_node
+                .get(l)
+                .cloned()
+                .unwrap_or_else(|| this.add_node(l.clone()))).collect::<Vec<_>>();
+            
+            live_in_nodes.sort_unstable();
             this.create_interference_in_nodes(&live_in_nodes);
             this.create_interference(&block_liveness.live_out);
             let mut current_live_set = block_liveness.live_out.clone();
