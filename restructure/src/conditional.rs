@@ -9,7 +9,7 @@ impl GraphStructurer {
     fn simplify_if(if_stat: &mut ast::If) {
         if let Some(unary) = if_stat.condition.as_unary() {
             if unary.operation == ast::UnaryOperation::Not {
-                if_stat.condition = unary.value.clone();
+                if_stat.condition = *unary.value.clone();
                 std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
             }
         }
@@ -83,9 +83,8 @@ impl GraphStructurer {
             if_stat.then_block = Some(then_block.ast);
 
             if inverted {
-                if_stat.condition = Box::new(
-                    ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not).reduce(),
-                )
+                if_stat.condition =
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce()
             }
 
             //Self::simplify_if(if_stat);
@@ -114,9 +113,8 @@ impl GraphStructurer {
         let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
         if_stat.then_block = Some(ast::Block::from_vec(vec![statement]));
         if invert_condition {
-            if_stat.condition = Box::new(
-                ast::Unary::new(*if_stat.condition.clone(), ast::UnaryOperation::Not).reduce(),
-            );
+            if_stat.condition =
+                ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
         }
         self.function
             .set_block_terminator(entry, Some(Terminator::jump(next)));

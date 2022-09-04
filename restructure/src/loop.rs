@@ -54,14 +54,32 @@ impl GraphStructurer {
         }
 
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
-        if successors.len() == 1 && successors[0] == header {
+        if successors.contains(&header) {
             let mut blocks: HashMap<_, _> = self.function.blocks_mut();
-            let while_stat = ast::While::new(
-                ast::Literal::Boolean(true).into(),
-                blocks[&header].ast.clone(),
-            );
-            *blocks.get_mut(&header).unwrap().ast = vec![while_stat.into()];
-            self.function.remove_edge(header, header);
+            if successors.len() == 2 {
+                let header_block = &mut blocks.get_mut(&header).unwrap().ast;
+                let if_stat = header_block.pop().unwrap().into_if().unwrap();
+                *header_block = ast::Block::from_vec(vec![ast::While::new(
+                    ast::Unary::new(if_stat.condition, ast::UnaryOperation::Not).reduce(),
+                    header_block.clone(),
+                )
+                .into()]);
+                let next = if successors[1] == header {
+                    successors[0]
+                } else {
+                    successors[1]
+                };
+                self.function
+                    .set_block_terminator(header, Some(Terminator::jump(next)));
+            } else {
+                let header_block = &mut blocks.get_mut(&header).unwrap().ast;
+                *header_block = ast::Block::from_vec(vec![ast::While::new(
+                    ast::Literal::Boolean(true).into(),
+                    header_block.clone(),
+                )
+                .into()]);
+                self.function.set_block_terminator(header, None);
+            }
             true
         } else if successors.len() == 2 {
             // cant turn into a while loop if there are more statements in the block
@@ -108,7 +126,7 @@ impl GraphStructurer {
 
             let mut body_successors = self.function.successor_blocks(body);
             if body_successors.next() == Some(header) && body_successors.next().is_none() {
-                let mut if_condition = *self
+                let mut if_condition = self
                     .function
                     .block_mut(header)
                     .unwrap()
