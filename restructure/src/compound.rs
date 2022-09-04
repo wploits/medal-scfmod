@@ -141,10 +141,6 @@ impl super::GraphStructurer {
 
         println!("{:#?} {:#?}", first_info, second_info);
 
-        if first_info.is_none() && second_info.is_none() {
-            return false;
-        }
-
         let (target_expression, operand) = self.target_expression(
             first_conditional,
             second_conditional,
