@@ -78,7 +78,6 @@ impl<'a> LifterContext<'a> {
                         .or_insert_with(|| self.function.new_block());
                     if let Some(jmp_block) = self.nodes.remove(&insn_index) {
                         self.function.remove_block(jmp_block);
-                        println!("{}", insn_index);
                         self.nodes.insert(insn_index, dest_block);
                         self.blocks_to_skip
                             .insert(insn_index, insn_index + step as usize - 131070);

@@ -139,7 +139,7 @@ impl super::GraphStructurer {
         let first_info = self.compound_info(first_conditional);
         let second_info = self.compound_info(second_conditional);
 
-        println!("{:#?} {:#?}", first_info, second_info);
+        //println!("{:#?} {:#?}", first_info, second_info);
 
         if (first_info.is_some() || second_info.is_some()) && self.is_loop_header(first_conditional)
         {
