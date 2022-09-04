@@ -20,10 +20,10 @@ struct GraphStructurer {
 }
 
 impl GraphStructurer {
-    fn new(function: Function, graph: StableDiGraph<BasicBlock, ()>, root: NodeIndex) -> Self {
+    fn new(function: Function) -> Self {
         let root = function.entry().unwrap();
         let mut loop_headers = FxHashSet::default();
-        depth_first_search(&graph, Some(root), |event| {
+        depth_first_search(function.graph(), Some(root), |event| {
             if let DfsEvent::BackEdge(_, header) = event {
                 loop_headers.insert(header);
             }
@@ -130,9 +130,5 @@ impl GraphStructurer {
 }
 
 pub fn lift(function: cfg::function::Function) -> ast::Block {
-    let graph = function.graph().clone();
-    let root = function.entry().unwrap();
-
-    let structurer = GraphStructurer::new(function, graph, root);
-    structurer.structure()
+    GraphStructurer::new(function).structure()
 }
