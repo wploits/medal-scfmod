@@ -205,6 +205,12 @@ impl Formatter {
                 self.indent();
                 self.write("end".chars());
             }
+            Statement::Repeat(repeat) => {
+                self.write("repeat\n".chars());
+                self.format_block(&repeat.block);
+                self.indent();
+                self.write(format!("until {}", repeat.condition).chars());
+            }
             _ => self.write(statement.to_string().chars()),
         }
 

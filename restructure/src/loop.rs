@@ -42,24 +42,34 @@ impl GraphStructurer {
 
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
         if successors.contains(&header) {
-            let mut blocks: HashMap<_, _> = self.function.blocks_mut();
             if successors.len() == 2 {
-                let header_block = &mut blocks.get_mut(&header).unwrap().ast;
+                let header_block = &mut self.function.block_mut(header).unwrap().ast;
                 let if_stat = header_block.pop().unwrap().into_if().unwrap();
-                *header_block = ast::Block::from_vec(vec![ast::While::new(
-                    ast::Unary::new(if_stat.condition, ast::UnaryOperation::Not).reduce(),
-                    header_block.clone(),
-                )
-                .into()]);
-                let next = if successors[1] == header {
-                    successors[0]
+                let mut condition = if_stat.condition;
+                let (then_edge, else_edge) = self
+                    .function
+                    .block(header)
+                    .unwrap()
+                    .terminator
+                    .as_ref()
+                    .unwrap()
+                    .as_conditional()
+                    .unwrap();
+                let next = if then_edge.node == header {
+                    condition = ast::Unary::new(condition, ast::UnaryOperation::Not).reduce();
+                    else_edge.node
                 } else {
-                    successors[1]
+                    then_edge.node
                 };
+                let header_block = &mut self.function.block_mut(header).unwrap().ast;
+                *header_block =
+                    ast::Block::from_vec(vec![
+                        ast::Repeat::new(condition, header_block.clone()).into()
+                    ]);
                 self.function
                     .set_block_terminator(header, Some(Terminator::jump(next)));
             } else {
-                let header_block = &mut blocks.get_mut(&header).unwrap().ast;
+                let header_block = &mut self.function.block_mut(header).unwrap().ast;
                 *header_block = ast::Block::from_vec(vec![ast::While::new(
                     ast::Literal::Boolean(true).into(),
                     header_block.clone(),
@@ -80,6 +90,8 @@ impl GraphStructurer {
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
             }
+
+            println!("{:?} {:?}", next, body);
 
             if self.function.predecessor_blocks(body).count() != 1 {
                 return false;

@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     let ssa_destructed = now.elapsed();
     println!("ssa destruction: {:?}", ssa_destructed);
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     /*process_function(&mut main)?;
     for function in descendants {
@@ -80,7 +80,7 @@ fn main() -> anyhow::Result<()> {
     //println!("type analysis: {:?}", type_analysis);
 
     let formatted = ast::formatter::Formatter::format(&main, Default::default());
-    //println!("{}", formatted);
+    println!("{}", formatted);
 
     println!("total time: {:?}", total_now.elapsed());
 

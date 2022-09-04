@@ -2,8 +2,7 @@
 
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
-use itertools::Either;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 
 use std::{
     fmt,
@@ -26,6 +25,7 @@ mod literal;
 mod local;
 pub mod local_allocator;
 mod name_gen;
+mod repeat;
 mod r#return;
 mod side_effects;
 mod table;
@@ -50,6 +50,7 @@ pub use r#continue::*;
 pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
+pub use repeat::*;
 pub use side_effects::*;
 pub use table::*;
 pub use traverse::*;
@@ -216,6 +217,7 @@ pub enum Statement {
     Goto(Goto),
     Label(Label),
     While(While),
+    Repeat(Repeat),
     Return(Return),
     Continue(Continue),
     Break(Break),
@@ -239,6 +241,7 @@ impl fmt::Display for Statement {
             Statement::Goto(goto) => write!(f, "{}", goto),
             Statement::Label(label) => write!(f, "{}", label),
             Statement::While(while_) => write!(f, "{}", while_),
+            Statement::Repeat(repeat) => write!(f, "{}", repeat),
             Statement::Return(return_) => write!(f, "{}", return_),
             Statement::Continue(continue_) => write!(f, "{}", continue_),
             Statement::Break(break_) => write!(f, "{}", break_),
