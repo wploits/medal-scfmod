@@ -1,4 +1,4 @@
-use ast::{local_allocator::LocalAllocator, RcLocal, SideEffects};
+use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
 use itertools::Itertools;
 use petgraph::{

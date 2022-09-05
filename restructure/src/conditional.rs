@@ -102,10 +102,10 @@ impl GraphStructurer {
 
     pub(crate) fn refine_virtual_edge_jump(
         &mut self,
-        entry: NodeIndex,
-        node: NodeIndex,
-        header: NodeIndex,
-        next: NodeIndex,
+        _entry: NodeIndex,
+        _node: NodeIndex,
+        _header: NodeIndex,
+        _next: NodeIndex,
     ) -> bool {
         /* let block = &mut self.function.block_mut(entry).unwrap().ast;
         if node == header {
@@ -124,7 +124,7 @@ impl GraphStructurer {
         else_node: NodeIndex,
         header: NodeIndex,
         next: NodeIndex,
-        dominators: &Dominators<NodeIndex>,
+        _dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let header_successors = self.function.successor_blocks(header).collect_vec();
         let block = self.function.block_mut(entry).unwrap();

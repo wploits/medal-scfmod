@@ -1,15 +1,10 @@
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    io::Read,
-    rc::Rc,
-};
+use std::{io::Read, rc::Rc};
 
 use either::Either;
-use fxhash::{FxHashMap, FxHashSet};
+use fxhash::FxHashMap;
 use itertools::Itertools;
 
-use ast::{LValue, LocalRw, RValue, RcLocal, Statement};
+use ast::{RcLocal, Statement};
 use cfg::{block::Terminator, function::Function};
 
 use lua51_deserializer::{
@@ -17,7 +12,7 @@ use lua51_deserializer::{
     Function as BytecodeFunction, Instruction, Value,
 };
 
-use petgraph::stable_graph::NodeIndex;
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
 
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
@@ -524,11 +519,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::PrepareNumericForLoop { control, step } => {
-                    //statements.push();
-                }
-                Instruction::IterateNumericForLoop { control, .. } => {
-                    println!("{:?}", control);
+                Instruction::PrepareNumericForLoop { control, step: _ } => {
                     let (initial, limit, step, counter) = (
                         self.locals[&control[0]].clone(),
                         self.locals[&control[1]].clone(),
@@ -536,7 +527,7 @@ impl<'a> LifterContext<'a> {
                         self.locals[&control[3]].clone(),
                     );
                     statements.push(
-                        ast::For::new(
+                        ast::ForPrep::new(
                             initial.into(),
                             limit.into(),
                             step.into(),
@@ -545,6 +536,9 @@ impl<'a> LifterContext<'a> {
                         )
                         .into(),
                     );
+                }
+                Instruction::IterateNumericForLoop { control, .. } => {
+                    statements.push(ast::ForIterate::new(self.locals[&control[3]].clone()).into());
                 }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
@@ -646,6 +640,22 @@ impl<'a> LifterContext<'a> {
             }
         }
         context.function.set_entry(context.nodes[&0]);
+
+        let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());
+        for node in context.function.graph().node_indices().collect_vec() {
+            let mut successors = context.function.successor_blocks(node);
+            if let Some(target) = successors.next() && successors.next().is_none() && context.function.predecessor_blocks(target).count() == 1
+            && dominators.dominators(target).unwrap().contains(&node) {
+                let block = context.function.remove_block(target).unwrap();
+                let terminator = block.terminator;
+                context.function
+                    .block_mut(node)
+                    .unwrap()
+                    .ast
+                    .extend(block.ast.0);
+                context.function.set_block_terminator(node, terminator);
+            }
+        }
 
         context.function
     }

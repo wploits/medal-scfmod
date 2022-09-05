@@ -1,12 +1,8 @@
-use std::{
-    borrow::{Borrow, Cow},
-    collections::HashSet,
-    fmt,
-};
+use std::{borrow::Cow, fmt};
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, LValue, RValue, Return, Statement, Type, TypeSystem};
+use crate::{Block, LValue, Literal, RValue, Return, Statement, Type};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -211,18 +207,29 @@ impl Formatter {
                 self.indent();
                 self.write(format!("until {}", repeat.condition).chars());
             }
-            Statement::For(r#for) => {
-                self.write(
-                    format!(
-                        "for {} = {}, {}, {} do\n",
-                        r#for.counter, r#for.initial, r#for.limit, r#for.step
-                    )
-                    .chars(),
-                );
+            Statement::NumericFor(r#for) => {
+                if let RValue::Literal(Literal::Number(n)) = r#for.step && n == 1.0 {
+                    self.write(
+                        format!(
+                            "for {} = {}, {} do\n",
+                            r#for.counter, r#for.initial, r#for.limit
+                        )
+                        .chars(),
+                    );
+                } else {
+                    self.write(
+                        format!(
+                            "for {} = {}, {}, {} do\n",
+                            r#for.counter, r#for.initial, r#for.limit, r#for.step
+                        )
+                        .chars(),
+                    );
+                }
                 self.format_block(&r#for.block);
                 self.indent();
                 self.write("end".chars());
             }
+            Statement::ForIterate(_) | Statement::ForPrep(_) => {}
             _ => self.write(statement.to_string().chars()),
         }
 

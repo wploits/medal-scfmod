@@ -2,14 +2,12 @@ use ast::Reduce;
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
-use std::collections::HashMap;
 
 use crate::GraphStructurer;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
     stable_graph::{NodeIndex, StableDiGraph},
-    visit::{IntoNeighbors, IntoNodeIdentifiers, Reversed, Visitable},
-    Direction,
+    visit::{IntoNeighbors, IntoNodeIdentifiers, Reversed},
 };
 
 fn post_dominators<N: Default, E: Default>(
@@ -183,19 +181,41 @@ impl GraphStructurer {
                         .unwrap()
                         .ast
                         .push(while_stat.into());
-                } else if let ast::Statement::For(mut for_stat) = statement {
-                    for_stat.block = self.function.remove_block(body).unwrap().ast;
                     self.function
-                        .block_mut(header)
-                        .unwrap()
-                        .ast
-                        .push(for_stat.into());
+                        .set_block_terminator(header, Some(Terminator::jump(next)));
+                    self.match_jump(header, next, dominators);
+                } else if let ast::Statement::ForIterate(for_iterate) = statement {
+                    let predecessors = self.function.predecessor_blocks(header).collect_vec();
+                    let mut prep_blocks = predecessors.into_iter().filter(|&p| {
+                        self.function
+                            .block_mut(p)
+                            .unwrap()
+                            .ast
+                            .last_mut()
+                            .unwrap()
+                            .as_for_prep_mut()
+                            .is_some()
+                    });
+                    let prep_block = prep_blocks.next().unwrap();
+                    assert!(prep_blocks.next().is_none());
+                    let body_ast = self.function.remove_block(body).unwrap().ast;
+                    let prep_ast = &mut self.function.block_mut(prep_block).unwrap().ast;
+                    let for_prep = prep_ast.pop().unwrap().into_for_prep().unwrap();
+                    let numeric_for = ast::NumericFor::new(
+                        for_prep.initial,
+                        for_prep.limit,
+                        for_prep.step,
+                        for_iterate.counter,
+                        body_ast,
+                    );
+                    prep_ast.push(numeric_for.into());
+                    self.function.remove_block(header);
+                    self.function
+                        .set_block_terminator(prep_block, Some(Terminator::jump(next)));
+                    self.match_jump(prep_block, next, dominators);
                 } else {
                     panic!()
                 }
-                self.function
-                    .set_block_terminator(header, Some(Terminator::jump(next)));
-                self.match_jump(header, next, dominators);
                 true
             } else {
                 false

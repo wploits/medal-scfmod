@@ -50,7 +50,7 @@ fn main() -> anyhow::Result<()> {
     let ssa_constructed = now.elapsed();
     println!("ssa construction: {:?}", ssa_constructed);
 
-    //cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     let now = time::Instant::now();
     cfg::inline::inline_expressions(&mut main);
@@ -72,11 +72,11 @@ fn main() -> anyhow::Result<()> {
     }*/
 
     // cfg::dot::render_to(&main, &mut std::io::stdout())?;
-    let mut main = restructure::lift(main);
+    let main = restructure::lift(main);
 
     let now = time::Instant::now();
     //ast::type_system::TypeSystem::analyze(&mut main);
-    let type_analysis = now.elapsed();
+    let _type_analysis = now.elapsed();
     //println!("type analysis: {:?}", type_analysis);
 
     let formatted = ast::formatter::Formatter::format(&main, Default::default());

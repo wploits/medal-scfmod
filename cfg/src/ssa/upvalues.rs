@@ -1,6 +1,6 @@
 use ast::Traverse;
 use fxhash::{FxHashMap, FxHashSet};
-use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::Dfs};
+use petgraph::stable_graph::NodeIndex;
 
 use crate::function::Function;
 

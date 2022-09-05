@@ -1,10 +1,10 @@
-use cfg::{block::BasicBlock, dot, function::Function, inline::inline_expressions};
-use fxhash::{FxHashMap, FxHashSet};
+use cfg::function::Function;
+use fxhash::FxHashSet;
 use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{NodeIndex, StableDiGraph},
+    stable_graph::NodeIndex,
     visit::*,
 };
 

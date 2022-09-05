@@ -1,4 +1,4 @@
-use cfg::{block::Terminator, dot, inline::inline_expressions};
+use cfg::block::Terminator;
 use itertools::Itertools;
 use petgraph::stable_graph::NodeIndex;
 

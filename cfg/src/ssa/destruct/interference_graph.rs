@@ -1,6 +1,6 @@
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
-use indexmap::IndexSet;
+
 use petgraph::{matrix_graph::MatrixGraph, stable_graph::NodeIndex};
 
 use crate::function::Function;
@@ -126,11 +126,16 @@ impl InterferenceGraph {
         for (node, block) in function.blocks() {
             let block_liveness = &liveness.block_liveness[&node];
             let live_in = &block_liveness.live_in;
-            let mut live_in_nodes = live_in.iter().map(|l| this.local_to_node
-                .get(l)
-                .cloned()
-                .unwrap_or_else(|| this.add_node(l.clone()))).collect::<Vec<_>>();
-            
+            let mut live_in_nodes = live_in
+                .iter()
+                .map(|l| {
+                    this.local_to_node
+                        .get(l)
+                        .cloned()
+                        .unwrap_or_else(|| this.add_node(l.clone()))
+                })
+                .collect::<Vec<_>>();
+
             live_in_nodes.sort_unstable();
             this.create_interference_in_nodes(&live_in_nodes);
             this.create_interference(&block_liveness.live_out);
