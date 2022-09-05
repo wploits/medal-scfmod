@@ -157,7 +157,7 @@ pub enum Instruction {
         function: Register,
         arguments: u8,
     },
-    Return(Vec<Register>, bool),
+    Return(Register, u8),
     IterateNumericForLoop {
         control: Vec<Register>,
         step: i32,
@@ -180,7 +180,7 @@ pub enum Instruction {
         destination: Register,
         function: Function,
     },
-    VarArg(Vec<Register>),
+    VarArg(Register, u8),
 }
 
 impl Instruction {
@@ -326,7 +326,7 @@ impl Instruction {
                 arguments: b as u8,
             },
             RawInstruction(OperationCode::Return, Layout::ABC { a, b, .. }) => {
-                Self::Return((a..a + b as u8 - 1).map(Register).collect(), b == 0)
+                Self::Return(Register(a), b as u8)
             }
             RawInstruction(OperationCode::IterateNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::IterateNumericForLoop {
@@ -357,7 +357,7 @@ impl Instruction {
                 function: Function(bx),
             },
             RawInstruction(OperationCode::VarArg, Layout::ABC { a, b, .. }) => {
-                Self::VarArg((a..b as u8).map(Register).collect())
+                Self::VarArg(Register(a), b as u8)
             }
             _ => {
                 return Err(Err::Failure(Error::from_error_kind(

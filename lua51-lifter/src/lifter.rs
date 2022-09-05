@@ -134,6 +134,7 @@ impl<'a> LifterContext<'a> {
     }
 
     fn lift_instruction(&mut self, start: usize, end: usize, statements: &mut Vec<Statement>) {
+        let mut top: Option<(ast::RValue, u8)> = None;
         let mut iter = self.bytecode.code[start..=end].iter();
         while let Some(instruction) = iter.next() {
             match instruction {
@@ -251,16 +252,19 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::Return(values, _variadic) => {
-                    statements.push(
-                        ast::Return::new(
-                            values
-                                .iter()
-                                .map(|v| self.locals[v].clone().into())
-                                .collect(),
-                        )
-                        .into(),
-                    );
+                &Instruction::Return(values, b) => {
+                    let values = if b != 0 {
+                        (values.0..values.0 + (b - 1) as u8)
+                            .map(|r| self.locals[&Register(r)].clone().into())
+                            .collect()
+                    } else {
+                        let (tail, end) = top.take().unwrap();
+                        (values.0..end)
+                            .map(|r| self.locals[&Register(r)].clone().into())
+                            .chain(std::iter::once(tail))
+                            .collect()
+                    };
+                    statements.push(ast::Return::new(values).into());
                 }
                 Instruction::Jump(..) => {}
                 &Instruction::Add {
@@ -398,12 +402,29 @@ impl<'a> LifterContext<'a> {
                         )),
                     );
                 }
-                Instruction::Call {
+                &Instruction::TailCall {
+                    function,
+                    arguments,
+                } => {
+                    top = Some((
+                        ast::Call {
+                            value: Box::new(self.locals[&function].clone().into()),
+                            arguments: (1..arguments)
+                                .map(|argument| {
+                                    self.locals[&Register(function.0 + argument)].clone().into()
+                                })
+                                .collect(),
+                        }
+                        .into(),
+                        function.0,
+                    ));
+                }
+                &Instruction::Call {
                     function,
                     arguments,
                     return_values,
                 } => {
-                    let call = ast::Call {
+                    /*let call = ast::Call {
                         value: Box::new(self.locals[function].clone().into()),
                         arguments: if *arguments <= 1 {
                             Vec::new()
@@ -430,7 +451,30 @@ impl<'a> LifterContext<'a> {
                         .into()
                     } else {
                         call.into()
-                    })
+                    })*/
+
+                    let call = ast::Call {
+                        value: Box::new(self.locals[&function].clone().into()),
+                        arguments: (1..arguments)
+                            .map(|argument| {
+                                self.locals[&Register(function.0 + argument)].clone().into()
+                            })
+                            .collect(),
+                    };
+
+                    if return_values != 0 {
+                        statements.push(
+                            ast::Assign::new(
+                                (function.0..function.0 + return_values - 1)
+                                    .map(|r| self.locals[&Register(r)].clone().into())
+                                    .collect_vec(),
+                                vec![call.into()],
+                            )
+                            .into(),
+                        );
+                    } else {
+                        top = Some((call.into(), function.0));
+                    }
                 }
                 Instruction::GetUpvalue {
                     destination,
@@ -446,6 +490,21 @@ impl<'a> LifterContext<'a> {
                         )
                         .into(),
                     );
+                }
+                &Instruction::VarArg(destination, b) => {
+                    if b != 0 {
+                        statements.push(
+                            ast::Assign::new(
+                                (destination.0..destination.0 + b - 1)
+                                    .map(|r| self.locals[&Register(r)].clone().into())
+                                    .collect(),
+                                vec![ast::VarArg {}.into()],
+                            )
+                            .into(),
+                        );
+                    } else {
+                        top = Some((ast::VarArg {}.into(), destination.0));
+                    }
                 }
                 Instruction::Closure {
                     destination,

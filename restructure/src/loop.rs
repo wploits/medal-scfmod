@@ -114,16 +114,28 @@ impl GraphStructurer {
             let breaks = self
                 .function
                 .predecessor_blocks(next)
-                .filter(|&n| n != header);
+                .filter(|&n| n != header)
+                .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
+                .collect_vec();
 
-            let continues = self
+            let mut continues = self
                 .function
                 .predecessor_blocks(header)
-                .filter(|&n| n != next);
+                .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
+                .collect_vec();
+            if continues.len() == 1 {
+                continues.clear();
+            } else {
+                todo!("remove node that dominates all");
+            }
+
+            println!("continues: {:?}", continues);
+
+            let mut changed = false;
 
             for node in breaks
+                .into_iter()
                 .chain(continues)
-                .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect::<FxHashSet<_>>()
             {
                 match self
@@ -135,7 +147,7 @@ impl GraphStructurer {
                     .unwrap()
                 {
                     Terminator::Conditional(then_edge, else_edge) => {
-                        self.refine_virtual_edge_conditional(
+                        changed |= self.refine_virtual_edge_conditional(
                             node,
                             then_edge.node,
                             else_edge.node,
@@ -218,7 +230,7 @@ impl GraphStructurer {
                 }
                 true
             } else {
-                false
+                changed
             }
         } else {
             false
