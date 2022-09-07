@@ -453,16 +453,28 @@ impl<'a> LifterContext<'a> {
                         call.into()
                     })*/
 
-                    let call = ast::Call {
-                        value: Box::new(self.locals[&function].clone().into()),
-                        arguments: (1..arguments)
-                            .map(|argument| {
-                                self.locals[&Register(function.0 + argument)].clone().into()
-                            })
-                            .collect(),
+                    let arguments = if arguments != 0 {
+                        (function.0 + 1..function.0 + arguments)
+                            .map(|r| self.locals[&Register(r)].clone().into())
+                            .collect()
+                    } else {
+                        let top = top.take().unwrap();
+                        (function.0 + 1..top.1)
+                            .map(|r| self.locals[&Register(r)].clone().into())
+                            .chain(std::iter::once(top.0))
+                            .collect()
                     };
 
-                    if return_values != 0 {
+                    let call = ast::Call {
+                        value: Box::new(self.locals[&function].clone().into()),
+                        arguments,
+                    };
+
+                    if return_values == 0 {
+                        top = Some((call.into(), function.0));
+                    } else if return_values == 1 {
+                        statements.push(call.into());
+                    } else {
                         statements.push(
                             ast::Assign::new(
                                 (function.0..function.0 + return_values - 1)
@@ -472,8 +484,6 @@ impl<'a> LifterContext<'a> {
                             )
                             .into(),
                         );
-                    } else {
-                        top = Some((call.into(), function.0));
                     }
                 }
                 Instruction::GetUpvalue {
