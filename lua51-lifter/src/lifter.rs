@@ -556,6 +556,42 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
+                Instruction::NewTable { destination, .. } => {
+                    statements.push(
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![ast::Table::default().into()],
+                        )
+                        .into(),
+                    );
+                }
+                &Instruction::SetList {
+                    table,
+                    number_of_elements,
+                    block_number,
+                } => {
+                    const FIELDS_PER_FLUSH: usize = 50;
+
+                    let elements = if number_of_elements != 0 {
+                        (table.0 + 1..table.0 + 1 + number_of_elements)
+                            .map(|r| self.locals[&Register(r)].clone().into())
+                            .collect()
+                    } else {
+                        let top = top.take().unwrap();
+                        (table.0 + 1..top.1)
+                            .map(|r| self.locals[&Register(r)].clone().into())
+                            .chain(std::iter::once(top.0))
+                            .collect()
+                    };
+                    statements.push(
+                        ast::SetList::new(
+                            self.locals[&table].clone(),
+                            (block_number - 1) as usize * FIELDS_PER_FLUSH + 1,
+                            elements,
+                        )
+                        .into(),
+                    );
+                }
                 Instruction::Close(start) => {
                     let locals = (start.0..self.bytecode.maximum_stack_size)
                         .map(|i| self.locals[&Register(i)].clone())

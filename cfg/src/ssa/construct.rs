@@ -198,7 +198,7 @@ impl<'a> SsaConstructor<'a> {
                 .filter_map(|(i, s)| s.as_assign().map(|a| (i, a)))
             {
                 if assign.left.len() == 1 && assign.right.len() == 1
-                    && let Some(from) = assign.left[0].0.as_local()
+                    && let Some(from) = assign.left[0].as_local()
                     && let Some(mut to) = assign.right[0].as_local()
                 {
                     // TODO: wtf is this name lol

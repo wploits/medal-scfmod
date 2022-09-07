@@ -73,7 +73,7 @@ impl<'a> VariableRenamer<'a> {
             block.ast.retain(|stat| {
                 stat.as_assign()
                     .map(|a| {
-                        let l = a.left[0].0.as_local();
+                        let l = a.left[0].as_local();
                         let r = a.right[0].as_local();
                         !(a.left.len() + a.right.len() == 2 && l == r && l.is_some())
                     })

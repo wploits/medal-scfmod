@@ -144,7 +144,7 @@ impl<'a> TypeSystem<'a> {
 
         for statement in &mut block.0 {
             match statement {
-                Statement::Assign(assign) => {
+                /*Statement::Assign(assign) => {
                     for ((lvalue, annotation), rvalue) in
                         assign.left.iter_mut().zip(assign.right.iter_mut())
                     {
@@ -168,7 +168,7 @@ impl<'a> TypeSystem<'a> {
                             }
                         }
                     }
-                }
+                }*/
                 Statement::If(r#if) => {
                     if let Some(b) = &mut r#if.then_block {
                         self.analyze_block(b);

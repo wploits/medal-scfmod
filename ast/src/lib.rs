@@ -28,6 +28,7 @@ pub mod local_allocator;
 mod name_gen;
 mod repeat;
 mod r#return;
+mod setlist;
 mod side_effects;
 mod table;
 mod traverse;
@@ -53,6 +54,7 @@ pub use r#if::*;
 pub use r#return::*;
 pub use r#while::*;
 pub use repeat::*;
+pub use setlist::*;
 pub use side_effects::*;
 pub use table::*;
 pub use traverse::*;
@@ -85,7 +87,7 @@ impl type_system::Infer for RValue {
             RValue::Local(local) => local.infer(system),
             RValue::Global(_) => Type::Any,
             RValue::Call(_) => Type::Any,
-            RValue::Table(table) => table.infer(system),
+            //RValue::Table(table) => table.infer(system),
             RValue::Literal(literal) => literal.infer(system),
             RValue::Index(_) => Type::Any,
             RValue::Unary(_) => Type::Any,
@@ -227,6 +229,7 @@ pub enum Statement {
     Continue(Continue),
     Break(Break),
     Close(Close),
+    SetList(SetList),
     Comment(Comment),
 }
 
@@ -254,6 +257,7 @@ impl fmt::Display for Statement {
             Statement::Continue(continue_) => write!(f, "{}", continue_),
             Statement::Break(break_) => write!(f, "{}", break_),
             Statement::Comment(comment) => write!(f, "{}", comment),
+            Statement::SetList(setlist) => write!(f, "{}", setlist),
             Statement::Close(close) => write!(f, "{}", close),
         }
     }

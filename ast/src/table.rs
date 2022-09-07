@@ -7,10 +7,10 @@ use std::{
     fmt,
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Table(pub Vec<(Option<String>, RValue)>);
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Table(pub Vec<(RValue, RValue)>);
 
-impl Infer for Table {
+/*impl Infer for Table {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
         let elements: BTreeSet<_> = self
             .0
@@ -42,35 +42,38 @@ impl Infer for Table {
             fields,
         }
     }
-}
+}*/
 
 impl LocalRw for Table {
     fn values_read(&self) -> Vec<&RcLocal> {
-        self.0.iter().flat_map(|(_, r)| r.values_read()).collect()
+        self.0
+            .iter()
+            .flat_map(|(k, v)| k.values_read().into_iter().chain(v.values_read()))
+            .collect()
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.0
             .iter_mut()
-            .flat_map(|(_, r)| r.values_read_mut())
+            .flat_map(|(k, v)| k.values_read_mut().into_iter().chain(v.values_read_mut()))
             .collect()
     }
 }
 
 impl Traverse for Table {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
-        self.0.iter_mut().map(|(_, v)| v).collect()
+        self.0.iter_mut().flat_map(|(k, v)| vec![k, v]).collect()
     }
 
     fn rvalues(&self) -> Vec<&RValue> {
-        self.0.iter().map(|(_, v)| v).collect()
+        self.0.iter().flat_map(|(k, v)| vec![k, v]).collect()
     }
 }
 
 // TODO
 has_side_effects!(Table);
 
-impl fmt::Display for Table {
+/*impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -81,6 +84,19 @@ impl fmt::Display for Table {
                     Some(key) => format!("{} = {}", key, value),
                     None => value.to_string(),
                 })
+                .join(", ")
+        )
+    }
+}*/
+
+impl fmt::Display for Table {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{{{}}}",
+            self.0
+                .iter()
+                .map(|(k, v)| format!("[{}] = {}", k, v))
                 .join(", ")
         )
     }

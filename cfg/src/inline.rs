@@ -11,7 +11,7 @@ fn assigns(
 ) -> Option<ast::RValue> {
     if let ast::Statement::Assign(assign) = &block[check_statement] {
         if assign.left.len() == 1 && assign.right.len() == 1 {
-            if let ast::LValue::Local(local) = &assign.left[0].0 {
+            if let ast::LValue::Local(local) = &assign.left[0] {
                 if local == ref_local && !locals_out.contains(local) {
                     return Some(assign.right[0].clone());
                 }

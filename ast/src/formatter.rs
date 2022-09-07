@@ -96,10 +96,10 @@ impl Formatter {
 
         match statement {
             Statement::Assign(assign) => {
-                let mut left = Vec::new();
+                /*let mut left = Vec::new();
                 let mut right = Vec::new();
 
-                /*for ((lvalue, annotation), rvalue) in assign.left.iter().zip(assign.right.iter()) {
+                for ((lvalue, annotation), rvalue) in assign.left.iter().zip(assign.right.iter()) {
                     if let (Some(name), RValue::Closure(function)) = (
                         match lvalue {
                             LValue::Local(local) => Some(local.0.to_string()),
@@ -151,16 +151,16 @@ impl Formatter {
                             .iter()
                             .map(|(a, b)| (a, b)),
                     )
-                }*/
+                }
 
                 left = assign.left.clone();
-                right = assign.right.clone();
+                right = assign.right.clone();*/
 
                 if assign.prefix {
                     self.write("local ".chars());
                 }
 
-                if !(left.is_empty() || right.is_empty()) {
+                /*if !(left.is_empty() || right.is_empty()) {
                     self.write(
                         format!(
                             "{} = {}",
@@ -180,7 +180,16 @@ impl Formatter {
                         )
                         .chars(),
                     );
-                }
+                }*/
+
+                self.write(
+                    format!(
+                        "{} = {}",
+                        assign.left.iter().join(", "),
+                        assign.right.iter().join(", ")
+                    )
+                    .chars(),
+                )
             }
             Statement::If(r#if) => {
                 self.write(format!("if {} then\n", r#if.condition).chars());

@@ -16,7 +16,7 @@ impl super::GraphStructurer {
             if assign.left.len() != 1 || assign.right.len() != 1 {
                 return None;
             }
-            let target = assign.left[0].0.clone();
+            let target = assign.left[0].clone();
             if let Ok(target) = target.into_local() {
                 if let Some(statement) = statements.next() {
                     if let Some(if_stat) = statement.as_if() {

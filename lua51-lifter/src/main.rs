@@ -5,6 +5,7 @@ use std::{fs::File, io::Read, time};
 use clap::Parser;
 
 //use lifter::Lifter;
+use cfg::{function::Function, inline::inline_expressions};
 use lua51_deserializer::chunk::Chunk;
 
 mod lifter;
@@ -18,6 +19,37 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 struct Args {
     #[clap(short, long)]
     file: String,
+}
+
+pub fn inline_setlists(function: &mut Function) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        'outer: for (_, block) in function.blocks_mut() {
+            let mut i = 0;
+            while i < block.ast.len() {
+                if let ast::Statement::SetList(setlist) = block.ast[i].clone() {
+                    let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
+                    assert!(assign.left == vec![setlist.table.into()]);
+                    let table = assign.right[0].as_table_mut().unwrap();
+                    for (index, value) in setlist.values.into_iter().enumerate() {
+                        table.0.push((
+                            ast::Literal::Number((setlist.index + index) as f64).into(),
+                            value,
+                        ));
+                    }
+                    block.ast.remove(i);
+                    changed = true;
+                    // todo: only inline in changed blocks
+                    inline_expressions(function);
+                    cfg::dot::render_to(function, &mut std::io::stdout());
+                    break 'outer;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -56,6 +88,13 @@ fn main() -> anyhow::Result<()> {
     cfg::inline::inline_expressions(&mut main);
     let inlined = now.elapsed();
     println!("inline: {:?}", inlined);
+
+    inline_setlists(&mut main);
+
+    /*let now = time::Instant::now();
+    cfg::inline::inline_expressions(&mut main);
+    let inlined = now.elapsed();
+    println!("inline: {:?}", inlined);*/
 
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
