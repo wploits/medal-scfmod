@@ -407,15 +407,17 @@ impl<'a> LifterContext<'a> {
                     arguments,
                 } => {
                     top = Some((
-                        ast::Call {
-                            value: Box::new(self.locals[&function].clone().into()),
-                            arguments: (1..arguments)
-                                .map(|argument| {
-                                    self.locals[&Register(function.0 + argument)].clone().into()
-                                })
-                                .collect(),
-                        }
-                        .into(),
+                        ast::RValue::Variadic(
+                            ast::Call::new(
+                                self.locals[&function].clone().into(),
+                                (1..arguments)
+                                    .map(|argument| {
+                                        self.locals[&Register(function.0 + argument)].clone().into()
+                                    })
+                                    .collect(),
+                            )
+                            .into(),
+                        ),
                         function.0,
                     ));
                 }
@@ -465,13 +467,10 @@ impl<'a> LifterContext<'a> {
                             .collect()
                     };
 
-                    let call = ast::Call {
-                        value: Box::new(self.locals[&function].clone().into()),
-                        arguments,
-                    };
+                    let call = ast::Call::new(self.locals[&function].clone().into(), arguments);
 
                     if return_values == 0 {
-                        top = Some((call.into(), function.0));
+                        top = Some((ast::RValue::Variadic(call.into()), function.0));
                     } else if return_values == 1 {
                         statements.push(call.into());
                     } else {
@@ -502,18 +501,19 @@ impl<'a> LifterContext<'a> {
                     );
                 }
                 &Instruction::VarArg(destination, b) => {
+                    let vararg = ast::RValue::Variadic(ast::VarArg {}.into());
                     if b != 0 {
                         statements.push(
                             ast::Assign::new(
                                 (destination.0..destination.0 + b - 1)
                                     .map(|r| self.locals[&Register(r)].clone().into())
                                     .collect(),
-                                vec![ast::VarArg {}.into()],
+                                vec![vararg],
                             )
                             .into(),
                         );
                     } else {
-                        top = Some((ast::VarArg {}.into(), destination.0));
+                        top = Some((vararg, destination.0));
                     }
                 }
                 Instruction::Closure {
@@ -582,25 +582,27 @@ impl<'a> LifterContext<'a> {
                 } => {
                     const FIELDS_PER_FLUSH: usize = 50;
 
-                    let elements = if number_of_elements != 0 {
-                        (table.0 + 1..table.0 + 1 + number_of_elements)
-                            .map(|r| self.locals[&Register(r)].clone().into())
-                            .collect()
-                    } else {
-                        let top = top.take().unwrap();
-                        (table.0 + 1..top.1)
-                            .map(|r| self.locals[&Register(r)].clone().into())
-                            .chain(std::iter::once(top.0))
-                            .collect()
-                    };
-                    statements.push(
+                    let setlist = if number_of_elements != 0 {
                         ast::SetList::new(
                             self.locals[&table].clone(),
                             (block_number - 1) as usize * FIELDS_PER_FLUSH + 1,
-                            elements,
+                            (table.0 + 1..table.0 + 1 + number_of_elements)
+                                .map(|r| self.locals[&Register(r)].clone().into())
+                                .collect(),
+                            None,
                         )
-                        .into(),
-                    );
+                    } else {
+                        let top = top.take().unwrap();
+                        ast::SetList::new(
+                            self.locals[&table].clone(),
+                            (block_number - 1) as usize * FIELDS_PER_FLUSH + 1,
+                            (table.0 + 1..top.1)
+                                .map(|r| self.locals[&Register(r)].clone().into())
+                                .collect(),
+                            Some(top.0),
+                        )
+                    };
+                    statements.push(setlist.into());
                 }
                 Instruction::Close(start) => {
                     let locals = (start.0..self.bytecode.maximum_stack_size)

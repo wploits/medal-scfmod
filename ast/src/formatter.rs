@@ -40,6 +40,22 @@ impl Default for IndentationMode {
     }
 }
 
+pub(crate) fn format_list(list: &[RValue]) -> String {
+    let mut s = String::new();
+    for (index, rvalue) in list.iter().enumerate() {
+        if index + 1 == list.len() {
+            if matches!(rvalue, RValue::Call(_)) {
+                s += &format!("({})", rvalue);
+            } else {
+                s += &rvalue.to_string();
+            }
+        } else {
+            s += &format!("{}, ", rvalue);
+        }
+    }
+    s
+}
+
 pub struct Formatter {
     indentation_level: usize,
     indentation_mode: IndentationMode,

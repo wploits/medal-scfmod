@@ -24,26 +24,29 @@ struct Args {
 pub fn inline_setlists(function: &mut Function) {
     let mut changed = true;
     while changed {
+        inline_expressions(function);
         changed = false;
         'outer: for (_, block) in function.blocks_mut() {
             let mut i = 0;
             while i < block.ast.len() {
                 if let ast::Statement::SetList(setlist) = block.ast[i].clone() {
-                    let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
-                    assert!(assign.left == vec![setlist.table.into()]);
-                    let table = assign.right[0].as_table_mut().unwrap();
-                    for (index, value) in setlist.values.into_iter().enumerate() {
-                        table.0.push((
-                            ast::Literal::Number((setlist.index + index) as f64).into(),
-                            value,
-                        ));
+                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == vec![setlist.table.into()] {
+                        let table = assign.right[0].as_table_mut().unwrap();
+                        assert!(table.0.len() == setlist.index - 1);
+                        for value in setlist.values {
+                            table.0.push(value);
+                        }
+                        if let Some(tail) = setlist.tail {
+                            table.0.push(tail);
+                        }
+                        block.ast.remove(i);
+                        changed = true;
+                    } else {
+                        i += 1;
                     }
-                    block.ast.remove(i);
-                    changed = true;
                     // todo: only inline in changed blocks
-                    inline_expressions(function);
-                    cfg::dot::render_to(function, &mut std::io::stdout());
-                    break 'outer;
+                    //cfg::dot::render_to(function, &mut std::io::stdout());
+                    //break 'outer;
                 } else {
                     i += 1;
                 }

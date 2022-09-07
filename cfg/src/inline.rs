@@ -21,6 +21,22 @@ fn assigns(
     None
 }
 
+fn inline_expression(
+    statement: &mut ast::Statement,
+    read: &ast::RcLocal,
+    new_expression: ast::RValue,
+) {
+    statement.post_traverse_values(&mut |v| {
+        if let Either::Right(rvalue) = v {
+            if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
+                *rvalue = new_expression.clone();
+                return Some(true)
+            }
+        }
+        None
+    });
+}
+
 // TODO: move to ssa module?
 pub fn inline_expressions(function: &mut Function) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
@@ -58,16 +74,40 @@ pub fn inline_expressions(function: &mut Function) {
                     .values_read()
                     .into_iter()
                     .cloned()
-                    .collect::<FxHashSet<_>>()
+                    .collect::<Vec<_>>()
                 {
                     if local_usages[&read] > 1 {
                         continue;
                     }
 
+                    println!("read: {}", read);
+
                     if let Some(new_expression) =
                         assigns(&block.ast, &locals_out, stat_index, &read)
                     {
-                        let new_has_side_effects = new_expression.has_side_effects();
+                        let statement = &mut block.ast[index];
+                        if !new_expression.has_side_effects() {
+                            inline_expression(statement, &read, new_expression);
+                            block.ast.remove(stat_index);
+                            index -= 1;
+                            continue 'outer;
+                        }
+                        if let Some(res) = statement.rvalues_mut().into_iter().find_map(|rvalue| {
+                            if rvalue.values_read().contains(&&read) {
+                                Some(true)
+                            } else if rvalue.has_side_effects() {
+                                Some(false)
+                            } else {
+                                None
+                            }
+                        }) && res {
+                            inline_expression(statement, &read, new_expression);
+                            block.ast.remove(stat_index);
+                            index -= 1;
+                            continue 'outer;
+                        }
+
+                        /*let new_has_side_effects = new_expression.has_side_effects();
                         if new_has_side_effects
                             && block.ast[stat_index + 1..index]
                                 .iter()
@@ -78,6 +118,7 @@ pub fn inline_expressions(function: &mut Function) {
                         let statement = block.ast.get_mut(index).unwrap();
                         if let Some(replaced) = statement.post_traverse_values(&mut |v| {
                             if let Either::Right(rvalue) = v {
+                                println!("{}", rvalue);
                                 if new_has_side_effects && rvalue.has_side_effects() {
                                     Some(false)
                                 } else if let ast::RValue::Local(rvalue_local) = rvalue
@@ -96,7 +137,7 @@ pub fn inline_expressions(function: &mut Function) {
                                 index -= 1;
                                 continue 'outer;
                             }
-                        }
+                        }*/
                     }
                 }
             }

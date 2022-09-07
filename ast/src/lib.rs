@@ -68,6 +68,22 @@ pub trait Reduce {
 
 #[enum_dispatch(LocalRw, SideEffects, Traverse)]
 #[derive(Debug, Clone, PartialEq, EnumAsInner)]
+pub enum Variadic {
+    VarArg(VarArg),
+    Call(Call),
+}
+
+impl fmt::Display for Variadic {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Variadic::VarArg(_) => write!(f, "..."),
+            Variadic::Call(call) => write!(f, "{}", call),
+        }
+    }
+}
+
+#[enum_dispatch(LocalRw, SideEffects, Traverse)]
+#[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum RValue {
     Local(RcLocal),
     Global(Global),
@@ -78,7 +94,7 @@ pub enum RValue {
     Unary(Unary),
     Binary(Binary),
     Closure(Closure),
-    VarArg(VarArg),
+    Variadic(Variadic),
 }
 
 impl type_system::Infer for RValue {
@@ -138,7 +154,7 @@ impl fmt::Display for RValue {
             RValue::Unary(unary) => write!(f, "{}", unary),
             RValue::Binary(binary) => write!(f, "{}", binary),
             RValue::Closure(closure) => write!(f, "{}", closure),
-            _ => write!(f, "..."),
+            RValue::Variadic(variadic) => write!(f, "{}", variadic),
         }
     }
 }

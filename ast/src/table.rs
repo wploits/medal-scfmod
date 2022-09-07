@@ -1,5 +1,6 @@
 use crate::{
-    has_side_effects, type_system::Infer, LocalRw, RValue, RcLocal, Traverse, Type, TypeSystem,
+    formatter, has_side_effects, type_system::Infer, LocalRw, RValue, RcLocal, Traverse, Type,
+    TypeSystem,
 };
 use itertools::{Either, Itertools};
 use std::{
@@ -8,7 +9,7 @@ use std::{
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct Table(pub Vec<(RValue, RValue)>);
+pub struct Table(pub Vec<RValue>);
 
 /*impl Infer for Table {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
@@ -46,27 +47,24 @@ pub struct Table(pub Vec<(RValue, RValue)>);
 
 impl LocalRw for Table {
     fn values_read(&self) -> Vec<&RcLocal> {
-        self.0
-            .iter()
-            .flat_map(|(k, v)| k.values_read().into_iter().chain(v.values_read()))
-            .collect()
+        self.0.iter().flat_map(|v| v.values_read()).collect()
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.0
             .iter_mut()
-            .flat_map(|(k, v)| k.values_read_mut().into_iter().chain(v.values_read_mut()))
+            .flat_map(|v| v.values_read_mut())
             .collect()
     }
 }
 
 impl Traverse for Table {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
-        self.0.iter_mut().flat_map(|(k, v)| vec![k, v]).collect()
+        self.0.iter_mut().collect()
     }
 
     fn rvalues(&self) -> Vec<&RValue> {
-        self.0.iter().flat_map(|(k, v)| vec![k, v]).collect()
+        self.0.iter().collect()
     }
 }
 
@@ -91,13 +89,6 @@ has_side_effects!(Table);
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{{{}}}",
-            self.0
-                .iter()
-                .map(|(k, v)| format!("[{}] = {}", k, v))
-                .join(", ")
-        )
+        write!(f, "{{{}}}", formatter::format_list(&self.0))
     }
 }

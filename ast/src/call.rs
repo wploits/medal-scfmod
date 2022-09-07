@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::fmt;
 
-use crate::{LocalRw, RcLocal, SideEffects, Traverse};
+use crate::{formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::RValue;
 
@@ -60,6 +60,11 @@ impl LocalRw for Call {
 
 impl fmt::Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}({})", self.value, self.arguments.iter().join(", "))
+        write!(
+            f,
+            "{}({})",
+            self.value,
+            formatter::format_list(&self.arguments)
+        )
     }
 }
