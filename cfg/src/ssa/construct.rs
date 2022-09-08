@@ -139,7 +139,7 @@ impl<'a> SsaConstructor<'a> {
         res
     }
 
-    fn apply_local_map(&mut self, local_map: &FxHashMap<RcLocal, RcLocal>) {
+    pub(crate) fn apply_local_map(&mut self, local_map: &FxHashMap<RcLocal, RcLocal>) {
         // TODO: blocks_mut
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();

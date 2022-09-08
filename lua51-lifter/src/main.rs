@@ -5,7 +5,9 @@ use std::{fs::File, io::Read, time};
 use clap::Parser;
 
 //use lifter::Lifter;
-use cfg::{function::Function, inline::inline_expressions};
+use cfg::{
+    compound::structure_compound_conditionals, function::Function, inline::inline_expressions,
+};
 use lua51_deserializer::chunk::Chunk;
 
 mod lifter;
@@ -92,7 +94,13 @@ fn main() -> anyhow::Result<()> {
     let inlined = now.elapsed();
     println!("inline: {:?}", inlined);
 
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
+
     inline_setlists(&mut main);
+
+    structure_compound_conditionals(&mut main);
+
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     /*let now = time::Instant::now();
     cfg::inline::inline_expressions(&mut main);

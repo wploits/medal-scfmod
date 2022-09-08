@@ -60,7 +60,9 @@ impl GraphStructurer {
                 .unwrap()
                 .as_conditional()
                 .unwrap();
-            self.match_compound_conditional(node, then_edge.node, else_edge.node);
+            if self.match_compound_conditional(node, then_edge.node, else_edge.node) {
+                return true;
+            }
         }
 
         if self.try_collapse_loop(node, dominators) {

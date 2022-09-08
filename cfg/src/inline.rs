@@ -80,8 +80,6 @@ pub fn inline_expressions(function: &mut Function) {
                         continue;
                     }
 
-                    println!("read: {}", read);
-
                     if let Some(new_expression) =
                         assigns(&block.ast, &locals_out, stat_index, &read)
                     {
