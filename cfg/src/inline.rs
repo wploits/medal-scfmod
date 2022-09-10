@@ -79,7 +79,6 @@ pub fn inline_expressions(function: &mut Function) {
                     if local_usages[&read] > 1 {
                         continue;
                     }
-
                     if let Some(new_expression) =
                         assigns(&block.ast, &locals_out, stat_index, &read)
                     {
@@ -104,38 +103,6 @@ pub fn inline_expressions(function: &mut Function) {
                             index -= 1;
                             continue 'outer;
                         }
-
-                        /*let new_has_side_effects = new_expression.has_side_effects();
-                        if new_has_side_effects
-                            && block.ast[stat_index + 1..index]
-                                .iter()
-                                .any(|s| s.has_side_effects())
-                        {
-                            break;
-                        }
-                        let statement = block.ast.get_mut(index).unwrap();
-                        if let Some(replaced) = statement.post_traverse_values(&mut |v| {
-                            if let Either::Right(rvalue) = v {
-                                println!("{}", rvalue);
-                                if new_has_side_effects && rvalue.has_side_effects() {
-                                    Some(false)
-                                } else if let ast::RValue::Local(rvalue_local) = rvalue
-                                    && *rvalue_local == read {
-                                        *rvalue = new_expression.clone();
-                                        Some(true)
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        }) {
-                            if replaced {
-                                block.ast.remove(stat_index);
-                                index -= 1;
-                                continue 'outer;
-                            }
-                        }*/
                     }
                 }
             }

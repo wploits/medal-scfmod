@@ -6,9 +6,13 @@ use clap::Parser;
 
 //use lifter::Lifter;
 use cfg::{
-    compound::structure_compound_conditionals, function::Function, inline::inline_expressions,
+    function::Function,
+    inline::inline_expressions,
+    ssa::structuring::{structure_compound_conditionals, structure_jumps},
 };
+use fxhash::FxHashMap;
 use lua51_deserializer::chunk::Chunk;
+use petgraph::algo::dominators::simple_fast;
 
 mod lifter;
 
@@ -100,12 +104,16 @@ fn main() -> anyhow::Result<()> {
 
     structure_compound_conditionals(&mut main);
 
-    cfg::dot::render_to(&main, &mut std::io::stdout())?;
+    let mut local_map = FxHashMap::default();
+    cfg::ssa::construct::remove_unnecessary_params(&mut main, &mut local_map);
+    cfg::ssa::construct::apply_local_map(&mut main, &local_map);
 
-    /*let now = time::Instant::now();
+    let dominators = simple_fast(main.graph(), main.entry().unwrap());
+    structure_jumps(&mut main, &dominators);
+
     cfg::inline::inline_expressions(&mut main);
-    let inlined = now.elapsed();
-    println!("inline: {:?}", inlined);*/
+
+    cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
@@ -142,8 +150,7 @@ fn main() -> anyhow::Result<()> {
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);*/
 
-    //println!("{}", output);
-
+    //println!("{}", output);*/
     Ok(())
 }
 
