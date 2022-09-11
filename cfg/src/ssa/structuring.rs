@@ -50,70 +50,65 @@ fn match_conditional_assignment(
     function: &Function,
     node: NodeIndex,
 ) -> Option<ConditionalAssignmentPattern> {
-    let successors = function.successor_blocks(node).collect_vec();
-    if successors.len() != 2 {
-        return None;
-    }
-    let r#if = function
-        .block(node)
-        .unwrap()
-        .ast
-        .last()
-        .unwrap()
-        .as_if()
-        .unwrap();
+    if let Some(r#if) = function
+    .block(node)
+    .unwrap()
+    .ast
+    .last()
+    .unwrap()
+    .as_if() {
+        let edges = function
+            .block(node)
+            .unwrap()
+            .terminator
+            .as_ref()
+            .unwrap()
+            .as_conditional()
+            .unwrap();
 
-    let edges = function
-        .block(node)
-        .unwrap()
-        .terminator
-        .as_ref()
-        .unwrap()
-        .as_conditional()
-        .unwrap();
-
-    if let ast::RValue::Local(condition) = &r#if.condition {
-        let test_pattern = |assigner, next| {
-            if function.successor_blocks(assigner).collect_vec() == vec![next]
-                && function.predecessor_blocks(assigner).collect_vec() == vec![node]
-                && let Some(assign) = single_assign(&function.block(assigner).unwrap().ast)
-                && assign.left.len() == 1 && assign.right.len() == 1
-                && let ast::LValue::Local(assigned_local) = &assign.left[0]
-            {
-                let assign_edge = function.block(assigner).unwrap().terminator.as_ref().unwrap().as_jump().unwrap();
-                let other_edge = if edges.0.node == next { edges.0 } else { edges.1 };
-                
-                let assign_parameter = assign_edge.arguments.iter().find_map(|(k, v)| if v == assigned_local { Some(k) } else { None }).unwrap();
-                let other_parameter = other_edge.arguments.iter().find_map(|(k, v)| if v == condition { Some(k) } else { None }).unwrap();
-
-                if assign_parameter == other_parameter {
-                    return Some((assigned_local.clone(), assign.right[0].clone(), assign_parameter.clone()));
+        if let ast::RValue::Local(condition) = &r#if.condition {
+            let test_pattern = |assigner, next| {
+                if function.successor_blocks(assigner).collect_vec() == vec![next]
+                    && function.predecessor_blocks(assigner).collect_vec() == vec![node]
+                    && let Some(assign) = single_assign(&function.block(assigner).unwrap().ast)
+                    && assign.left.len() == 1 && assign.right.len() == 1
+                    && let ast::LValue::Local(assigned_local) = &assign.left[0]
+                {
+                    let assign_edge = function.block(assigner).unwrap().terminator.as_ref().unwrap().as_jump().unwrap();
+                    let other_edge = if edges.0.node == next { edges.0 } else { edges.1 };
+                    
+                    let assign_parameter = assign_edge.arguments.iter().find_map(|(k, v)| if v == assigned_local { Some(k) } else { None }).unwrap();
+                    let other_parameter = other_edge.arguments.iter().find_map(|(k, v)| if v == condition { Some(k) } else { None }).unwrap();
+    
+                    if assign_parameter == other_parameter {
+                        return Some((assigned_local.clone(), assign.right[0].clone(), assign_parameter.clone()));
+                    }
                 }
+                None
+            };
+    
+            let (a, b) = (edges.0.node, edges.1.node);
+            if let Some((assigned_local, assigned_value, parameter)) = test_pattern(a, b) {
+                return Some(ConditionalAssignmentPattern {
+                    assigner: a,
+                    next: b,
+                    tested_local: condition.clone(),
+                    assigned_local,
+                    assigned_value,
+                    parameter,
+                    operator: PatternOperator::And
+                });
+            } else if let Some((assigned_local, assigned_value, parameter)) = test_pattern(b, a) {
+                return Some(ConditionalAssignmentPattern {
+                    assigner: b,
+                    next: a,
+                    tested_local: condition.clone(),
+                    assigned_local,
+                    assigned_value,
+                    parameter,
+                    operator: PatternOperator::Or
+                });
             }
-            None
-        };
-
-        let (a, b) = (edges.0.node, edges.1.node);
-        if let Some((assigned_local, assigned_value, parameter)) = test_pattern(a, b) {
-            return Some(ConditionalAssignmentPattern {
-                assigner: a,
-                next: b,
-                tested_local: condition.clone(),
-                assigned_local,
-                assigned_value,
-                parameter,
-                operator: PatternOperator::And
-            });
-        } else if let Some((assigned_local, assigned_value, parameter)) = test_pattern(b, a) {
-            return Some(ConditionalAssignmentPattern {
-                assigner: b,
-                next: a,
-                tested_local: condition.clone(),
-                assigned_local,
-                assigned_value,
-                parameter,
-                operator: PatternOperator::And
-            });
         }
     }
 

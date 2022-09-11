@@ -48,6 +48,9 @@ impl<'a> LifterContext<'a> {
                     skip_next: true, ..
                 } => {
                     self.nodes
+                        .entry(insn_index + 1)
+                        .or_insert_with(|| self.function.new_block());
+                    self.nodes
                         .entry(insn_index + 2)
                         .or_insert_with(|| self.function.new_block());
                 }
@@ -246,6 +249,38 @@ impl<'a> LifterContext<'a> {
                             vec![ast::Unary::new(
                                 self.locals[operand].clone().into(),
                                 ast::UnaryOperation::Not,
+                            )
+                            .into()],
+                        )
+                        .into(),
+                    );
+                }
+                Instruction::Length {
+                    destination,
+                    operand,
+                } => {
+                    statements.push(
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![ast::Unary::new(
+                                self.locals[operand].clone().into(),
+                                ast::UnaryOperation::Length,
+                            )
+                            .into()],
+                        )
+                        .into(),
+                    );
+                }
+                Instruction::Minus {
+                    destination,
+                    operand,
+                } => {
+                    statements.push(
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![ast::Unary::new(
+                                self.locals[operand].clone().into(),
+                                ast::UnaryOperation::Negate,
                             )
                             .into()],
                         )
