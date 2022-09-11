@@ -180,10 +180,10 @@ impl fmt::Display for NumericFor {
         write!(
             f,
             "for {} = {}, {}, {} do\n{}\nend",
+            self.counter,
             self.initial,
             self.limit,
             self.step,
-            self.counter,
             self.block
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
