@@ -1,7 +1,11 @@
 use itertools::Itertools;
-use petgraph::{stable_graph::NodeIndex, visit::DfsPostOrder, algo::dominators::Dominators};
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::DfsPostOrder};
 
-use crate::{function::Function, block::{Terminator, BasicBlockEdge}, inline::inline_expressions};
+use crate::{
+    block::{BasicBlockEdge, Terminator},
+    function::Function,
+    inline::inline_expressions,
+};
 
 #[derive(Debug)]
 pub enum PatternOperator {
@@ -50,13 +54,7 @@ fn match_conditional_assignment(
     function: &Function,
     node: NodeIndex,
 ) -> Option<ConditionalAssignmentPattern> {
-    if let Some(r#if) = function
-    .block(node)
-    .unwrap()
-    .ast
-    .last()
-    .unwrap()
-    .as_if() {
+    if let Some(r#if) = function.block(node).unwrap().ast.last().unwrap().as_if() {
         let edges = function
             .block(node)
             .unwrap()
@@ -86,7 +84,7 @@ fn match_conditional_assignment(
                 }
                 None
             };
-    
+
             let (a, b) = (edges.0.node, edges.1.node);
             if let Some((assigned_local, assigned_value, parameter)) = test_pattern(a, b) {
                 return Some(ConditionalAssignmentPattern {
@@ -96,7 +94,7 @@ fn match_conditional_assignment(
                     assigned_local,
                     assigned_value,
                     parameter,
-                    operator: PatternOperator::And
+                    operator: PatternOperator::And,
                 });
             } else if let Some((assigned_local, assigned_value, parameter)) = test_pattern(b, a) {
                 return Some(ConditionalAssignmentPattern {
@@ -106,7 +104,7 @@ fn match_conditional_assignment(
                     assigned_local,
                     assigned_value,
                     parameter,
-                    operator: PatternOperator::Or
+                    operator: PatternOperator::Or,
                 });
             }
         }
@@ -122,10 +120,25 @@ pub fn structure_compound_conditionals(function: &mut Function) {
         if let Some(pattern) = match_conditional_assignment(function, node) {
             let block = function.block_mut(node).unwrap();
             block.ast.pop();
-            block.ast.push(ast::Assign::new(vec![pattern.assigned_local.clone().into()], vec![ast::Binary::new(pattern.tested_local.into(), pattern.assigned_value, pattern.operator.into()).into()]).into());
+            block.ast.push(
+                ast::Assign::new(
+                    vec![pattern.assigned_local.clone().into()],
+                    vec![ast::Binary::new(
+                        pattern.tested_local.into(),
+                        pattern.assigned_value,
+                        pattern.operator.into(),
+                    )
+                    .into()],
+                )
+                .into(),
+            );
 
             let edges = block.terminator.take().unwrap().into_conditional().unwrap();
-            let mut arguments = if edges.0.node == pattern.next { edges.0.arguments } else { edges.1.arguments };
+            let mut arguments = if edges.0.node == pattern.next {
+                edges.0.arguments
+            } else {
+                edges.1.arguments
+            };
             for (parameter, argument) in arguments.iter_mut() {
                 if *parameter == pattern.parameter {
                     *argument = pattern.assigned_local;
@@ -133,7 +146,13 @@ pub fn structure_compound_conditionals(function: &mut Function) {
                 }
             }
             function.remove_block(pattern.assigner);
-            function.set_block_terminator(node, Some(Terminator::Jump(BasicBlockEdge { node: pattern.next, arguments })));
+            function.set_block_terminator(
+                node,
+                Some(Terminator::Jump(BasicBlockEdge {
+                    node: pattern.next,
+                    arguments,
+                })),
+            );
 
             inline_expressions(function);
         }

@@ -30,7 +30,7 @@ fn inline_expression(
         if let Either::Right(rvalue) = v {
             if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
                 *rvalue = new_expression.clone();
-                return Some(true)
+                return Some(())
             }
         }
         None
