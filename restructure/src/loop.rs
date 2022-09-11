@@ -39,7 +39,16 @@ impl GraphStructurer {
         }
 
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
-        if successors.contains(&header) {
+        if successors.contains(&header)
+            && !self
+                .function
+                .block(header)
+                .unwrap()
+                .ast
+                .last()
+                .map(|s| s.as_for_iterate().is_some())
+                .unwrap_or(false)
+        {
             if successors.len() == 2 {
                 let header_block = &mut self.function.block_mut(header).unwrap().ast;
                 let if_stat = header_block.pop().unwrap().into_if().unwrap();
@@ -91,7 +100,13 @@ impl GraphStructurer {
 
             println!("{:?} {:?}", next, body);
 
-            if self.function.predecessor_blocks(body).count() != 1 {
+            if self
+                .function
+                .predecessor_blocks(body)
+                .filter(|&p| p != header)
+                .count()
+                != 1
+            {
                 return false;
             }
 
@@ -163,7 +178,9 @@ impl GraphStructurer {
             }
 
             let mut body_successors = self.function.successor_blocks(body);
-            if body_successors.next() == Some(header) && body_successors.next().is_none() {
+            if body == header
+                || body_successors.next() == Some(header) && body_successors.next().is_none()
+            {
                 let statement = self.function.block_mut(header).unwrap().ast.remove(0);
                 if let ast::Statement::If(if_stat) = statement {
                     let mut if_condition = if_stat.condition;
@@ -186,7 +203,11 @@ impl GraphStructurer {
 
                     let while_stat = ast::While::new(
                         if_condition,
-                        self.function.remove_block(body).unwrap().ast,
+                        if body == header {
+                            unimplemented!()
+                        } else {
+                            self.function.remove_block(body).unwrap().ast
+                        },
                     );
                     self.function
                         .block_mut(header)
@@ -197,7 +218,11 @@ impl GraphStructurer {
                         .set_block_terminator(header, Some(Terminator::jump(next)));
                     self.match_jump(header, next, dominators);
                 } else if let ast::Statement::ForIterate(for_iterate) = statement {
-                    let predecessors = self.function.predecessor_blocks(header).collect_vec();
+                    let predecessors = self
+                        .function
+                        .predecessor_blocks(header)
+                        .filter(|&p| p != header)
+                        .collect_vec();
                     let mut prep_blocks = predecessors.into_iter().filter(|&p| {
                         self.function
                             .block_mut(p)
@@ -210,7 +235,11 @@ impl GraphStructurer {
                     });
                     let prep_block = prep_blocks.next().unwrap();
                     assert!(prep_blocks.next().is_none());
-                    let body_ast = self.function.remove_block(body).unwrap().ast;
+                    let body_ast = if body == header {
+                        ast::Block::default()
+                    } else {
+                        self.function.remove_block(body).unwrap().ast
+                    };
                     let prep_ast = &mut self.function.block_mut(prep_block).unwrap().ast;
                     let for_prep = prep_ast.pop().unwrap().into_for_prep().unwrap();
                     let numeric_for = ast::NumericFor::new(

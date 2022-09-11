@@ -67,18 +67,20 @@ impl<'a> LifterContext<'a> {
                         .or_insert_with(|| self.function.new_block());
                 }
                 Instruction::Jump(step) => {
+                    let dest_index = insn_index + step as usize - 131070;
                     let dest_block = *self
                         .nodes
-                        .entry(insn_index + step as usize - 131070)
+                        .entry(dest_index)
                         .or_insert_with(|| self.function.new_block());
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-                    if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                        self.function.remove_block(jmp_block);
-                        self.nodes.insert(insn_index, dest_block);
-                        self.blocks_to_skip
-                            .insert(insn_index, insn_index + step as usize - 131070);
+                    if insn_index != dest_index {
+                        if let Some(jmp_block) = self.nodes.remove(&insn_index) {
+                            self.function.remove_block(jmp_block);
+                            self.nodes.insert(insn_index, dest_block);
+                            self.blocks_to_skip.insert(insn_index, dest_index);
+                        }
                     }
                 }
                 Instruction::IterateNumericForLoop { step, .. }
@@ -704,7 +706,6 @@ impl<'a> LifterContext<'a> {
             let mut block = ast::Block::default();
             self.lift_instruction(start, end, &mut block);
             self.function.block_mut(self.nodes[&start]).unwrap().ast = block;
-
             match self.bytecode.code[end] {
                 Instruction::Equal { .. }
                 | Instruction::LessThan { .. }
@@ -787,7 +788,7 @@ impl<'a> LifterContext<'a> {
         for node in context.function.graph().node_indices().collect_vec() {
             let mut successors = context.function.successor_blocks(node);
             if let Some(target) = successors.next() && successors.next().is_none() && context.function.predecessor_blocks(target).count() == 1
-            && dominators.dominators(target).unwrap().contains(&node) {
+            && dominators.dominators(target).unwrap().contains(&node) && target != node {
                 let block = context.function.remove_block(target).unwrap();
                 let terminator = block.terminator;
                 context.function

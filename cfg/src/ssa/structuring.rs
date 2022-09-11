@@ -35,7 +35,7 @@ pub struct ConditionalAssignmentPattern {
 
 fn simplify_condition(function: &mut Function, node: NodeIndex) {
     let block = function.block_mut(node).unwrap();
-    if let Some(if_stat) = block.ast.last_mut().unwrap().as_if_mut()
+    if let Some(if_stat) = block.ast.last_mut().and_then(|s| s.as_if_mut())
         && let Some(unary) = if_stat.condition.as_unary() {
         if_stat.condition = *unary.value.clone();
         block.terminator.as_mut().unwrap().swap_edges();
@@ -54,7 +54,13 @@ fn match_conditional_assignment(
     function: &Function,
     node: NodeIndex,
 ) -> Option<ConditionalAssignmentPattern> {
-    if let Some(r#if) = function.block(node).unwrap().ast.last().unwrap().as_if() {
+    if let Some(r#if) = function
+        .block(node)
+        .unwrap()
+        .ast
+        .last()
+        .and_then(|s| s.as_if())
+    {
         let edges = function
             .block(node)
             .unwrap()

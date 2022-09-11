@@ -43,7 +43,9 @@ impl<'a> VariableRenamer<'a> {
     }
 
     pub fn rename(mut self) {
-        for (node, block) in self.function.blocks_mut() {
+        let mut dfs = Bfs::new(self.function.graph(), self.function.entry().unwrap());
+        while let Some(node) = dfs.next(self.function.graph()) {
+            let block = self.function.block_mut(node).unwrap();
             for stat in block.ast.iter_mut() {
                 // TODO: values_mut or maybe LocalRw::apply_renaming_map (similar code in construction)
                 for (to, from) in stat

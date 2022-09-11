@@ -1,7 +1,7 @@
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
 
-use petgraph::{matrix_graph::MatrixGraph, stable_graph::NodeIndex};
+use petgraph::{matrix_graph::MatrixGraph, stable_graph::NodeIndex, visit::Dfs};
 
 use crate::function::Function;
 
@@ -123,7 +123,9 @@ impl InterferenceGraph {
             graph: MatrixGraph::with_capacity(local_count),
             local_to_node: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
         };
-        for (node, block) in function.blocks() {
+        let mut dfs = Dfs::new(function.graph(), function.entry().unwrap());
+        while let Some(node) = dfs.next(function.graph()) {
+            let block = function.block(node).unwrap();
             let block_liveness = &liveness.block_liveness[&node];
             let live_in = &block_liveness.live_in;
             let mut live_in_nodes = live_in
