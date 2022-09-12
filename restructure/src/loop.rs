@@ -103,7 +103,7 @@ impl GraphStructurer {
             if self
                 .function
                 .predecessor_blocks(body)
-                .filter(|&p| p != header)
+                .filter(|&p| p != body)
                 .count()
                 != 1
             {
