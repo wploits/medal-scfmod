@@ -169,6 +169,7 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
     let mut dfs = DfsPostOrder::new(function.graph(), function.entry().unwrap());
     while let Some(node) = dfs.next(function.graph()) {
         if let Some(Terminator::Jump(jump)) = function.block(node).unwrap().terminator.clone()
+            && jump.node != node
             && jump.arguments.is_empty()
             && function.predecessor_blocks(jump.node).collect_vec() == vec![node]
             && dominators.dominators(jump.node).unwrap().contains(&node)
