@@ -66,8 +66,8 @@ impl<'a> LifterContext<'a> {
                         .entry(insn_index + 2)
                         .or_insert_with(|| self.function.new_block());
                 }
-                Instruction::Jump(step) => {
-                    let dest_index = insn_index + step as usize - 131070;
+                Instruction::Jump(skip) => {
+                    let dest_index = insn_index + skip as usize - 131070;
                     let dest_block = *self
                         .nodes
                         .entry(dest_index)
@@ -75,18 +75,18 @@ impl<'a> LifterContext<'a> {
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-                    if insn_index != dest_index {
-                        if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                            self.function.remove_block(jmp_block);
-                            self.nodes.insert(insn_index, dest_block);
-                            self.blocks_to_skip.insert(insn_index, dest_index);
-                        }
-                    }
+                    // if insn_index != dest_index {
+                    //     if let Some(jmp_block) = self.nodes.remove(&insn_index) {
+                    //         self.function.remove_block(jmp_block);
+                    //         self.nodes.insert(insn_index, dest_block);
+                    //         self.blocks_to_skip.insert(insn_index, dest_index);
+                    //     }
+                    // }
                 }
-                Instruction::IterateNumericForLoop { step, .. }
-                | Instruction::PrepareNumericForLoop { step, .. } => {
+                Instruction::IterateNumericForLoop { skip, .. }
+                | Instruction::PrepareNumericForLoop { skip, .. } => {
                     self.nodes
-                        .entry(insn_index + step as usize - 131070)
+                        .entry(insn_index + skip as usize - 131070)
                         .or_insert_with(|| self.function.new_block());
                     self.nodes
                         .entry(insn_index + 1)
@@ -138,6 +138,7 @@ impl<'a> LifterContext<'a> {
         }
     }
 
+    // TODO: rename to one of: lift_instructions, lift_range, lift_instruction_range, lift_block?
     fn lift_instruction(&mut self, start: usize, end: usize, statements: &mut Vec<Statement>) {
         let mut top: Option<(ast::RValue, u8)> = None;
         let mut iter = self.bytecode.code[start..=end].iter();
@@ -416,8 +417,8 @@ impl<'a> LifterContext<'a> {
 
                     let condition_block = self.nodes[&start];
                     let next_block = self.nodes[&(end + 1)];
-                    let step = match &self.bytecode.code[end] {
-                        Instruction::Jump(step) => *step as usize,
+                    let skip = match &self.bytecode.code[end] {
+                        Instruction::Jump(skip) => *skip as usize,
                         _ => unreachable!(),
                     };
 
@@ -435,7 +436,7 @@ impl<'a> LifterContext<'a> {
                     self.function.set_block_terminator(
                         new_block,
                         Some(Terminator::jump(
-                            self.nodes[&(end + step as usize - 131070)],
+                            self.get_node(&(end + skip as usize - 131070)),
                         )),
                     );
                 }
@@ -663,26 +664,30 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::PrepareNumericForLoop { control, step: _ } => {
-                    let (initial, limit, step, counter) = (
+                Instruction::PrepareNumericForLoop { .. } => {}
+                Instruction::IterateNumericForLoop { control, skip } => {
+                    let (internal_counter, limit, step, external_counter) = (
                         self.locals[&control[0]].clone(),
                         self.locals[&control[1]].clone(),
                         self.locals[&control[2]].clone(),
                         self.locals[&control[3]].clone(),
                     );
                     statements.push(
-                        ast::ForPrep::new(
-                            initial.into(),
-                            limit.into(),
-                            step.into(),
-                            counter,
-                            ast::Block::default(),
-                        )
-                        .into(),
+                        ast::NumForNext::new(internal_counter.clone(), limit.into(), step.into())
+                            .into(),
                     );
-                }
-                Instruction::IterateNumericForLoop { control, .. } => {
-                    statements.push(ast::ForIterate::new(self.locals[&control[3]].clone()).into());
+                    self.function
+                        .block_mut(self.get_node(&(end + *skip as usize - 131070)))
+                        .unwrap()
+                        .ast
+                        .insert(
+                            0,
+                            ast::Assign::new(
+                                vec![external_counter.into()],
+                                vec![internal_counter.into()],
+                            )
+                            .into(),
+                        );
                 }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
@@ -703,9 +708,14 @@ impl<'a> LifterContext<'a> {
     fn lift_blocks(&mut self) {
         let ranges = self.code_ranges();
         for (start, end) in ranges {
-            let mut block = ast::Block::default();
-            self.lift_instruction(start, end, &mut block);
-            self.function.block_mut(self.nodes[&start]).unwrap().ast = block;
+            // TODO: gotta be a better way
+            // we need to do this in case that the body of a for loop is after the for loop instruction
+            // see: IterateNumericForLoop
+            let mut statements =
+                std::mem::take(&mut self.function.block_mut(self.nodes[&start]).unwrap().ast);
+            self.lift_instruction(start, end, &mut statements);
+            self.function.block_mut(self.nodes[&start]).unwrap().ast = statements;
+
             match self.bytecode.code[end] {
                 Instruction::Equal { .. }
                 | Instruction::LessThan { .. }
@@ -720,20 +730,20 @@ impl<'a> LifterContext<'a> {
                         )),
                     );
                 }
-                Instruction::IterateNumericForLoop { step, .. } => {
+                Instruction::IterateNumericForLoop { skip, .. } => {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::conditional(
-                            self.get_node(&(end + step as usize - 131070)),
+                            self.get_node(&(end + skip as usize - 131070)),
                             self.get_node(&(end + 1)),
                         )),
                     );
                 }
-                Instruction::Jump(step) | Instruction::PrepareNumericForLoop { step, .. } => {
+                Instruction::Jump(skip) | Instruction::PrepareNumericForLoop { skip, .. } => {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::jump(
-                            self.get_node(&(end + step as usize - 131070)),
+                            self.get_node(&(end + skip as usize - 131070)),
                         )),
                     );
                 }

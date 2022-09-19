@@ -121,7 +121,7 @@ impl super::GraphStructurer {
                 .ast
                 .last()
                 .unwrap()
-                .as_for_iterate()
+                .as_num_for_next()
                 .is_some()
             || self.is_loop_header(second_conditional)
                 && self
@@ -131,7 +131,7 @@ impl super::GraphStructurer {
                     .ast
                     .last()
                     .unwrap()
-                    .as_for_iterate()
+                    .as_num_for_next()
                     .is_some()
         {
             return false;

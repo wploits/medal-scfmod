@@ -46,7 +46,7 @@ impl GraphStructurer {
                 .unwrap()
                 .ast
                 .last()
-                .map(|s| s.as_for_iterate().is_some())
+                .map(|s| s.as_num_for_next().is_some())
                 .unwrap_or(false)
         {
             if successors.len() == 2 {
@@ -217,21 +217,22 @@ impl GraphStructurer {
                     self.function
                         .set_block_terminator(header, Some(Terminator::jump(next)));
                     self.match_jump(header, next, dominators);
-                } else if let ast::Statement::ForIterate(for_iterate) = statement {
+                } else if let ast::Statement::NumForNext(num_for_next) = statement {
                     let predecessors = self
                         .function
                         .predecessor_blocks(header)
                         .filter(|&p| p != header)
                         .collect_vec();
                     let mut prep_blocks = predecessors.into_iter().filter(|&p| {
-                        self.function
-                            .block_mut(p)
-                            .unwrap()
-                            .ast
-                            .last_mut()
-                            .unwrap()
-                            .as_for_prep_mut()
-                            .is_some()
+                        todo!()
+                        // self.function
+                        //     .block_mut(p)
+                        //     .unwrap()
+                        //     .ast
+                        //     .last_mut()
+                        //     .unwrap()
+                        //     .as_for_prep_mut()
+                        //     .is_some()
                     });
                     let prep_block = prep_blocks.next().unwrap();
                     assert!(prep_blocks.next().is_none());
@@ -241,15 +242,16 @@ impl GraphStructurer {
                         self.function.remove_block(body).unwrap().ast
                     };
                     let prep_ast = &mut self.function.block_mut(prep_block).unwrap().ast;
-                    let for_prep = prep_ast.pop().unwrap().into_for_prep().unwrap();
-                    let numeric_for = ast::NumericFor::new(
-                        for_prep.initial,
-                        for_prep.limit,
-                        for_prep.step,
-                        for_iterate.counter,
-                        body_ast,
-                    );
-                    prep_ast.push(numeric_for.into());
+                    todo!();
+                    // let for_prep = prep_ast.pop().unwrap().into_for_prep().unwrap();
+                    // let numeric_for = ast::NumericFor::new(
+                    //     for_prep.initial,
+                    //     for_prep.limit,
+                    //     for_prep.step,
+                    //     for_iterate.counter,
+                    //     body_ast,
+                    // );
+                    // prep_ast.push(numeric_for.into());
                     self.function.remove_block(header);
                     self.function
                         .set_block_terminator(prep_block, Some(Terminator::jump(next)));

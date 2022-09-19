@@ -159,12 +159,16 @@ pub enum Instruction {
     },
     Return(Register, u8),
     IterateNumericForLoop {
+        // TODO: change to struct instead of vec
+        // internal_counter, limit, step, external_counter
         control: Vec<Register>,
-        step: i32,
+        skip: i32,
     },
     PrepareNumericForLoop {
+        // TODO: change to struct instead of vec
+        // internal_counter, limit, step, external_counter
         control: Vec<Register>,
-        step: i32,
+        skip: i32,
     },
     IterateGenericForLoop {
         iterator: Register,
@@ -331,13 +335,13 @@ impl Instruction {
             RawInstruction(OperationCode::IterateNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::IterateNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
-                    step: sbx,
+                    skip: sbx,
                 }
             }
             RawInstruction(OperationCode::PrepareNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::PrepareNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
-                    step: sbx,
+                    skip: sbx,
                 }
             }
             RawInstruction(OperationCode::IterateGenericForLoop, Layout::ABC { a, c, .. }) => {

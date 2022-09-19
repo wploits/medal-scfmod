@@ -257,7 +257,7 @@ impl Formatter {
                 self.indent();
                 self.write("end".chars());
             }
-            Statement::ForIterate(_) | Statement::ForPrep(_) => {}
+            Statement::NumForNext(_) => unimplemented!(),
             _ => self.write(statement.to_string().chars()),
         }
 
