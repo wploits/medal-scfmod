@@ -1,4 +1,6 @@
-use crate::{has_side_effects, Block, LValue, LocalRw, RValue, RcLocal, Traverse};
+use crate::{
+    has_side_effects, Assign, Block, LValue, LocalRw, RValue, RcLocal, SideEffects, Traverse,
+};
 use itertools::Itertools;
 use std::{fmt, iter};
 
@@ -255,6 +257,66 @@ impl fmt::Display for NumericFor {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct GenericForInit(pub Assign);
+
+impl GenericForInit {
+    pub fn from_locals(generator: RcLocal, state: RcLocal, control: RcLocal) -> Self {
+        Self(Assign::new(
+            vec![
+                generator.clone().into(),
+                state.clone().into(),
+                control.clone().into(),
+            ],
+            vec![generator.into(), state.into(), control.into()],
+        ))
+    }
+}
+
+impl SideEffects for GenericForInit {
+    fn has_side_effects(&self) -> bool {
+        self.0.has_side_effects()
+    }
+}
+
+impl Traverse for GenericForInit {
+    fn lvalues_mut(&mut self) -> Vec<&mut LValue> {
+        self.0.lvalues_mut()
+    }
+
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
+        self.0.rvalues_mut()
+    }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        self.0.rvalues()
+    }
+}
+
+impl LocalRw for GenericForInit {
+    fn values_read(&self) -> Vec<&RcLocal> {
+        self.0.values_read()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.0.values_read_mut()
+    }
+
+    fn values_written(&self) -> Vec<&RcLocal> {
+        self.0.values_written()
+    }
+
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.0.values_written_mut()
+    }
+}
+
+impl fmt::Display for GenericForInit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "-- GenericForInit\n{}\n-- end GenericForInit", self.0,)
+    }
+}
+
 // TODO: i think GenericFor is a bad name, lua calls iterators "generators",
 // so maybe uh GenerativeFor? LOL
 // or GenFor?
@@ -354,7 +416,7 @@ impl fmt::Display for GenericForNext {
         write!(
             f,
             "-- GenericForNext\n{} = {}({}, {})\nif {} ~= nil\n-- end GenericForNext",
-            std::iter::once(&self.control.0)
+            iter::once(&self.control.0)
                 .chain(&self.other_res_locals)
                 .join(", "),
             self.generator,

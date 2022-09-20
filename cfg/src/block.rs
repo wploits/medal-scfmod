@@ -20,6 +20,7 @@ impl BasicBlockEdge {
 #[derive(Debug, Clone, EnumAsInner)]
 pub enum Terminator {
     Jump(BasicBlockEdge),
+    // TODO: name then/else instead of tuple
     Conditional(BasicBlockEdge, BasicBlockEdge),
 }
 

@@ -416,7 +416,7 @@ impl<'a> LifterContext<'a> {
                     );
 
                     let condition_block = self.nodes[&start];
-                    let next_block = self.nodes[&(end + 1)];
+                    let next_block = self.get_node(&(end + 1));
                     let skip = match &self.bytecode.code[end] {
                         Instruction::Jump(skip) => *skip as usize,
                         _ => unreachable!(),
@@ -715,18 +715,16 @@ impl<'a> LifterContext<'a> {
                         )
                         .into(),
                     );
-                    self.function
-                        .block_mut(self.get_node(&(end + 1)))
-                        .unwrap()
-                        .ast
-                        .insert(
-                            0,
-                            ast::Assign::new(
-                                vec![self.locals[&vars[0]].clone().into()],
-                                vec![self.locals[control].clone().into()],
-                            )
-                            .into(),
-                        );
+
+                    let body_node = self.get_node(&(end + 1));
+                    self.function.block_mut(body_node).unwrap().ast.insert(
+                        0,
+                        ast::Assign::new(
+                            vec![self.locals[&vars[0]].clone().into()],
+                            vec![self.locals[control].clone().into()],
+                        )
+                        .into(),
+                    );
                 }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
@@ -833,6 +831,7 @@ impl<'a> LifterContext<'a> {
         }
         context.function.set_entry(context.nodes[&0]);
 
+        // merge blocks where possible
         let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());
         for node in context.function.graph().node_indices().collect_vec() {
             let mut successors = context.function.successor_blocks(node);
@@ -846,6 +845,36 @@ impl<'a> LifterContext<'a> {
                     .ast
                     .extend(block.ast.0);
                 context.function.set_block_terminator(node, terminator);
+            }
+        }
+
+        // TODO: this can be integrated into the loop above with no changes
+        for node in context.function.graph().node_indices().collect_vec() {
+            let block = context.function.block(node).unwrap();
+            if let Some(Statement::GenericForNext(generic_for_next)) = block.ast.0.last() {
+                let body_node = block
+                    .terminator()
+                    .as_ref()
+                    .unwrap()
+                    .as_conditional()
+                    .unwrap()
+                    .0
+                    .node;
+                let mut init_blocks = context
+                    .function
+                    .predecessor_blocks(node)
+                    .filter(|&n| !dominators.dominators(n).unwrap().contains(&body_node));
+                let init_node = init_blocks.next().unwrap();
+                assert!(init_blocks.next().is_none());
+                let generator = generic_for_next.generator.as_local().unwrap().clone();
+                let state = generic_for_next.state.as_local().unwrap().clone();
+                let control = generic_for_next.control.1.as_local().unwrap().clone();
+                context
+                    .function
+                    .block_mut(init_node)
+                    .unwrap()
+                    .ast
+                    .push(ast::GenericForInit::from_locals(generator, state, control).into());
             }
         }
 
