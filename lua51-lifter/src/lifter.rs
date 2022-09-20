@@ -697,6 +697,37 @@ impl<'a> LifterContext<'a> {
                             .into(),
                         );
                 }
+                Instruction::IterateGenericForLoop {
+                    generator,
+                    state,
+                    control,
+                    vars,
+                } => {
+                    statements.push(
+                        ast::GenericForNext::from_locals(
+                            self.locals[control].clone(),
+                            vars.iter()
+                                .skip(1)
+                                .map(|r| self.locals[r].clone())
+                                .collect(),
+                            self.locals[generator].clone(),
+                            self.locals[state].clone(),
+                        )
+                        .into(),
+                    );
+                    self.function
+                        .block_mut(self.get_node(&(end + 1)))
+                        .unwrap()
+                        .ast
+                        .insert(
+                            0,
+                            ast::Assign::new(
+                                vec![self.locals[&vars[0]].clone().into()],
+                                vec![self.locals[control].clone().into()],
+                            )
+                            .into(),
+                        );
+                }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
 

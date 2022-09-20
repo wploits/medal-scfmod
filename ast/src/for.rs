@@ -1,10 +1,11 @@
 use crate::{has_side_effects, Block, LValue, LocalRw, RValue, RcLocal, Traverse};
 use itertools::Itertools;
-use std::fmt;
+use std::{fmt, iter};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumForInit {
     // TODO: store 3 `Assign`s instead
+    // TODO: rename to `control`? that's what lua calls it
     pub counter: (LValue, RValue),
     pub limit: (LValue, RValue),
     pub step: (LValue, RValue),
@@ -24,14 +25,6 @@ impl NumForInit {
 // same problem exists in other places, just search for "has_side_effects!"
 has_side_effects!(NumForInit);
 
-// TODO: this treats this as
-//      a, b, c = 1, 2, 3
-// rather than
-//      a = 1; b = 2; b = 3
-// which is what is actually happening here
-// but it *should* be fine
-// but there are some situations in which some constructed bytecode could
-// get the better of us
 impl Traverse for NumForInit {
     fn lvalues_mut(&mut self) -> Vec<&mut LValue> {
         vec![&mut self.counter.0, &mut self.limit.0, &mut self.step.0]
@@ -46,14 +39,6 @@ impl Traverse for NumForInit {
     }
 }
 
-// TODO: this treats this as
-//      a, b, c = 1, 2, 3
-// rather than
-//      a = 1; b = 2; b = 3
-// which is what is actually happening here
-// but it *should* be fine
-// but there are some situations in which some constructed bytecode could
-// get the better of us
 impl LocalRw for NumForInit {
     fn values_read(&self) -> Vec<&RcLocal> {
         self.counter
@@ -100,8 +85,8 @@ impl fmt::Display for NumForInit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "-- NumForInit\n{} = {}\n{} = {}\n{} = {}\n-- end NumForInit",
-            self.counter.0, self.counter.1, self.limit.0, self.limit.1, self.step.0, self.step.1
+            "-- NumForInit\n{}, {}, {} = {}, {}, {}\n-- end NumForInit",
+            self.counter.0, self.limit.0, self.step.0, self.counter.1, self.limit.1, self.step.1
         )
     }
 }
@@ -110,6 +95,7 @@ impl fmt::Display for NumForInit {
 pub struct NumForNext {
     // TODO: store an `Assign` and an `If` instead?
     // TODO: this is the worst s$H##()WT ever literally
+    // TODO: rename to `control`? that's what lua calls it
     pub counter: (LValue, RValue), // RcLocal, // cant be of type RcLocal because Traverse
     pub limit: RValue,
     pub step: RValue,
@@ -189,6 +175,7 @@ pub struct NumericFor {
     pub initial: RValue,
     pub limit: RValue,
     pub step: RValue,
+    // TODO: rename to `control`? (thats what lua calls it)
     pub counter: RcLocal,
     pub block: Block,
 }
@@ -264,6 +251,116 @@ impl fmt::Display for NumericFor {
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")
+        )
+    }
+}
+
+// TODO: i think GenericFor is a bad name, lua calls iterators "generators",
+// so maybe uh GenerativeFor? LOL
+// or GenFor?
+#[derive(Debug, PartialEq, Clone)]
+pub struct GenericForNext {
+    // TODO: store an `Assign` with a `Call` and an `If` instead?
+    pub control: (LValue, RValue), // RcLocal, // cant be of type RcLocal because Traverse
+    pub other_res_locals: Vec<LValue>,
+    pub generator: RValue,
+    pub state: RValue,
+}
+
+impl GenericForNext {
+    pub fn from_locals(
+        control: RcLocal,
+        other_res_locals: Vec<RcLocal>,
+        generator: RcLocal,
+        state: RcLocal,
+    ) -> Self {
+        Self {
+            control: (LValue::Local(control.clone()), RValue::Local(control)),
+            other_res_locals: other_res_locals.into_iter().map(LValue::Local).collect(),
+            generator: RValue::Local(generator),
+            state: RValue::Local(state),
+        }
+    }
+}
+
+// TODO: true if any LValues/RValues have side effects
+// same problem exists in other places, just search for "has_side_effects!"
+has_side_effects!(GenericForNext);
+
+impl Traverse for GenericForNext {
+    fn lvalues_mut(&mut self) -> Vec<&mut LValue> {
+        iter::once(&mut self.control.0)
+            .chain(&mut self.other_res_locals)
+            .collect()
+    }
+
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
+        vec![&mut self.generator, &mut self.state, &mut self.control.1]
+    }
+
+    fn rvalues(&self) -> Vec<&RValue> {
+        vec![&self.generator, &self.state, &self.control.1]
+    }
+}
+
+impl LocalRw for GenericForNext {
+    fn values_read(&self) -> Vec<&RcLocal> {
+        self.generator
+            .values_read()
+            .into_iter()
+            .chain(self.state.values_read().into_iter())
+            .chain(self.control.1.values_read())
+            .collect()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.generator
+            .values_read_mut()
+            .into_iter()
+            .chain(self.state.values_read_mut().into_iter())
+            .chain(self.control.1.values_read_mut())
+            .collect()
+    }
+
+    fn values_written(&self) -> Vec<&RcLocal> {
+        self.control
+            .0
+            .values_written()
+            .into_iter()
+            .chain(
+                self.other_res_locals
+                    .iter()
+                    .flat_map(|l| l.values_written()),
+            )
+            .collect()
+    }
+
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.control
+            .0
+            .values_written_mut()
+            .into_iter()
+            .chain(
+                self.other_res_locals
+                    .iter_mut()
+                    .flat_map(|l| l.values_written_mut()),
+            )
+            .collect()
+    }
+}
+
+impl fmt::Display for GenericForNext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "-- GenericForNext\n{} = {}({}, {})\nif {} ~= nil\n-- end GenericForNext",
+            std::iter::once(&self.control.0)
+                .chain(&self.other_res_locals)
+                .join(", "),
+            self.generator,
+            self.state,
+            self.control.1,
+            self.control.1,
         )
     }
 }

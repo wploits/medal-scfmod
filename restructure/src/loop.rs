@@ -234,7 +234,6 @@ impl GraphStructurer {
                             .rev()
                             .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some())
                             .and_then(|(i, s)| s.as_num_for_init_mut().map(|_| (p, i)))
-                        
                     });
                     let (init_block, init_index) = init_blocks.next().unwrap();
                     assert!(init_blocks.next().is_none());
