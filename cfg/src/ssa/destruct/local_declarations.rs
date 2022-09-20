@@ -34,6 +34,14 @@ fn push_declaration(block: &mut ast::Block, local: ast::RcLocal) {
 fn has_mult_usages_of_local(block: &BasicBlock, local: &ast::RcLocal) -> bool {
     let mut local_usages = 0usize;
     for stat in &block.ast.0 {
+        for written in stat.values_written() {
+            if written == local {
+                local_usages += 1;
+                if local_usages > 1 {
+                    return true;
+                }
+            }
+        }
         for read in stat.values_read() {
             if read == local {
                 local_usages += 1;
@@ -67,13 +75,16 @@ pub(crate) fn declare_locals(
         if reference_nodes.is_empty() {
             continue;
         }
+        println!("yeeyee {:?} {:?}", local, reference_nodes);
 
         if reference_nodes.len() == 1 {
             let reference_node = reference_nodes.into_iter().next().unwrap();
             let block = function.block_mut(reference_node).unwrap();
             if !has_mult_usages_of_local(block, &local) {
+                println!("toes {:?}", local);
+                let mut res = false;
                 for stat in &mut block.ast.0 {
-                    stat.post_traverse_values(&mut |v| {
+                    res = stat.post_traverse_values(&mut |v| {
                         if let Either::Right(rvalue) = v {
                             if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == local {
                                 *rvalue = ast::RValue::Literal(ast::Literal::Nil);
@@ -81,7 +92,13 @@ pub(crate) fn declare_locals(
                             }
                         }
                         None
-                    });
+                    }).is_some();
+                    if res {
+                        break;
+                    }
+                }
+                if !res {
+                    push_declaration(&mut block.ast, local);
                 }
             } else {
                 push_declaration(&mut block.ast, local);
