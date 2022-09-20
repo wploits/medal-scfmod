@@ -3,6 +3,7 @@ use ast::SideEffects;
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
+use std::iter;
 
 use crate::GraphStructurer;
 use petgraph::{
@@ -47,7 +48,7 @@ impl GraphStructurer {
                 .unwrap()
                 .ast
                 .last()
-                .map(|s| s.as_num_for_next().is_some())
+                .map(|s| s.as_num_for_next().is_some() || s.as_generic_for_next().is_some())
                 .unwrap_or(false)
         {
             if successors.len() == 2 {
@@ -252,6 +253,51 @@ impl GraphStructurer {
                         body_ast,
                     );
                     init_ast.push(numeric_for.into());
+                    self.function.remove_block(header);
+                    self.function
+                        .set_block_terminator(init_block, Some(Terminator::jump(next)));
+                    self.match_jump(init_block, next, dominators);
+                } else if let ast::Statement::GenericForNext(generic_for_next) = statement {
+                    let predecessors = self
+                        .function
+                        .predecessor_blocks(header)
+                        .filter(|&p| p != header)
+                        .collect_vec();
+                    let mut init_blocks = predecessors.into_iter().filter_map(|p| {
+                        self.function
+                            .block_mut(p)
+                            .unwrap()
+                            .ast
+                            .iter_mut()
+                            .enumerate()
+                            .rev()
+                            .find(|(_, s)| {
+                                s.has_side_effects() || s.as_generic_for_init().is_some()
+                            })
+                            .and_then(|(i, s)| s.as_generic_for_init().map(|_| (p, i)))
+                    });
+                    let (init_block, init_index) = init_blocks.next().unwrap();
+                    assert!(init_blocks.next().is_none());
+                    let body_ast = if body == header {
+                        ast::Block::default()
+                    } else {
+                        self.function.remove_block(body).unwrap().ast
+                    };
+                    let init_ast = &mut self.function.block_mut(init_block).unwrap().ast;
+                    let for_init = init_ast.remove(init_index).into_generic_for_init().unwrap();
+                    let generic_for = ast::GenericFor::new(
+                        iter::once(generic_for_next.control.0.as_local().unwrap().clone())
+                            .chain(
+                                generic_for_next
+                                    .other_res_locals
+                                    .iter()
+                                    .map(|l| l.as_local().unwrap().clone()),
+                            )
+                            .collect(),
+                        for_init.0.right,
+                        body_ast,
+                    );
+                    init_ast.push(generic_for.into());
                     self.function.remove_block(header);
                     self.function
                         .set_block_terminator(init_block, Some(Terminator::jump(next)));

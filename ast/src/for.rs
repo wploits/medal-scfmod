@@ -426,3 +426,68 @@ impl fmt::Display for GenericForNext {
         )
     }
 }
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GenericFor {
+    pub res_locals: Vec<RcLocal>,
+    pub right: Vec<RValue>,
+    pub block: Block,
+}
+
+impl GenericFor {
+    pub fn new(res_locals: Vec<RcLocal>, right: Vec<RValue>, block: Block) -> Self {
+        Self {
+            res_locals,
+            right,
+            block,
+        }
+    }
+}
+
+has_side_effects!(GenericFor);
+
+impl LocalRw for GenericFor {
+    fn values_read(&self) -> Vec<&RcLocal> {
+        self.right.iter().flat_map(|r| r.values_read()).collect()
+    }
+
+    fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.right
+            .iter_mut()
+            .flat_map(|r| r.values_read_mut())
+            .collect()
+    }
+
+    fn values_written(&self) -> Vec<&RcLocal> {
+        self.res_locals.iter().collect()
+    }
+
+    fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
+        self.res_locals.iter_mut().collect()
+    }
+}
+
+impl Traverse for GenericFor {
+    fn rvalues(&self) -> Vec<&RValue> {
+        self.right.iter().collect()
+    }
+
+    fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
+        self.right.iter_mut().collect()
+    }
+}
+
+impl fmt::Display for GenericFor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "for {} in {} do\n{}\nend",
+            self.res_locals.iter().join(", "),
+            self.right.iter().join(", "),
+            self.block
+                .iter()
+                .map(|n| n.to_string().replace('\n', "\n\t"))
+                .join("\n\t")
+        )
+    }
+}
