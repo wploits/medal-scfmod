@@ -1,4 +1,5 @@
 use ast::Reduce;
+use ast::SideEffects;
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
@@ -223,17 +224,19 @@ impl GraphStructurer {
                         .predecessor_blocks(header)
                         .filter(|&p| p != header)
                         .collect_vec();
-                    let mut init_blocks = predecessors.into_iter().filter(|&p| {
+                    let mut init_blocks = predecessors.into_iter().filter_map(|p| {
                         self.function
                             .block_mut(p)
                             .unwrap()
                             .ast
-                            .last_mut()
-                            .unwrap()
-                            .as_num_for_init_mut()
-                            .is_some()
+                            .iter_mut()
+                            .enumerate()
+                            .rev()
+                            .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some())
+                            .and_then(|(i, s)| s.as_num_for_init_mut().map(|_| (p, i)))
+                        
                     });
-                    let init_block = init_blocks.next().unwrap();
+                    let (init_block, init_index) = init_blocks.next().unwrap();
                     assert!(init_blocks.next().is_none());
                     let body_ast = if body == header {
                         ast::Block::default()
@@ -241,7 +244,7 @@ impl GraphStructurer {
                         self.function.remove_block(body).unwrap().ast
                     };
                     let init_ast = &mut self.function.block_mut(init_block).unwrap().ast;
-                    let for_init = init_ast.pop().unwrap().into_num_for_init().unwrap();
+                    let for_init = init_ast.remove(init_index).into_num_for_init().unwrap();
                     let numeric_for = ast::NumericFor::new(
                         for_init.counter.1,
                         for_init.limit.1,
