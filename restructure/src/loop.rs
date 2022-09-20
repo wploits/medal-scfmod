@@ -223,39 +223,37 @@ impl GraphStructurer {
                         .predecessor_blocks(header)
                         .filter(|&p| p != header)
                         .collect_vec();
-                    let mut prep_blocks = predecessors.into_iter().filter(|&p| {
-                        todo!()
-                        // self.function
-                        //     .block_mut(p)
-                        //     .unwrap()
-                        //     .ast
-                        //     .last_mut()
-                        //     .unwrap()
-                        //     .as_for_prep_mut()
-                        //     .is_some()
+                    let mut init_blocks = predecessors.into_iter().filter(|&p| {
+                        self.function
+                            .block_mut(p)
+                            .unwrap()
+                            .ast
+                            .last_mut()
+                            .unwrap()
+                            .as_num_for_init_mut()
+                            .is_some()
                     });
-                    let prep_block = prep_blocks.next().unwrap();
-                    assert!(prep_blocks.next().is_none());
+                    let init_block = init_blocks.next().unwrap();
+                    assert!(init_blocks.next().is_none());
                     let body_ast = if body == header {
                         ast::Block::default()
                     } else {
                         self.function.remove_block(body).unwrap().ast
                     };
-                    let prep_ast = &mut self.function.block_mut(prep_block).unwrap().ast;
-                    todo!();
-                    // let for_prep = prep_ast.pop().unwrap().into_for_prep().unwrap();
-                    // let numeric_for = ast::NumericFor::new(
-                    //     for_prep.initial,
-                    //     for_prep.limit,
-                    //     for_prep.step,
-                    //     for_iterate.counter,
-                    //     body_ast,
-                    // );
-                    // prep_ast.push(numeric_for.into());
+                    let init_ast = &mut self.function.block_mut(init_block).unwrap().ast;
+                    let for_init = init_ast.pop().unwrap().into_num_for_init().unwrap();
+                    let numeric_for = ast::NumericFor::new(
+                        for_init.counter.1,
+                        for_init.limit.1,
+                        for_init.step.1,
+                        num_for_next.counter.0.as_local().unwrap().clone(),
+                        body_ast,
+                    );
+                    init_ast.push(numeric_for.into());
                     self.function.remove_block(header);
                     self.function
-                        .set_block_terminator(prep_block, Some(Terminator::jump(next)));
-                    self.match_jump(prep_block, next, dominators);
+                        .set_block_terminator(init_block, Some(Terminator::jump(next)));
+                    self.match_jump(init_block, next, dominators);
                 } else {
                     panic!()
                 }

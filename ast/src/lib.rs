@@ -238,6 +238,7 @@ pub enum Statement {
     Label(Label),
     While(While),
     Repeat(Repeat),
+    NumForInit(NumForInit),
     NumForNext(NumForNext),
     NumericFor(NumericFor),
     Return(Return),
@@ -259,12 +260,13 @@ impl fmt::Display for Statement {
         match self {
             Statement::Call(call) => write!(f, "{}", call),
             Statement::Assign(assign) => write!(f, "{}", assign),
-            // TODO: replace all `if_` with `r#if`
+            // TODO: replace all `if_` with `r#if`, etc
             Statement::If(if_) => write!(f, "{}", if_),
             Statement::Goto(goto) => write!(f, "{}", goto),
             Statement::Label(label) => write!(f, "{}", label),
             Statement::While(while_) => write!(f, "{}", while_),
             Statement::Repeat(repeat) => write!(f, "{}", repeat),
+            Statement::NumForInit(num_for_init) => write!(f, "{}", num_for_init),
             Statement::NumForNext(num_for_next) => write!(f, "{}", num_for_next),
             Statement::NumericFor(numeric_for) => write!(f, "{}", numeric_for),
             Statement::Return(return_) => write!(f, "{}", return_),
