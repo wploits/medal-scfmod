@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::{type_system::Infer, LocalRw, SideEffects, Traverse, Type, TypeSystem};
 
-#[derive(Debug, From, Clone, PartialEq, EnumAsInner)]
+#[derive(Debug, From, Clone, PartialEq, PartialOrd, EnumAsInner)]
 pub enum Literal {
     Nil,
     Boolean(bool),

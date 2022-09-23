@@ -115,9 +115,12 @@ fn main() -> anyhow::Result<()> {
 
     cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
+    let dataflow = cfg::ssa::dataflow::DataFlow::new(&main);
+    println!("dataflow: {:#?}", dataflow);
+
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    let now = time::Instant::now();
+    /*let now = time::Instant::now();
     cfg::ssa::destruct(&mut main, local_count, &local_groups);
     let ssa_destructed = now.elapsed();
     println!("ssa destruction: {:?}", ssa_destructed);
@@ -150,7 +153,7 @@ fn main() -> anyhow::Result<()> {
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);*/
 
-    //println!("{}", output);*/
+    //println!("{}", output);**/
     Ok(())
 }
 

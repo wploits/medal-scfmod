@@ -353,6 +353,47 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
+    fn mark_upvalues(&mut self) -> Vec<FxHashSet<RcLocal>> {
+        let mut upvalue_groups = FxHashMap::<_, FxHashSet<_>>::default();
+        let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
+        //println!("upvalues open: {:#?}", upvalues_open);
+        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
+        while let Some(node) = dfs.next(self.function.graph()) {
+            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
+                let statement = self
+                    .function
+                    .block(node)
+                    .unwrap()
+                    .ast
+                    .get(stat_index)
+                    .unwrap();
+                println!("{}", statement);
+                let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for value in written {
+                    println!("value: {}", value);
+                    println!("old: {}", self.old_locals[&value]);
+                    if let Some(open_local) =
+                        upvalues_open.find_open(node, stat_index, &value, self.function)
+                    {
+                        println!("asadasdasdasdssd");
+                        upvalue_groups.entry(open_local).or_default().insert(value);
+                    }
+                }
+            }
+            self.function
+                .block_mut(node)
+                .unwrap()
+                .ast
+                .retain(|statement| !matches!(statement, ast::Statement::Close(_)))
+        }
+
+        upvalue_groups.into_values().collect()
+    }
+
     fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>) {
         let entry = self.function.entry().unwrap();
         let mut dfs = Dfs::new(self.function.graph(), entry);
@@ -386,7 +427,6 @@ impl<'a> SsaConstructor<'a> {
                 }
 
                 // write
-
                 let statement = self
                     .function
                     .block_mut(node)
@@ -441,8 +481,10 @@ impl<'a> SsaConstructor<'a> {
         let mut local_map = FxHashMap::default();
         self.propagate_copies(&mut local_map);
         remove_unnecessary_params(self.function, &mut local_map);
-        //self.fix_upvalues(&mut local_map);
         apply_local_map(self.function, &local_map);
+        crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+        //println!("{:#?}", self.old_locals);
+        println!("{:#?}", self.mark_upvalues());
 
         (
             self.local_count,

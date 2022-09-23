@@ -58,6 +58,7 @@ impl<'a> LifterContext<'a> {
                 | Instruction::LessThan { .. }
                 | Instruction::LessThanOrEqual { .. }
                 | Instruction::Test { .. }
+                | Instruction::TestSet { .. }
                 | Instruction::IterateGenericForLoop { .. } => {
                     self.nodes
                         .entry(insn_index + 1)
@@ -75,13 +76,6 @@ impl<'a> LifterContext<'a> {
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-                    if insn_index != dest_index {
-                        if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                            self.function.remove_block(jmp_block);
-                            self.nodes.insert(insn_index, dest_block);
-                            self.blocks_to_skip.insert(insn_index, dest_index);
-                        }
-                    }
                 }
                 Instruction::IterateNumericForLoop { step, .. }
                 | Instruction::PrepareNumericForLoop { step, .. } => {
@@ -391,12 +385,6 @@ impl<'a> LifterContext<'a> {
                     comparison_value,
                 } => {
                     let value: ast::RValue = self.locals[value].clone().into();
-                    let assign = ast::Assign::new(
-                        vec![self.locals[destination].clone().into()],
-                        vec![value.clone()],
-                    );
-                    let new_block = self.function.new_block();
-
                     statements.push(
                         ast::If {
                             condition: if *comparison_value {
@@ -414,30 +402,16 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
 
-                    let condition_block = self.nodes[&start];
-                    let next_block = self.nodes[&(end + 1)];
-                    let step = match &self.bytecode.code[end] {
-                        Instruction::Jump(step) => *step as usize,
-                        _ => unreachable!(),
-                    };
+                    let assign = ast::Assign::new(
+                        vec![self.locals[destination].clone().into()],
+                        vec![value.clone()],
+                    );
 
                     self.function
-                        .block_mut(new_block)
+                        .block_mut(self.nodes[&(end + 1)])
                         .unwrap()
                         .ast
                         .push(assign.into());
-
-                    self.function.set_block_terminator(
-                        condition_block,
-                        Some(Terminator::conditional(next_block, new_block)),
-                    );
-
-                    self.function.set_block_terminator(
-                        new_block,
-                        Some(Terminator::jump(
-                            self.nodes[&(end + step as usize - 131070)],
-                        )),
-                    );
                 }
                 &Instruction::TailCall {
                     function,
@@ -684,6 +658,36 @@ impl<'a> LifterContext<'a> {
                 Instruction::IterateNumericForLoop { control, .. } => {
                     statements.push(ast::ForIterate::new(self.locals[&control[3]].clone()).into());
                 }
+                &Instruction::IterateGenericForLoop {
+                    iterator,
+                    number_of_variables,
+                } => {
+                    //assert!(number_of_variables >= 2);
+                    let generator = &self.locals[&iterator];
+                    let state = &self.locals[&Register(iterator.0 + 1)];
+                    let key = &self.locals[&Register(iterator.0 + 2)];
+                    let returned_values = (iterator.0 + 3..iterator.0 + 3 + number_of_variables)
+                        .map(|r| self.locals[&Register(r)].clone())
+                        .collect_vec();
+                    let returned_key = returned_values[0].clone();
+                    statements.push(
+                        ast::Assign::new(
+                            returned_values.into_iter().map(|x| x.into()).collect(),
+                            vec![ast::Call::new(
+                                generator.clone().into(),
+                                vec![state.clone().into(), key.clone().into()],
+                            )
+                            .into()],
+                        )
+                        .into(),
+                    );
+                    statements.push(
+                        ast::Assign::new(vec![key.clone().into()], vec![returned_key.into()])
+                            .into(),
+                    );
+                    statements.push(ast::If::new(key.clone().into(), None, None).into());
+                    println!("{} {} {}", generator, state, key);
+                }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
 
@@ -705,12 +709,17 @@ impl<'a> LifterContext<'a> {
         for (start, end) in ranges {
             let mut block = ast::Block::default();
             self.lift_instruction(start, end, &mut block);
-            self.function.block_mut(self.nodes[&start]).unwrap().ast = block;
+            self.function
+                .block_mut(self.nodes[&start])
+                .unwrap()
+                .ast
+                .extend(block.0);
             match self.bytecode.code[end] {
                 Instruction::Equal { .. }
                 | Instruction::LessThan { .. }
                 | Instruction::LessThanOrEqual { .. }
                 | Instruction::Test { .. }
+                | Instruction::TestSet { .. }
                 | Instruction::IterateGenericForLoop { .. } => {
                     self.function.set_block_terminator(
                         self.nodes[&start],
@@ -771,17 +780,7 @@ impl<'a> LifterContext<'a> {
         context.create_block_map();
         context.allocate_locals();
         context.lift_blocks();
-        for node in context
-            .function
-            .graph()
-            .node_indices()
-            .filter(|&i| i != context.nodes[&0])
-            .collect::<Vec<_>>()
-        {
-            if context.function.predecessor_blocks(node).next().is_none() {
-                context.function.remove_block(node);
-            }
-        }
+
         context.function.set_entry(context.nodes[&0]);
 
         let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());

@@ -79,7 +79,9 @@ impl UpvaluesOpen {
         local: &ast::RcLocal,
         function: &Function,
     ) -> Option<ast::RcLocal> {
+        println!("node: {:?}, local: {}", node, local);
         let old_local = &self.old_locals[local];
+        println!("{}", old_local);
         for pred in function.predecessor_blocks(node) {
             if let Some(pred_open) =
                 self.open[&pred]

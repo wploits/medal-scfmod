@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::{LocalRw, SideEffects, Traverse};
 
-#[derive(Debug, From, PartialEq, Eq, Clone)]
+#[derive(Debug, From, PartialEq, PartialOrd, Clone)]
 pub struct Global(pub String);
 
 impl Global {
