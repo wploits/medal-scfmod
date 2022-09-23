@@ -1,7 +1,9 @@
 use ast::Reduce;
+use ast::SideEffects;
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
+use std::iter;
 
 use crate::GraphStructurer;
 use petgraph::{
@@ -46,7 +48,7 @@ impl GraphStructurer {
                 .unwrap()
                 .ast
                 .last()
-                .map(|s| s.as_for_iterate().is_some())
+                .map(|s| s.as_num_for_next().is_some() || s.as_generic_for_next().is_some())
                 .unwrap_or(false)
         {
             if successors.len() == 2 {
@@ -217,43 +219,89 @@ impl GraphStructurer {
                     self.function
                         .set_block_terminator(header, Some(Terminator::jump(next)));
                     self.match_jump(header, next, dominators);
-                } else if let ast::Statement::ForIterate(for_iterate) = statement {
+                } else if let ast::Statement::NumForNext(num_for_next) = statement {
                     let predecessors = self
                         .function
                         .predecessor_blocks(header)
                         .filter(|&p| p != header)
                         .collect_vec();
-                    let mut prep_blocks = predecessors.into_iter().filter(|&p| {
+                    let mut init_blocks = predecessors.into_iter().filter_map(|p| {
                         self.function
                             .block_mut(p)
                             .unwrap()
                             .ast
-                            .last_mut()
-                            .unwrap()
-                            .as_for_prep_mut()
-                            .is_some()
+                            .iter_mut()
+                            .enumerate()
+                            .rev()
+                            .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some())
+                            .and_then(|(i, s)| s.as_num_for_init_mut().map(|_| (p, i)))
                     });
-                    let prep_block = prep_blocks.next().unwrap();
-                    assert!(prep_blocks.next().is_none());
+                    let (init_block, init_index) = init_blocks.next().unwrap();
+                    assert!(init_blocks.next().is_none());
                     let body_ast = if body == header {
                         ast::Block::default()
                     } else {
                         self.function.remove_block(body).unwrap().ast
                     };
-                    let prep_ast = &mut self.function.block_mut(prep_block).unwrap().ast;
-                    let for_prep = prep_ast.pop().unwrap().into_for_prep().unwrap();
+                    let init_ast = &mut self.function.block_mut(init_block).unwrap().ast;
+                    let for_init = init_ast.remove(init_index).into_num_for_init().unwrap();
                     let numeric_for = ast::NumericFor::new(
-                        for_prep.initial,
-                        for_prep.limit,
-                        for_prep.step,
-                        for_iterate.counter,
+                        for_init.counter.1,
+                        for_init.limit.1,
+                        for_init.step.1,
+                        num_for_next.counter.0.as_local().unwrap().clone(),
                         body_ast,
                     );
-                    prep_ast.push(numeric_for.into());
+                    init_ast.push(numeric_for.into());
                     self.function.remove_block(header);
                     self.function
-                        .set_block_terminator(prep_block, Some(Terminator::jump(next)));
-                    self.match_jump(prep_block, next, dominators);
+                        .set_block_terminator(init_block, Some(Terminator::jump(next)));
+                    self.match_jump(init_block, next, dominators);
+                } else if let ast::Statement::GenericForNext(generic_for_next) = statement {
+                    let predecessors = self
+                        .function
+                        .predecessor_blocks(header)
+                        .filter(|&p| p != header)
+                        .collect_vec();
+                    let mut init_blocks = predecessors.into_iter().filter_map(|p| {
+                        self.function
+                            .block_mut(p)
+                            .unwrap()
+                            .ast
+                            .iter_mut()
+                            .enumerate()
+                            .rev()
+                            .find(|(_, s)| {
+                                s.has_side_effects() || s.as_generic_for_init().is_some()
+                            })
+                            .and_then(|(i, s)| s.as_generic_for_init().map(|_| (p, i)))
+                    });
+                    let (init_block, init_index) = init_blocks.next().unwrap();
+                    assert!(init_blocks.next().is_none());
+                    let body_ast = if body == header {
+                        ast::Block::default()
+                    } else {
+                        self.function.remove_block(body).unwrap().ast
+                    };
+                    let init_ast = &mut self.function.block_mut(init_block).unwrap().ast;
+                    let for_init = init_ast.remove(init_index).into_generic_for_init().unwrap();
+                    let generic_for = ast::GenericFor::new(
+                        iter::once(generic_for_next.control.0.as_local().unwrap().clone())
+                            .chain(
+                                generic_for_next
+                                    .other_res_locals
+                                    .iter()
+                                    .map(|l| l.as_local().unwrap().clone()),
+                            )
+                            .collect(),
+                        for_init.0.right,
+                        body_ast,
+                    );
+                    init_ast.push(generic_for.into());
+                    self.function.remove_block(header);
+                    self.function
+                        .set_block_terminator(init_block, Some(Terminator::jump(next)));
+                    self.match_jump(init_block, next, dominators);
                 } else {
                     panic!()
                 }

@@ -235,12 +235,12 @@ impl Formatter {
                 self.indent();
                 self.write(format!("until {}", repeat.condition).chars());
             }
-            Statement::NumericFor(r#for) => {
-                if let RValue::Literal(Literal::Number(n)) = r#for.step && n == 1.0 {
+            Statement::NumericFor(numeric_for) => {
+                if let RValue::Literal(Literal::Number(n)) = numeric_for.step && n == 1.0 {
                     self.write(
                         format!(
                             "for {} = {}, {} do\n",
-                            r#for.counter, r#for.initial, r#for.limit
+                            numeric_for.counter, numeric_for.initial, numeric_for.limit
                         )
                         .chars(),
                     );
@@ -248,16 +248,29 @@ impl Formatter {
                     self.write(
                         format!(
                             "for {} = {}, {}, {} do\n",
-                            r#for.counter, r#for.initial, r#for.limit, r#for.step
+                            numeric_for.counter, numeric_for.initial, numeric_for.limit, numeric_for.step
                         )
                         .chars(),
                     );
                 }
-                self.format_block(&r#for.block);
+                self.format_block(&numeric_for.block);
                 self.indent();
                 self.write("end".chars());
             }
-            Statement::ForIterate(_) | Statement::ForPrep(_) => {}
+            Statement::GenericFor(generic_for) => {
+                self.write(
+                    format!(
+                        "for {} in {} do\n",
+                        generic_for.res_locals.iter().join(", "),
+                        generic_for.right.iter().join(", "),
+                    )
+                    .chars(),
+                );
+                self.format_block(&generic_for.block);
+                self.indent();
+                self.write("end".chars());
+            }
+            Statement::NumForNext(_) => unimplemented!(),
             _ => self.write(statement.to_string().chars()),
         }
 

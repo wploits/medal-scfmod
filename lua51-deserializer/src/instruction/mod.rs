@@ -159,16 +159,28 @@ pub enum Instruction {
     },
     Return(Register, u8),
     IterateNumericForLoop {
+        // TODO: change to struct instead of vec
+        // internal_counter, limit, step, external_counter
         control: Vec<Register>,
-        step: i32,
+        skip: i32,
     },
     PrepareNumericForLoop {
+        // TODO: change to struct instead of vec
+        // internal_counter, limit, step, external_counter
+        // the name "control" refers to just the counter
         control: Vec<Register>,
-        step: i32,
+        skip: i32,
     },
     IterateGenericForLoop {
-        iterator: Register,
-        number_of_variables: u8,
+        // ex. `next` in `for i, v in next, {}, 5`
+        generator: Register,
+        // ex. `{}` in `for i, v in next, {}, 5`
+        state: Register,
+        // internal control variable
+        // initial value ex. `5` in `for i, v in next, {}, 5`
+        control: Register,
+        // variables returned by generator call, starting with the external control
+        vars: Vec<Register>,
     },
     SetList {
         table: Register,
@@ -331,20 +343,28 @@ impl Instruction {
             RawInstruction(OperationCode::IterateNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::IterateNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
-                    step: sbx,
+                    skip: sbx,
                 }
             }
             RawInstruction(OperationCode::PrepareNumericForLoop, Layout::AsBx { a, sbx }) => {
                 Self::PrepareNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
-                    step: sbx,
+                    skip: sbx,
                 }
             }
             RawInstruction(OperationCode::IterateGenericForLoop, Layout::ABC { a, c, .. }) => {
-                Self::IterateGenericForLoop {
-                    iterator: Register(a),
-                    number_of_variables: c as u8,
-                }
+                let res = Self::IterateGenericForLoop {
+                    generator: Register(a),
+                    state: Register(a + 1),
+                    control: Register(a + 2),
+                    vars: (a + 3..a + 3 + c as u8).map(Register).collect(),
+                };
+                // must have at least external control variable
+                assert!(match &res {
+                    Self::IterateGenericForLoop { vars, .. } => !vars.is_empty(),
+                    _ => unreachable!(),
+                });
+                res
             }
             RawInstruction(OperationCode::SetList, Layout::ABC { a, b, c }) => Self::SetList {
                 table: Register(a),

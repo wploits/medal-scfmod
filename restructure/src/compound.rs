@@ -112,7 +112,7 @@ impl super::GraphStructurer {
         short_circuit: NodeIndex,
         end: NodeIndex,
     ) -> bool {
-        // cant combine for loops
+        // cant combine numeric for loops
         if self.is_loop_header(first_conditional)
             && self
                 .function
@@ -121,7 +121,7 @@ impl super::GraphStructurer {
                 .ast
                 .last()
                 .unwrap()
-                .as_for_iterate()
+                .as_num_for_next()
                 .is_some()
             || self.is_loop_header(second_conditional)
                 && self
@@ -131,7 +131,32 @@ impl super::GraphStructurer {
                     .ast
                     .last()
                     .unwrap()
-                    .as_for_iterate()
+                    .as_num_for_next()
+                    .is_some()
+        {
+            return false;
+        }
+
+        // cant combine generic for loops
+        if self.is_loop_header(first_conditional)
+            && self
+                .function
+                .block(first_conditional)
+                .unwrap()
+                .ast
+                .last()
+                .unwrap()
+                .as_generic_for_next()
+                .is_some()
+            || self.is_loop_header(second_conditional)
+                && self
+                    .function
+                    .block(second_conditional)
+                    .unwrap()
+                    .ast
+                    .last()
+                    .unwrap()
+                    .as_generic_for_next()
                     .is_some()
         {
             return false;
