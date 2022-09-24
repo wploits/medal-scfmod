@@ -1,5 +1,7 @@
 #![feature(box_patterns)]
 
+use cfg::ssa::structuring::structure_for_loops;
+use restructure::post_dominators;
 use std::{fs::File, io::Read, time};
 
 use clap::Parser;
@@ -93,34 +95,49 @@ fn main() -> anyhow::Result<()> {
 
     cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
+    let mut iterations = 0;
     let now = time::Instant::now();
-    cfg::inline::inline_expressions(&mut main);
+    loop {
+        iterations += 1;
+
+        // TODO: remove unused variables without side effects
+        cfg::inline::inline_expressions(&mut main);
+        inline_setlists(&mut main);
+
+        let mut dominators = None;
+        if !structure_compound_conditionals(&mut main)
+            && !{
+                dominators = Some(simple_fast(main.graph(), main.entry().unwrap()));
+                let post_dominators = post_dominators(main.graph().clone());
+                structure_for_loops(&mut main, dominators.as_ref().unwrap(), &post_dominators)
+            }
+        {
+            break;
+        }
+
+        let mut local_map = FxHashMap::default();
+        cfg::ssa::construct::remove_unnecessary_params(&mut main, &mut local_map);
+        cfg::ssa::construct::apply_local_map(&mut main, local_map);
+
+        if dominators.is_none() {
+            dominators = Some(simple_fast(main.graph(), main.entry().unwrap()));
+        }
+        structure_jumps(&mut main, dominators.as_ref().unwrap());
+    }
     let inlined = now.elapsed();
-    println!("inline: {:?}", inlined);
+    println!(
+        "inlining and structuring (looped {} times): {:?}",
+        iterations, inlined
+    );
 
     cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    inline_setlists(&mut main);
-
-    structure_compound_conditionals(&mut main);
-
-    let mut local_map = FxHashMap::default();
-    cfg::ssa::construct::remove_unnecessary_params(&mut main, &mut local_map);
-    cfg::ssa::construct::apply_local_map(&mut main, &local_map);
-
-    let dominators = simple_fast(main.graph(), main.entry().unwrap());
-    structure_jumps(&mut main, &dominators);
-
-    cfg::inline::inline_expressions(&mut main);
-
-    cfg::dot::render_to(&main, &mut std::io::stdout())?;
-
-    let dataflow = cfg::ssa::dataflow::DataFlow::new(&main);
-    println!("dataflow: {:#?}", dataflow);
+    //let dataflow = cfg::ssa::dataflow::DataFlow::new(&main);
+    //println!("dataflow: {:#?}", dataflow);
 
     //cfg::dot::render_to(&main, &mut std::io::stdout())?;
 
-    /*let now = time::Instant::now();
+    let now = time::Instant::now();
     cfg::ssa::destruct(&mut main, local_count, &local_groups);
     let ssa_destructed = now.elapsed();
     println!("ssa destruction: {:?}", ssa_destructed);
@@ -153,7 +170,7 @@ fn main() -> anyhow::Result<()> {
     let cfg_to_ast_time = now.elapsed();
     println!("cfg to ast lifter: {:?}", cfg_to_ast_time);*/
 
-    //println!("{}", output);**/
+    //println!("{}", output);
     Ok(())
 }
 

@@ -1,8 +1,15 @@
+use ast::LocalRw;
+use ast::{Reduce, UnaryOperation};
+use fxhash::FxHashSet;
 use itertools::Itertools;
-use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::DfsPostOrder};
+use petgraph::{
+    algo::dominators::Dominators,
+    stable_graph::NodeIndex,
+    visit::{depth_first_search, DfsEvent, DfsPostOrder},
+};
 
 use crate::{
-    block::{BasicBlockEdge, Terminator},
+    block::{BasicBlock, BasicBlockEdge, Terminator},
     function::Function,
     inline::inline_expressions,
 };
@@ -33,12 +40,26 @@ pub struct ConditionalAssignmentPattern {
     operator: PatternOperator,
 }
 
-fn simplify_condition(function: &mut Function, node: NodeIndex) {
+#[derive(Debug)]
+pub struct GenericForNextPattern {
+    body_node: NodeIndex,
+    res_locals: Vec<ast::RcLocal>,
+    // generator is not necessarily a local in Luau
+    // it is commonly something like: `generator or __get_builtin("iter")`
+    generator: ast::RValue,
+    state: ast::RcLocal,
+    internal_control: ast::RcLocal,
+}
+
+fn simplify_condition(function: &mut Function, node: NodeIndex) -> bool {
     let block = function.block_mut(node).unwrap();
     if let Some(if_stat) = block.ast.last_mut().and_then(|s| s.as_if_mut())
         && let Some(unary) = if_stat.condition.as_unary() {
         if_stat.condition = *unary.value.clone();
         block.terminator.as_mut().unwrap().swap_edges();
+        true
+    } else {
+        false
     }
 }
 
@@ -119,10 +140,14 @@ fn match_conditional_assignment(
     None
 }
 
-pub fn structure_compound_conditionals(function: &mut Function) {
+pub fn structure_compound_conditionals(function: &mut Function) -> bool {
+    let mut did_structure = false;
+    // TODO: does this need to be in dfs post order?
     let mut dfs = DfsPostOrder::new(function.graph(), function.entry().unwrap());
     while let Some(node) = dfs.next(function.graph()) {
-        simplify_condition(function, node);
+        if simplify_condition(function, node) {
+            did_structure = true;
+        }
         if let Some(pattern) = match_conditional_assignment(function, node) {
             let block = function.block_mut(node).unwrap();
             block.ast.pop();
@@ -160,14 +185,153 @@ pub fn structure_compound_conditionals(function: &mut Function) {
                 })),
             );
 
-            inline_expressions(function);
+            did_structure = true;
         }
+    }
+
+    did_structure
+}
+
+fn jumps_to_block_if_local(
+    block: &BasicBlock,
+    local: &ast::RcLocal,
+    target_node: NodeIndex,
+) -> bool {
+    // TODO: modify simplify_condition instead
+    // TODO: data flow analysis
+    /* local a = nil
+    print(a)
+    -- ...
+    if control ~= a */
+    let r#if = block.ast[block.ast.len() - 1].as_if().unwrap();
+    match r#if.condition.clone().reduce() {
+        ast::RValue::Binary(ast::Binary {
+            left: box ast::RValue::Local(cond_control),
+            right: box ast::RValue::Literal(ast::Literal::Nil),
+            operation,
+        }) if &cond_control == local => {
+            let (then_edge, else_edge) = block
+                .terminator()
+                .as_ref()
+                .unwrap()
+                .as_conditional()
+                .unwrap();
+            match operation {
+                ast::BinaryOperation::Equal => else_edge.node == target_node,
+                ast::BinaryOperation::NotEqual => then_edge.node == target_node,
+                _ => false,
+            }
+        }
+        ast::RValue::Local(cond_control) if &cond_control == local => {
+            block
+                .terminator()
+                .as_ref()
+                .unwrap()
+                .as_conditional()
+                .unwrap()
+                .0
+                .node
+                == target_node
+        }
+        ast::RValue::Unary(ast::Unary {
+            value: box ast::RValue::Local(cond_control),
+            operation: UnaryOperation::Not,
+        }) if &cond_control == local => {
+            block
+                .terminator()
+                .as_ref()
+                .unwrap()
+                .as_conditional()
+                .unwrap()
+                .1
+                .node
+                == target_node
+        }
+        _ => false,
     }
 }
 
-pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeIndex>) {
-    let mut dfs = DfsPostOrder::new(function.graph(), function.entry().unwrap());
-    while let Some(node) = dfs.next(function.graph()) {
+fn match_for_next(
+    function: &Function,
+    post_dominators: &Dominators<NodeIndex>,
+    node: NodeIndex,
+) -> Option<GenericForNextPattern> {
+    let block = function.block(node).unwrap();
+    if matches!(block.terminator, Some(Terminator::Conditional(..)))
+        && block.ast.len() >= 2
+        && let Some(assign) = block.ast[block.ast.len() - 2].as_assign()
+        && assign.right.len() == 1
+        && let assign_left = assign.left.iter().filter_map(|l| l.as_local().cloned()).collect::<Vec<_>>()
+        && assign_left.len() == assign.left.len()
+        && let Some(call) = assign.right[0].as_call()
+        && call.arguments.len() == 2
+        && let Some(state) = call.arguments[0].as_local().cloned()
+        && let Some(internal_control) = call.arguments[1].as_local().cloned()
+        && let Some(body_node) = function.successor_blocks(node).find(|&n| post_dominators.immediate_dominator(node) != Some(n))
+        && jumps_to_block_if_local(block, &assign_left[0], body_node)
+    {
+        Some(GenericForNextPattern {
+            body_node,
+            res_locals: assign_left,
+            generator: *call.value.to_owned(),
+            state,
+            internal_control
+        })
+    } else {
+        None
+    }
+}
+
+pub fn structure_for_loops(
+    function: &mut Function,
+    dominators: &Dominators<NodeIndex>,
+    post_dominators: &Dominators<NodeIndex>,
+) -> bool {
+    let mut did_structure = false;
+    for node in function.graph().node_indices().collect_vec() {
+        if let Some(pattern) = match_for_next(function, post_dominators, node) {
+            let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
+                !dominators
+                    .dominators(n)
+                    .unwrap()
+                    .contains(&pattern.body_node)
+            });
+            let init_node = init_blocks.next().unwrap();
+            assert!(init_blocks.next().is_none());
+
+            let edges = function.edges_to_block_mut(node);
+            let params = edges[0].arguments.iter().map(|(p, _)| p).collect::<FxHashSet<_>>();
+
+            // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
+            let mut generator_locals = pattern.generator.values_read().into_iter().filter(|l| !params.contains(l));
+            if let Some(generator_local) = generator_locals.next()
+                && generator_locals.next().is_none()
+            {
+                let generator_local = generator_local.clone();
+
+                let block = function.block_mut(node).unwrap();
+                let len = block.ast.len();
+                block.ast.truncate(len - 2);
+                block.ast.push(
+                    ast::GenericForNext::new(pattern.internal_control.clone(), pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+                );
+
+                function.block_mut(init_node).unwrap().ast.push(
+                    ast::GenericForInit::new(generator_local.clone(), pattern.state, pattern.internal_control)
+                        .into(),
+                );
+                did_structure = true;
+            }
+        }
+    }
+    did_structure
+}
+
+// TODO: this code is repeated in LifterContext::lift
+// TODO: rename to merge_blocks or something
+pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeIndex>) -> bool {
+    let mut did_structure = false;
+    for node in function.graph().node_indices().collect_vec() {
         if let Some(Terminator::Jump(jump)) = function.block(node).unwrap().terminator.clone()
             && jump.node != node
             && jump.arguments.is_empty()
@@ -178,6 +342,8 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             let body = function.remove_block(jump.node).unwrap().ast;
             function.block_mut(node).unwrap().ast.extend(body.0);
             function.set_block_terminator(node, terminator);
+            did_structure = true;
         }
     }
+    did_structure
 }

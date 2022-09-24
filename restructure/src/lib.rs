@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::NodeIndex,
+    stable_graph::{NodeIndex, StableDiGraph},
     visit::*,
 };
 
@@ -12,6 +12,20 @@ mod compound;
 mod conditional;
 mod jump;
 mod r#loop;
+
+pub fn post_dominators<N: Default, E: Default>(
+    mut graph: StableDiGraph<N, E>,
+) -> Dominators<NodeIndex> {
+    let exits = graph
+        .node_identifiers()
+        .filter(|&n| graph.neighbors(n).count() == 0)
+        .collect_vec();
+    let fake_exit = graph.add_node(Default::default());
+    for exit in exits {
+        graph.add_edge(exit, fake_exit, Default::default());
+    }
+    simple_fast(Reversed(&graph), fake_exit)
+}
 
 struct GraphStructurer {
     pub function: Function,

@@ -76,22 +76,16 @@ impl<'a> LifterContext<'a> {
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-<<<<<<< HEAD
-                }
-                Instruction::IterateNumericForLoop { step, .. }
-                | Instruction::PrepareNumericForLoop { step, .. } => {
-=======
-                    // if insn_index != dest_index {
-                    //     if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                    //         self.function.remove_block(jmp_block);
-                    //         self.nodes.insert(insn_index, dest_block);
-                    //         self.blocks_to_skip.insert(insn_index, dest_index);
-                    //     }
-                    // }
+                    if insn_index != dest_index {
+                        if let Some(jmp_block) = self.nodes.remove(&insn_index) {
+                            self.function.remove_block(jmp_block);
+                            self.nodes.insert(insn_index, dest_block);
+                            self.blocks_to_skip.insert(insn_index, dest_index);
+                        }
+                    }
                 }
                 Instruction::IterateNumericForLoop { skip, .. }
                 | Instruction::PrepareNumericForLoop { skip, .. } => {
->>>>>>> f3b1657f8a6f8159f0252278d1d7f77c81a1b4ee
                     self.nodes
                         .entry(insn_index + skip as usize - 131070)
                         .or_insert_with(|| self.function.new_block());
@@ -416,40 +410,16 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
 
-<<<<<<< HEAD
                     let assign = ast::Assign::new(
                         vec![self.locals[destination].clone().into()],
                         vec![value.clone()],
                     );
-=======
-                    let condition_block = self.nodes[&start];
-                    let next_block = self.get_node(&(end + 1));
-                    let skip = match &self.bytecode.code[end] {
-                        Instruction::Jump(skip) => *skip as usize,
-                        _ => unreachable!(),
-                    };
->>>>>>> f3b1657f8a6f8159f0252278d1d7f77c81a1b4ee
 
                     self.function
                         .block_mut(self.nodes[&(end + 1)])
                         .unwrap()
                         .ast
                         .push(assign.into());
-<<<<<<< HEAD
-=======
-
-                    self.function.set_block_terminator(
-                        condition_block,
-                        Some(Terminator::conditional(next_block, new_block)),
-                    );
-
-                    self.function.set_block_terminator(
-                        new_block,
-                        Some(Terminator::jump(
-                            self.get_node(&(end + skip as usize - 131070)),
-                        )),
-                    );
->>>>>>> f3b1657f8a6f8159f0252278d1d7f77c81a1b4ee
                 }
                 &Instruction::TailCall {
                     function,
@@ -682,7 +652,7 @@ impl<'a> LifterContext<'a> {
                         self.locals[&control[2]].clone(),
                     );
                     statements
-                        .push(ast::NumForInit::from_locals(internal_counter, limit, step).into());
+                        .push(ast::NumForInit::new(internal_counter, limit, step).into());
                 }
                 Instruction::IterateNumericForLoop { control, skip } => {
                     let (internal_counter, limit, step, external_counter) = (
@@ -711,61 +681,39 @@ impl<'a> LifterContext<'a> {
                 Instruction::IterateGenericForLoop {
                     generator,
                     state,
-                    control,
+                    internal_control,
                     vars,
                 } => {
-                    statements.push(
-                        ast::GenericForNext::from_locals(
-                            self.locals[control].clone(),
-                            vars.iter()
-                                .skip(1)
-                                .map(|r| self.locals[r].clone())
-                                .collect(),
-                            self.locals[generator].clone(),
-                            self.locals[state].clone(),
-                        )
-                        .into(),
-                    );
-
-                    let body_node = self.get_node(&(end + 1));
-                    self.function.block_mut(body_node).unwrap().ast.insert(
-                        0,
-                        ast::Assign::new(
-                            vec![self.locals[&vars[0]].clone().into()],
-                            vec![self.locals[control].clone().into()],
-                        )
-                        .into(),
-                    );
-                }
-                &Instruction::IterateGenericForLoop {
-                    iterator,
-                    number_of_variables,
-                } => {
-                    //assert!(number_of_variables >= 2);
-                    let generator = &self.locals[&iterator];
-                    let state = &self.locals[&Register(iterator.0 + 1)];
-                    let key = &self.locals[&Register(iterator.0 + 2)];
-                    let returned_values = (iterator.0 + 3..iterator.0 + 3 + number_of_variables)
-                        .map(|r| self.locals[&Register(r)].clone())
-                        .collect_vec();
-                    let returned_key = returned_values[0].clone();
+                    let generator = self.locals[generator].clone();
+                    let state = self.locals[state].clone();
+                    let internal_control = self.locals[internal_control].clone();
+                    let vars = vars
+                        .iter()
+                        .map(|x| self.locals[x].clone())
+                        .collect::<Vec<_>>();
+                    let control = vars[0].clone();
                     statements.push(
                         ast::Assign::new(
-                            returned_values.into_iter().map(|x| x.into()).collect(),
+                            vars.into_iter().map(|l| l.into()).collect(),
                             vec![ast::Call::new(
                                 generator.clone().into(),
-                                vec![state.clone().into(), key.clone().into()],
+                                vec![state.clone().into(), internal_control.clone().into()],
                             )
                             .into()],
                         )
                         .into(),
                     );
-                    statements.push(
-                        ast::Assign::new(vec![key.clone().into()], vec![returned_key.into()])
-                            .into(),
+                    statements.push(ast::If::new(control.clone().into(), None, None).into());
+
+                    let body_node = self.get_node(&(end + 1));
+                    self.function.block_mut(body_node).unwrap().ast.insert(
+                        0,
+                        ast::Assign::new(
+                            vec![internal_control.clone().into()],
+                            vec![control.clone().into()],
+                        )
+                        .into(),
                     );
-                    statements.push(ast::If::new(key.clone().into(), None, None).into());
-                    println!("{} {} {}", generator, state, key);
                 }
                 _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
@@ -786,15 +734,6 @@ impl<'a> LifterContext<'a> {
     fn lift_blocks(&mut self) {
         let ranges = self.code_ranges();
         for (start, end) in ranges {
-<<<<<<< HEAD
-            let mut block = ast::Block::default();
-            self.lift_instruction(start, end, &mut block);
-            self.function
-                .block_mut(self.nodes[&start])
-                .unwrap()
-                .ast
-                .extend(block.0);
-=======
             // TODO: gotta be a better way
             // we need to do this in case that the body of a for loop is after the for loop instruction
             // see: IterateNumericForLoop
@@ -803,7 +742,6 @@ impl<'a> LifterContext<'a> {
             self.lift_instruction(start, end, &mut statements);
             self.function.block_mut(self.nodes[&start]).unwrap().ast = statements;
 
->>>>>>> f3b1657f8a6f8159f0252278d1d7f77c81a1b4ee
             match self.bytecode.code[end] {
                 Instruction::Equal { .. }
                 | Instruction::LessThan { .. }
@@ -887,36 +825,6 @@ impl<'a> LifterContext<'a> {
                     .ast
                     .extend(block.ast.0);
                 context.function.set_block_terminator(node, terminator);
-            }
-        }
-
-        // TODO: this can be integrated into the loop above with no changes
-        for node in context.function.graph().node_indices().collect_vec() {
-            let block = context.function.block(node).unwrap();
-            if let Some(Statement::GenericForNext(generic_for_next)) = block.ast.0.last() {
-                let body_node = block
-                    .terminator()
-                    .as_ref()
-                    .unwrap()
-                    .as_conditional()
-                    .unwrap()
-                    .0
-                    .node;
-                let mut init_blocks = context
-                    .function
-                    .predecessor_blocks(node)
-                    .filter(|&n| !dominators.dominators(n).unwrap().contains(&body_node));
-                let init_node = init_blocks.next().unwrap();
-                assert!(init_blocks.next().is_none());
-                let generator = generic_for_next.generator.as_local().unwrap().clone();
-                let state = generic_for_next.state.as_local().unwrap().clone();
-                let control = generic_for_next.control.1.as_local().unwrap().clone();
-                context
-                    .function
-                    .block_mut(init_node)
-                    .unwrap()
-                    .ast
-                    .push(ast::GenericForInit::from_locals(generator, state, control).into());
             }
         }
 

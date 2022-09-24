@@ -5,26 +5,13 @@ use fxhash::FxHashSet;
 use itertools::Itertools;
 use std::iter;
 
+use crate::post_dominators;
 use crate::GraphStructurer;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
     stable_graph::{NodeIndex, StableDiGraph},
     visit::{IntoNeighbors, IntoNodeIdentifiers, Reversed},
 };
-
-fn post_dominators<N: Default, E: Default>(
-    mut graph: StableDiGraph<N, E>,
-) -> Dominators<NodeIndex> {
-    let exits = graph
-        .node_identifiers()
-        .filter(|&n| graph.neighbors(n).count() == 0)
-        .collect_vec();
-    let fake_exit = graph.add_node(Default::default());
-    for exit in exits {
-        graph.add_edge(exit, fake_exit, Default::default());
-    }
-    simple_fast(Reversed(&graph), fake_exit)
-}
 
 impl GraphStructurer {
     pub(crate) fn is_loop_header(&self, node: NodeIndex) -> bool {
@@ -286,13 +273,10 @@ impl GraphStructurer {
                     let init_ast = &mut self.function.block_mut(init_block).unwrap().ast;
                     let for_init = init_ast.remove(init_index).into_generic_for_init().unwrap();
                     let generic_for = ast::GenericFor::new(
-                        iter::once(generic_for_next.control.0.as_local().unwrap().clone())
-                            .chain(
-                                generic_for_next
-                                    .other_res_locals
-                                    .iter()
-                                    .map(|l| l.as_local().unwrap().clone()),
-                            )
+                        generic_for_next
+                            .res_locals
+                            .iter()
+                            .map(|l| l.as_local().unwrap().clone())
                             .collect(),
                         for_init.0.right,
                         body_ast,

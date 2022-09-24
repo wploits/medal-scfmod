@@ -14,7 +14,7 @@ pub struct NumForInit {
 }
 
 impl NumForInit {
-    pub fn from_locals(counter: RcLocal, limit: RcLocal, step: RcLocal) -> Self {
+    pub fn new(counter: RcLocal, limit: RcLocal, step: RcLocal) -> Self {
         Self {
             counter: (LValue::Local(counter.clone()), RValue::Local(counter)),
             limit: (LValue::Local(limit.clone()), RValue::Local(limit)),
@@ -261,14 +261,14 @@ impl fmt::Display for NumericFor {
 pub struct GenericForInit(pub Assign);
 
 impl GenericForInit {
-    pub fn from_locals(generator: RcLocal, state: RcLocal, control: RcLocal) -> Self {
+    pub fn new(generator: RcLocal, state: RcLocal, initial_control: RcLocal) -> Self {
         Self(Assign::new(
             vec![
                 generator.clone().into(),
                 state.clone().into(),
-                control.clone().into(),
+                initial_control.clone().into(),
             ],
-            vec![generator.into(), state.into(), control.into()],
+            vec![generator.into(), state.into(), initial_control.into()],
         ))
     }
 }
@@ -323,23 +323,24 @@ impl fmt::Display for GenericForInit {
 #[derive(Debug, PartialEq, Clone)]
 pub struct GenericForNext {
     // TODO: store an `Assign` with a `Call` and an `If` instead?
-    pub control: (LValue, RValue), // RcLocal, // cant be of type RcLocal because Traverse
-    pub other_res_locals: Vec<LValue>,
+    pub res_locals: Vec<LValue>,
     pub generator: RValue,
     pub state: RValue,
+    pub internal_control: RValue, // RcLocal, // cant be of type RcLocal because Traverse
 }
 
 impl GenericForNext {
-    pub fn from_locals(
-        control: RcLocal,
-        other_res_locals: Vec<RcLocal>,
-        generator: RcLocal,
+    pub fn new(
+        internal_control: RcLocal,
+        res_locals: Vec<RcLocal>,
+        generator: RValue,
         state: RcLocal,
     ) -> Self {
+        assert!(!res_locals.is_empty());
         Self {
-            control: (LValue::Local(control.clone()), RValue::Local(control)),
-            other_res_locals: other_res_locals.into_iter().map(LValue::Local).collect(),
-            generator: RValue::Local(generator),
+            internal_control: RValue::Local(internal_control),
+            res_locals: res_locals.into_iter().map(LValue::Local).collect(),
+            generator,
             state: RValue::Local(state),
         }
     }
@@ -351,17 +352,19 @@ has_side_effects!(GenericForNext);
 
 impl Traverse for GenericForNext {
     fn lvalues_mut(&mut self) -> Vec<&mut LValue> {
-        iter::once(&mut self.control.0)
-            .chain(&mut self.other_res_locals)
-            .collect()
+        self.res_locals.iter_mut().collect()
     }
 
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
-        vec![&mut self.generator, &mut self.state, &mut self.control.1]
+        vec![
+            &mut self.generator,
+            &mut self.state,
+            &mut self.internal_control,
+        ]
     }
 
     fn rvalues(&self) -> Vec<&RValue> {
-        vec![&self.generator, &self.state, &self.control.1]
+        vec![&self.generator, &self.state, &self.internal_control]
     }
 }
 
@@ -371,7 +374,7 @@ impl LocalRw for GenericForNext {
             .values_read()
             .into_iter()
             .chain(self.state.values_read().into_iter())
-            .chain(self.control.1.values_read())
+            .chain(self.internal_control.values_read())
             .collect()
     }
 
@@ -380,33 +383,21 @@ impl LocalRw for GenericForNext {
             .values_read_mut()
             .into_iter()
             .chain(self.state.values_read_mut().into_iter())
-            .chain(self.control.1.values_read_mut())
+            .chain(self.internal_control.values_read_mut())
             .collect()
     }
 
     fn values_written(&self) -> Vec<&RcLocal> {
-        self.control
-            .0
-            .values_written()
-            .into_iter()
-            .chain(
-                self.other_res_locals
-                    .iter()
-                    .flat_map(|l| l.values_written()),
-            )
+        self.res_locals
+            .iter()
+            .flat_map(|l| l.values_written())
             .collect()
     }
 
     fn values_written_mut(&mut self) -> Vec<&mut RcLocal> {
-        self.control
-            .0
-            .values_written_mut()
-            .into_iter()
-            .chain(
-                self.other_res_locals
-                    .iter_mut()
-                    .flat_map(|l| l.values_written_mut()),
-            )
+        self.res_locals
+            .iter_mut()
+            .flat_map(|l| l.values_written_mut())
             .collect()
     }
 }
@@ -416,13 +407,11 @@ impl fmt::Display for GenericForNext {
         write!(
             f,
             "-- GenericForNext\n{} = {}({}, {})\nif {} ~= nil\n-- end GenericForNext",
-            iter::once(&self.control.0)
-                .chain(&self.other_res_locals)
-                .join(", "),
+            self.res_locals.iter().join(", "),
             self.generator,
             self.state,
-            self.control.1,
-            self.control.1,
+            self.internal_control,
+            self.res_locals[0],
         )
     }
 }

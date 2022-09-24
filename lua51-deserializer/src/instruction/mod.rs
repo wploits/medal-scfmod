@@ -178,7 +178,8 @@ pub enum Instruction {
         state: Register,
         // internal control variable
         // initial value ex. `5` in `for i, v in next, {}, 5`
-        control: Register,
+        // assigned to external control (vars[0]) at the start of the loop body
+        internal_control: Register,
         // variables returned by generator call, starting with the external control
         vars: Vec<Register>,
     },
@@ -356,7 +357,7 @@ impl Instruction {
                 let res = Self::IterateGenericForLoop {
                     generator: Register(a),
                     state: Register(a + 1),
-                    control: Register(a + 2),
+                    internal_control: Register(a + 2),
                     vars: (a + 3..a + 3 + c as u8).map(Register).collect(),
                 };
                 // must have at least external control variable
