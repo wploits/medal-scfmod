@@ -313,7 +313,11 @@ impl LocalRw for GenericForInit {
 
 impl fmt::Display for GenericForInit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "-- GenericForInit\n{}\n[internal control] = {}\n-- end GenericForInit", self.0, self.0.left[2])
+        write!(
+            f,
+            "-- GenericForInit\n{}\n[internal control] = {}\n-- end GenericForInit",
+            self.0, self.0.left[2]
+        )
     }
 }
 
@@ -329,11 +333,7 @@ pub struct GenericForNext {
 }
 
 impl GenericForNext {
-    pub fn new(
-        res_locals: Vec<RcLocal>,
-        generator: RValue,
-        state: RcLocal,
-    ) -> Self {
+    pub fn new(res_locals: Vec<RcLocal>, generator: RValue, state: RcLocal) -> Self {
         assert!(!res_locals.is_empty());
         Self {
             res_locals: res_locals.into_iter().map(LValue::Local).collect(),
@@ -353,10 +353,7 @@ impl Traverse for GenericForNext {
     }
 
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
-        vec![
-            &mut self.generator,
-            &mut self.state,
-        ]
+        vec![&mut self.generator, &mut self.state]
     }
 
     fn rvalues(&self) -> Vec<&RValue> {
