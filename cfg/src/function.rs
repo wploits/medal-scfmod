@@ -138,17 +138,19 @@ impl Function {
         self.graph.neighbors_directed(block, Direction::Incoming)
     }
 
-    pub fn edges_to_block(&self, node: NodeIndex) -> Vec<&BasicBlockEdge> {
+    pub fn edges_to_block(&self, node: NodeIndex) -> Vec<(NodeIndex, &BasicBlockEdge)> {
         self.predecessor_blocks(node)
-            .flat_map(|block| {
+            .flat_map(|p| {
                 self.graph
-                    .node_weight(block)
+                    .node_weight(p)
                     .unwrap()
                     .terminator
                     .as_ref()
-                    .map_or_else(Vec::new, |t| t.edges())
+                    .map_or_else(Vec::new, |t| {
+                        t.edges().into_iter().map(|e| (p, e)).collect()
+                    })
             })
-            .filter(|edge| edge.node == node)
+            .filter(|(_, e)| e.node == node)
             .collect::<Vec<_>>()
     }
 

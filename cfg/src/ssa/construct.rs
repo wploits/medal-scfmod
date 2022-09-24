@@ -244,7 +244,7 @@ impl<'a> SsaConstructor<'a> {
     fn try_remove_trivial_param(&mut self, node: NodeIndex, param_local: RcLocal) -> RcLocal {
         let mut same = None;
         let edges = self.function.edges_to_block(node);
-        let args_in = edges.iter().map(|e| {
+        let args_in = edges.iter().map(|(_, e)| {
             e.arguments
                 .iter()
                 .find(|(p, _)| p == &param_local)
@@ -279,6 +279,7 @@ impl<'a> SsaConstructor<'a> {
                     .function
                     .edges_to_block(node)
                     .into_iter()
+                    .map(|(_, e)| e)
                     .cloned()
                     .collect::<Vec<_>>();
                 if !edges.is_empty() {

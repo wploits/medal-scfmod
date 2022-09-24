@@ -300,8 +300,9 @@ pub fn structure_for_loops(
             assert!(init_blocks.next().is_none());
             assert!(function.successor_blocks(init_node).count() == 1);
 
-            let edges = function.edges_to_block_mut(node);
+            let edges = function.edges_to_block(node);
             let params = edges[0]
+                .1
                 .arguments
                 .iter()
                 .map(|(p, _)| p)
@@ -318,22 +319,34 @@ pub fn structure_for_loops(
             {
                 let generator_local = generator_local.clone();
 
-                if params.contains(&pattern.internal_control)
-                {
+                if params.contains(&pattern.internal_control) {
                     let initial_control = function.block(init_node).unwrap().terminator().as_ref().unwrap().edges()[0].arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.clone();
-
-                    let block = function.block_mut(node).unwrap();
-                    let len = block.ast.len();
-                    block.ast.truncate(len - 2);
-                    block.ast.push(
-                        ast::GenericForNext::new(pattern.internal_control, pattern.res_locals, pattern.generator, pattern.state.clone()).into()
-                    );
-    
-                    function.block_mut(init_node).unwrap().ast.push(
-                        ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
-                            .into(),
-                    );
-                    did_structure = true;
+                    let mut invalid_for = false;
+                    for (_, edge) in edges.into_iter().filter(|(p, _)| p != &init_node) {
+                        if edge.arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1
+                            != pattern.res_locals[0] {
+                                invalid_for = true;
+                                break;
+                            }
+                    }
+                    if !invalid_for {
+                        let block = function.block_mut(node).unwrap();
+                        let len = block.ast.len();
+                        block.ast.truncate(len - 2);
+                        block.ast.push(
+                            ast::GenericForNext::new(pattern.internal_control, pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+                        );
+        
+                        function.block_mut(init_node).unwrap().ast.push(
+                            ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
+                                .into(),
+                        );
+                        did_structure = true;
+                    }
+                } else {
+                    // initial_control is nil,
+                    // there is only a single control variable
+                    todo!();
                 }
             }
         }

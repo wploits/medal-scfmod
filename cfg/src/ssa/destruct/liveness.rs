@@ -63,7 +63,7 @@ impl Liveness {
                     .defs
                     .extend(instruction.values_written().into_iter().cloned());
             }
-            for edge in function.edges_to_block(node) {
+            for (_, edge) in function.edges_to_block(node) {
                 liveness
                     .block_liveness
                     .entry(edge.node)

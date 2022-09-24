@@ -26,13 +26,13 @@ impl ParamDependencyGraph {
 
         let edges = function.edges_to_block(node);
         if !edges.is_empty() {
-            for (param, _) in &edges[0].arguments {
+            for (param, _) in &edges[0].1.arguments {
                 this.add_node(param.clone());
             }
         }
 
         for edge in edges {
-            for (param, arg) in &edge.arguments {
+            for (param, arg) in &edge.1.arguments {
                 if let Some(&defining_param_node) = this.local_to_node.get(arg) {
                     let param_node = this.local_to_node[param];
                     if param_node != defining_param_node {
