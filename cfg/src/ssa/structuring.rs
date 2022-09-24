@@ -258,7 +258,7 @@ fn match_for_next(
 ) -> Option<GenericForNextPattern> {
     let block = function.block(node).unwrap();
     if matches!(block.terminator, Some(Terminator::Conditional(..)))
-        && block.ast.len() >= 2
+        && block.ast.len() == 2
         && let Some(assign) = block.ast[block.ast.len() - 2].as_assign()
         && assign.right.len() == 1
         && let assign_left = assign.left.iter().filter_map(|l| l.as_local().cloned()).collect::<Vec<_>>()
@@ -298,29 +298,43 @@ pub fn structure_for_loops(
             });
             let init_node = init_blocks.next().unwrap();
             assert!(init_blocks.next().is_none());
+            assert!(function.successor_blocks(init_node).count() == 1);
 
             let edges = function.edges_to_block_mut(node);
-            let params = edges[0].arguments.iter().map(|(p, _)| p).collect::<FxHashSet<_>>();
+            let params = edges[0]
+                .arguments
+                .iter()
+                .map(|(p, _)| p)
+                .collect::<FxHashSet<_>>();
 
             // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
-            let mut generator_locals = pattern.generator.values_read().into_iter().filter(|l| !params.contains(l));
+            let mut generator_locals = pattern
+                .generator
+                .values_read()
+                .into_iter()
+                .filter(|l| !params.contains(l));
             if let Some(generator_local) = generator_locals.next()
                 && generator_locals.next().is_none()
             {
                 let generator_local = generator_local.clone();
 
-                let block = function.block_mut(node).unwrap();
-                let len = block.ast.len();
-                block.ast.truncate(len - 2);
-                block.ast.push(
-                    ast::GenericForNext::new(pattern.internal_control.clone(), pattern.res_locals, pattern.generator, pattern.state.clone()).into()
-                );
+                if params.contains(&pattern.internal_control)
+                {
+                    let initial_control = function.block(init_node).unwrap().terminator().as_ref().unwrap().edges()[0].arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.clone();
 
-                function.block_mut(init_node).unwrap().ast.push(
-                    ast::GenericForInit::new(generator_local.clone(), pattern.state, pattern.internal_control)
-                        .into(),
-                );
-                did_structure = true;
+                    let block = function.block_mut(node).unwrap();
+                    let len = block.ast.len();
+                    block.ast.truncate(len - 2);
+                    block.ast.push(
+                        ast::GenericForNext::new(pattern.internal_control, pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+                    );
+    
+                    function.block_mut(init_node).unwrap().ast.push(
+                        ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
+                            .into(),
+                    );
+                    did_structure = true;
+                }
             }
         }
     }

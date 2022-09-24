@@ -651,8 +651,7 @@ impl<'a> LifterContext<'a> {
                         self.locals[&control[1]].clone(),
                         self.locals[&control[2]].clone(),
                     );
-                    statements
-                        .push(ast::NumForInit::new(internal_counter, limit, step).into());
+                    statements.push(ast::NumForInit::new(internal_counter, limit, step).into());
                 }
                 Instruction::IterateNumericForLoop { control, skip } => {
                     let (internal_counter, limit, step, external_counter) = (
