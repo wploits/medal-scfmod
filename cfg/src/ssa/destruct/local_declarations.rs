@@ -75,8 +75,6 @@ pub(crate) fn declare_locals(
         if reference_nodes.is_empty() {
             continue;
         }
-        println!("yeeyee {:?} {:?}", local, reference_nodes);
-
         if reference_nodes.len() == 1 {
             let reference_node = reference_nodes.into_iter().next().unwrap();
             let block = function.block_mut(reference_node).unwrap();
