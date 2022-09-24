@@ -1,3 +1,5 @@
+#![feature(box_patterns)]
+
 pub mod block;
 pub mod dot;
 pub mod function;
