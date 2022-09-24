@@ -330,11 +330,15 @@ pub fn structure_for_loops(
                             }
                     }
                     if !invalid_for {
+                        for edge in function.edges_to_block_mut(node) {
+                            edge.arguments.clear();
+                        }
+
                         let block = function.block_mut(node).unwrap();
                         let len = block.ast.len();
                         block.ast.truncate(len - 2);
                         block.ast.push(
-                            ast::GenericForNext::new(pattern.internal_control, pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+                            ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
                         );
         
                         function.block_mut(init_node).unwrap().ast.push(
