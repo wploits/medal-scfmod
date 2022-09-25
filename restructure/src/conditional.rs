@@ -26,7 +26,7 @@ impl GraphStructurer {
         let then_successors = self.function.successor_blocks(then_node).collect_vec();
         let else_successors = self.function.successor_blocks(else_node).collect_vec();
 
-        if then_successors.len() != 1 || then_successors != else_successors {
+        if then_successors.len() > 1 || then_successors != else_successors {
             return false;
         }
 
@@ -45,9 +45,13 @@ impl GraphStructurer {
         if_stat.else_block = Some(else_block.ast);
         Self::simplify_if(if_stat);
 
-        let exit = then_successors[0];
-        self.function
-            .set_block_terminator(entry, Some(Terminator::jump(exit)));
+        let exit = then_successors.get(0).cloned();
+        if let Some(exit) = exit  {
+            self.function
+                .set_block_terminator(entry, Some(Terminator::jump(exit)));
+        } else {
+            self.function.set_block_terminator(entry, None);
+        }
         self.match_jump(entry, exit, dominators);
 
         true
@@ -91,7 +95,7 @@ impl GraphStructurer {
 
             self.function
                 .set_block_terminator(entry, Some(Terminator::jump(else_node)));
-            self.match_jump(entry, else_node, dominators);
+            self.match_jump(entry, Some(else_node), dominators);
 
             true
         };

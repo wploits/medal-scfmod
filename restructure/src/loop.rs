@@ -205,7 +205,7 @@ impl GraphStructurer {
                         .push(while_stat.into());
                     self.function
                         .set_block_terminator(header, Some(Terminator::jump(next)));
-                    self.match_jump(header, next, dominators);
+                    self.match_jump(header, Some(next), dominators);
                 } else if let ast::Statement::NumForNext(num_for_next) = statement {
                     let predecessors = self
                         .function
@@ -243,7 +243,7 @@ impl GraphStructurer {
                     self.function.remove_block(header);
                     self.function
                         .set_block_terminator(init_block, Some(Terminator::jump(next)));
-                    self.match_jump(init_block, next, dominators);
+                    self.match_jump(init_block, Some(next), dominators);
                 } else if let ast::Statement::GenericForNext(generic_for_next) = statement {
                     let predecessors = self
                         .function
@@ -285,7 +285,7 @@ impl GraphStructurer {
                     self.function.remove_block(header);
                     self.function
                         .set_block_terminator(init_block, Some(Terminator::jump(next)));
-                    self.match_jump(init_block, next, dominators);
+                    self.match_jump(init_block, Some(next), dominators);
                 } else {
                     panic!()
                 }

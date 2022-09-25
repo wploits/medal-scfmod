@@ -89,7 +89,7 @@ impl GraphStructurer {
             0 => false,
             1 => {
                 // remove unnecessary jumps to allow pattern matching
-                self.match_jump(node, successors[0], dominators)
+                self.match_jump(node, Some(successors[0]), dominators)
             }
             2 => {
                 let (then_edge, else_edge) = self
