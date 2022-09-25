@@ -103,11 +103,13 @@ impl Formatter {
                     Statement::Return(Return { values }) => values.is_empty(),
                     _ => false,
                 })
-                .unwrap_or_default() as usize].iter().enumerate()
+                .unwrap_or_default() as usize]
+            .iter()
+            .enumerate()
         {
             if i != 0 {
                 self.write(iter::once('\n'));
-            } 
+            }
             self.format_statement(statement);
         }
 
@@ -117,8 +119,7 @@ impl Formatter {
     fn format_block(&mut self, block: &Block) {
         self.indentation_level += 1;
 
-        for statement in &block.0
-        {
+        for statement in &block.0 {
             self.format_statement(statement);
             self.write(iter::once('\n'));
         }
@@ -185,7 +186,7 @@ impl Formatter {
                     self.indent();
                 }
                 self.write("end".chars());
-            },
+            }
             _ => self.write(rvalue.to_string().chars()),
         }
     }
@@ -193,8 +194,7 @@ impl Formatter {
     fn format_arg_list(&mut self, list: &[RValue]) {
         for (index, rvalue) in list.iter().enumerate() {
             if index + 1 == list.len() {
-                // TODO: print((...))
-                let wrap = matches!(rvalue, RValue::Call(_));
+                let wrap = matches!(rvalue, RValue::Select(_));
                 if wrap {
                     self.write("(".chars());
                 }
@@ -204,6 +204,7 @@ impl Formatter {
                 }
             } else {
                 self.format_rvalue(rvalue);
+                self.write(", ".chars());
             }
         }
     }

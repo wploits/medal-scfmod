@@ -433,17 +433,15 @@ impl<'a> LifterContext<'a> {
                     arguments,
                 } => {
                     top = Some((
-                        ast::RValue::Variadic(
-                            ast::Call::new(
-                                self.locals[&function].clone().into(),
-                                (1..arguments)
-                                    .map(|argument| {
-                                        self.locals[&Register(function.0 + argument)].clone().into()
-                                    })
-                                    .collect(),
-                            )
-                            .into(),
-                        ),
+                        ast::Call::new(
+                            self.locals[&function].clone().into(),
+                            (1..arguments)
+                                .map(|argument| {
+                                    self.locals[&Register(function.0 + argument)].clone().into()
+                                })
+                                .collect(),
+                        )
+                        .into(),
                         function.0,
                     ));
                 }
@@ -496,7 +494,7 @@ impl<'a> LifterContext<'a> {
                     let call = ast::Call::new(self.locals[&function].clone().into(), arguments);
 
                     if return_values == 0 {
-                        top = Some((ast::RValue::Variadic(call.into()), function.0));
+                        top = Some((call.into(), function.0));
                     } else if return_values == 1 {
                         statements.push(call.into());
                     } else {
@@ -505,7 +503,7 @@ impl<'a> LifterContext<'a> {
                                 (function.0..function.0 + return_values - 1)
                                     .map(|r| self.locals[&Register(r)].clone().into())
                                     .collect_vec(),
-                                vec![call.into()],
+                                vec![ast::RValue::Select(call.into())],
                             )
                             .into(),
                         );
@@ -524,19 +522,19 @@ impl<'a> LifterContext<'a> {
                     );
                 }
                 &Instruction::VarArg(destination, b) => {
-                    let vararg = ast::RValue::Variadic(ast::VarArg {}.into());
+                    let vararg = ast::VarArg {};
                     if b != 0 {
                         statements.push(
                             ast::Assign::new(
                                 (destination.0..destination.0 + b - 1)
                                     .map(|r| self.locals[&Register(r)].clone().into())
                                     .collect(),
-                                vec![vararg],
+                                vec![ast::RValue::Select(vararg.into())],
                             )
                             .into(),
                         );
                     } else {
-                        top = Some((vararg, destination.0));
+                        top = Some((vararg.into(), destination.0));
                     }
                 }
                 Instruction::Closure {

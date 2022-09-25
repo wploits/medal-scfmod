@@ -70,16 +70,16 @@ pub trait Reduce {
 
 #[enum_dispatch(LocalRw, SideEffects, Traverse)]
 #[derive(Debug, Clone, PartialEq, EnumAsInner)]
-pub enum Variadic {
+pub enum Select {
     VarArg(VarArg),
     Call(Call),
 }
 
-impl fmt::Display for Variadic {
+impl fmt::Display for Select {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Variadic::VarArg(_) => write!(f, "..."),
-            Variadic::Call(call) => write!(f, "{}", call),
+            Select::VarArg(var_arg) => write!(f, "{}", var_arg),
+            Select::Call(call) => write!(f, "{}", call),
         }
     }
 }
@@ -90,13 +90,14 @@ pub enum RValue {
     Local(RcLocal),
     Global(Global),
     Call(Call),
+    VarArg(VarArg),
     Table(Table),
     Literal(Literal),
     Index(Index),
     Unary(Unary),
     Binary(Binary),
     Closure(Closure),
-    Variadic(Variadic),
+    Select(Select),
 }
 
 impl type_system::Infer for RValue {
@@ -151,12 +152,13 @@ impl fmt::Display for RValue {
             RValue::Global(global) => write!(f, "{}", global),
             RValue::Literal(literal) => write!(f, "{}", literal),
             RValue::Call(call) => write!(f, "{}", call),
+            RValue::VarArg(var_arg) => write!(f, "{}", var_arg),
             RValue::Table(table) => write!(f, "{}", table),
             RValue::Index(index) => write!(f, "{}", index),
             RValue::Unary(unary) => write!(f, "{}", unary),
             RValue::Binary(binary) => write!(f, "{}", binary),
             RValue::Closure(closure) => write!(f, "{}", closure),
-            RValue::Variadic(variadic) => write!(f, "{}", variadic),
+            RValue::Select(select) => write!(f, "{}", select),
         }
     }
 }
