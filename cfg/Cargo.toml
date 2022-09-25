@@ -7,19 +7,19 @@ authors.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "1.0.30"
+thiserror = "1.0.36"
 enum_dispatch = "0.3.8"
-enum-as-inner = "0.5.0"
+enum-as-inner = "0.5.1"
 # graph = { path = "../graph", features = ["dot"] }
 petgraph = "0.6.2"
-indexmap = "1.8.2"
+indexmap = "1.9.1"
 ast = { path = "../ast" }
 dot = { version = "0.1.4" }
 fxhash = "0.2.1"
-itertools = "0.10.3"
+itertools = "0.10.5"
 contracts = "0.6.3"
 # ritelinked = "0.3.2"
-hashlink = "0.8.0"
+hashlink = "0.8.1"
 array_tool = "1.0.3"
 
 [profile.release]
