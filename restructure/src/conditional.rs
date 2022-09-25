@@ -46,7 +46,7 @@ impl GraphStructurer {
         Self::simplify_if(if_stat);
 
         let exit = then_successors.get(0).cloned();
-        if let Some(exit) = exit  {
+        if let Some(exit) = exit {
             self.function
                 .set_block_terminator(entry, Some(Terminator::jump(exit)));
         } else {
