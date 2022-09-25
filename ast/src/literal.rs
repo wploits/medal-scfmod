@@ -41,7 +41,13 @@ impl fmt::Display for Literal {
             Literal::Nil => write!(f, "nil"),
             Literal::Boolean(value) => write!(f, "{}", value),
             Literal::Number(value) => write!(f, "{}", value),
-            Literal::String(value) => write!(f, "\"{}\"", value),
+            Literal::String(value)
+                if value.is_ascii() && value.chars().all(|c| c.is_ascii_graphic() || c == ' ') =>
+            {
+                write!(f, "\"{}\"", value)
+            }
+            // TODO: string escaping
+            _ => todo!(),
         }
     }
 }

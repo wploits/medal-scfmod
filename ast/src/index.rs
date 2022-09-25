@@ -55,13 +55,19 @@ impl fmt::Display for Index {
             "{}{}",
             // TODO: this is repeated in call
             match self.left.as_ref() {
-                RValue::Local(_)
-                | RValue::Global(_)
-                | RValue::Index(_) => self.left.to_string(),
+                RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.left.to_string(),
                 _ => "(".to_string() + &self.left.to_string() + ")",
             },
             match &self.right {
-                box RValue::Literal(super::Literal::String(field)) => format!(".{}", field),
+                box RValue::Literal(super::Literal::String(field))
+                    if field.is_ascii()
+                        && field
+                            .chars()
+                            .enumerate()
+                            .all(|(i, c)| (i != 0 && c.is_ascii_digit())
+                                || c.is_ascii_alphabetic()
+                                || c == '_') =>
+                    format!(".{}", field),
                 _ => format!("[{}]", self.right),
             }
         )

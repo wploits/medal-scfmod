@@ -65,9 +65,7 @@ impl fmt::Display for Call {
             "{}({})",
             // TODO: this is duplicated in Index
             match self.value.as_ref() {
-                RValue::Local(_)
-                | RValue::Global(_)
-                | RValue::Index(_) => self.value.to_string(),
+                RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.value.to_string(),
                 _ => "(".to_string() + &self.value.to_string() + ")",
             },
             formatter::format_list(&self.arguments)
