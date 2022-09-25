@@ -59,7 +59,7 @@ impl Structurer {
 
     pub fn visit_block(&mut self, block: &mut Block) {
         for statement in &mut block.0 {
-            for rvalue in statement.rvalues_mut() {
+            statement.traverse_rvalues(&mut |rvalue| {
                 if let Some(closure) = rvalue.as_closure_mut() {
                     let (body, upvalues) = &self.structured[&closure.id];
                     let mut body = body.clone();
@@ -71,7 +71,7 @@ impl Structurer {
                     replace_locals(&mut body, &local_map);
                     closure.body = body;
                 }
-            }
+            });
             match statement {
                 Statement::If(r#if) => {
                     if let Some(b) = &mut r#if.then_block {
