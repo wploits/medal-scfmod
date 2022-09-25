@@ -29,7 +29,7 @@ struct Args {
     file: String,
 }
 
-pub fn inline_setlists(function: &mut Function) {
+pub fn inline(function: &mut Function) {
     let mut changed = true;
     while changed {
         inline_expressions(function);
@@ -101,8 +101,7 @@ fn main() -> anyhow::Result<()> {
         iterations += 1;
 
         // TODO: remove unused variables without side effects
-        cfg::inline::inline_expressions(&mut main);
-        inline_setlists(&mut main);
+        inline(&mut main);
 
         let mut dominators = None;
         if !structure_compound_conditionals(&mut main)

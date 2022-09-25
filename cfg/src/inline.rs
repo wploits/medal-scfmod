@@ -68,8 +68,8 @@ pub fn inline_expressions(function: &mut Function) {
             );
         }
         let mut index = 0;
-        while index < block.ast.len() {
-            'outer: for stat_index in (0..index).rev() {
+        'w: while index < block.ast.len() {
+            for stat_index in (0..index).rev() {
                 for read in block.ast[index]
                     .values_read()
                     .into_iter()
@@ -87,7 +87,7 @@ pub fn inline_expressions(function: &mut Function) {
                             inline_expression(statement, &read, new_expression);
                             block.ast.remove(stat_index);
                             index -= 1;
-                            continue 'outer;
+                            continue 'w;
                         }
                         if let Some(res) = statement.rvalues_mut().into_iter().find_map(|rvalue| {
                             if rvalue.values_read().contains(&&read) {
@@ -101,9 +101,12 @@ pub fn inline_expressions(function: &mut Function) {
                             inline_expression(statement, &read, new_expression);
                             block.ast.remove(stat_index);
                             index -= 1;
-                            continue 'outer;
+                            continue 'w;
                         }
                     }
+                }
+                if block.ast[index].has_side_effects() {
+                    break;
                 }
             }
             index += 1;
