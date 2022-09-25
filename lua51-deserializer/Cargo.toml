@@ -1,8 +1,8 @@
 [package]
 name = "lua51-deserializer"
-authors = ["Amit Bashan <amit.bashan@icloud.com>"]
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+authors.workspace = true
 
 [dependencies]
 nom = "*"

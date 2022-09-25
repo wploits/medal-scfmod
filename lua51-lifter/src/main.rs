@@ -1,4 +1,5 @@
 #![feature(box_patterns)]
+#![feature(let_chains)]
 
 use ast::structure_functions::structure_functions;
 use cfg::ssa::structuring::structure_for_loops;

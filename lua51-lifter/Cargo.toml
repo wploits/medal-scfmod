@@ -1,10 +1,8 @@
 [package]
 name = "lua51-lifter"
 version = "0.1.0"
-authors = ["Mathias Pedersen <mathias.pedersen834@gmail.com>", "Jujhar Singh <jujharsmc@gmail.com>"]
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition.workspace = true
+authors.workspace = true
 
 [dependencies]
 num_enum = "0.5.6"

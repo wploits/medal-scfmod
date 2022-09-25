@@ -1,3 +1,5 @@
+#![feature(let_chains)]
+
 use cfg::function::Function;
 use fxhash::FxHashSet;
 use itertools::Itertools;
