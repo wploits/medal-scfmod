@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt, iter};
 
 use itertools::Itertools;
 
-use crate::{Block, Call, Index, LValue, Literal, RValue, Return, Statement, Type};
+use crate::{Block, Call, Index, LValue, Literal, RValue, Return, Select, Statement, Type};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -93,37 +93,12 @@ impl Formatter {
         );
     }
 
-    fn format_function_block(&mut self, block: &Block) {
-        self.indentation_level += 1;
-
-        for (i, statement) in block[..block.len()
-            - block
-                .last()
-                .map(|s| match s {
-                    Statement::Return(Return { values }) => values.is_empty(),
-                    _ => false,
-                })
-                .unwrap_or_default() as usize]
-            .iter()
-            .enumerate()
-        {
-            if i != 0 {
-                self.write(iter::once('\n'));
-            }
-            self.format_statement(statement);
-        }
-
-        self.indentation_level -= 1;
-    }
-
     fn format_block(&mut self, block: &Block) {
         self.indentation_level += 1;
-
         for statement in &block.0 {
             self.format_statement(statement);
             self.write(iter::once('\n'));
         }
-
         self.indentation_level -= 1;
     }
 
@@ -136,7 +111,7 @@ impl Formatter {
 
     fn format_rvalue(&mut self, rvalue: &RValue) {
         match rvalue {
-            RValue::Call(call) => self.format_call(call),
+            RValue::Select(Select::Call(call)) | RValue::Call(call) => self.format_call(call),
             RValue::Table(table) => {
                 self.write("{".chars());
                 self.format_arg_list(&table.0);
@@ -181,8 +156,7 @@ impl Formatter {
                 if !closure.body.is_empty() {
                     // TODO: output.push?
                     self.write(iter::once('\n'));
-                    self.format_function_block(&closure.body);
-                    self.write(iter::once('\n'));
+                    self.format_block(&closure.body);
                     self.indent();
                 }
                 self.write("end".chars());
