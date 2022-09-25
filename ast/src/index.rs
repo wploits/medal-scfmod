@@ -53,7 +53,13 @@ impl fmt::Display for Index {
         write!(
             f,
             "{}{}",
-            self.left,
+            // TODO: this is repeated in call
+            match self.left.as_ref() {
+                RValue::Local(_)
+                | RValue::Global(_)
+                | RValue::Index(_) => self.left.to_string(),
+                _ => "(".to_string() + &self.left.to_string() + ")",
+            },
             match &self.right {
                 box RValue::Literal(super::Literal::String(field)) => format!(".{}", field),
                 _ => format!("[{}]", self.right),
