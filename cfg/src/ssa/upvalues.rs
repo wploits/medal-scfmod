@@ -80,19 +80,6 @@ impl UpvaluesOpen {
         function: &Function,
     ) -> bool {
         let old_local = &self.old_locals[local];
-        for pred in function.predecessor_blocks(node) {
-            if let Some(pred_open) =
-                self.open[&pred]
-                    .iter()
-                    .find(|(open_local, (open_node, open_index))| {
-                        &self.old_locals[open_local] == old_local
-                            && *open_node == node
-                            && *open_index < index
-                    })
-            {
-                return true;
-            }
-        }
         for statement in function.block(node).unwrap().ast.iter().take(index).rev() {
             for opened in statement_upvalues_opened(statement) {
                 let old_opened = &self.old_locals[opened];
@@ -104,6 +91,18 @@ impl UpvaluesOpen {
                 if closed == old_local {
                     return false;
                 }
+            }
+        }
+
+        for pred in function.predecessor_blocks(node) {
+            if let Some(pred_open) =
+                self.open[&pred]
+                    .iter()
+                    .find(|(open_local, (open_node, open_index))| {
+                        &self.old_locals[open_local] == old_local
+                    })
+            {
+                return true;
             }
         }
 
