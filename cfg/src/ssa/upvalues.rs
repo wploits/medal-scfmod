@@ -72,16 +72,14 @@ impl UpvaluesOpen {
         this
     }
 
-    pub fn find_open(
+    pub fn is_open(
         &self,
         node: NodeIndex,
         index: usize,
         local: &ast::RcLocal,
         function: &Function,
-    ) -> Option<ast::RcLocal> {
-        println!("node: {:?}, local: {}", node, local);
+    ) -> bool {
         let old_local = &self.old_locals[local];
-        println!("{}", old_local);
         for pred in function.predecessor_blocks(node) {
             if let Some(pred_open) =
                 self.open[&pred]
@@ -92,23 +90,24 @@ impl UpvaluesOpen {
                             && *open_index < index
                     })
             {
-                return Some(pred_open.0.clone());
+                return true;
             }
         }
         for statement in function.block(node).unwrap().ast.iter().take(index).rev() {
             for opened in statement_upvalues_opened(statement) {
-                if &self.old_locals[opened] == old_local {
-                    return Some(opened.clone());
+                let old_opened = &self.old_locals[opened];
+                if old_opened == old_local {
+                    return true;
                 }
             }
             for closed in statement_upvalues_closed(statement) {
                 if closed == old_local {
-                    return None;
+                    return false;
                 }
             }
         }
 
-        None
+        false
 
         /*self.open[&node]
         .iter()

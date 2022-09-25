@@ -15,6 +15,7 @@ cfg = { path = "../cfg" }
 lua51-deserializer = { path = "../lua51-deserializer" }
 # graph = { path = "../graph", features = ["dot"] }
 petgraph = "0.6.2"
+indexmap = "1.8.2"
 ast = { path = "../ast" }
 dhat = "0.3.0"
 fxhash = "0.2.1"

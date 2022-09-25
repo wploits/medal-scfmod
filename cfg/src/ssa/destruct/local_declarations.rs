@@ -1,6 +1,7 @@
 use array_tool::vec::Intersect;
 use ast::{LocalRw, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
+use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
@@ -68,11 +69,12 @@ fn has_mult_usages_of_local(block: &BasicBlock, local: &ast::RcLocal) -> bool {
 
 pub(crate) fn declare_locals(
     function: &mut Function,
+    upvalues_in: &IndexSet<ast::RcLocal>,
     local_nodes: FxHashMap<ast::RcLocal, FxHashSet<NodeIndex>>,
     dominators: &Dominators<NodeIndex>,
 ) {
     for (local, reference_nodes) in local_nodes {
-        if reference_nodes.is_empty() {
+        if reference_nodes.is_empty() || upvalues_in.contains(&local) {
             continue;
         }
         if reference_nodes.len() == 1 {

@@ -1,6 +1,7 @@
 use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
+use indexmap::IndexMap;
 use itertools::Either;
 
 fn assigns(
@@ -38,7 +39,10 @@ fn inline_expression(
 }
 
 // TODO: move to ssa module?
-pub fn inline_expressions(function: &mut Function) {
+pub fn inline_expressions(
+    function: &mut Function,
+    upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
+) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
     let mut local_usages = FxHashMap::default();
     for &node in &node_indices {
@@ -76,7 +80,7 @@ pub fn inline_expressions(function: &mut Function) {
                     .cloned()
                     .collect::<Vec<_>>()
                 {
-                    if local_usages[&read] > 1 {
+                    if local_usages[&read] > 1 || upvalue_to_group.contains_key(&read) {
                         continue;
                     }
                     if let Some(new_expression) =

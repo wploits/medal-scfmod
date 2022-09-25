@@ -21,10 +21,17 @@ pub struct LifterContext<'a> {
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
     function: Function,
+    upvalues: Vec<RcLocal>,
+    lifted_functions: Option<Vec<(Function, Vec<RcLocal>)>>,
 }
 
 impl<'a> LifterContext<'a> {
     fn allocate_locals(&mut self) {
+        for _ in 0..self.bytecode.number_of_upvalues {
+            self.upvalues
+                .push(self.function.local_allocator.borrow_mut().allocate());
+        }
+
         for i in 0..self.bytecode.maximum_stack_size {
             let local = self.function.local_allocator.borrow_mut().allocate();
             if i < self.bytecode.number_of_parameters {
@@ -511,10 +518,7 @@ impl<'a> LifterContext<'a> {
                     statements.push(
                         ast::Assign::new(
                             vec![self.locals[destination].clone().into()],
-                            vec![RcLocal::new(Rc::new(ast::Local(Some(
-                                self.bytecode.upvalues[upvalue.0 as usize].to_string(),
-                            ))))
-                            .into()],
+                            vec![self.upvalues[upvalue.0 as usize].clone().into()],
                         )
                         .into(),
                     );
@@ -556,8 +560,10 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );*/
 
+                    let closure = &self.bytecode.closures[function.0 as usize];
+
                     let mut upvalues = Vec::new();
-                    for _ in 0..self.bytecode.closures[function.0 as usize].number_of_upvalues {
+                    for _ in 0..closure.number_of_upvalues {
                         let local = match iter.next().as_ref().unwrap() {
                             Instruction::Move {
                                 destination: _,
@@ -572,6 +578,9 @@ impl<'a> LifterContext<'a> {
                         upvalues.push(local);
                     }
 
+                    self.lifted_functions =
+                        Some(Self::lift(closure, self.lifted_functions.take().unwrap()));
+
                     statements.push(
                         ast::Assign::new(
                             vec![self.locals[destination].clone().into()],
@@ -579,6 +588,7 @@ impl<'a> LifterContext<'a> {
                                 parameters: Vec::new(),
                                 body: Default::default(),
                                 upvalues,
+                                id: self.lifted_functions.as_ref().unwrap().len() - 1,
                             }
                             .into()],
                         )
@@ -794,14 +804,19 @@ impl<'a> LifterContext<'a> {
         }
     }
 
-    pub fn lift(bytecode: &'a BytecodeFunction) -> Function {
+    pub fn lift(
+        bytecode: &'a BytecodeFunction,
+        lifted_functions: Vec<(Function, Vec<RcLocal>)>,
+    ) -> Vec<(Function, Vec<RcLocal>)> {
         let mut context = Self {
             bytecode,
             nodes: FxHashMap::default(),
+            blocks_to_skip: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
             function: Function::default(),
-            blocks_to_skip: FxHashMap::default(),
+            upvalues: Vec::new(),
+            lifted_functions: Some(lifted_functions),
         };
 
         context.create_block_map();
@@ -827,6 +842,8 @@ impl<'a> LifterContext<'a> {
             }
         }
 
-        context.function
+        let mut lifted_functions = context.lifted_functions.unwrap();
+        lifted_functions.push((context.function, context.upvalues));
+        lifted_functions
     }
 }

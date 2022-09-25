@@ -184,6 +184,7 @@ impl<'a> TypeSystem<'a> {
                 Statement::Return(r#return) => {
                     return_values.extend(r#return.values.iter_mut().map(|v| v.infer(self)));
                 }
+                // TODO: numericfor, genericfor
                 _ => {}
             }
         }

@@ -30,6 +30,7 @@ mod repeat;
 mod r#return;
 mod setlist;
 mod side_effects;
+pub mod structure_functions;
 mod table;
 mod traverse;
 pub mod type_system;

@@ -3,6 +3,7 @@
 
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
+use indexmap::{IndexMap, IndexSet};
 use petgraph::{
     data::Build,
     prelude::UnGraphMap,
@@ -18,17 +19,19 @@ use super::interference_graph::InterferenceGraph;
 // A minimal renaming strategy, that renames the SSA-variables such that the total number of non SSA-variables is (almost) minimal.
 // Therefore, we construct color-classes by using lexicographical BFS on the interference graph. When the interference graph is chordal
 // this leads to a minimum number of possible variables.
-pub struct VariableRenamer<'a> {
+pub struct LocalRenamer<'a> {
     function: &'a mut Function,
     interference_graph: &'a mut InterferenceGraph,
     renaming_map: FxHashMap<RcLocal, RcLocal>,
+    new_upvalues: IndexSet<RcLocal>,
     local_nodes: &'a mut FxHashMap<RcLocal, FxHashSet<NodeIndex>>,
 }
 
-impl<'a> VariableRenamer<'a> {
+impl<'a> LocalRenamer<'a> {
     pub fn new(
         function: &'a mut Function,
         local_groups: &[FxHashSet<RcLocal>],
+        upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
         interference_graph: &'a mut InterferenceGraph,
         local_nodes: &'a mut FxHashMap<RcLocal, FxHashSet<NodeIndex>>,
     ) -> Self {
@@ -37,12 +40,26 @@ impl<'a> VariableRenamer<'a> {
             interference_graph,
             renaming_map: FxHashMap::default(),
             local_nodes,
+            new_upvalues: IndexSet::default(),
         };
         res.generate_renaming_map(local_groups);
+        // TODO: move to separate function
+        let mut upvalue_locals = FxHashMap::default();
+        for (upvalue, &group) in upvalue_to_group {
+            println!("{:?} {}", upvalue, group);
+            let group_local = upvalue_locals
+                .entry(group)
+                .or_insert_with(|| res.function.local_allocator.borrow_mut().allocate())
+                .clone();
+            res.renaming_map
+                .insert(upvalue.clone(), group_local.clone());
+            res.new_upvalues.insert(group_local);
+        }
+
         res
     }
 
-    pub fn rename(mut self) {
+    pub fn rename(mut self) -> IndexSet<RcLocal> {
         let mut dfs = Bfs::new(self.function.graph(), self.function.entry().unwrap());
         while let Some(node) = dfs.next(self.function.graph()) {
             let block = self.function.block_mut(node).unwrap();
@@ -67,6 +84,7 @@ impl<'a> VariableRenamer<'a> {
             }
         }
         self.remove_redundant_assigns();
+        self.new_upvalues
     }
 
     // Remove assignments in the form of "x = x"
@@ -123,11 +141,11 @@ impl<'a> VariableRenamer<'a> {
                     .collect::<Vec<_>>();
                 visited.extend(&component);
 
-                let component_var = self.function.local_allocator.borrow_mut().allocate();
+                let component_local = self.function.local_allocator.borrow_mut().allocate();
                 for node in component {
                     self.renaming_map.insert(
                         self.interference_graph.graph[node].clone(),
-                        component_var.clone(),
+                        component_local.clone(),
                     );
                 }
             }
