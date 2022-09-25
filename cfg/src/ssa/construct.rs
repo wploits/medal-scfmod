@@ -273,33 +273,30 @@ impl<'a> SsaConstructor<'a> {
 
         // TODO: optimize
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
-            let block = self.function.block_mut(node).unwrap();
-            if let Some(terminator) = block.terminator().as_ref() {
-                let edges = self
-                    .function
-                    .edges_to_block(node)
-                    .into_iter()
-                    .map(|(_, e)| e)
-                    .cloned()
+            let edges = self
+                .function
+                .edges_to_block(node)
+                .into_iter()
+                .map(|(_, e)| e)
+                .cloned()
+                .collect::<Vec<_>>();
+            if !edges.is_empty() {
+                let params = edges[0]
+                    .arguments
+                    .iter()
+                    .map(|(p, _)| p.clone())
                     .collect::<Vec<_>>();
-                if !edges.is_empty() {
-                    let params = edges[0]
-                        .arguments
-                        .iter()
-                        .map(|(p, _)| p.clone())
-                        .collect::<Vec<_>>();
-                    for mut param in params {
-                        while let Some(param_to) = self.local_map.get(&param) {
-                            param = param_to.clone();
-                        }
+                for mut param in params {
+                    while let Some(param_to) = self.local_map.get(&param) {
+                        param = param_to.clone();
+                    }
 
-                        if param == param_local
-                            || edges
-                                .iter()
-                                .any(|e| e.arguments.iter().any(|(p, _)| p == &param))
-                        {
-                            self.try_remove_trivial_param(node, param);
-                        }
+                    if param == param_local
+                        || edges
+                            .iter()
+                            .any(|e| e.arguments.iter().any(|(p, _)| p == &param))
+                    {
+                        self.try_remove_trivial_param(node, param);
                     }
                 }
             }
@@ -534,6 +531,7 @@ impl<'a> SsaConstructor<'a> {
                         .function
                         .predecessor_blocks(node)
                         .any(|p| !self.filled_blocks.contains(&p))
+                    && self.function.predecessor_blocks(node).next().is_some()
                 {
                     if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
                         for (local, param_local) in incomplete_params {
