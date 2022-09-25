@@ -68,7 +68,7 @@ impl fmt::Display for Call {
                 RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.value.to_string(),
                 _ => "(".to_string() + &self.value.to_string() + ")",
             },
-            formatter::format_list(&self.arguments)
+            formatter::format_arg_list(&self.arguments)
         )
     }
 }

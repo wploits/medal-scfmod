@@ -207,6 +207,7 @@ impl LocalRw for Binary {
 
 impl fmt::Display for Binary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: rename `expression` to `rvalue`
         let parentheses = |expression: &RValue| {
             if self.precedence() > expression.precedence() && expression.precedence() != 0 {
                 format!("({})", expression)

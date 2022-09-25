@@ -58,8 +58,8 @@ impl fmt::Display for Index {
                 RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.left.to_string(),
                 _ => "(".to_string() + &self.left.to_string() + ")",
             },
-            match &self.right {
-                box RValue::Literal(super::Literal::String(field))
+            match self.right.as_ref() {
+                RValue::Literal(super::Literal::String(field))
                     if field.is_ascii()
                         && field
                             .chars()

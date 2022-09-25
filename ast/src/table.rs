@@ -89,6 +89,6 @@ has_side_effects!(Table);
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{{}}}", formatter::format_list(&self.0))
+        write!(f, "{{{}}}", formatter::format_arg_list(&self.0))
     }
 }
