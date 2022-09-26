@@ -1,10 +1,10 @@
-use std::{io::Read, rc::Rc};
+use std::{io::Read, rc::Rc, cell::RefCell};
 
 use either::Either;
 use fxhash::FxHashMap;
 use itertools::Itertools;
 
-use ast::{RcLocal, Statement};
+use ast::{RcLocal, Statement, local_allocator::LocalAllocator};
 use cfg::{block::Terminator, function::Function};
 
 use lua51_deserializer::{
@@ -630,7 +630,7 @@ impl<'a> LifterContext<'a> {
                     }
 
                     self.lifted_functions =
-                        Some(Self::lift(closure, self.lifted_functions.take().unwrap()));
+                        Some(Self::lift(closure, self.function.local_allocator.clone(), self.lifted_functions.take().unwrap()));
 
                     statements.push(
                         ast::Assign::new(
@@ -857,6 +857,7 @@ impl<'a> LifterContext<'a> {
 
     pub fn lift(
         bytecode: &'a BytecodeFunction,
+        local_allocator: Rc<RefCell<LocalAllocator>>,
         lifted_functions: Vec<(Function, Vec<RcLocal>)>,
     ) -> Vec<(Function, Vec<RcLocal>)> {
         let mut context = Self {
@@ -865,7 +866,7 @@ impl<'a> LifterContext<'a> {
             blocks_to_skip: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
-            function: Function::default(),
+            function: Function::with_allocator(local_allocator),
             upvalues: Vec::new(),
             lifted_functions: Some(lifted_functions),
         };

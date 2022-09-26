@@ -22,6 +22,16 @@ pub struct Function {
 }
 
 impl Function {
+    pub fn with_allocator(local_allocator: Rc<RefCell<LocalAllocator>>) -> Self {
+        Self {
+            local_allocator,
+            parameters: Vec::new(),
+            upvalues_captured: Vec::new(),
+            graph: StableDiGraph::new(),
+            entry: None,
+        }
+    }
+
     pub fn entry(&self) -> &Option<NodeIndex> {
         &self.entry
     }
