@@ -83,13 +83,16 @@ impl<'a> LifterContext<'a> {
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-                    if insn_index != dest_index {
-                        if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                            self.function.remove_block(jmp_block);
-                            self.nodes.insert(insn_index, dest_block);
-                            self.blocks_to_skip.insert(insn_index, dest_index);
-                        }
-                    }
+                    // UNCOMMENTING THIS BREAKS
+                    // for i in t do end
+                    // BETTER TO JUST LEAVE IT COMMENTED
+                    // if insn_index != dest_index {
+                    //     if let Some(jmp_block) = self.nodes.remove(&insn_index) {
+                    //         self.function.remove_block(jmp_block);
+                    //         self.nodes.insert(insn_index, dest_block);
+                    //         self.blocks_to_skip.insert(insn_index, dest_index);
+                    //     }
+                    // }
                 }
                 Instruction::IterateNumericForLoop { skip, .. }
                 | Instruction::InitNumericForLoop { skip, .. } => {

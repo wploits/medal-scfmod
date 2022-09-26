@@ -446,7 +446,7 @@ impl Formatter {
             }
             Statement::GenericFor(generic_for) => {
                 self.write(
-                    format!("for {} in \n", generic_for.res_locals.iter().join(", "),).chars(),
+                    format!("for {} in ", generic_for.res_locals.iter().join(", "),).chars(),
                 );
                 for (i, rvalue) in generic_for.right.iter().enumerate() {
                     if i != 0 {
