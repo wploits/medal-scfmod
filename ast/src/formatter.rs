@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt, iter};
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, Call, Index, LValue, Literal, RValue, Return, Select, Statement, Type};
+use crate::{Assign, Block, Call, Index, LValue, Literal, RValue, Return, Select, Statement, Type, If};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -276,6 +276,34 @@ impl Formatter {
         self.write(")".chars());
     }
 
+    fn format_if(&mut self, r#if: &If) {
+        self.write("if ".chars());
+
+        self.format_rvalue(&r#if.condition);
+
+        self.write(" then\n".chars());
+
+        if let Some(b) = &r#if.then_block {
+            self.format_block(b);
+        }
+
+        if let Some(b) = &r#if.else_block {
+            self.indent();
+            if b.len() == 1
+                && let Some(else_if) = b[0].as_if()
+            {
+                self.write("else".chars());
+                self.format_if(else_if);
+                return;
+            }
+            self.write("else\n".chars());
+            self.format_block(b);
+        }
+
+        self.indent();
+        self.write("end".chars());
+    }
+
     fn format_statement(&mut self, statement: &Statement) {
         self.indent();
 
@@ -384,27 +412,7 @@ impl Formatter {
                     self.format_rvalue(rvalue);
                 }
             }
-            Statement::If(r#if) => {
-                self.write("if ".chars());
-
-                self.format_rvalue(&r#if.condition);
-
-                self.write(" then\n".chars());
-
-                if let Some(b) = &r#if.then_block {
-                    self.format_block(b);
-                }
-
-                // TODO: elseif
-                if let Some(b) = &r#if.else_block {
-                    self.indent();
-                    self.write("else\n".chars());
-                    self.format_block(b);
-                }
-
-                self.indent();
-                self.write("end".chars());
-            }
+            Statement::If(r#if) => self.format_if(r#if),
             Statement::While(r#while) => {
                 self.write("while ".chars());
 

@@ -106,12 +106,6 @@ impl Structurer {
 }
 
 pub fn structure_functions(mut functions: Vec<(Block, Vec<RcLocal>, Vec<RcLocal>)>) -> Block {
-    
-    for (block, params, upvalues) in &functions {
-        let formatted = crate::formatter::Formatter::format(block, Default::default());
-        println!("-- params: {:?}\n-- upvalues: {:?}\n{}", params, upvalues, formatted);
-    }
-
     functions.reverse();
     Structurer {
         function_count: functions.len(),
