@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Block, RValue, RcLocal, Statement, Traverse};
+use crate::{Block, RValue, RcLocal, Statement, Traverse, LValue};
 
 struct Structurer {
     function_count: usize,
@@ -11,13 +11,20 @@ struct Structurer {
 
 pub fn replace_locals(block: &mut Block, map: &HashMap<RcLocal, RcLocal>) {
     for statement in &mut block.0 {
-        for rvalue in statement.rvalues_mut() {
-            if let Some(local) = rvalue.as_local_mut() {
-                if let Some(new_local) = map.get(local) {
-                    *local = new_local.clone();
-                }
-            }
-        }
+        // TODO: traverse_values
+        statement.post_traverse_values(&mut |value| -> Option<()> {
+            match value {
+                itertools::Either::Left(LValue::Local(local)) 
+                | itertools::Either::Right(RValue::Local(local)) => {
+                    if let Some(new_local) = map.get(local) {
+                        *local = new_local.clone();
+                    }
+                },
+                itertools::Either::Right(RValue::Closure(closure)) => replace_locals(&mut closure.body, map),
+                _ => {}
+            };
+            None
+        });
         match statement {
             Statement::If(r#if) => {
                 if let Some(b) = &mut r#if.then_block {
@@ -99,6 +106,12 @@ impl Structurer {
 }
 
 pub fn structure_functions(mut functions: Vec<(Block, Vec<RcLocal>, Vec<RcLocal>)>) -> Block {
+    
+    for (block, params, upvalues) in &functions {
+        let formatted = crate::formatter::Formatter::format(block, Default::default());
+        println!("-- params: {:?}\n-- upvalues: {:?}\n{}", params, upvalues, formatted);
+    }
+
     functions.reverse();
     Structurer {
         function_count: functions.len(),
