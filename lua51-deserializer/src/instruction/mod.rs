@@ -49,9 +49,9 @@ pub enum Instruction {
         destination: Register,
         global: Constant,
     },
-    GetTable {
+    GetIndex {
         destination: Register,
-        table: Register,
+        object: Register,
         key: RegisterOrConstant,
     },
     SetGlobal {
@@ -62,8 +62,8 @@ pub enum Instruction {
         destination: Upvalue,
         source: Register,
     },
-    SetTable {
-        table: Register,
+    SetIndex {
+        object: Register,
         key: RegisterOrConstant,
         value: RegisterOrConstant,
     },
@@ -72,9 +72,10 @@ pub enum Instruction {
         array_size: u8,
         hash_size: u8,
     },
-    Self_ {
+    PrepMethodCall {
         destination: Register,
-        table: Register,
+        self_arg: Register,
+        object: Register,
         method: RegisterOrConstant,
     },
     Add {
@@ -164,7 +165,7 @@ pub enum Instruction {
         control: Vec<Register>,
         skip: i32,
     },
-    PrepareNumericForLoop {
+    InitNumericForLoop {
         // TODO: change to struct instead of vec
         // internal_counter, limit, step, external_counter
         // the name "control" refers to just the counter
@@ -230,17 +231,17 @@ impl Instruction {
                 destination: Register(a),
                 global: Constant(bx),
             },
-            RawInstruction(OperationCode::GetTable, Layout::ABC { a, b, c }) => Self::GetTable {
+            RawInstruction(OperationCode::GetIndex, Layout::ABC { a, b, c }) => Self::GetIndex {
                 destination: Register(a),
-                table: Register(b as u8),
+                object: Register(b as u8),
                 key: RegisterOrConstant::from(c as u32),
             },
             RawInstruction(OperationCode::SetGlobal, Layout::ABx { a, bx }) => Self::SetGlobal {
                 destination: Constant(bx),
                 value: Register(a),
             },
-            RawInstruction(OperationCode::SetTable, Layout::ABC { a, b, c }) => Self::SetTable {
-                table: Register(a),
+            RawInstruction(OperationCode::SetIndex, Layout::ABC { a, b, c }) => Self::SetIndex {
+                object: Register(a),
                 key: RegisterOrConstant::from(b as u32),
                 value: RegisterOrConstant::from(c as u32),
             },
@@ -249,11 +250,14 @@ impl Instruction {
                 array_size: b as u8,
                 hash_size: c as u8,
             },
-            RawInstruction(OperationCode::Self_, Layout::ABC { a, b, c }) => Self::Self_ {
-                destination: Register(a),
-                table: Register(b as u8),
-                method: RegisterOrConstant::from(c as u32),
-            },
+            RawInstruction(OperationCode::PrepMethodCall, Layout::ABC { a, b, c }) => {
+                Self::PrepMethodCall {
+                    destination: Register(a),
+                    self_arg: Register(a + 1),
+                    object: Register(b as u8),
+                    method: RegisterOrConstant::from(c as u32),
+                }
+            }
             RawInstruction(OperationCode::Add, Layout::ABC { a, b, c }) => Self::Add {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
@@ -347,8 +351,8 @@ impl Instruction {
                     skip: sbx,
                 }
             }
-            RawInstruction(OperationCode::PrepareNumericForLoop, Layout::AsBx { a, sbx }) => {
-                Self::PrepareNumericForLoop {
+            RawInstruction(OperationCode::InitNumericForLoop, Layout::AsBx { a, sbx }) => {
+                Self::InitNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
                     skip: sbx,
                 }

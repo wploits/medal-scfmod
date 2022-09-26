@@ -92,7 +92,7 @@ impl<'a> LifterContext<'a> {
                     }
                 }
                 Instruction::IterateNumericForLoop { skip, .. }
-                | Instruction::PrepareNumericForLoop { skip, .. } => {
+                | Instruction::InitNumericForLoop { skip, .. } => {
                     self.nodes
                         .entry(insn_index + skip as usize - 131070)
                         .or_insert_with(|| self.function.new_block());
@@ -221,16 +221,16 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                &Instruction::GetTable {
+                &Instruction::GetIndex {
                     destination,
-                    table,
+                    object,
                     key,
                 } => {
                     statements.push(
                         ast::Assign::new(
                             vec![self.locals[&destination].clone().into()],
                             vec![ast::Index::new(
-                                self.locals[&table].clone().into(),
+                                self.locals[&object].clone().into(),
                                 self.register_or_constant(key),
                             )
                             .into()],
@@ -427,6 +427,29 @@ impl<'a> LifterContext<'a> {
                         .unwrap()
                         .ast
                         .push(assign.into());
+                }
+                &Instruction::PrepMethodCall {
+                    destination,
+                    self_arg,
+                    object,
+                    method,
+                } => {
+                    let destination = self.locals[&destination].clone();
+                    let self_arg = self.locals[&self_arg].clone();
+                    let object = self.locals[&object].clone();
+                    statements.push(
+                        ast::Assign::new(vec![self_arg.into()], vec![object.clone().into()]).into(),
+                    );
+                    statements.push(
+                        ast::Assign::new(
+                            vec![destination.into()],
+                            vec![
+                                ast::Index::new(object.into(), self.register_or_constant(method))
+                                    .into(),
+                            ],
+                        )
+                        .into(),
+                    );
                 }
                 &Instruction::TailCall {
                     function,
@@ -637,14 +660,14 @@ impl<'a> LifterContext<'a> {
                         .collect();
                     statements.push(ast::Close { locals }.into());
                 }
-                &Instruction::SetTable { table, key, value } => {
+                &Instruction::SetIndex { object, key, value } => {
                     let key = self.register_or_constant(key);
                     let value = self.register_or_constant(value);
 
                     statements.push(
                         ast::Assign::new(
                             vec![ast::Index {
-                                left: Box::new(self.locals[&table].clone().into()),
+                                left: Box::new(self.locals[&object].clone().into()),
                                 right: Box::new(key),
                             }
                             .into()],
@@ -653,7 +676,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                Instruction::PrepareNumericForLoop { control, .. } => {
+                Instruction::InitNumericForLoop { control, .. } => {
                     let (internal_counter, limit, step) = (
                         self.locals[&control[0]].clone(),
                         self.locals[&control[1]].clone(),
@@ -773,7 +796,7 @@ impl<'a> LifterContext<'a> {
                         )),
                     );
                 }
-                Instruction::Jump(skip) | Instruction::PrepareNumericForLoop { skip, .. } => {
+                Instruction::Jump(skip) | Instruction::InitNumericForLoop { skip, .. } => {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::jump(
