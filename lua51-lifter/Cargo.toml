@@ -4,6 +4,10 @@ version = "0.1.0"
 edition.workspace = true
 authors.workspace = true
 
+[[bin]]
+name = "panic_handled"
+path = "src/panic_handled.rs"
+
 [dependencies]
 num_enum = "0.5.7"
 nom = "7.1.1"
