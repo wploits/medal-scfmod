@@ -363,17 +363,20 @@ pub fn structure_for_loops(
 pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeIndex>) -> bool {
     let mut did_structure = false;
     for node in function.graph().node_indices().collect_vec() {
-        if let Some(Terminator::Jump(jump)) = function.block(node).unwrap().terminator.clone()
-            && jump.node != node
-            && jump.arguments.is_empty()
-            && function.predecessor_blocks(jump.node).collect_vec() == vec![node]
-            && dominators.dominators(jump.node).unwrap().contains(&node)
-        {
-            let terminator = function.block_mut(jump.node).unwrap().terminator.take();
-            let body = function.remove_block(jump.node).unwrap().ast;
-            function.block_mut(node).unwrap().ast.extend(body.0);
-            function.set_block_terminator(node, terminator);
-            did_structure = true;
+        // we call function.remove_block, that might've resulted in node being removed
+        if let Some(block) = function.block(node) {
+            if let Some(Terminator::Jump(jump)) = block.terminator.clone()
+                && jump.node != node
+                && jump.arguments.is_empty()
+                && function.predecessor_blocks(jump.node).collect_vec() == vec![node]
+                && dominators.dominators(jump.node).unwrap().contains(&node)
+            {
+                let terminator = function.block_mut(jump.node).unwrap().terminator.take();
+                let body = function.remove_block(jump.node).unwrap().ast;
+                function.block_mut(node).unwrap().ast.extend(body.0);
+                function.set_block_terminator(node, terminator);
+                did_structure = true;
+            }
         }
     }
     did_structure
