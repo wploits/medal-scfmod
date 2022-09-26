@@ -14,6 +14,7 @@ pub struct Closure {
     pub id: usize,
     pub upvalues: Vec<RcLocal>,
     pub body: Block,
+    pub is_variadic: bool,
 }
 
 impl Infer for Closure {

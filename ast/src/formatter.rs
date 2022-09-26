@@ -2,7 +2,9 @@ use std::{borrow::Cow, fmt, iter};
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, Call, Index, LValue, Literal, RValue, Return, Select, Statement, Type, If};
+use crate::{
+    Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement, Type,
+};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -203,7 +205,24 @@ impl Formatter {
                 parentheses(self, &binary.right);
             }
             RValue::Closure(closure) => {
-                self.write(format!("function({})", closure.parameters.iter().join(", ")).chars());
+                if closure.is_variadic {
+                    self.write(
+                        format!(
+                            "function({})",
+                            closure
+                                .parameters
+                                .iter()
+                                .map(|x| x.to_string())
+                                .chain(std::iter::once("...".into()))
+                                .join(", ")
+                        )
+                        .chars(),
+                    );
+                } else {
+                    self.write(
+                        format!("function({})", closure.parameters.iter().join(", ")).chars(),
+                    );
+                }
                 if !closure.body.is_empty() {
                     // TODO: output.push?
                     self.write(iter::once('\n'));

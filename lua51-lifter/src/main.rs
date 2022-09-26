@@ -86,7 +86,8 @@ fn main() -> anyhow::Result<()> {
 
     let now = time::Instant::now();
     //let function = Lifter::new(&chunk.function).lift_function()?;
-    let lifted_functions = lifter::LifterContext::lift(&chunk.function, Default::default(), Vec::new());
+    let lifted_functions =
+        lifter::LifterContext::lift(&chunk.function, Default::default(), Vec::new());
     let lifted = now.elapsed();
     println!("lifting: {:?}", lifted);
 

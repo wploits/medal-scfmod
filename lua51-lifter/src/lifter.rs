@@ -1,10 +1,10 @@
-use std::{io::Read, rc::Rc, cell::RefCell};
+use std::{cell::RefCell, io::Read, rc::Rc};
 
 use either::Either;
 use fxhash::FxHashMap;
 use itertools::Itertools;
 
-use ast::{RcLocal, Statement, local_allocator::LocalAllocator};
+use ast::{local_allocator::LocalAllocator, RcLocal, Statement};
 use cfg::{block::Terminator, function::Function};
 
 use lua51_deserializer::{
@@ -389,7 +389,8 @@ impl<'a> LifterContext<'a> {
                 } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
-                    let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThanOrEqual).into();
+                    let value =
+                        ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThanOrEqual).into();
                     let condition = if comparison_value {
                         value
                     } else {
@@ -629,8 +630,11 @@ impl<'a> LifterContext<'a> {
                         upvalues.push(local);
                     }
 
-                    self.lifted_functions =
-                        Some(Self::lift(closure, self.function.local_allocator.clone(), self.lifted_functions.take().unwrap()));
+                    self.lifted_functions = Some(Self::lift(
+                        closure,
+                        self.function.local_allocator.clone(),
+                        self.lifted_functions.take().unwrap(),
+                    ));
 
                     statements.push(
                         ast::Assign::new(
@@ -640,6 +644,7 @@ impl<'a> LifterContext<'a> {
                                 body: Default::default(),
                                 upvalues,
                                 id: self.lifted_functions.as_ref().unwrap().len() - 1,
+                                is_variadic: closure.vararg_flag != 0,
                             }
                             .into()],
                         )
