@@ -379,6 +379,21 @@ impl<'a> LifterContext<'a> {
                     };
                     statements.push(ast::If::new(condition, None, None).into())
                 }
+                &Instruction::LessThanOrEqual {
+                    lhs,
+                    rhs,
+                    comparison_value,
+                } => {
+                    let lhs = self.register_or_constant(lhs);
+                    let rhs = self.register_or_constant(rhs);
+                    let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThanOrEqual).into();
+                    let condition = if comparison_value {
+                        value
+                    } else {
+                        ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    };
+                    statements.push(ast::If::new(condition, None, None).into())
+                }
                 &Instruction::Equal {
                     lhs,
                     rhs,
@@ -859,21 +874,21 @@ impl<'a> LifterContext<'a> {
         context.function.set_entry(context.nodes[&0]);
 
         // merge blocks where possible
-        let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());
-        for node in context.function.graph().node_indices().collect_vec() {
-            let mut successors = context.function.successor_blocks(node);
-            if let Some(target) = successors.next() && successors.next().is_none() && context.function.predecessor_blocks(target).count() == 1
-            && dominators.dominators(target).unwrap().contains(&node) && target != node {
-                let block = context.function.remove_block(target).unwrap();
-                let terminator = block.terminator;
-                context.function
-                    .block_mut(node)
-                    .unwrap()
-                    .ast
-                    .extend(block.ast.0);
-                context.function.set_block_terminator(node, terminator);
-            }
-        }
+        // let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());
+        // for node in context.function.graph().node_indices().collect_vec() {
+        //     let mut successors = context.function.successor_blocks(node);
+        //     if let Some(target) = successors.next() && successors.next().is_none() && context.function.predecessor_blocks(target).count() == 1
+        //     && dominators.dominators(target).unwrap().contains(&node) && target != node {
+        //         let block = context.function.remove_block(target).unwrap();
+        //         let terminator = block.terminator;
+        //         context.function
+        //             .block_mut(node)
+        //             .unwrap()
+        //             .ast
+        //             .extend(block.ast.0);
+        //         context.function.set_block_terminator(node, terminator);
+        //     }
+        // }
 
         let mut lifted_functions = context.lifted_functions.unwrap();
         lifted_functions.push((context.function, context.upvalues));
