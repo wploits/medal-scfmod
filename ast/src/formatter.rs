@@ -69,7 +69,7 @@ impl Formatter {
             indentation_mode,
             output: String::new(),
         };
-        formatter.format_block(main);
+        formatter.format_block_no_indent(main);
         formatter.output.trim_end().to_string()
     }
 
@@ -97,6 +97,11 @@ impl Formatter {
 
     fn format_block(&mut self, block: &Block) {
         self.indentation_level += 1;
+        self.format_block_no_indent(block);
+        self.indentation_level -= 1;
+    }
+
+    fn format_block_no_indent(&mut self, block: &Block) {
         for (i, statement) in block.iter().enumerate() {
             self.format_statement(statement);
             if let Some(next_statement) =
@@ -148,7 +153,6 @@ impl Formatter {
             }
             self.write(iter::once('\n'));
         }
-        self.indentation_level -= 1;
     }
 
     fn format_lvalue(&mut self, lvalue: &LValue) {
