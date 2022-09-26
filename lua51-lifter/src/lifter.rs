@@ -367,6 +367,31 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
+                Instruction::Concatenate {
+                    destination,
+                    operands,
+                } => {
+                    assert!(operands.len() >= 2);
+                    let mut concat = ast::Binary::new(
+                        self.locals[&operands[0]].clone().into(),
+                        self.locals[&operands[1]].clone().into(),
+                        ast::BinaryOperation::Concat,
+                    );
+                    for r in operands.iter().skip(2) {
+                        concat = ast::Binary::new(
+                            concat.into(),
+                            self.locals[r].clone().into(),
+                            ast::BinaryOperation::Concat,
+                        );
+                    }
+                    statements.push(
+                        ast::Assign::new(
+                            vec![self.locals[destination].clone().into()],
+                            vec![concat.into()],
+                        )
+                        .into(),
+                    );
+                }
                 &Instruction::LessThan {
                     lhs,
                     rhs,

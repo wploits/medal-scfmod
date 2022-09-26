@@ -35,19 +35,34 @@ impl SideEffects for Literal {}
 
 impl Traverse for Literal {}
 
+fn escape_string(string: &str) -> String {
+    let mut s = String::with_capacity(string.len());
+    for c in string.chars() {
+        if c >= ' ' && c != '\\' && c != '\'' && c != '\"' && c != '`' && c != '{' {
+            s.push(c);
+        } else {
+            match c {
+                '\n' => s.push_str("\\n"),
+                '\r' => s.push_str("\\r"),
+                '\t' => s.push_str("\\t"),
+                '\"' => s.push_str("\\\""),
+                '\'' => s.push_str("\\'"),
+                _ => s.push_str(&format!("\\x{:02x}", c as u8)),
+            };
+        }
+    }
+    s
+}
+
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Literal::Nil => write!(f, "nil"),
             Literal::Boolean(value) => write!(f, "{}", value),
             Literal::Number(value) => write!(f, "{}", value),
-            Literal::String(value)
-                if value.is_ascii() && value.chars().all(|c| c.is_ascii_graphic() || c == ' ') =>
-            {
-                write!(f, "\"{}\"", value)
+            Literal::String(value) => {
+                write!(f, "\"{}\"", escape_string(value))
             }
-            // TODO: string escaping
-            _ => todo!(),
         }
     }
 }

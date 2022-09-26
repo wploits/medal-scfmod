@@ -86,7 +86,8 @@ fn main() -> anyhow::Result<()> {
 
     let now = time::Instant::now();
     //let function = Lifter::new(&chunk.function).lift_function()?;
-    let lifted_functions = crate::lifter::LifterContext::lift(&chunk.function, Default::default(), Vec::new());
+    let lifted_functions =
+        crate::lifter::LifterContext::lift(&chunk.function, Default::default(), Vec::new());
     let lifted = now.elapsed();
     println!("lifting: {:?}", lifted);
 
@@ -179,10 +180,11 @@ fn main() -> anyhow::Result<()> {
                     },
                 };
 
-                let mut block = ast::Block::from_vec(vec![
-                    ast::Comment::new("the decompiler panicked while decompiling this function".to_string()).into()
-                ]);
-    
+                let mut block = ast::Block::from_vec(vec![ast::Comment::new(
+                    "the decompiler panicked while decompiling this function".to_string(),
+                )
+                .into()]);
+
                 for line in panic_information.split('\n') {
                     block.push(ast::Comment::new(line.to_string()).into());
                 }
@@ -190,7 +192,6 @@ fn main() -> anyhow::Result<()> {
                 (block, Vec::new(), Vec::new())
             }
         });
-    
     }
 
     let main = structure_functions(structured_functions);

@@ -1,12 +1,10 @@
-use ast::Reduce;
-use ast::SideEffects;
+use ast::{Reduce, SideEffects};
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
 use std::iter;
 
-use crate::post_dominators;
-use crate::GraphStructurer;
+use crate::{post_dominators, GraphStructurer};
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
     stable_graph::{NodeIndex, StableDiGraph},
@@ -122,7 +120,7 @@ impl GraphStructurer {
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect_vec();
 
-            let mut continues = self
+            /*let mut continues = self
                 .function
                 .predecessor_blocks(header)
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
@@ -131,7 +129,8 @@ impl GraphStructurer {
                 continues.clear();
             } else {
                 todo!("remove node that dominates all");
-            }
+            }*/
+            let continues = Vec::new();
 
             println!("continues: {:?}", continues);
 
