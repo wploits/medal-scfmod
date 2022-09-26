@@ -84,6 +84,9 @@ impl<'a> LocalRenamer<'a> {
             }
         }
         self.remove_redundant_assigns();
+        for param in &mut self.function.parameters {
+            *param = self.renaming_map.remove(param).unwrap();
+        }
         self.new_upvalues
     }
 

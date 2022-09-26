@@ -64,6 +64,8 @@ pub fn destruct(
     let elapsed = now.elapsed();
     println!("var renamer: {:?}", elapsed);
 
+    crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
+
     let mut upvalues_in = upvalues;
     upvalues_in.truncate(upvalues_in_count);
 

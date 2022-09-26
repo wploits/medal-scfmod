@@ -177,7 +177,8 @@ fn main() -> anyhow::Result<()> {
         }*/
 
         // cfg::dot::render_to(&function, &mut std::io::stdout())?;
-        structured_functions.push((restructure::lift(function), upvalues_in));
+        let params = function.parameters.clone();
+        structured_functions.push((restructure::lift(function), params, upvalues_in));
     }
 
     let main = structure_functions(structured_functions);

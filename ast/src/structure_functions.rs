@@ -4,9 +4,9 @@ use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
 struct Structurer {
     function_count: usize,
-    function_stack: Vec<(Block, Vec<RcLocal>)>,
+    function_stack: Vec<(Block, Vec<RcLocal>, Vec<RcLocal>)>,
     // TODO: fxhashmap
-    structured: HashMap<usize, (Block, Vec<RcLocal>)>,
+    structured: HashMap<usize, (Block, Vec<RcLocal>, Vec<RcLocal>)>,
 }
 
 pub fn replace_locals(block: &mut Block, map: &HashMap<RcLocal, RcLocal>) {
@@ -44,11 +44,11 @@ pub fn replace_locals(block: &mut Block, map: &HashMap<RcLocal, RcLocal>) {
 
 impl Structurer {
     pub fn structure(mut self) -> Block {
-        while let Some((mut block, upvalues)) = self.function_stack.pop() {
+        while let Some((mut block, params, upvalues)) = self.function_stack.pop() {
             self.visit_block(&mut block);
             self.structured.insert(
                 self.function_count - self.function_stack.len() - 1,
-                (block, upvalues),
+                (block, params, upvalues),
             );
         }
         self.structured
@@ -61,7 +61,7 @@ impl Structurer {
         for statement in &mut block.0 {
             statement.traverse_rvalues(&mut |rvalue| {
                 if let Some(closure) = rvalue.as_closure_mut() {
-                    let (body, upvalues) = &self.structured[&closure.id];
+                    let (body, params, upvalues) = &self.structured[&closure.id];
                     let mut body = body.clone();
                     let mut local_map = HashMap::with_capacity(upvalues.len());
                     for (old, new) in upvalues.iter().zip(&closure.upvalues) {
@@ -70,6 +70,7 @@ impl Structurer {
                     }
                     replace_locals(&mut body, &local_map);
                     closure.body = body;
+                    closure.parameters = params.clone();
                 }
             });
             match statement {
@@ -97,7 +98,7 @@ impl Structurer {
     }
 }
 
-pub fn structure_functions(mut functions: Vec<(Block, Vec<RcLocal>)>) -> Block {
+pub fn structure_functions(mut functions: Vec<(Block, Vec<RcLocal>, Vec<RcLocal>)>) -> Block {
     functions.reverse();
     Structurer {
         function_count: functions.len(),
