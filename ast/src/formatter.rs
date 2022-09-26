@@ -126,7 +126,6 @@ impl Formatter {
                         is_ambiguous(list.last().unwrap())
                     }
                     Statement::Goto(_) | Statement::Continue(_) | Statement::Break(_) => true,
-                    Statement::Comment(_) => unimplemented!(),
                     _ => false,
                 };
                 let disambiguate = disambiguate
@@ -143,6 +142,7 @@ impl Formatter {
                             }
                         }
                         Statement::Call(call) => Self::should_wrap_left_rvalue(&call.value),
+                        Statement::Comment(_) => unimplemented!(),
                         _ => false,
                     };
                 if disambiguate {
