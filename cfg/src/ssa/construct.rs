@@ -557,7 +557,9 @@ impl<'a> SsaConstructor<'a> {
 
         if let Some(mut incomplete_params) = self.incomplete_params.remove(&entry) {
             for param in &mut self.function.parameters {
-                *param = incomplete_params.remove(param).unwrap_or_else(|| self.function.local_allocator.borrow_mut().allocate());
+                *param = incomplete_params
+                    .remove(param)
+                    .unwrap_or_else(|| self.function.local_allocator.borrow_mut().allocate());
             }
         }
         assert!(self.incomplete_params.is_empty());

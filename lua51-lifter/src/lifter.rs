@@ -544,6 +544,18 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
+                Instruction::SetUpvalue {
+                    destination,
+                    source,
+                } => {
+                    statements.push(
+                        ast::Assign::new(
+                            vec![self.upvalues[destination.0 as usize].clone().into()],
+                            vec![self.locals[source].clone().into()],
+                        )
+                        .into(),
+                    );
+                }
                 &Instruction::VarArg(destination, b) => {
                     let vararg = ast::VarArg {};
                     if b != 0 {
@@ -593,7 +605,7 @@ impl<'a> LifterContext<'a> {
                             Instruction::GetUpvalue {
                                 destination: _,
                                 upvalue,
-                            } => self.function.upvalues_captured[upvalue.0 as usize].clone(),
+                            } => self.upvalues[upvalue.0 as usize].clone(),
                             _ => panic!(),
                         };
                         upvalues.push(local);

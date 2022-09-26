@@ -240,6 +240,12 @@ impl Instruction {
                 destination: Constant(bx),
                 value: Register(a),
             },
+            RawInstruction(OperationCode::SetUpvalue, Layout::ABC { a, b, .. }) => {
+                Self::SetUpvalue {
+                    destination: Upvalue(b as u8),
+                    source: Register(a),
+                }
+            }
             RawInstruction(OperationCode::SetIndex, Layout::ABC { a, b, c }) => Self::SetIndex {
                 object: Register(a),
                 key: RegisterOrConstant::from(b as u32),

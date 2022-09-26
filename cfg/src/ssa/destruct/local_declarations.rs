@@ -75,7 +75,10 @@ pub(crate) fn declare_locals(
 ) {
     for (local, reference_nodes) in local_nodes {
         // TODO: construct IndexSet from parameters?
-        if reference_nodes.is_empty() || upvalues_in.contains(&local) || function.parameters.contains(&local) {
+        if reference_nodes.is_empty()
+            || upvalues_in.contains(&local)
+            || function.parameters.contains(&local)
+        {
             continue;
         }
         if reference_nodes.len() == 1 {

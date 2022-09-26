@@ -142,9 +142,7 @@ impl Formatter {
                                 false
                             }
                         }
-                        Statement::Call(call) => {
-                            Self::should_wrap_left_rvalue(&call.value)
-                        }
+                        Statement::Call(call) => Self::should_wrap_left_rvalue(&call.value),
                         _ => false,
                     };
                 if disambiguate {
