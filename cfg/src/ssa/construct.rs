@@ -2,6 +2,7 @@ use std::iter;
 
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
+use indexmap::IndexMap;
 use petgraph::{stable_graph::NodeIndex, visit::Dfs, Direction};
 
 use crate::{
@@ -23,7 +24,7 @@ struct SsaConstructor<'a> {
     old_locals: FxHashMap<RcLocal, RcLocal>,
     local_count: usize,
     local_map: FxHashMap<RcLocal, RcLocal>,
-    upvalue_groups: FxHashMap<RcLocal, FxHashSet<RcLocal>>,
+    upvalue_groups: IndexMap<RcLocal, FxHashSet<RcLocal>>,
 }
 
 // https://github.com/fkie-cad/dewolf/blob/7afe5b46e79a7b56e9904e63f29d54bd8f7302d9/decompiler/pipeline/ssa/phi_cleaner.py
@@ -600,8 +601,14 @@ pub fn construct(
     function: &mut Function,
     upvalues_in: &Vec<RcLocal>,
 ) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<FxHashSet<RcLocal>>) {
+    let mut upvalue_groups = IndexMap::new();
+    for upvalue in upvalues_in {
+        upvalue_groups
+            .insert(upvalue.clone(), FxHashSet::default());
+    }
+    
     let node_count = function.graph().node_count();
-    let mut constructor = SsaConstructor {
+    SsaConstructor {
         function,
         incomplete_params: FxHashMap::with_capacity_and_hasher(node_count, Default::default()),
         filled_blocks: FxHashSet::with_capacity_and_hasher(node_count, Default::default()),
@@ -611,13 +618,6 @@ pub fn construct(
         old_locals: FxHashMap::default(),
         local_count: 0,
         local_map: FxHashMap::default(),
-        upvalue_groups: FxHashMap::default(),
-    };
-    for upvalue in upvalues_in {
-        constructor
-            .upvalue_groups
-            .insert(upvalue.clone(), FxHashSet::default());
-    }
-
-    constructor.construct()
+        upvalue_groups,
+    }.construct()
 }
