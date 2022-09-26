@@ -369,7 +369,7 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                 && jump.node != node
                 && jump.arguments.is_empty()
                 && function.predecessor_blocks(jump.node).collect_vec() == vec![node]
-                && dominators.dominators(jump.node).unwrap().contains(&node)
+                && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
             {
                 let terminator = function.block_mut(jump.node).unwrap().terminator.take();
                 let body = function.remove_block(jump.node).unwrap().ast;
