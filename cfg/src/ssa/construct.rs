@@ -62,8 +62,9 @@ pub fn remove_unnecessary_params(
                     } else {
                         // param is trivial
                         // x = phi(x, x, ..., x)
-                        let param_node = dependency_graph.local_to_node[param];
-                        dependency_graph.remove_node(param_node);
+                        if let Some(&param_node) = dependency_graph.local_to_node.get(param) {
+                            dependency_graph.remove_node(param_node);
+                        }
                     }
 
                     params_to_remove.insert(param.clone());
@@ -270,7 +271,6 @@ impl<'a> SsaConstructor<'a> {
             }
             same = Some(arg);
         }
-        println!("node: {:?}", node);
         let same = same.unwrap();
         self.local_map.insert(param_local.clone(), same.clone());
 
@@ -284,6 +284,12 @@ impl<'a> SsaConstructor<'a> {
                 .cloned()
                 .collect::<Vec<_>>();
             if !edges.is_empty() {
+                if !edges
+                    .iter()
+                    .any(|e| e.arguments.iter().any(|(_, a)| a == &param_local))
+                {
+                    continue;
+                }
                 let params = edges[0]
                     .arguments
                     .iter()
@@ -547,7 +553,9 @@ impl<'a> SsaConstructor<'a> {
                 {
                     if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
                         for (local, param_local) in incomplete_params {
-                            self.add_param_args(node, &local, param_local);
+                            if !self.upvalue_groups.contains_key(&local) {
+                                self.add_param_args(node, &local, param_local);
+                            }
                         }
                     }
                     self.sealed_blocks.insert(node);
@@ -573,9 +581,10 @@ impl<'a> SsaConstructor<'a> {
         self.propagate_copies();
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
 
+        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+
         remove_unnecessary_params(self.function, &mut self.local_map);
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
-        crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
         //println!("{:#?}", self.old_locals);
         self.mark_upvalues();
 
