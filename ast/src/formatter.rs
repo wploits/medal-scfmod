@@ -46,7 +46,7 @@ pub(crate) fn format_arg_list(list: &[RValue]) -> String {
     let mut s = String::new();
     for (index, rvalue) in list.iter().enumerate() {
         if index + 1 == list.len() {
-            if matches!(rvalue, RValue::Call(_)) {
+            if matches!(rvalue, RValue::Select(_)) {
                 s += &format!("({})", rvalue);
             } else {
                 s += &rvalue.to_string();
