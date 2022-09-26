@@ -309,7 +309,7 @@ impl Instruction {
             RawInstruction(OperationCode::Concatenate, Layout::ABC { a, b, c }) => {
                 Self::Concatenate {
                     destination: Register(a),
-                    operands: (b..c).map(|r| Register(r as u8)).collect(),
+                    operands: (b..=c).map(|r| Register(r as u8)).collect(),
                 }
             }
             RawInstruction(OperationCode::Jump, Layout::AsBx { sbx, .. }) => Self::Jump(sbx),
