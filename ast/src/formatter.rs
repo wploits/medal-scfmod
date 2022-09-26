@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt, iter};
 
 use itertools::Itertools;
 
-use crate::{Block, Call, Index, LValue, Literal, RValue, Return, Select, Statement, Type};
+use crate::{Assign, Block, Call, Index, LValue, Literal, RValue, Return, Select, Statement, Type};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -69,15 +69,8 @@ impl Formatter {
             indentation_mode,
             output: String::new(),
         };
-
-        for (i, statement) in main.iter().enumerate() {
-            if i != 0 {
-                formatter.write(iter::once('\n'));
-            }
-            formatter.format_statement(statement);
-        }
-
-        formatter.output
+        formatter.format_block(main);
+        formatter.output.trim_end().to_string()
     }
 
     fn write(&mut self, iter: impl Iterator<Item = char>) {
@@ -93,10 +86,66 @@ impl Formatter {
         );
     }
 
+    // (function() end)()
+    // (function() end)[1]
+    fn should_wrap_left_rvalue(value: &RValue) -> bool {
+        !matches!(
+            value,
+            RValue::Local(_) | RValue::Global(_) | RValue::Index(_)
+        )
+    }
+
     fn format_block(&mut self, block: &Block) {
         self.indentation_level += 1;
-        for statement in &block.0 {
+        for (i, statement) in block.iter().enumerate() {
             self.format_statement(statement);
+            if let Some(next_statement) =
+                block.iter().skip(i + 1).find(|s| s.as_comment().is_none())
+            {
+                fn is_ambiguous(r: &RValue) -> bool {
+                    match r {
+                        RValue::Local(_)
+                        | RValue::Global(_)
+                        | RValue::Index(_)
+                        | RValue::Call(_) => true,
+                        RValue::Binary(binary) => is_ambiguous(&binary.right),
+                        _ => false,
+                    }
+                }
+
+                let disambiguate = match statement {
+                    Statement::Call(_) => true,
+                    Statement::Repeat(repeat) => is_ambiguous(&repeat.condition),
+                    Statement::Assign(Assign { right: list, .. })
+                    | Statement::Return(Return { values: list }) => {
+                        is_ambiguous(list.last().unwrap())
+                    }
+                    Statement::Goto(_) | Statement::Continue(_) | Statement::Break(_) => true,
+                    Statement::Comment(_) => unimplemented!(),
+                    _ => false,
+                };
+                let disambiguate = disambiguate
+                    && match next_statement {
+                        Statement::Assign(Assign {
+                            left,
+                            prefix: false,
+                            ..
+                        }) => {
+                            if let Some(index) = left[0].as_index() {
+                                Self::should_wrap_left_rvalue(&index.left)
+                            } else {
+                                false
+                            }
+                        }
+                        Statement::Call(call) => {
+                            Self::should_wrap_left_rvalue(&call.value)
+                        }
+                        _ => false,
+                    };
+                if disambiguate {
+                    self.write(iter::once(';'));
+                }
+            }
             self.write(iter::once('\n'));
         }
         self.indentation_level -= 1;
@@ -184,10 +233,7 @@ impl Formatter {
     }
 
     fn format_index(&mut self, index: &Index) {
-        let wrap = !matches!(
-            *index.left,
-            RValue::Local(_) | RValue::Global(_) | RValue::Index(_)
-        );
+        let wrap = Self::should_wrap_left_rvalue(&index.left);
         if wrap {
             self.write("(".chars());
         }
@@ -214,10 +260,7 @@ impl Formatter {
     }
 
     fn format_call(&mut self, call: &Call) {
-        let wrap = !matches!(
-            *call.value,
-            RValue::Local(_) | RValue::Global(_) | RValue::Index(_)
-        );
+        let wrap = Self::should_wrap_left_rvalue(&call.value);
         if wrap {
             self.write("(".chars());
         }
