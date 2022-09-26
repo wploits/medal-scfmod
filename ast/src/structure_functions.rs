@@ -72,7 +72,7 @@ impl Structurer {
                     let mut body = body.clone();
                     let mut local_map = HashMap::with_capacity(upvalues.len());
                     for (old, new) in upvalues.iter().zip(&closure.upvalues) {
-                        println!("{:?} -> {:?}", old, new);
+                        //println!("{:?} -> {:?}", old, new);
                         local_map.insert(old.clone(), new.clone());
                     }
                     replace_locals(&mut body, &local_map);
@@ -106,6 +106,11 @@ impl Structurer {
 }
 
 pub fn structure_functions(mut functions: Vec<(Block, Vec<RcLocal>, Vec<RcLocal>)>) -> Block {
+    // for (block, params, upvalues) in &functions {
+    //     println!("{:?} {:?}", params, upvalues);
+    //     let formatted = crate::formatter::Formatter::format(block, Default::default());
+    //     println!("{}", formatted);
+    // }
     functions.reverse();
     Structurer {
         function_count: functions.len(),

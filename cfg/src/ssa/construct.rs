@@ -373,6 +373,7 @@ impl<'a> SsaConstructor<'a> {
             {
                 if assign.left.len() == 1 && assign.right.len() == 1
                     && let Some(from) = assign.left[0].as_local()
+                    && !self.upvalue_groups.contains_key(&self.old_locals[from])
                     && let Some(mut to) = assign.right[0].as_local()
                 {
                     // TODO: wtf is this name lol
@@ -543,6 +544,8 @@ impl<'a> SsaConstructor<'a> {
                 }
             }
             self.filled_blocks.insert(node);
+
+            
 
             for &node in &visited_nodes {
                 if !self.sealed_blocks.contains(&node)
