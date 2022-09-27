@@ -38,7 +38,7 @@ impl Traverse for Literal {}
 fn escape_string(string: &str) -> String {
     let mut s = String::with_capacity(string.len());
     for c in string.chars() {
-        if c >= ' ' && c != '\\' && c != '\'' && c != '\"' && c != '`' && c != '{' {
+        if c == ' ' || (c.is_ascii_graphic() && c != '\\' && c != '\'' && c != '\"') {
             s.push(c);
         } else {
             match c {
