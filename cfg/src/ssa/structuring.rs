@@ -11,7 +11,6 @@ use petgraph::{
 use crate::{
     block::{BasicBlock, BasicBlockEdge, Terminator},
     function::Function,
-    inline::inline_expressions,
 };
 
 #[derive(Debug)]
@@ -93,8 +92,8 @@ fn match_conditional_assignment(
 
         if let ast::RValue::Local(condition) = &r#if.condition {
             let test_pattern = |assigner, next| {
-                if function.successor_blocks(assigner).collect_vec() == vec![next]
-                    && function.predecessor_blocks(assigner).collect_vec() == vec![node]
+                if function.successor_blocks(assigner).collect_vec() == [next]
+                    && function.predecessor_blocks(assigner).collect_vec() == [node]
                     && let Some(assign) = single_assign(&function.block(assigner).unwrap().ast)
                     && assign.left.len() == 1 && assign.right.len() == 1
                     && let ast::LValue::Local(assigned_local) = &assign.left[0]
@@ -368,7 +367,7 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             if let Some(Terminator::Jump(jump)) = block.terminator.clone()
                 && jump.node != node
                 && jump.arguments.is_empty()
-                && function.predecessor_blocks(jump.node).collect_vec() == vec![node]
+                && function.predecessor_blocks(jump.node).collect_vec() == [node]
                 && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
             {
                 let terminator = function.block_mut(jump.node).unwrap().terminator.take();

@@ -38,7 +38,7 @@ impl Infer for RcLocal {
 
 impl Display for RcLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0.0.0 {
+        match &self.0 .0 .0 {
             Some(name) => write!(f, "{}", name),
             None => {
                 let mut hasher = DefaultHasher::new();

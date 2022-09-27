@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::{LocalRw, RValue, RcLocal, SideEffects, Traverse, formatter};
+use crate::{formatter, LocalRw, RValue, RcLocal, SideEffects, Traverse};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SetList {
@@ -78,7 +78,14 @@ impl std::fmt::Display for SetList {
             self.table,
             self.index,
             // TODO: bad
-            formatter::format_arg_list(&self.values.iter().chain(self.tail.as_ref()).cloned().collect::<Vec<_>>())
+            formatter::format_arg_list(
+                &self
+                    .values
+                    .iter()
+                    .chain(self.tail.as_ref())
+                    .cloned()
+                    .collect::<Vec<_>>()
+            )
         )
     }
 }

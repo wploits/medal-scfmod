@@ -38,6 +38,7 @@ fn inline_expression(
     });
 }
 
+// TODO: dont clone expressions
 // TODO: move to ssa module?
 pub fn inline_expressions(
     function: &mut Function,
@@ -89,8 +90,7 @@ pub fn inline_expressions(
                         let statement = &mut block.ast[index];
                         if !new_expression.has_side_effects() {
                             inline_expression(statement, &read, new_expression);
-                            block.ast.remove(stat_index);
-                            index -= 1;
+                            block.ast[stat_index] = ast::Empty {}.into();
                             continue 'w;
                         }
                         if let Some(res) = statement.rvalues_mut().into_iter().find_map(|rvalue| {
@@ -103,8 +103,7 @@ pub fn inline_expressions(
                             }
                         }) && res {
                             inline_expression(statement, &read, new_expression);
-                            block.ast.remove(stat_index);
-                            index -= 1;
+                            block.ast[stat_index] = ast::Empty {}.into();
                             continue 'w;
                         }
                     }

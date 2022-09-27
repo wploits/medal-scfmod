@@ -42,7 +42,7 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
             let mut i = 1;
             while i < block.ast.len() {
                 if let ast::Statement::SetList(setlist) = block.ast[i].clone() {
-                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == vec![setlist.table.into()] {
+                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == [setlist.table.into()] {
                         let table = assign.right[0].as_table_mut().unwrap();
                         assert!(table.0.len() == setlist.index - 1);
                         for value in setlist.values {

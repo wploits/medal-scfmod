@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Block, RValue, RcLocal, Statement, Traverse, LValue};
+use crate::{Block, LValue, RValue, RcLocal, Statement, Traverse};
 
 struct Structurer {
     function_count: usize,
@@ -14,13 +14,15 @@ pub fn replace_locals(block: &mut Block, map: &HashMap<RcLocal, RcLocal>) {
         // TODO: traverse_values
         statement.post_traverse_values(&mut |value| -> Option<()> {
             match value {
-                itertools::Either::Left(LValue::Local(local)) 
+                itertools::Either::Left(LValue::Local(local))
                 | itertools::Either::Right(RValue::Local(local)) => {
                     if let Some(new_local) = map.get(local) {
                         *local = new_local.clone();
                     }
-                },
-                itertools::Either::Right(RValue::Closure(closure)) => replace_locals(&mut closure.body, map),
+                }
+                itertools::Either::Right(RValue::Closure(closure)) => {
+                    replace_locals(&mut closure.body, map)
+                }
                 _ => {}
             };
             None

@@ -235,6 +235,7 @@ impl LocalRw for Comment {}
 #[enum_dispatch(LocalRw, SideEffects, Traverse)]
 #[derive(Debug, Clone, PartialEq, EnumAsInner)]
 pub enum Statement {
+    Empty(Empty),
     Call(Call),
     Assign(Assign),
     If(If),
@@ -256,6 +257,21 @@ pub enum Statement {
     Comment(Comment),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Empty {}
+
+impl SideEffects for Empty {}
+
+impl LocalRw for Empty {}
+
+impl Traverse for Empty {}
+
+impl fmt::Display for Empty {
+    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+        Ok(())
+    }
+}
+
 impl fmt::Display for Comment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "-- {}", self.text)
@@ -265,6 +281,7 @@ impl fmt::Display for Comment {
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            // TODO: order in same order as `Statement` enum
             Statement::Call(call) => write!(f, "{}", call),
             Statement::Assign(assign) => write!(f, "{}", assign),
             // TODO: replace all `if_` with `r#if`, etc
@@ -285,6 +302,7 @@ impl fmt::Display for Statement {
             Statement::Comment(comment) => write!(f, "{}", comment),
             Statement::SetList(setlist) => write!(f, "{}", setlist),
             Statement::Close(close) => write!(f, "{}", close),
+            Statement::Empty(empty) => write!(f, "{}", empty),
         }
     }
 }
@@ -318,7 +336,7 @@ impl fmt::Display for Block {
         write!(
             f,
             "{}",
-            self.0.iter().map(|node| node.to_string()).join("\n")
+            self.0.iter().filter(|s| s.as_empty().is_none()).map(|s| s.to_string()).join("\n")
         )
     }
 }

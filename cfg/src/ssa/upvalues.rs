@@ -13,7 +13,12 @@ pub(crate) fn statement_upvalues_opened(statement: &ast::Statement) -> Vec<&ast:
     // }
     // upvalues_opened
     if let Some(assign) = statement.as_assign() {
-        assign.right.iter().filter_map(|r| r.as_closure()).flat_map(|c| c.upvalues.iter()).collect()
+        assign
+            .right
+            .iter()
+            .filter_map(|r| r.as_closure())
+            .flat_map(|c| c.upvalues.iter())
+            .collect()
     } else {
         Vec::new()
     }
