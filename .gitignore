@@ -3,3 +3,4 @@ target/
 .vscode
 Cargo.lock
 flamegraph.svg
+result.lua
