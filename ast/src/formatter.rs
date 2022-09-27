@@ -3,7 +3,7 @@ use std::{borrow::Cow, fmt, iter};
 use itertools::Itertools;
 
 use crate::{
-    Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement, Type,
+    Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement,
 };
 
 pub enum IndentationMode {

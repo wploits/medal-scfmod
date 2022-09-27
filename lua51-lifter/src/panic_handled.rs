@@ -115,11 +115,8 @@ fn main() -> anyhow::Result<()> {
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
                 .collect::<IndexMap<_, _>>();
 
-            let mut iterations = 0;
             //let now = time::Instant::now();
             loop {
-                iterations += 1;
-
                 // TODO: remove unused variables without side effects
                 inline(&mut function, &upvalue_to_group);
 

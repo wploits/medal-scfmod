@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::Read, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use either::Either;
 use fxhash::FxHashMap;
@@ -12,7 +12,7 @@ use lua51_deserializer::{
     Function as BytecodeFunction, Instruction, Value,
 };
 
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
+use petgraph::stable_graph::NodeIndex;
 
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
@@ -76,7 +76,7 @@ impl<'a> LifterContext<'a> {
                 }
                 Instruction::Jump(skip) => {
                     let dest_index = insn_index + skip as usize - 131070;
-                    let dest_block = *self
+                    let _dest_block = *self
                         .nodes
                         .entry(dest_index)
                         .or_insert_with(|| self.function.new_block());
@@ -805,7 +805,6 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                _ => statements.push(ast::Comment::new(format!("{:?}", instruction)).into()),
             }
 
             if matches!(instruction, Instruction::Return { .. }) {

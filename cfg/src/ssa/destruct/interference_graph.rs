@@ -23,8 +23,7 @@ impl InterferenceGraph {
         let len = variables.len();
         for a in 0..len {
             let va = variables[a];
-            for b in a + 1..len {
-                let vb = variables[b];
+            for &vb in variables.iter().take(len).skip(a + 1) {
                 self.graph.update_edge(va, vb, ());
             }
         }

@@ -572,7 +572,8 @@ impl<'a> SsaConstructor<'a> {
                     .unwrap_or_else(|| self.function.local_allocator.borrow_mut().allocate());
             }
         }
-        assert!(self.incomplete_params.is_empty());
+        println!("{:#?}", self.incomplete_params);
+        //assert!(self.incomplete_params.is_empty());
 
         //self.remove_unused_parameters();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();

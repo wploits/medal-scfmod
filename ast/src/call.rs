@@ -1,4 +1,4 @@
-use itertools::Itertools;
+
 use std::fmt;
 
 use crate::{formatter, LocalRw, RcLocal, SideEffects, Traverse};

@@ -2,7 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{type_system::Type, RcLocal, SideEffects, Traverse};
+use crate::{RcLocal, SideEffects, Traverse};
 
 use super::{LValue, LocalRw, RValue};
 

@@ -2,7 +2,7 @@ use crate::{
     has_side_effects, Assign, Block, LValue, LocalRw, RValue, RcLocal, SideEffects, Traverse,
 };
 use itertools::Itertools;
-use std::{fmt, iter};
+use std::{fmt};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumForInit {

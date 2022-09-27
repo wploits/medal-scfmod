@@ -5,7 +5,7 @@ use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,
     stable_graph::NodeIndex,
-    visit::{depth_first_search, DfsEvent, DfsPostOrder},
+    visit::{DfsPostOrder},
 };
 
 use crate::{

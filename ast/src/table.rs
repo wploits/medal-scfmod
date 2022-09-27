@@ -1,10 +1,8 @@
 use crate::{
-    formatter, has_side_effects, type_system::Infer, LocalRw, RValue, RcLocal, Traverse, Type,
-    TypeSystem,
+    formatter, has_side_effects, LocalRw, RValue, RcLocal, Traverse,
 };
-use itertools::{Either, Itertools};
+
 use std::{
-    collections::{BTreeMap, BTreeSet},
     fmt,
 };
 
