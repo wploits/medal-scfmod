@@ -1,10 +1,6 @@
-use crate::{
-    formatter, has_side_effects, LocalRw, RValue, RcLocal, Traverse,
-};
+use crate::{formatter, has_side_effects, LocalRw, RValue, RcLocal, Traverse};
 
-use std::{
-    fmt,
-};
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table(pub Vec<RValue>);

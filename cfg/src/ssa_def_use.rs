@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use ast::{LocalRw, RcLocal};
 
 use fxhash::FxHashMap;

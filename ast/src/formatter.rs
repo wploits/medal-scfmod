@@ -2,9 +2,7 @@ use std::{borrow::Cow, fmt, iter};
 
 use itertools::Itertools;
 
-use crate::{
-    Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement,
-};
+use crate::{Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement};
 
 pub enum IndentationMode {
     Spaces(u8),

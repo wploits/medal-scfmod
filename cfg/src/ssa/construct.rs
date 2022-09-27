@@ -2,8 +2,12 @@ use std::iter;
 
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
-use indexmap::IndexMap;
-use petgraph::{stable_graph::NodeIndex, visit::Dfs, Direction};
+use indexmap::{IndexMap, IndexSet};
+use petgraph::{
+    stable_graph::NodeIndex,
+    visit::{Dfs, Walker},
+    Direction,
+};
 
 use crate::{
     block::Terminator,
@@ -16,6 +20,7 @@ use super::upvalues::UpvaluesOpen;
 
 struct SsaConstructor<'a> {
     function: &'a mut Function,
+    dfs: IndexSet<NodeIndex>,
     incomplete_params: FxHashMap<NodeIndex, FxHashMap<RcLocal, RcLocal>>,
     filled_blocks: FxHashSet<NodeIndex>,
     sealed_blocks: FxHashSet<NodeIndex>,
@@ -390,60 +395,9 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-    /*fn fix_upvalues(&mut self, local_map: &mut FxHashMap<ast::RcLocal, ast::RcLocal>) {
-        let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
-        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
-        while let Some(node) = dfs.next(self.function.graph()) {
-            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
-                let statement = self
-                    .function
-                    .block(node)
-                    .unwrap()
-                    .ast
-                    .get(stat_index)
-                    .unwrap();
-                let written = statement
-                    .values_written()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                for value in written {
-                    if let Some(open_local) =
-                        upvalues_open.find_open(node, stat_index, &value, self.function)
-                    {
-                        local_map.insert(value, open_local);
-                    }
-                }
-            }
-            self.function
-                .block_mut(node)
-                .unwrap()
-                .ast
-                .retain(|statement| !matches!(statement, ast::Statement::Close(_)))
-        }
-        let mut changed = true;
-        while changed {
-            changed = false;
-            let locals = local_map
-                .iter()
-                .filter_map(|(old, new)| {
-                    local_map
-                        .get(new)
-                        .map(|new_local| (old.clone(), new.clone(), new_local.clone()))
-                })
-                .collect::<Vec<_>>();
-            for (old, new, new_local) in locals {
-                local_map.insert(old, new_local.clone());
-                local_map.insert(new, new_local);
-                changed = true;
-            }
-        }
-    }*/
-
     fn mark_upvalues(&mut self) {
         let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
-        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
-        while let Some(node) = dfs.next(self.function.graph()) {
+        for &node in &self.dfs {
             for stat_index in 0..self.function.block(node).unwrap().ast.len() {
                 let statement = self
                     .function
@@ -482,9 +436,9 @@ impl<'a> SsaConstructor<'a> {
 
     fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<FxHashSet<RcLocal>>) {
         let entry = self.function.entry().unwrap();
-        let mut dfs = Dfs::new(self.function.graph(), entry);
         let mut visited_nodes = Vec::with_capacity(self.function.graph().node_count());
-        while let Some(node) = dfs.next(self.function.graph()) {
+        for i in 0..self.dfs.len() {
+            let node = self.dfs[i];
             visited_nodes.push(node);
             for stat_index in 0..self.function.block(node).unwrap().ast.len() {
                 // read
@@ -573,7 +527,8 @@ impl<'a> SsaConstructor<'a> {
             }
         }
         println!("{:#?}", self.incomplete_params);
-        //assert!(self.incomplete_params.is_empty());
+        crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+        assert!(self.incomplete_params.is_empty());
 
         //self.remove_unused_parameters();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
@@ -608,9 +563,21 @@ pub fn construct(
         upvalue_groups.insert(upvalue.clone(), FxHashSet::default());
     }
 
+    let dfs = Dfs::new(function.graph(), function.entry().unwrap())
+        .iter(function.graph())
+        .collect::<IndexSet<_>>();
+
+    // remove all nodes that will never execute
+    for node in function.blocks().map(|(n, _)| n).collect::<Vec<_>>() {
+        if !dfs.contains(&node) {
+            function.remove_block(node);
+        }
+    }
+
     let node_count = function.graph().node_count();
     SsaConstructor {
         function,
+        dfs,
         incomplete_params: FxHashMap::with_capacity_and_hasher(node_count, Default::default()),
         filled_blocks: FxHashSet::with_capacity_and_hasher(node_count, Default::default()),
         sealed_blocks: FxHashSet::with_capacity_and_hasher(node_count, Default::default()),

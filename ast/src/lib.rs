@@ -336,7 +336,11 @@ impl fmt::Display for Block {
         write!(
             f,
             "{}",
-            self.0.iter().filter(|s| s.as_empty().is_none()).map(|s| s.to_string()).join("\n")
+            self.0
+                .iter()
+                .filter(|s| s.as_empty().is_none())
+                .map(|s| s.to_string())
+                .join("\n")
         )
     }
 }

@@ -3,12 +3,8 @@ use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
 
-
 use crate::{post_dominators, GraphStructurer};
-use petgraph::{
-    algo::dominators::{Dominators},
-    stable_graph::{NodeIndex},
-};
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 impl GraphStructurer {
     pub(crate) fn is_loop_header(&self, node: NodeIndex) -> bool {

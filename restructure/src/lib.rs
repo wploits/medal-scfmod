@@ -1,5 +1,7 @@
 #![feature(let_chains)]
 
+use std::iter;
+
 use cfg::function::Function;
 use fxhash::FxHashSet;
 use itertools::Itertools;
@@ -146,16 +148,29 @@ impl GraphStructurer {
 
     fn collapse(&mut self) {
         while self.match_blocks() {}
-
-        let nodes = self.function.graph().node_count();
-        if self.function.graph().node_count() != 1 {
-            println!("failed to collapse! total nodes: {}", nodes);
-        }
     }
 
     fn structure(mut self) -> ast::Block {
         self.collapse();
-        self.function.remove_block(self.root).unwrap().ast
+        let nodes = self.function.graph().node_count();
+        if self.function.graph().node_count() != 1 {
+            ast::Block::from_vec(
+                iter::once(
+                    ast::Comment::new(format!("failed to collapse, total nodes: {}", nodes)).into(),
+                )
+                .chain(
+                    self.function
+                        .remove_block(self.root)
+                        .unwrap()
+                        .ast
+                        .0
+                        .into_iter(),
+                )
+                .collect::<Vec<_>>(),
+            )
+        } else {
+            self.function.remove_block(self.root).unwrap().ast
+        }
     }
 }
 

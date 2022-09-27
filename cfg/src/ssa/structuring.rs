@@ -2,11 +2,7 @@ use ast::LocalRw;
 use ast::{Reduce, UnaryOperation};
 use fxhash::FxHashSet;
 use itertools::Itertools;
-use petgraph::{
-    algo::dominators::Dominators,
-    stable_graph::NodeIndex,
-    visit::{DfsPostOrder},
-};
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::DfsPostOrder};
 
 use crate::{
     block::{BasicBlock, BasicBlockEdge, Terminator},

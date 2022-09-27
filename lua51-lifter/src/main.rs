@@ -17,7 +17,7 @@ use cfg::{
 };
 use fxhash::FxHashMap;
 use lua51_deserializer::chunk::Chunk;
-use petgraph::algo::dominators::simple_fast;
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
 
 mod lifter;
 

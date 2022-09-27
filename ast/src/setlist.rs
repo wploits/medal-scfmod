@@ -1,5 +1,3 @@
-
-
 use crate::{formatter, LocalRw, RValue, RcLocal, SideEffects, Traverse};
 
 #[derive(Debug, Clone, PartialEq)]
