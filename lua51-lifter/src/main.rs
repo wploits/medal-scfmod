@@ -39,10 +39,13 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
         changed = false;
         for (_, block) in function.blocks_mut() {
             // if the first statement is a setlist, we cant inline it anyway
-            let mut i = 1;
-            while i < block.ast.len() {
-                if let ast::Statement::SetList(setlist) = block.ast[i].clone() {
-                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == [setlist.table.into()] {
+            for i in 1..block.ast.len() {
+                if let ast::Statement::SetList(setlist) = &block.ast[i] {
+                    let table_local = setlist.table.clone();
+                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == [table_local.into()]
+                    {
+                        let setlist = std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into()).into_set_list().unwrap();
+                        let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
                         let table = assign.right[0].as_table_mut().unwrap();
                         assert!(table.0.len() == setlist.index - 1);
                         for value in setlist.values {
@@ -51,19 +54,20 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                         if let Some(tail) = setlist.tail {
                             table.0.push(tail);
                         }
-                        block.ast.remove(i);
                         changed = true;
-                    } else {
-                        i += 1;
                     }
                     // todo: only inline in changed blocks
                     //cfg::dot::render_to(function, &mut std::io::stdout());
                     //break 'outer;
-                } else {
-                    i += 1;
                 }
             }
         }
+    }
+
+    // we check block.ast.len() elsewhere so we need to get rid of empty statements
+    // TODO: fix ^
+    for (_, block) in function.blocks_mut() {
+        block.ast.retain(|s| s.as_empty().is_none());
     }
 }
 
