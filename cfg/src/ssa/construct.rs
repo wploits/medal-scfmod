@@ -545,8 +545,6 @@ impl<'a> SsaConstructor<'a> {
             }
             self.filled_blocks.insert(node);
 
-            
-
             for &node in &visited_nodes {
                 if !self.sealed_blocks.contains(&node)
                     && !self
@@ -574,7 +572,8 @@ impl<'a> SsaConstructor<'a> {
                     .unwrap_or_else(|| self.function.local_allocator.borrow_mut().allocate());
             }
         }
-        assert!(self.incomplete_params.is_empty());
+        println!("{:#?}", self.incomplete_params);
+        //assert!(self.incomplete_params.is_empty());
 
         //self.remove_unused_parameters();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
@@ -606,10 +605,9 @@ pub fn construct(
 ) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<FxHashSet<RcLocal>>) {
     let mut upvalue_groups = IndexMap::new();
     for upvalue in upvalues_in {
-        upvalue_groups
-            .insert(upvalue.clone(), FxHashSet::default());
+        upvalue_groups.insert(upvalue.clone(), FxHashSet::default());
     }
-    
+
     let node_count = function.graph().node_count();
     SsaConstructor {
         function,
@@ -622,5 +620,6 @@ pub fn construct(
         local_count: 0,
         local_map: FxHashMap::default(),
         upvalue_groups,
-    }.construct()
+    }
+    .construct()
 }

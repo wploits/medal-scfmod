@@ -2,13 +2,12 @@ use ast::{Reduce, SideEffects};
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
-use std::iter;
+
 
 use crate::{post_dominators, GraphStructurer};
 use petgraph::{
-    algo::dominators::{simple_fast, Dominators},
-    stable_graph::{NodeIndex, StableDiGraph},
-    visit::{IntoNeighbors, IntoNodeIdentifiers, Reversed},
+    algo::dominators::{Dominators},
+    stable_graph::{NodeIndex},
 };
 
 impl GraphStructurer {

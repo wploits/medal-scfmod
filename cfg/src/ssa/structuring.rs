@@ -5,13 +5,12 @@ use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,
     stable_graph::NodeIndex,
-    visit::{depth_first_search, DfsEvent, DfsPostOrder},
+    visit::{DfsPostOrder},
 };
 
 use crate::{
     block::{BasicBlock, BasicBlockEdge, Terminator},
     function::Function,
-    inline::inline_expressions,
 };
 
 #[derive(Debug)]
