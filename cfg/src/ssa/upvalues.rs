@@ -5,13 +5,18 @@ use petgraph::stable_graph::NodeIndex;
 use crate::function::Function;
 
 pub(crate) fn statement_upvalues_opened(statement: &ast::Statement) -> Vec<&ast::RcLocal> {
-    let mut upvalues_opened = Vec::new();
-    for rvalue in statement.rvalues() {
-        if let ast::RValue::Closure(closure) = rvalue {
-            upvalues_opened.extend(closure.upvalues.iter());
-        }
+    // let mut upvalues_opened = Vec::new();
+    // for rvalue in statement.rvalues() {
+    //     if let ast::RValue::Closure(closure) = rvalue {
+    //         upvalues_opened.extend(closure.upvalues.iter());
+    //     }
+    // }
+    // upvalues_opened
+    if let Some(assign) = statement.as_assign() {
+        assign.right.iter().filter_map(|r| r.as_closure()).flat_map(|c| c.upvalues.iter()).collect()
+    } else {
+        Vec::new()
     }
-    upvalues_opened
 }
 
 pub(crate) fn statement_upvalues_closed(statement: &ast::Statement) -> Vec<&ast::RcLocal> {
