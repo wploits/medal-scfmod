@@ -127,6 +127,7 @@ impl Display for Type {
 }
 
 pub struct TypeSystem<'a> {
+    // TODO: use hash map?
     annotations: BTreeMap<&'a RcLocal, &'a mut Type>,
 }
 

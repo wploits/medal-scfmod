@@ -1,4 +1,5 @@
 use crate::{type_system::Infer, SideEffects, Traverse, Type, TypeSystem};
+use by_address::ByAddress;
 use derive_more::{Deref, DerefMut, From};
 use enum_dispatch::enum_dispatch;
 use std::{
@@ -27,7 +28,7 @@ impl fmt::Display for Local {
 }
 
 #[derive(Debug, Clone, Deref, PartialEq, Eq, PartialOrd, Ord, DerefMut, Hash)]
-pub struct RcLocal(pub Rc<Local>);
+pub struct RcLocal(pub ByAddress<Rc<Local>>);
 
 impl Infer for RcLocal {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
@@ -37,7 +38,7 @@ impl Infer for RcLocal {
 
 impl Display for RcLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 .0 {
+        match &self.0.0.0 {
             Some(name) => write!(f, "{}", name),
             None => {
                 let mut hasher = DefaultHasher::new();
@@ -54,7 +55,7 @@ impl Traverse for RcLocal {}
 
 impl RcLocal {
     pub fn new(rc: Rc<Local>) -> Self {
-        Self(rc)
+        Self(ByAddress(rc))
     }
 }
 
