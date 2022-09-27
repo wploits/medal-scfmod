@@ -47,7 +47,7 @@ fn escape_string(string: &str) -> String {
                 '\t' => s.push_str("\\t"),
                 '\"' => s.push_str("\\\""),
                 '\'' => s.push_str("\\'"),
-                _ => s.push_str(&format!("\\x{:02x}", c as u8)),
+                _ => s.push_str(&format!("\\{:0>3}", c as u8)),
             };
         }
     }
