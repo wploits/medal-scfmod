@@ -498,54 +498,12 @@ impl<'a> LifterContext<'a> {
                 &Instruction::TailCall {
                     function,
                     arguments,
-                } => {
-                    top = Some((
-                        ast::Call::new(
-                            self.locals[&function].clone().into(),
-                            (1..arguments)
-                                .map(|argument| {
-                                    self.locals[&Register(function.0 + argument)].clone().into()
-                                })
-                                .collect(),
-                        )
-                        .into(),
-                        function.0,
-                    ));
                 }
-                &Instruction::Call {
+                | &Instruction::Call {
                     function,
                     arguments,
-                    return_values,
+                    ..
                 } => {
-                    /*let call = ast::Call {
-                        value: Box::new(self.locals[function].clone().into()),
-                        arguments: if *arguments <= 1 {
-                            Vec::new()
-                        } else {
-                            (1..*arguments)
-                                .map(|argument| {
-                                    self.locals[&Register(function.0 + argument)].clone().into()
-                                })
-                                .collect_vec()
-                        },
-                    };
-
-                    statements.push(if *return_values > 1 {
-                        ast::Assign::new(
-                            (0..return_values - 1)
-                                .map(|return_value| {
-                                    self.locals[&Register(function.0 + return_value)]
-                                        .clone()
-                                        .into()
-                                })
-                                .collect_vec(),
-                            vec![call.into()],
-                        )
-                        .into()
-                    } else {
-                        call.into()
-                    })*/
-
                     let arguments = if arguments != 0 {
                         (function.0 + 1..function.0 + arguments)
                             .map(|r| self.locals[&Register(r)].clone().into())
@@ -560,20 +518,24 @@ impl<'a> LifterContext<'a> {
 
                     let call = ast::Call::new(self.locals[&function].clone().into(), arguments);
 
-                    if return_values == 0 {
-                        top = Some((call.into(), function.0));
-                    } else if return_values == 1 {
-                        statements.push(call.into());
+                    if let &Instruction::Call { return_values, .. } = instruction
+                        && return_values != 0
+                    {
+                        if return_values == 1 {
+                            statements.push(call.into());
+                        } else {
+                            statements.push(
+                                ast::Assign::new(
+                                    (function.0..function.0 + return_values - 1)
+                                        .map(|r| self.locals[&Register(r)].clone().into())
+                                        .collect_vec(),
+                                    vec![ast::RValue::Select(call.into())],
+                                )
+                                .into(),
+                            );
+                        }
                     } else {
-                        statements.push(
-                            ast::Assign::new(
-                                (function.0..function.0 + return_values - 1)
-                                    .map(|r| self.locals[&Register(r)].clone().into())
-                                    .collect_vec(),
-                                vec![ast::RValue::Select(call.into())],
-                            )
-                            .into(),
-                        );
+                        top = Some((call.into(), function.0));
                     }
                 }
                 Instruction::GetUpvalue {
