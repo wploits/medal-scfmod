@@ -40,10 +40,7 @@ fn inline_expression(
 
 // TODO: dont clone expressions
 // TODO: move to ssa module?
-fn inline_expressions(
-    function: &mut Function,
-    upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
-) {
+fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
     let mut local_usages = FxHashMap::default();
     for &node in &node_indices {

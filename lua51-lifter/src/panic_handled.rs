@@ -2,7 +2,7 @@
 #![feature(let_chains)]
 
 use ast::structure_functions::structure_functions;
-use cfg::{ssa::structuring::structure_for_loops, inline::inline};
+use cfg::{inline::inline, ssa::structuring::structure_for_loops};
 use indexmap::IndexMap;
 use restructure::post_dominators;
 use std::{fs::File, io::Read, time};
