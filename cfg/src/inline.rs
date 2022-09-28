@@ -40,7 +40,7 @@ fn inline_expression(
 
 // TODO: dont clone expressions
 // TODO: move to ssa module?
-pub fn inline_expressions(
+fn inline_expressions(
     function: &mut Function,
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
 ) {
@@ -108,11 +108,51 @@ pub fn inline_expressions(
                         }
                     }
                 }
-                if block.ast[index].has_side_effects() {
-                    break;
-                }
             }
             index += 1;
         }
+    }
+}
+
+pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        inline_expressions(function, upvalue_to_group);
+        // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
+        // TODO: fix ^
+        for (_, block) in function.blocks_mut() {
+            block.ast.retain(|s| s.as_empty().is_none());
+        }
+        for (_, block) in function.blocks_mut() {
+            // if the first statement is a setlist, we cant inline it anyway
+            for i in 1..block.ast.len() {
+                if let ast::Statement::SetList(setlist) = &block.ast[i] {
+                    let table_local = setlist.table.clone();
+                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == [table_local.into()]
+                    {
+                        let setlist = std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into()).into_set_list().unwrap();
+                        let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
+                        let table = assign.right[0].as_table_mut().unwrap();
+                        assert!(table.0.len() == setlist.index - 1);
+                        for value in setlist.values {
+                            table.0.push(value);
+                        }
+                        if let Some(tail) = setlist.tail {
+                            table.0.push(tail);
+                        }
+                        changed = true;
+                    }
+                    // todo: only inline in changed blocks
+                    //cfg::dot::render_to(function, &mut std::io::stdout());
+                    //break 'outer;
+                }
+            }
+        }
+    }
+    // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
+    // TODO: fix ^
+    for (_, block) in function.blocks_mut() {
+        block.ast.retain(|s| s.as_empty().is_none());
     }
 }

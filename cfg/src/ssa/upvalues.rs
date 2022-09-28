@@ -76,7 +76,14 @@ impl UpvaluesOpen {
         function: &Function,
     ) -> bool {
         let old_local = &self.old_locals[local];
-        for statement in function.block(node).unwrap().ast.iter().take(index + 1).rev() {
+        for statement in function
+            .block(node)
+            .unwrap()
+            .ast
+            .iter()
+            .take(index + 1)
+            .rev()
+        {
             for opened in statement_upvalues_opened(statement) {
                 if &self.old_locals[opened] == old_local {
                     return true;
