@@ -20,11 +20,11 @@ impl Return {
 
 impl Traverse for Return {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
-        self.values.iter_mut().rev().collect()
+        self.values.iter_mut().collect()
     }
 
     fn rvalues(&self) -> Vec<&RValue> {
-        self.values.iter().rev().collect()
+        self.values.iter().collect()
     }
 }
 
@@ -32,7 +32,6 @@ impl LocalRw for Return {
     fn values_read(&self) -> Vec<&RcLocal> {
         self.values
             .iter()
-            .rev()
             .flat_map(|r| r.values_read())
             .collect()
     }
@@ -40,7 +39,6 @@ impl LocalRw for Return {
     fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
         self.values
             .iter_mut()
-            .rev()
             .flat_map(|r| r.values_read_mut())
             .collect()
     }
