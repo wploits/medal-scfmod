@@ -86,25 +86,34 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
 
         let mut index = 0;
         'w: while index < block.ast.len() {
+            let mut allow_side_effects = true;
             for stat_index in (0..index).rev() {
-                for read_opt in &mut stat_to_values_read[index] {
-                    if let Some(read) = read_opt
-                        && let ast::Statement::Assign(assign) = &block.ast[stat_index]
-                        && assign.left.len() == 1
-                        && assign.right.len() == 1
-                        && let ast::LValue::Local(local) = &assign.left[0]
-                        && local == read
-                    {
-                        let new_expression = &assign.right[0];
-                        if !new_expression.has_side_effects() || block.ast[index].rvalues().into_iter().find_map(|rvalue| {
-                            if rvalue.values_read().contains(&&*read) {
+                let mut values_read = stat_to_values_read[index].iter_mut().filter(|l| l.is_some()).peekable();
+                if values_read.peek().is_none() {
+                    continue;
+                }
+                if let ast::Statement::Assign(assign) = &block.ast[stat_index]
+                    && assign.left.len() == 1
+                    && assign.right.len() == 1
+                    && let ast::LValue::Local(local) = &assign.left[0]
+                {
+                    let new_expression = &assign.right[0];
+                    let new_expr_has_side_effects = new_expression.has_side_effects();
+
+                    for read_opt in values_read {
+                        let read = read_opt.as_ref().unwrap();
+                        if local != read {
+                            continue;
+                        };
+                        if !new_expr_has_side_effects || (allow_side_effects && block.ast[index].rvalues().into_iter().find_map(|rvalue| {
+                            if rvalue.values_read().contains(&read) {
                                 Some(true)
                             } else if rvalue.has_side_effects() {
                                 Some(false)
                             } else {
                                 None
                             }
-                        }).unwrap_or(false) {
+                        }).unwrap_or(false)) {
                             let new_expression = std::mem::replace(
                                 &mut block.ast[stat_index],
                                 ast::Empty {}.into())
@@ -114,6 +123,8 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
                             continue 'w;
                         }
                     }
+                    
+                    allow_side_effects &= !new_expr_has_side_effects;
                 }
             }
             index += 1;
