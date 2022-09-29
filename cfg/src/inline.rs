@@ -4,39 +4,40 @@ use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::Either;
 
-fn assigns<'a>(
-    block: &'a ast::Block,
-    locals_out: &FxHashSet<&ast::RcLocal>,
-    check_statement: usize,
-    ref_local: &ast::RcLocal,
-) -> Option<&'a ast::RValue> {
-    if let ast::Statement::Assign(assign) = &block[check_statement] {
-        if assign.left.len() == 1 && assign.right.len() == 1 {
-            if let ast::LValue::Local(local) = &assign.left[0] {
-                if local == ref_local && !locals_out.contains(local) {
-                    return Some(&assign.right[0]);
-                }
-            }
-        }
-    }
-    None
-}
-
 fn inline_expression(
     statement: &mut ast::Statement,
     read: &ast::RcLocal,
     new_expression: ast::RValue,
-) {
+    new_expr_has_side_effects: bool,
+) -> bool {
     let mut new_expression = Some(new_expression);
     statement.post_traverse_values(&mut |v| {
-        if let Either::Right(rvalue) = v {
-            if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
-                *rvalue = new_expression.take().unwrap();
-                return Some(())
+        match v {
+            Either::Right(rvalue) => {
+                if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
+                    *rvalue = new_expression.take().unwrap();
+                    // success!
+                    return Some(true)
+                }
+                if new_expr_has_side_effects && rvalue.has_side_effects() {
+                    // failure :(
+                    Some(false)
+                } else {
+                    // keep searching
+                    None
+                }
+            }
+            Either::Left(lvalue) => {
+                if new_expr_has_side_effects && lvalue.has_side_effects() {
+                    // failure :(
+                    Some(false)
+                } else {
+                    // keep searching
+                    None
+                }
             }
         }
-        None
-    });
+    }).unwrap_or(false)
 }
 
 // TODO: dont clone expressions
@@ -77,7 +78,11 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
             stat_to_values_read.push(
                 stat.values_read()
                     .into_iter()
-                    .filter(|&l| local_usages[l] == 1 && !upvalue_to_group.contains_key(l) && !locals_out.contains(l))
+                    .filter(|&l| {
+                        local_usages[l] == 1
+                            && !upvalue_to_group.contains_key(l)
+                            && !locals_out.contains(l)
+                    })
                     .cloned()
                     .map(Some)
                     .collect::<Vec<_>>(),
@@ -88,9 +93,13 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
         'w: while index < block.ast.len() {
             let mut allow_side_effects = true;
             for stat_index in (0..index).rev() {
-                let mut values_read = stat_to_values_read[index].iter_mut().filter(|l| l.is_some()).peekable();
+                let mut values_read = stat_to_values_read[index]
+                    .iter_mut()
+                    .filter(|l| l.is_some())
+                    .peekable();
                 if values_read.peek().is_none() {
-                    continue;
+                    index += 1;
+                    continue 'w;
                 }
                 if let ast::Statement::Assign(assign) = &block.ast[stat_index]
                     && assign.left.len() == 1
@@ -99,28 +108,19 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
                 {
                     let new_expression = &assign.right[0];
                     let new_expr_has_side_effects = new_expression.has_side_effects();
-
+                    let local = local.clone();
                     for read_opt in values_read {
                         let read = read_opt.as_ref().unwrap();
-                        if local != read {
+                        if read != &local {
                             continue;
                         };
-                        if !new_expr_has_side_effects || (allow_side_effects && block.ast[index].rvalues().into_iter().find_map(|rvalue| {
-                            if rvalue.values_read().contains(&read) {
-                                Some(true)
-                            } else if rvalue.has_side_effects() {
-                                Some(false)
-                            } else {
-                                None
+                        if !new_expr_has_side_effects || allow_side_effects {
+                            let new_expression = block.ast[stat_index].as_assign().unwrap().right[0].clone();
+                            if inline_expression(&mut block.ast[index], read, new_expression, new_expr_has_side_effects) {
+                                block.ast[stat_index] = ast::Empty {}.into();
+                                *read_opt = None;
+                                continue 'w;
                             }
-                        }).unwrap_or(false)) {
-                            let new_expression = std::mem::replace(
-                                &mut block.ast[stat_index],
-                                ast::Empty {}.into())
-                                .into_assign().unwrap().right.into_iter().next().unwrap();
-                            inline_expression(&mut block.ast[index], read, new_expression);
-                            *read_opt = None;
-                            continue 'w;
                         }
                     }
                 }
@@ -136,12 +136,11 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
     while changed {
         changed = false;
         inline_expressions(function, upvalue_to_group);
-        // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
-        // TODO: fix ^
         for (_, block) in function.blocks_mut() {
+            // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
+            // TODO: fix ^
             block.ast.retain(|s| s.as_empty().is_none());
-        }
-        for (_, block) in function.blocks_mut() {
+
             // if the first statement is a setlist, we cant inline it anyway
             for i in 1..block.ast.len() {
                 if let ast::Statement::SetList(setlist) = &block.ast[i] {
