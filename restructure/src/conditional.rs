@@ -16,6 +16,7 @@ impl GraphStructurer {
     }
 
     // a -> b -> d + a -> c -> d
+    // results in a -> d
     fn match_diamond_conditional(
         &mut self,
         entry: NodeIndex,
@@ -58,6 +59,7 @@ impl GraphStructurer {
     }
 
     // a -> b -> c + a -> c
+    // results in a -> c
     fn match_triangle_conditional(
         &mut self,
         entry: NodeIndex,
@@ -104,6 +106,43 @@ impl GraphStructurer {
             || _match_triangle_conditional(else_node, then_node, true)
     }
 
+    fn match_early_exit_triangle_conditional(
+        &mut self,
+        entry: NodeIndex,
+        then_node: NodeIndex,
+        else_node: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
+    ) -> bool {
+        let mut _match_early_exit_triangle_conditional = |then_node, else_node, inverted| {
+            let then_successors = self.function.successor_blocks(then_node).collect_vec();
+
+            if !then_successors.is_empty() {
+                return false;
+            }
+
+            let then_block = self.function.remove_block(then_node).unwrap();
+
+            let block = self.function.block_mut(entry).unwrap();
+            let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
+            if_stat.then_block = Some(then_block.ast);
+
+            if inverted {
+                if_stat.condition =
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce()
+            }
+
+            self.function
+                .set_block_terminator(entry, Some(Terminator::jump(else_node)));
+            self.match_jump(entry, Some(else_node), dominators);
+
+            true
+        };
+
+        _match_early_exit_triangle_conditional(then_node, else_node, false)
+            || _match_early_exit_triangle_conditional(else_node, then_node, true)
+    }
+
+    // a -> b a -> c
     pub(crate) fn refine_virtual_edge_jump(
         &mut self,
         _entry: NodeIndex,
@@ -168,5 +207,6 @@ impl GraphStructurer {
     ) -> bool {
         self.match_diamond_conditional(entry, then_node, else_node, dominators)
             || self.match_triangle_conditional(entry, then_node, else_node, dominators)
+            || self.match_early_exit_triangle_conditional(entry, then_node, else_node, dominators)
     }
 }
