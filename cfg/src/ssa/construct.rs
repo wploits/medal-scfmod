@@ -10,9 +10,7 @@ use petgraph::{
 };
 
 use crate::{
-    block::Terminator,
-    function::Function,
-    ssa::{param_dependency_graph::ParamDependencyGraph, upvalues::statement_upvalues_opened},
+    block::Terminator, function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
     ssa_def_use,
 };
 
@@ -170,36 +168,6 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
 
 // based on "Simple and Efficient Construction of Static Single Assignment Form" (https://pp.info.uni-karlsruhe.de/uploads/publikationen/braun13cc.pdf)
 impl<'a> SsaConstructor<'a> {
-    fn remove_unused_parameters(&mut self) {
-        // TODO: does this ssa algorithm even result in unused parameters?
-        let def_use = ssa_def_use::SsaDefUse::new(self.function);
-
-        let to_remove = def_use
-            .parameters
-            .into_iter()
-            .filter(|(local, _)| !def_use.references.contains_key(local));
-
-        for (local, locations) in to_remove {
-            for edge in locations {
-                match self.function.block_mut(edge.0).unwrap().terminator.as_mut() {
-                    Some(Terminator::Jump(edge)) => {
-                        edge.arguments.retain(|(target, _)| target != &local);
-                    }
-                    Some(Terminator::Conditional(then_edge, else_edge)) => {
-                        if then_edge.node == edge.1 {
-                            then_edge.arguments.retain(|(target, _)| target != &local);
-                        } else if else_edge.node == edge.1 {
-                            else_edge.arguments.retain(|(target, _)| target != &local);
-                        } else {
-                            unreachable!();
-                        }
-                    }
-                    None => {}
-                }
-            }
-        }
-    }
-
     fn write_local(&mut self, node: NodeIndex, local: &RcLocal, new_local: &RcLocal) {
         self.all_definitions
             .entry(local.clone())
@@ -406,11 +374,18 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get(stat_index)
                     .unwrap();
-                for opened in statement_upvalues_opened(statement) {
-                    self.upvalue_groups
-                        .entry(self.old_locals[opened].clone())
-                        .or_default()
-                        .insert(opened.clone());
+                if let ast::Statement::Assign(assign) = statement {
+                    for opened in assign
+                        .right
+                        .iter()
+                        .filter_map(|r| r.as_closure())
+                        .flat_map(|c| c.upvalues.iter())
+                    {
+                        self.upvalue_groups
+                            .entry(self.old_locals[opened].clone())
+                            .or_default()
+                            .insert(opened.clone());
+                    }
                 }
                 let written = statement
                     .values_written()
@@ -526,12 +501,9 @@ impl<'a> SsaConstructor<'a> {
                     .unwrap_or_else(|| self.function.local_allocator.borrow_mut().allocate());
             }
         }
-        println!("{:#?}", self.incomplete_params);
-        crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
-        assert!(self.incomplete_params.is_empty());
-
-        //self.remove_unused_parameters();
+        //println!("{:#?}", self.incomplete_params);
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+        assert!(self.incomplete_params.is_empty());
 
         // TODO: irreducible control flow (see the paper this algorithm is from)
         // TODO: apply_local_map unnecessary number of calls

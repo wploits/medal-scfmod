@@ -3,27 +3,6 @@ use petgraph::stable_graph::NodeIndex;
 
 use crate::function::Function;
 
-pub(crate) fn statement_upvalues_opened(statement: &ast::Statement) -> Vec<&ast::RcLocal> {
-    if let Some(assign) = statement.as_assign() {
-        assign
-            .right
-            .iter()
-            .filter_map(|r| r.as_closure())
-            .flat_map(|c| c.upvalues.iter())
-            .collect()
-    } else {
-        Vec::new()
-    }
-}
-
-pub(crate) fn statement_upvalues_closed(statement: &ast::Statement) -> Vec<&ast::RcLocal> {
-    if let ast::Statement::Close(close) = statement {
-        close.locals.iter().collect()
-    } else {
-        Vec::new()
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct UpvaluesOpen {
     open: FxHashMap<NodeIndex, FxHashSet<ast::RcLocal>>,
@@ -44,13 +23,19 @@ impl UpvaluesOpen {
             let block = function.block(node).unwrap();
             let block_opened = this.open.entry(node).or_default();
             for statement in block.ast.iter() {
-                let statement_opened = statement_upvalues_opened(statement);
-                if !statement_opened.is_empty() {
-                    block_opened.extend(statement_opened.into_iter().cloned());
-                } else {
-                    let statement_closed = statement_upvalues_closed(statement);
-                    block_opened
-                        .retain(|opened| !statement_closed.contains(&&this.old_locals[opened]));
+                if let ast::Statement::Assign(assign) = statement {
+                    // TODO: collect_into when stabilized
+                    block_opened.extend(
+                        assign
+                            .right
+                            .iter()
+                            .filter_map(|r| r.as_closure())
+                            .flat_map(|c| c.upvalues.iter())
+                            .cloned(),
+                    );
+                } else if let ast::Statement::Close(close) = statement {
+                    let closed = close.locals.iter().collect::<FxHashSet<_>>();
+                    block_opened.retain(|opened| !closed.contains(&&this.old_locals[opened]));
                 }
             }
             for successor in function.successor_blocks(node) {
@@ -84,14 +69,22 @@ impl UpvaluesOpen {
             .take(index + 1)
             .rev()
         {
-            for opened in statement_upvalues_opened(statement) {
-                if &self.old_locals[opened] == old_local {
-                    return true;
+            if let ast::Statement::Assign(assign) = statement {
+                for opened in assign
+                    .right
+                    .iter()
+                    .filter_map(|r| r.as_closure())
+                    .flat_map(|c| c.upvalues.iter())
+                {
+                    if &self.old_locals[opened] == old_local {
+                        return true;
+                    }
                 }
-            }
-            for closed in statement_upvalues_closed(statement) {
-                if closed == old_local {
-                    return false;
+            } else if let ast::Statement::Close(close) = statement {
+                for closed in &close.locals {
+                    if closed == old_local {
+                        return false;
+                    }
                 }
             }
         }
