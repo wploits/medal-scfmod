@@ -131,6 +131,7 @@ impl Function {
             .map(|i| (i, self.graph.node_weight(i).unwrap()))
     }
 
+    // TODO: indexmap
     pub fn blocks_mut(&mut self) -> HashMap<NodeIndex, &mut BasicBlock> {
         self.graph
             .node_indices()
@@ -161,7 +162,7 @@ impl Function {
                     })
             })
             .filter(|(_, e)| e.node == node)
-            .collect::<Vec<_>>()
+            .collect()
     }
 
     pub fn edges_to_block_mut(&mut self, node: NodeIndex) -> Vec<&mut BasicBlockEdge> {
@@ -170,7 +171,7 @@ impl Function {
             .filter_map(|w| w.terminator.as_mut())
             .flat_map(|t| t.edges_mut())
             .filter(|e| e.node == node)
-            .collect::<Vec<_>>()
+            .collect()
     }
 
     pub fn new_block(&mut self) -> NodeIndex {

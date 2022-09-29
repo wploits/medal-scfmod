@@ -30,10 +30,7 @@ impl Traverse for Return {
 
 impl LocalRw for Return {
     fn values_read(&self) -> Vec<&RcLocal> {
-        self.values
-            .iter()
-            .flat_map(|r| r.values_read())
-            .collect()
+        self.values.iter().flat_map(|r| r.values_read()).collect()
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {

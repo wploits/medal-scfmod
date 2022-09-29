@@ -46,7 +46,7 @@ impl<'a> LocalRenamer<'a> {
         // TODO: move to separate function
         let mut upvalue_locals = FxHashMap::default();
         for (upvalue, &group) in upvalue_to_group {
-            println!("{:?} {}", upvalue, group);
+            //println!("{:?} {}", upvalue, group);
             let group_local = upvalue_locals
                 .entry(group)
                 .or_insert_with(|| res.function.local_allocator.borrow_mut().allocate())

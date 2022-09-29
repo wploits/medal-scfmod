@@ -85,7 +85,7 @@ pub(crate) fn declare_locals(
             let reference_node = reference_nodes.into_iter().next().unwrap();
             let block = function.block_mut(reference_node).unwrap();
             if !has_mult_usages_of_local(block, &local) {
-                println!("toes {:?}", local);
+                //println!("toes {:?}", local);
                 let mut res = false;
                 for stat in &mut block.ast.0 {
                     res = stat.post_traverse_values(&mut |v| {

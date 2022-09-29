@@ -11,33 +11,35 @@ fn inline_expression(
     new_expr_has_side_effects: bool,
 ) -> bool {
     let mut new_expression = Some(new_expression);
-    statement.post_traverse_values(&mut |v| {
-        match v {
-            Either::Right(rvalue) => {
-                if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
+    statement
+        .post_traverse_values(&mut |v| {
+            match v {
+                Either::Right(rvalue) => {
+                    if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
                     *rvalue = new_expression.take().unwrap();
                     // success!
                     return Some(true)
                 }
-                if new_expr_has_side_effects && rvalue.has_side_effects() {
-                    // failure :(
-                    Some(false)
-                } else {
-                    // keep searching
-                    None
+                    if new_expr_has_side_effects && rvalue.has_side_effects() {
+                        // failure :(
+                        Some(false)
+                    } else {
+                        // keep searching
+                        None
+                    }
+                }
+                Either::Left(lvalue) => {
+                    if new_expr_has_side_effects && lvalue.has_side_effects() {
+                        // failure :(
+                        Some(false)
+                    } else {
+                        // keep searching
+                        None
+                    }
                 }
             }
-            Either::Left(lvalue) => {
-                if new_expr_has_side_effects && lvalue.has_side_effects() {
-                    // failure :(
-                    Some(false)
-                } else {
-                    // keep searching
-                    None
-                }
-            }
-        }
-    }).unwrap_or(false)
+        })
+        .unwrap_or(false)
 }
 
 // TODO: dont clone expressions
