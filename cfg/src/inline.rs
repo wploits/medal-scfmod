@@ -77,8 +77,9 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
             stat_to_values_read.push(
                 stat.values_read()
                     .into_iter()
-                    .filter(|&l| local_usages[l] == 1 && !upvalue_to_group.contains_key(l))
+                    .filter(|&l| local_usages[l] == 1 && !upvalue_to_group.contains_key(l) && !locals_out.contains(l))
                     .cloned()
+                    .map(Some)
                     .collect::<Vec<_>>(),
             );
         }
@@ -86,17 +87,17 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
         let mut index = 0;
         'w: while index < block.ast.len() {
             for stat_index in (0..index).rev() {
-                for read in &stat_to_values_read[index] {
-                    if let ast::Statement::Assign(assign) = &block.ast[stat_index]
+                for read_opt in &mut stat_to_values_read[index] {
+                    if let Some(read) = read_opt
+                        && let ast::Statement::Assign(assign) = &block.ast[stat_index]
                         && assign.left.len() == 1
                         && assign.right.len() == 1
                         && let ast::LValue::Local(local) = &assign.left[0]
                         && local == read
-                        && !locals_out.contains(local)
                     {
                         let new_expression = &assign.right[0];
                         if !new_expression.has_side_effects() || block.ast[index].rvalues().into_iter().find_map(|rvalue| {
-                            if rvalue.values_read().contains(&read) {
+                            if rvalue.values_read().contains(&&*read) {
                                 Some(true)
                             } else if rvalue.has_side_effects() {
                                 Some(false)
@@ -109,7 +110,7 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
                                 ast::Empty {}.into())
                                 .into_assign().unwrap().right.into_iter().next().unwrap();
                             inline_expression(&mut block.ast[index], read, new_expression);
-                            block.ast[stat_index] = ast::Empty {}.into();
+                            *read_opt = None;
                             continue 'w;
                         }
                     }
