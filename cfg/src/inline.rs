@@ -123,9 +123,8 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
                             continue 'w;
                         }
                     }
-                    
-                    allow_side_effects &= !new_expr_has_side_effects;
                 }
+                allow_side_effects &= !block.ast[stat_index].has_side_effects();
             }
             index += 1;
         }
