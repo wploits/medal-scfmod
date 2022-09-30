@@ -68,7 +68,19 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
                     }
                     None
                 }).is_some();
-                assert!(res);
+                // res can be false in cases where the local is read, but there is no RValue local
+                /*
+                local a
+                local function b()
+                    return a
+                end
+                */
+                if !res {
+                    let mut assignment =
+                        ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
+                    assignment.prefix = true;
+                    block.ast.insert(index, assignment.into());
+                }
                 return;
             }
         }
@@ -82,41 +94,6 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
     } else {
         block.ast.push(declaration.into());
     };
-}
-
-fn has_mult_usages_of_local(block: &BasicBlock, local: &ast::RcLocal) -> bool {
-    let mut local_usages = 0usize;
-    for stat in &block.ast.0 {
-        for written in stat.values_written() {
-            if written == local {
-                local_usages += 1;
-                if local_usages > 1 {
-                    return true;
-                }
-            }
-        }
-        for read in stat.values_read() {
-            if read == local {
-                local_usages += 1;
-                if local_usages > 1 {
-                    return true;
-                }
-            }
-        }
-    }
-    if let Some(terminator) = block.terminator() {
-        for edge in terminator.edges() {
-            for (_, arg) in &edge.arguments {
-                if arg == local {
-                    local_usages += 1;
-                    if local_usages > 1 {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    local_usages > 1
 }
 
 pub(crate) fn declare_locals(
