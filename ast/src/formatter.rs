@@ -91,7 +91,7 @@ impl Formatter {
     fn should_wrap_left_rvalue(value: &RValue) -> bool {
         !matches!(
             value,
-            RValue::Local(_) | RValue::Global(_) | RValue::Index(_)
+            RValue::Local(_) | RValue::Global(_) | RValue::Index(_) | RValue::Select(Select::Call(_))
         )
     }
 
