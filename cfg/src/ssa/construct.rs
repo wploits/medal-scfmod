@@ -338,10 +338,12 @@ impl<'a> SsaConstructor<'a> {
         res
     }
 
+    // local copy propagation
     fn propagate_copies(&mut self) {
         // TODO: blocks_mut
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();
+            let mut assigned_locals = FxHashSet::default();
             let mut indices_to_remove = Vec::new();
             for index in block
                 .ast
@@ -361,16 +363,15 @@ impl<'a> SsaConstructor<'a> {
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    let from = from.clone();
-                    let to = to.clone();
-
-                    if self.upvalue_groups.contains_key(&self.old_locals[&to])
-                        || self.function.parameters.contains(&to) {
+                    if assigned_locals.contains(to) {
                         self.local_map.insert(from.clone(), to.clone());
-                    } else {
-                        self.local_map.insert(to.clone(), from.clone());
+                        indices_to_remove.push(index);
                     }
-                    indices_to_remove.push(index)
+                }
+                for lvalue in &assign.left {
+                    if let Some(assigned) = lvalue.as_local() {
+                        assigned_locals.insert(assigned.clone());
+                    }
                 }
             }
             let block = self.function.block_mut(node).unwrap();
@@ -526,10 +527,8 @@ impl<'a> SsaConstructor<'a> {
         // TODO: apply_local_map unnecessary number of calls
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
         self.mark_upvalues();
-        // UNCOMMENTING THIS LINE WILL RESULT IN TSSA RATHER THAN CSSA
-        // THIS WILL BREAK DECONSTRUCTION
-        // self.propagate_copies();
-        // apply_local_map(self.function, std::mem::take(&mut self.local_map));
+        self.propagate_copies();
+        apply_local_map(self.function, std::mem::take(&mut self.local_map));
 
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
