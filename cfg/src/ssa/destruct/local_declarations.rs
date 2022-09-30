@@ -1,3 +1,5 @@
+use std::process;
+
 use array_tool::vec::Intersect;
 use ast::{LocalRw, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
@@ -7,14 +9,18 @@ use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 use crate::{block::BasicBlock, function::Function};
 
-fn push_declaration(block: &mut ast::Block, local: ast::RcLocal) {
-    for (index, statement) in block.iter_mut().enumerate() {
+fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
+    let mut read_stat_index = None;
+    for (index, statement) in block.ast.iter_mut().enumerate() {
         if statement.values_read().contains(&&local) {
-            let mut assignment =
-                ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
-            assignment.prefix = true;
-            block.insert(index, assignment.into());
-            return;
+            if let Some(index) = read_stat_index {
+                let mut assignment =
+                    ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
+                assignment.prefix = true;
+                block.ast.insert(index, assignment.into());
+                return;
+            }
+            read_stat_index = Some(index);
         } else if statement.values_written().contains(&&local) {
             if let Some(assign) = statement.as_assign_mut() {
                 assign.prefix = true;
@@ -22,13 +28,59 @@ fn push_declaration(block: &mut ast::Block, local: ast::RcLocal) {
             return;
         }
     }
+
+    if let Some(index) = read_stat_index {
+        let mut inline = true;
+        let mut local_usages = 0usize;
+        for read in block.ast[index].values_read() {
+            if read == &local {
+                local_usages += 1;
+                if local_usages > 1 {
+                    inline = false;
+                    break;
+                }
+            }
+        }
+
+        if inline {
+            if let Some(terminator) = block.terminator() {
+                'o: for edge in terminator.edges() {
+                    for (_, arg) in &edge.arguments {
+                        if arg == &local {
+                            local_usages += 1;
+                            if local_usages > 1 {
+                                inline = false;
+                                break 'o;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if inline {
+                // we can replace usage of this local with `nil` :)
+                let res = block.ast[index].post_traverse_values(&mut |v| {
+                    if let Either::Right(rvalue) = v {
+                        if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == local {
+                            *rvalue = ast::RValue::Literal(ast::Literal::Nil);
+                            return Some(())
+                        }
+                    }
+                    None
+                }).is_some();
+                assert!(res);
+                return;
+            }
+        }
+    }
+
     let mut declaration = ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
     declaration.prefix = true;
-    if block.last().unwrap().as_if().is_some() {
-        let index = block.len() - 1;
-        block.insert(index, declaration.into());
+    if block.ast.last().unwrap().as_if().is_some() {
+        let index = block.ast.len() - 1;
+        block.ast.insert(index, declaration.into());
     } else {
-        block.push(declaration.into());
+        block.ast.push(declaration.into());
     };
 }
 
@@ -84,29 +136,8 @@ pub(crate) fn declare_locals(
         if reference_nodes.len() == 1 {
             let reference_node = reference_nodes.into_iter().next().unwrap();
             let block = function.block_mut(reference_node).unwrap();
-            if !has_mult_usages_of_local(block, &local) {
-                //println!("toes {:?}", local);
-                let mut res = false;
-                for stat in &mut block.ast.0 {
-                    res = stat.post_traverse_values(&mut |v| {
-                        if let Either::Right(rvalue) = v {
-                            if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == local {
-                                *rvalue = ast::RValue::Literal(ast::Literal::Nil);
-                                return Some(())
-                            }
-                        }
-                        None
-                    }).is_some();
-                    if res {
-                        break;
-                    }
-                }
-                if !res {
-                    push_declaration(&mut block.ast, local);
-                }
-            } else {
-                push_declaration(&mut block.ast, local);
-            }
+
+            push_declaration(block, local);
         } else {
             let mut node_dominators = reference_nodes
                 .into_iter()
@@ -116,10 +147,7 @@ pub(crate) fn declare_locals(
                 common_dominators = common_dominators.intersect(node_dominators);
             }
             let common_dominator = common_dominators[0];
-            push_declaration(
-                &mut function.block_mut(common_dominator).unwrap().ast,
-                local,
-            );
+            push_declaration(function.block_mut(common_dominator).unwrap(), local);
         }
     }
 }
