@@ -123,7 +123,11 @@ impl Formatter {
                     Statement::Repeat(repeat) => is_ambiguous(&repeat.condition),
                     Statement::Assign(Assign { right: list, .. })
                     | Statement::Return(Return { values: list }) => {
-                        is_ambiguous(list.last().unwrap())
+                        if let Some(last) = list.last() {
+                            is_ambiguous(last)
+                        } else {
+                            false
+                        }
                     }
                     Statement::Goto(_) | Statement::Continue(_) | Statement::Break(_) => true,
                     _ => false,
