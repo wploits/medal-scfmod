@@ -526,8 +526,10 @@ impl<'a> SsaConstructor<'a> {
         // TODO: apply_local_map unnecessary number of calls
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
         self.mark_upvalues();
-        self.propagate_copies();
-        apply_local_map(self.function, std::mem::take(&mut self.local_map));
+        // UNCOMMENTING THIS LINE WILL RESULT IN TSSA RATHER THAN CSSA
+        // THIS WILL BREAK DECONSTRUCTION
+        // self.propagate_copies();
+        // apply_local_map(self.function, std::mem::take(&mut self.local_map));
 
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
