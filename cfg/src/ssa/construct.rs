@@ -525,6 +525,7 @@ impl<'a> SsaConstructor<'a> {
         // TODO: irreducible control flow (see the paper this algorithm is from)
         // TODO: apply_local_map unnecessary number of calls
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
+        self.mark_upvalues();
         self.propagate_copies();
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
 
@@ -533,7 +534,7 @@ impl<'a> SsaConstructor<'a> {
         remove_unnecessary_params(self.function, &mut self.local_map);
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
         //println!("{:#?}", self.old_locals);
-        self.mark_upvalues();
+        
 
         (
             self.local_count,
