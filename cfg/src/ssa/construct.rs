@@ -250,20 +250,25 @@ impl<'a> SsaConstructor<'a> {
 
         // TODO: optimize
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
-            let edges = self
+            let mut edges = self
                 .function
                 .edges_to_block(node)
                 .into_iter()
                 .map(|(_, e)| e)
-                .cloned()
-                .collect::<Vec<_>>();
-            if !edges.is_empty() {
-                if !edges
-                    .iter()
-                    .any(|e| e.arguments.iter().any(|(_, a)| a == &param_local))
-                {
-                    continue;
-                }
+                .peekable();
+            if edges
+                .peek()
+                .map(|e| !e.arguments.is_empty())
+                .unwrap_or(false)
+                && edges.any(|e| e.arguments.iter().any(|(_, a)| a == &param_local))
+            {
+                let edges = self
+                    .function
+                    .edges_to_block(node)
+                    .into_iter()
+                    .map(|(_, e)| e)
+                    .cloned()
+                    .collect::<Vec<_>>();
                 let params = edges[0]
                     .arguments
                     .iter()
@@ -338,12 +343,15 @@ impl<'a> SsaConstructor<'a> {
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();
             let mut indices_to_remove = Vec::new();
-            for (index, assign) in block
+            for index in block
                 .ast
                 .iter()
                 .enumerate()
-                .filter_map(|(i, s)| s.as_assign().map(|a| (i, a)))
+                .filter_map(|(i, s)| s.as_assign().map(|_| i))
+                .collect::<Vec<_>>()
             {
+                let block = self.function.block_mut(node).unwrap();
+                let assign = block.ast[index].as_assign().unwrap();
                 if assign.left.len() == 1 && assign.right.len() == 1
                     && let Some(from) = assign.left[0].as_local()
                     && !self.upvalue_groups.contains_key(&self.old_locals[from])
@@ -353,10 +361,19 @@ impl<'a> SsaConstructor<'a> {
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    self.local_map.insert(from.clone(), to.clone());
+                    let from = from.clone();
+                    let to = to.clone();
+
+                    if self.upvalue_groups.contains_key(&self.old_locals[&to])
+                        || self.function.parameters.contains(&to) {
+                        self.local_map.insert(from.clone(), to.clone());
+                    } else {
+                        self.local_map.insert(to.clone(), from.clone());
+                    }
                     indices_to_remove.push(index)
                 }
             }
+            let block = self.function.block_mut(node).unwrap();
             for index in indices_to_remove.into_iter().rev() {
                 block.ast.remove(index);
             }
