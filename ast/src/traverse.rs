@@ -18,26 +18,27 @@ pub trait Traverse {
         Vec::new()
     }
 
-    fn traverse_lvalues(
-        &mut self,
-        lvalue_callback: &impl Fn(&mut LValue),
-        rvalue_callback: &impl Fn(&mut RValue),
-    ) {
-        self.rvalues_mut().into_iter().for_each(rvalue_callback);
-        self.lvalues_mut().into_iter().for_each(lvalue_callback);
-        self.lvalues_mut().into_iter().for_each(|lvalue| {
-            lvalue.traverse_lvalues(lvalue_callback, rvalue_callback);
-        });
-    }
+    // fn traverse_lvalues(
+    //     &mut self,
+    //     lvalue_callback: &impl Fn(&mut LValue),
+    //     rvalue_callback: &impl Fn(&mut RValue),
+    // ) {
+    //     self.rvalues_mut().into_iter().for_each(rvalue_callback);
+    //     self.lvalues_mut().into_iter().for_each(lvalue_callback);
+    //     self.lvalues_mut().into_iter().for_each(|lvalue| {
+    //         lvalue.traverse_lvalues(lvalue_callback, rvalue_callback);
+    //     });
+    // }
 
     fn traverse_rvalues<F>(&mut self, callback: &mut F)
     where
         F: FnMut(&mut RValue),
     {
-        for rvalue in self.rvalues_mut() {
-            callback(rvalue);
+        for lvalue in self.lvalues_mut() {
+            lvalue.traverse_rvalues(callback);
         }
         for rvalue in self.rvalues_mut() {
+            callback(rvalue);
             rvalue.traverse_rvalues(callback);
         }
     }
@@ -46,6 +47,11 @@ pub trait Traverse {
     where
         F: FnMut(&mut RValue) -> Option<R>,
     {
+        for lvalue in self.lvalues_mut() {
+            if let Some(res) = lvalue.post_traverse_rvalues(callback) {
+                return Some(res);
+            }
+        }
         for rvalue in self.rvalues_mut() {
             if let Some(res) = rvalue.post_traverse_rvalues(callback) {
                 return Some(res);
