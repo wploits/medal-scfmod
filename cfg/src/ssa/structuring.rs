@@ -277,11 +277,26 @@ fn match_for_next(
     }
 }
 
+/*
+TODO: fix
+
+function getLongestEntry(tab)
+	local longest = 0
+	for i,v in pairs(tab) do
+		if string.len(v) > longest then
+			longest = string.len(v)
+		end
+	end
+	return longest
+end
+*/
 pub fn structure_for_loops(
     function: &mut Function,
     dominators: &Dominators<NodeIndex>,
     post_dominators: &Dominators<NodeIndex>,
 ) -> bool {
+    return false;
+
     let mut did_structure = false;
     for node in function.graph().node_indices().collect_vec() {
         if let Some(pattern) = match_for_next(function, post_dominators, node) {

@@ -339,10 +339,21 @@ impl<'a> SsaConstructor<'a> {
     }
 
     // local copy propagation
+    // TODO: do in local inlining instead since blocks are merged
     fn propagate_copies(&mut self) {
         // TODO: blocks_mut
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();
+            let mut locals_out = FxHashSet::default();
+            if let Some(terminator) = &block.terminator {
+                locals_out.extend(
+                    terminator
+                        .edges()
+                        .into_iter()
+                        .flat_map(|e| e.arguments.iter().map(|(_, a)| a))
+                        .cloned(),
+                );
+            }
             let mut assigned_locals = FxHashSet::default();
             let mut indices_to_remove = Vec::new();
             for index in block
@@ -363,7 +374,7 @@ impl<'a> SsaConstructor<'a> {
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    if assigned_locals.contains(to) {
+                    if !locals_out.contains(from) || assigned_locals.contains(to) {
                         self.local_map.insert(from.clone(), to.clone());
                         indices_to_remove.push(index);
                     }
@@ -535,7 +546,6 @@ impl<'a> SsaConstructor<'a> {
         remove_unnecessary_params(self.function, &mut self.local_map);
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
         //println!("{:#?}", self.old_locals);
-        
 
         (
             self.local_count,
