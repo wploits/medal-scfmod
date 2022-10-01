@@ -132,6 +132,36 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
             // TODO: fix ^
             block.ast.retain(|s| s.as_empty().is_none());
 
+            let mut i = 0;
+            while i < block.ast.len() {
+                if let ast::Statement::Assign(assign) = &block.ast[i]
+                    && assign.left.len() == 1
+                    && assign.right.len() == 1
+                    && assign.right[0].as_table().is_some()
+                    && let ast::LValue::Local(table_local) = &assign.left[0]
+                {
+                    let table_index = i;
+                    let table_local = table_local.clone();
+                    i += 1;
+                    while let ast::Statement::Assign(field_assign) = &block.ast[i]
+                        && field_assign.left.len() == 1
+                        && field_assign.right.len() == 1
+                        && let ast::LValue::Index(ast::Index {
+                            left: box ast::RValue::Local(local),
+                            ..
+                        }) = &field_assign.left[0]
+                        && local == &table_local
+                    {
+                        let field_assign = std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into()).into_assign().unwrap();
+                        block.ast[table_index].as_assign_mut().unwrap().right.get_mut(0).unwrap().as_table_mut().unwrap().0.push((Some(Box::into_inner(field_assign.left.into_iter().next().unwrap().into_index().unwrap().right)), field_assign.right.into_iter().next().unwrap()));
+                        changed = true;
+                        i += 1;
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+
             // if the first statement is a setlist, we cant inline it anyway
             for i in 1..block.ast.len() {
                 if let ast::Statement::SetList(setlist) = &block.ast[i] {
@@ -141,12 +171,14 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                         let setlist = std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into()).into_set_list().unwrap();
                         let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
                         let table = assign.right[0].as_table_mut().unwrap();
-                        assert!(table.0.len() == setlist.index - 1);
+                        assert!(table.0.iter().filter(|(k, _)| k.is_none()).count() == setlist.index - 1);
                         for value in setlist.values {
-                            table.0.push(value);
+                            table.0.push((None, value));
                         }
+                        // table already has tail?
+                        assert!(!table.0.last().map_or(false, |(k, _)| k.is_some()));
                         if let Some(tail) = setlist.tail {
-                            table.0.push(tail);
+                            table.0.push((None, tail));
                         }
                         changed = true;
                     }

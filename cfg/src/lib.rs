@@ -1,4 +1,5 @@
 #![feature(box_patterns)]
+#![feature(box_into_inner)]
 #![feature(let_chains)]
 
 pub mod block;

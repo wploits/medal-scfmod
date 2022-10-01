@@ -91,7 +91,10 @@ impl Formatter {
     fn should_wrap_left_rvalue(value: &RValue) -> bool {
         !matches!(
             value,
-            RValue::Local(_) | RValue::Global(_) | RValue::Index(_) | RValue::Select(Select::Call(_))
+            RValue::Local(_)
+                | RValue::Global(_)
+                | RValue::Index(_)
+                | RValue::Select(Select::Call(_))
         )
     }
 
@@ -169,7 +172,29 @@ impl Formatter {
             RValue::Select(Select::Call(call)) | RValue::Call(call) => self.format_call(call),
             RValue::Table(table) => {
                 self.write("{".chars());
-                self.format_arg_list(&table.0);
+                for (index, (key, value)) in table.0.iter().enumerate() {
+                    let is_last = index + 1 == table.0.len();
+                    if is_last && key.is_none() {
+                        let wrap = matches!(value, RValue::Select(_));
+                        if wrap {
+                            self.write("(".chars());
+                        }
+                        self.format_rvalue(value);
+                        if wrap {
+                            self.write(")".chars());
+                        }
+                    } else {
+                        if let Some(key) = key {
+                            self.write("[".chars());
+                            self.format_rvalue(key);
+                            self.write("] = ".chars());
+                        }
+                        self.format_rvalue(value);
+                        if !is_last {
+                            self.write(", ".chars());
+                        }
+                    }
+                }
                 self.write("}".chars());
             }
             RValue::Index(index) => self.format_index(index),
