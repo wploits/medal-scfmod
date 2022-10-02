@@ -2,17 +2,27 @@ use std::{cell::RefCell, rc::Rc};
 
 use either::Either;
 use fxhash::FxHashMap;
+use indexmap::IndexMap;
 use itertools::Itertools;
 
-use ast::{local_allocator::LocalAllocator, RcLocal, Statement};
-use cfg::{block::Terminator, function::Function};
+use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
+use cfg::{
+    block::Terminator,
+    function::Function,
+    inline::inline,
+    ssa::structuring::{
+        structure_compound_conditionals, structure_for_loops, structure_jumps,
+        structure_method_calls,
+    },
+};
 
 use lua51_deserializer::{
     argument::{Constant, Register, RegisterOrConstant},
     Function as BytecodeFunction, Instruction, Value,
 };
 
-use petgraph::stable_graph::NodeIndex;
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
+use restructure::post_dominators;
 
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
@@ -22,7 +32,6 @@ pub struct LifterContext<'a> {
     constants: FxHashMap<usize, ast::Literal>,
     function: Function,
     upvalues: Vec<RcLocal>,
-    lifted_functions: Option<Vec<(Function, Vec<RcLocal>)>>,
 }
 
 impl<'a> LifterContext<'a> {
@@ -585,26 +594,9 @@ impl<'a> LifterContext<'a> {
                     destination,
                     function,
                 } => {
-                    /*let closure = Self::lift(&self.bytecode.closures[function.0 as usize]);
-                    let parameters = closure.parameters.clone();
-                    let body = restructure::lift(closure);
-
-                    statements.push(
-                        ast::Assign {
-                            left: vec![(self.locals[destination].clone().into(), None)],
-                            right: vec![ast::Closure {
-                                parameters,
-                                body,
-                                upvalues: Vec::new(),
-                            }
-                            .into()],
-                        }
-                        .into(),
-                    );*/
-
                     let closure = &self.bytecode.closures[function.0 as usize];
 
-                    let mut upvalues = Vec::new();
+                    let mut upvalues_passed = Vec::new();
                     for _ in 0..closure.number_of_upvalues {
                         let local = match iter.next().as_ref().unwrap() {
                             Instruction::Move {
@@ -617,23 +609,26 @@ impl<'a> LifterContext<'a> {
                             } => self.upvalues[upvalue.0 as usize].clone(),
                             _ => panic!(),
                         };
-                        upvalues.push(local);
+                        upvalues_passed.push(local);
                     }
 
-                    self.lifted_functions = Some(Self::lift(
-                        closure,
-                        self.function.local_allocator.clone(),
-                        self.lifted_functions.take().unwrap(),
-                    ));
+                    let (mut body, parameters, upvalues_in) =
+                        Self::lift(closure, self.function.local_allocator.clone());
+                    let mut local_map =
+                        FxHashMap::with_capacity_and_hasher(upvalues_in.len(), Default::default());
+                    for (old, new) in upvalues_in.into_iter().zip(&upvalues_passed) {
+                        //println!("{} -> {}", old, new);
+                        local_map.insert(old, new.clone());
+                    }
+                    replace_locals(&mut body, &local_map);
 
                     statements.push(
                         ast::Assign::new(
                             vec![self.locals[destination].clone().into()],
                             vec![ast::Closure {
-                                parameters: Vec::new(),
-                                body: Default::default(),
-                                upvalues,
-                                id: self.lifted_functions.as_ref().unwrap().len() - 1,
+                                parameters,
+                                body,
+                                upvalues: upvalues_passed,
                                 is_variadic: closure.vararg_flag != 0,
                             }
                             .into()],
@@ -852,8 +847,7 @@ impl<'a> LifterContext<'a> {
     pub fn lift(
         bytecode: &'a BytecodeFunction,
         local_allocator: Rc<RefCell<LocalAllocator>>,
-        lifted_functions: Vec<(Function, Vec<RcLocal>)>,
-    ) -> Vec<(Function, Vec<RcLocal>)> {
+    ) -> (ast::Block, Vec<RcLocal>, Vec<RcLocal>) {
         let mut context = Self {
             bytecode,
             nodes: FxHashMap::default(),
@@ -862,7 +856,6 @@ impl<'a> LifterContext<'a> {
             constants: FxHashMap::default(),
             function: Function::with_allocator(local_allocator),
             upvalues: Vec::new(),
-            lifted_functions: Some(lifted_functions),
         };
 
         context.create_block_map();
@@ -888,8 +881,112 @@ impl<'a> LifterContext<'a> {
         //     }
         // }
 
-        let mut lifted_functions = context.lifted_functions.unwrap();
-        lifted_functions.push((context.function, context.upvalues));
-        lifted_functions
+        let func = |mut function, upvalues_in| {
+            let (local_count, local_groups, upvalue_groups) =
+                cfg::ssa::construct(&mut function, &upvalues_in);
+
+            //cfg::dot::render_to(&function, &mut std::io::stdout())?;
+
+            let upvalue_to_group = upvalue_groups
+                .iter()
+                .cloned()
+                .enumerate()
+                .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
+                .collect::<IndexMap<_, _>>();
+
+            //let now = time::Instant::now();
+            loop {
+                // TODO: remove unused variables without side effects
+                inline(&mut function, &upvalue_to_group);
+
+                let mut dominators = None;
+                if !structure_compound_conditionals(&mut function)
+                    && !{
+                        dominators = Some(simple_fast(function.graph(), function.entry().unwrap()));
+                        let post_dominators = post_dominators(function.graph().clone());
+                        structure_for_loops(
+                            &mut function,
+                            dominators.as_ref().unwrap(),
+                            &post_dominators,
+                        )
+                    }
+                    && !structure_method_calls(&mut function)
+                {
+                    break;
+                }
+
+                let mut local_map = FxHashMap::default();
+                cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
+                cfg::ssa::construct::apply_local_map(&mut function, local_map);
+
+                if dominators.is_none() {
+                    dominators = Some(simple_fast(function.graph(), function.entry().unwrap()));
+                }
+                structure_jumps(&mut function, dominators.as_ref().unwrap());
+            }
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // let inlined = now.elapsed();
+            // println!(
+            //     "inlining and structuring (looped {} times): {:?}",
+            //     iterations, inlined
+            // );
+
+            //cfg::dot::render_to(&function, &mut std::io::stdout())?;
+
+            //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
+            //println!("dataflow: {:#?}", dataflow);
+
+            //cfg::dot::render_to(&function, &mut std::io::stdout())?;
+
+            let upvalues_in = cfg::ssa::destruct(
+                &mut function,
+                local_count,
+                &local_groups,
+                &upvalue_to_group,
+                upvalues_in.len(),
+            )
+            .into_iter()
+            .collect::<Vec<_>>();
+
+            // cfg::dot::render_to(&function, &mut std::io::stdout())?;
+            let params = function.parameters.clone();
+            (restructure::lift(function.clone()), params, upvalues_in)
+        };
+
+        match () {
+            #[cfg(feature = "panic_handled")]
+            () => {
+                let mut function = std::panic::AssertUnwindSafe(Some(context.function));
+                let mut upvalues_in = std::panic::AssertUnwindSafe(Some(context.upvalues));
+                let result = std::panic::catch_unwind(move || {
+                    func(function.take().unwrap(), upvalues_in.take().unwrap())
+                });
+                match result {
+                    Ok(r) => r,
+                    Err(e) => {
+                        let panic_information = match e.downcast::<String>() {
+                            Ok(v) => *v,
+                            Err(e) => match e.downcast::<&str>() {
+                                Ok(v) => v.to_string(),
+                                _ => "Unknown Source of Error".to_owned(),
+                            },
+                        };
+
+                        let mut block = ast::Block::from_vec(vec![ast::Comment::new(
+                            "the decompiler panicked while decompiling this function".to_string(),
+                        )
+                        .into()]);
+
+                        for line in panic_information.split('\n') {
+                            block.push(ast::Comment::new(line.to_string()).into());
+                        }
+
+                        (block, Vec::new(), Vec::new())
+                    }
+                }
+            }
+            #[cfg(not(feature = "panic_handled"))]
+            () => func(context.function, context.upvalues),
+        }
     }
 }

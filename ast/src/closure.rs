@@ -10,8 +10,6 @@ use crate::{
 #[derive(Debug, PartialEq, Clone)]
 pub struct Closure {
     pub parameters: Vec<RcLocal>,
-    // TODO: bad way of keeping track
-    pub id: usize,
     pub upvalues: Vec<RcLocal>,
     pub body: Block,
     pub is_variadic: bool,
@@ -34,9 +32,8 @@ impl fmt::Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "function({})\n-- id: {}\n-- upvalues: {}\n{}\nend",
+            "function({})\n-- upvalues: {}\n{}\nend",
             self.parameters.iter().join(", "),
-            self.id,
             self.upvalues.iter().join(", "),
             self.body.0.iter().join("\n"),
         )

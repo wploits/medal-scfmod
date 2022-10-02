@@ -1,6 +1,6 @@
 use std::iter;
 
-use ast::{LocalRw, RcLocal};
+use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use petgraph::{
@@ -135,6 +135,7 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                 }
                 *from = to.clone();
             }
+            let mut map = FxHashMap::default();
             for (from, mut to) in stat
                 .values_read_mut()
                 .into_iter()
@@ -143,8 +144,14 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                 while let Some(to_to) = local_map.get(to) {
                     to = to_to;
                 }
+                map.insert(from.clone(), to.clone());
                 *from = to.clone();
             }
+            stat.traverse_rvalues(&mut |rvalue| {
+                if let Some(closure) = rvalue.as_closure_mut() {
+                    replace_locals(&mut closure.body, &map)
+                }
+            });
         }
         if let Some(terminator) = block.terminator_mut() {
             for edge in terminator.edges_mut() {
@@ -458,8 +465,18 @@ impl<'a> SsaConstructor<'a> {
                     .into_iter()
                     .cloned()
                     .collect::<Vec<_>>();
+                let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                let mut map = FxHashMap::default();
+                for local in &read {
+                    let new_local = self.find_local(node, local);
+                    map.insert(local.clone(), new_local);
+                }
                 for (local_index, local) in read.into_iter().enumerate() {
-                    let new_local = self.find_local(node, &local);
                     let statement = self
                         .function
                         .block_mut(node)
@@ -467,22 +484,10 @@ impl<'a> SsaConstructor<'a> {
                         .ast
                         .get_mut(stat_index)
                         .unwrap();
-                    *statement.values_read_mut()[local_index] = new_local;
+                    *statement.values_read_mut()[local_index] = map[&local].clone();
                 }
 
                 // write
-                let statement = self
-                    .function
-                    .block_mut(node)
-                    .unwrap()
-                    .ast
-                    .get_mut(stat_index)
-                    .unwrap();
-                let written = statement
-                    .values_written()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
                 for (local_index, local) in written.iter().enumerate() {
                     let new_local = self.function.local_allocator.borrow_mut().allocate();
                     self.old_locals.insert(new_local.clone(), local.clone());
@@ -500,6 +505,23 @@ impl<'a> SsaConstructor<'a> {
                         .unwrap();
                     *statement.values_written_mut()[local_index] = new_local;
                 }
+
+                for local in &written {
+                    let new_local = self.find_local(node, local);
+                    map.insert(local.clone(), new_local);
+                }
+                let statement = self
+                    .function
+                    .block_mut(node)
+                    .unwrap()
+                    .ast
+                    .get_mut(stat_index)
+                    .unwrap();
+                statement.traverse_rvalues(&mut |rvalue| {
+                    if let Some(closure) = rvalue.as_closure_mut() {
+                        replace_locals(&mut closure.body, &map)
+                    }
+                });
             }
             self.filled_blocks.insert(node);
 

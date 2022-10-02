@@ -1,7 +1,7 @@
 // TODO: have an option to only merge variables with the same register
 // if we have that as default, it should increase performance by a bit
 
-use ast::{LocalRw, RcLocal};
+use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use petgraph::{
@@ -73,6 +73,11 @@ impl<'a> LocalRenamer<'a> {
                     *from = to.clone();
                     self.local_nodes.entry(to.clone()).or_default().insert(node);
                 }
+                stat.traverse_rvalues(&mut |rvalue| {
+                    if let Some(closure) = rvalue.as_closure_mut() {
+                        replace_locals(&mut closure.body, &self.renaming_map)
+                    }
+                });
                 for (to, from) in stat
                     .values_read_mut()
                     .into_iter()

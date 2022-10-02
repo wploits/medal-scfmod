@@ -32,22 +32,22 @@ pub fn destruct(
     let now = time::Instant::now();
     resolve_param_dependencies::resolve(function);
     let elapsed = now.elapsed();
-    println!("resolve param dependencies: {:?}", elapsed);
+    //println!("resolve param dependencies: {:?}", elapsed);
 
     let now = time::Instant::now();
     let liveness = Liveness::new(function);
     let elapsed = now.elapsed();
-    println!("liveness: {:?}", elapsed);
+    //println!("liveness: {:?}", elapsed);
 
     let now = time::Instant::now();
     let mut interference_graph = InterferenceGraph::new(function, &liveness, local_count);
     let elapsed = now.elapsed();
-    println!("interference graph: {:?}", elapsed);
+    //println!("interference graph: {:?}", elapsed);
 
     let now = time::Instant::now();
     ParamLifter::new(function, Some(&mut interference_graph)).lift();
     let elapsed = now.elapsed();
-    println!("param lifter: {:?}", elapsed);
+    //println!("param lifter: {:?}", elapsed);
 
     let mut local_nodes = FxHashMap::default();
 
@@ -62,7 +62,7 @@ pub fn destruct(
     )
     .rename();
     let elapsed = now.elapsed();
-    println!("var renamer: {:?}", elapsed);
+    //println!("var renamer: {:?}", elapsed);
 
     //crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
 
@@ -73,7 +73,7 @@ pub fn destruct(
     let dominators = simple_fast(function.graph(), function.entry().unwrap());
     local_declarations::declare_locals(function, &upvalues_in, local_nodes, &dominators);
     let elapsed = now.elapsed();
-    println!("local declarations: {:?}", elapsed);
+    //println!("local declarations: {:?}", elapsed);
 
     upvalues_in
 }
