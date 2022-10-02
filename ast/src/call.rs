@@ -72,7 +72,6 @@ impl fmt::Display for Call {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodCall {
     // TODO: rename to object?

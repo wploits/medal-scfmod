@@ -1,4 +1,4 @@
-use ast::{LocalRw, RcLocal, RValue, SideEffects, Traverse};
+use ast::{LocalRw, RValue, RcLocal, SideEffects, Traverse};
 use ast::{Reduce, UnaryOperation};
 use fxhash::FxHashSet;
 use itertools::Itertools;
@@ -387,23 +387,38 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
         for stat in &mut block.ast.0 {
             if let ast::Statement::Call(call) = stat {
                 if let Some((value, method)) = match_method_call(call) {
-                    *stat = ast::MethodCall::new(value.clone(), method.clone(), call.arguments.drain(1..).collect()).into();
+                    *stat = ast::MethodCall::new(
+                        value.clone(),
+                        method.clone(),
+                        call.arguments.drain(1..).collect(),
+                    )
+                    .into();
                     did_structure = true;
                 }
             }
             stat.traverse_rvalues(&mut |rvalue| {
                 if let ast::RValue::Call(call) = rvalue {
                     if let Some((value, method)) = match_method_call(call) {
-                        *rvalue = ast::MethodCall::new(value.clone(), method.clone(), call.arguments.drain(1..).collect()).into();
+                        *rvalue = ast::MethodCall::new(
+                            value.clone(),
+                            method.clone(),
+                            call.arguments.drain(1..).collect(),
+                        )
+                        .into();
                         did_structure = true;
                     }
                 } else if let ast::RValue::Select(select) = rvalue {
                     if let ast::Select::Call(call) = select {
                         if let Some((value, method)) = match_method_call(call) {
-                            *select = ast::MethodCall::new(value.clone(), method.clone(), call.arguments.drain(1..).collect()).into();
+                            *select = ast::MethodCall::new(
+                                value.clone(),
+                                method.clone(),
+                                call.arguments.drain(1..).collect(),
+                            )
+                            .into();
                             did_structure = true;
                         }
-                    } 
+                    }
                 }
             });
         }

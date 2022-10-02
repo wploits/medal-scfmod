@@ -1,8 +1,10 @@
-use std::{borrow::Cow, fmt, iter, io};
+use std::{borrow::Cow, fmt, io, iter};
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement, MethodCall};
+use crate::{
+    Assign, Block, Call, If, Index, LValue, Literal, MethodCall, RValue, Return, Select, Statement,
+};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -63,7 +65,11 @@ pub struct Formatter<'a, W: io::Write> {
 }
 
 impl<'a, W: io::Write> Formatter<'a, W> {
-    pub fn format(main: &Block, output: &'a mut W, indentation_mode: IndentationMode) -> io::Result<()> {
+    pub fn format(
+        main: &Block,
+        output: &'a mut W,
+        indentation_mode: IndentationMode,
+    ) -> io::Result<()> {
         let mut formatter = Self {
             indentation_level: 0,
             indentation_mode,
@@ -73,10 +79,11 @@ impl<'a, W: io::Write> Formatter<'a, W> {
     }
 
     fn indent(&mut self) -> io::Result<()> {
-        write!(self.output, "{}",
+        write!(
+            self.output,
+            "{}",
             // TODO: make display return an iterator
-            self.indentation_mode
-                .display(self.indentation_level)
+            self.indentation_mode.display(self.indentation_level)
         )
     }
 
@@ -122,8 +129,7 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                 }
 
                 let disambiguate = match statement {
-                    Statement::Call(_) 
-                    | Statement::MethodCall(_) => true,
+                    Statement::Call(_) | Statement::MethodCall(_) => true,
                     Statement::Repeat(repeat) => is_ambiguous(&repeat.condition),
                     Statement::Assign(Assign { right: list, .. })
                     | Statement::Return(Return { values: list }) => {
@@ -150,7 +156,9 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                             }
                         }
                         Statement::Call(Call { value, .. })
-                        | Statement::MethodCall(MethodCall { value, .. }) => Self::should_wrap_left_rvalue(value),
+                        | Statement::MethodCall(MethodCall { value, .. }) => {
+                            Self::should_wrap_left_rvalue(value)
+                        }
                         Statement::Comment(_) => unimplemented!(),
                         _ => false,
                     };
@@ -165,14 +173,16 @@ impl<'a, W: io::Write> Formatter<'a, W> {
     fn format_lvalue(&mut self, lvalue: &LValue) -> io::Result<()> {
         match lvalue {
             LValue::Index(index) => self.format_index(index),
-            _ => write!(self.output, "{}", lvalue)
+            _ => write!(self.output, "{}", lvalue),
         }
     }
 
     fn format_rvalue(&mut self, rvalue: &RValue) -> io::Result<()> {
         match rvalue {
             RValue::Select(Select::Call(call)) | RValue::Call(call) => self.format_call(call)?,
-            RValue::Select(Select::MethodCall(method_call)) | RValue::MethodCall(method_call) => self.format_method_call(method_call)?,
+            RValue::Select(Select::MethodCall(method_call)) | RValue::MethodCall(method_call) => {
+                self.format_method_call(method_call)?
+            }
             RValue::Table(table) => {
                 write!(self.output, "{{")?;
                 for (index, (key, value)) in table.0.iter().enumerate() {
@@ -228,24 +238,27 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                 };
 
                 parentheses(self, &binary.left)?;
-                write!(self.output, " {} ",
-                    binary.operation
-                )?;
+                write!(self.output, " {} ", binary.operation)?;
                 parentheses(self, &binary.right)?;
             }
             RValue::Closure(closure) => {
                 if closure.is_variadic {
-                    write!(self.output,
-                            "function({})",
-                            closure
-                                .parameters
-                                .iter()
-                                .map(|x| x.to_string())
-                                .chain(std::iter::once("...".into()))
-                                .join(", ")
+                    write!(
+                        self.output,
+                        "function({})",
+                        closure
+                            .parameters
+                            .iter()
+                            .map(|x| x.to_string())
+                            .chain(std::iter::once("...".into()))
+                            .join(", ")
                     )?;
                 } else {
-                    write!(self.output, "function({})", closure.parameters.iter().join(", "))?;
+                    write!(
+                        self.output,
+                        "function({})",
+                        closure.parameters.iter().join(", ")
+                    )?;
                 }
                 if !closure.body.is_empty() {
                     // TODO: output.push?
@@ -439,7 +452,11 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                 write!(self.output, "end")?;
             }
             Statement::GenericFor(generic_for) => {
-                write!(self.output, "for {} in ", generic_for.res_locals.iter().join(", "))?;
+                write!(
+                    self.output,
+                    "for {} in ",
+                    generic_for.res_locals.iter().join(", ")
+                )?;
                 for (i, rvalue) in generic_for.right.iter().enumerate() {
                     if i != 0 {
                         write!(self.output, ", ")?;

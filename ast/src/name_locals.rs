@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::{Block, RValue, Statement, Traverse, RcLocal};
+use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
 struct Namer {
     rename: bool,
