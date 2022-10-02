@@ -1,7 +1,7 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
 
-use ast::{structure_functions::structure_functions, name_locals::name_locals};
+use ast::{name_locals::name_locals, structure_functions::structure_functions};
 use cfg::{inline::inline, ssa::structuring::structure_for_loops};
 use indexmap::IndexMap;
 use restructure::post_dominators;

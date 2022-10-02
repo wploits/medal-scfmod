@@ -281,13 +281,13 @@ fn match_for_next(
 TODO: fix
 
 function getLongestEntry(tab)
-	local longest = 0
-	for i,v in pairs(tab) do
-		if string.len(v) > longest then
-			longest = string.len(v)
-		end
-	end
-	return longest
+    local longest = 0
+    for i,v in pairs(tab) do
+        if string.len(v) > longest then
+            longest = string.len(v)
+        end
+    end
+    return longest
 end
 */
 pub fn structure_for_loops(

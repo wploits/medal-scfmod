@@ -1,7 +1,7 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
 
-use ast::{structure_functions::structure_functions, name_locals::name_locals};
+use ast::{name_locals::name_locals, structure_functions::structure_functions};
 use cfg::ssa::structuring::structure_for_loops;
 use indexmap::IndexMap;
 use restructure::post_dominators;
@@ -146,7 +146,7 @@ fn main() -> anyhow::Result<()> {
         let params = function.parameters.clone();
         structured_functions.push((restructure::lift(function), params, upvalues_in));
     }
-    
+
     let mut main = structure_functions(structured_functions);
 
     let now = time::Instant::now();
