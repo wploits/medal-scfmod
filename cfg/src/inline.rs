@@ -35,7 +35,6 @@ fn inline_expression(
 // TODO: move to ssa module?
 fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
-    // would it be beneficial to have a fast path where we check if Rc::strong_count() == 1
     let mut local_usages = FxHashMap::default();
     for &node in &node_indices {
         let block = function.block(node).unwrap();
@@ -178,7 +177,7 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                             table.0.push((None, value));
                         }
                         // table already has tail?
-                        assert!(!table.0.last().map_or(false, |(k, _)| k.is_some()));
+                        assert!(!table.0.last().map_or(false, |(k, v)| k.is_none() && matches!(v, ast::RValue::VarArg(_) | ast::RValue::Call(_))));
                         if let Some(tail) = setlist.tail {
                             table.0.push((None, tail));
                         }

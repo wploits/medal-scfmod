@@ -22,7 +22,7 @@ impl Namer {
                     for lvalue in &assign.left {
                         let local = lvalue.as_local().unwrap();
                         if self.rename || local.0 .0.borrow().0.is_none() {
-                            // TODO: hacky
+                            // TODO: hacky and doesnt work for parameters
                             if Rc::strong_count(local) == 1 {
                                 local.0 .0.borrow_mut().0 = Some("_".to_string());
                             } else {
