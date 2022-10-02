@@ -151,7 +151,9 @@ impl<'a> LifterContext<'a> {
 
     // TODO: rename to one of: lift_instructions, lift_range, lift_instruction_range, lift_block?
     fn lift_instruction(&mut self, start: usize, end: usize, statements: &mut Vec<Statement>) {
-        statements.reserve(end - start + 1);
+        if end > start {
+            statements.reserve(end - start + 1);
+        }
         let mut top: Option<(ast::RValue, u8)> = None;
         let mut iter = self.bytecode.code[start..=end].iter();
         while let Some(instruction) = iter.next() {
