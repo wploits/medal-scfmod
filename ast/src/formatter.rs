@@ -88,6 +88,7 @@ impl<'a, W: io::Write> Formatter<'a, W> {
             RValue::Local(_)
                 | RValue::Global(_)
                 | RValue::Index(_)
+                | RValue::Select(Select::Call(_) | Select::MethodCall(_))
         )
     }
 
