@@ -27,6 +27,7 @@ mod literal;
 mod local;
 pub mod local_allocator;
 mod name_gen;
+pub mod name_locals;
 mod repeat;
 mod r#return;
 mod setlist;

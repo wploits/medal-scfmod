@@ -3,6 +3,7 @@ use by_address::ByAddress;
 use derive_more::{Deref, DerefMut, From};
 use enum_dispatch::enum_dispatch;
 use std::{
+    cell::RefCell,
     collections::hash_map::DefaultHasher,
     fmt::{self, Display},
     hash::{Hash, Hasher},
@@ -28,7 +29,7 @@ impl fmt::Display for Local {
 }
 
 #[derive(Debug, Clone, Deref, PartialEq, Eq, PartialOrd, Ord, DerefMut, Hash)]
-pub struct RcLocal(pub ByAddress<Rc<Local>>);
+pub struct RcLocal(pub ByAddress<Rc<RefCell<Local>>>);
 
 impl Infer for RcLocal {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
@@ -38,7 +39,7 @@ impl Infer for RcLocal {
 
 impl Display for RcLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 .0 .0 {
+        match &self.0 .0.borrow().0 {
             Some(name) => write!(f, "{}", name),
             None => {
                 let mut hasher = DefaultHasher::new();
@@ -54,8 +55,8 @@ impl SideEffects for RcLocal {}
 impl Traverse for RcLocal {}
 
 impl RcLocal {
-    pub fn new(rc: Rc<Local>) -> Self {
-        Self(ByAddress(rc))
+    pub fn new(local: Local) -> Self {
+        Self(ByAddress(Rc::new(RefCell::new(local))))
     }
 }
 

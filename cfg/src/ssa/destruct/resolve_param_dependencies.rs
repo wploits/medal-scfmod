@@ -65,8 +65,14 @@ fn remove_dependency(
         .neighbors(dependency_graph_node)
         .collect::<Vec<_>>();
     let variable = dependency_graph.remove_node(dependency_graph_node).unwrap();
-    let name = variable.0 .0 .0.as_ref().map(|n| format!("copy_{}", n));
-    let copy_variable = ast::RcLocal::new(Rc::new(ast::Local::new(name)));
+    let name = variable
+        .0
+         .0
+        .borrow()
+        .0
+        .as_ref()
+        .map(|n| format!("copy_{}", n));
+    let copy_variable = ast::RcLocal::new(ast::Local::new(name));
     let new_dependency_graph_node = dependency_graph.add_node(copy_variable.clone());
     for successor in successors {
         dependency_graph
@@ -107,10 +113,10 @@ mod tests {
     fn test_resolve_dependencies() {
         let mut function = Function::default();
 
-        let local_y1 = ast::RcLocal::new(Rc::new(ast::Local::new("y1".to_string().into())));
-        let local_y2 = ast::RcLocal::new(Rc::new(ast::Local::new("y2".to_string().into())));
-        let local_z1 = ast::RcLocal::new(Rc::new(ast::Local::new("z1".to_string().into())));
-        let local_z2 = ast::RcLocal::new(Rc::new(ast::Local::new("z2".to_string().into())));
+        let local_y1 = ast::RcLocal::new(ast::Local::new("y1".to_string().into()));
+        let local_y2 = ast::RcLocal::new(ast::Local::new("y2".to_string().into()));
+        let local_z1 = ast::RcLocal::new(ast::Local::new("z1".to_string().into()));
+        let local_z2 = ast::RcLocal::new(ast::Local::new("z2".to_string().into()));
 
         let entry_node = function.new_block();
         let block1_node = function.new_block();

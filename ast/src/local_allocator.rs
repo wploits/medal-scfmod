@@ -11,11 +11,11 @@ impl LocalAllocator {
     #[cfg(not(feature = "no_local_debug"))]
     pub fn allocate(&mut self) -> RcLocal {
         self.next += 1;
-        RcLocal::new(Rc::new(Local::new(Some(format!("l_{}", self.next)))))
+        RcLocal::new(Local::new(Some(format!("l_{}", self.next))))
     }
 
     #[cfg(feature = "no_local_debug")]
     pub fn allocate(&mut self) -> RcLocal {
-        RcLocal::new(Rc::new(Local::new(None)))
+        RcLocal::new(Local::new(None))
     }
 }

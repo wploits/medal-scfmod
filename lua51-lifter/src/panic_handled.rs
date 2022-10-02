@@ -1,7 +1,7 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
 
-use ast::structure_functions::structure_functions;
+use ast::{structure_functions::structure_functions, name_locals::name_locals};
 use cfg::{inline::inline, ssa::structuring::structure_for_loops};
 use indexmap::IndexMap;
 use restructure::post_dominators;
@@ -158,12 +158,14 @@ fn main() -> anyhow::Result<()> {
         });
     }
 
-    let main = structure_functions(structured_functions);
+    let mut main = structure_functions(structured_functions);
 
     let now = time::Instant::now();
     //ast::type_system::TypeSystem::analyze(&mut function);
     let _type_analysis = now.elapsed();
     //println!("type analysis: {:?}", type_analysis);
+
+    name_locals(&mut main, true);
 
     let formatted = ast::formatter::Formatter::format(&main, Default::default());
     std::fs::write("result.lua", formatted).unwrap();

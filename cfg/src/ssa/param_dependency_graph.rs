@@ -100,10 +100,10 @@ mod tests {
     fn test_dependency_graph() {
         let mut function = Function::default();
 
-        let local_y1 = ast::RcLocal::new(Rc::new(ast::Local::new("y1".to_string().into())));
-        let local_y2 = ast::RcLocal::new(Rc::new(ast::Local::new("y2".to_string().into())));
-        let local_z1 = ast::RcLocal::new(Rc::new(ast::Local::new("z1".to_string().into())));
-        let local_z2 = ast::RcLocal::new(Rc::new(ast::Local::new("z2".to_string().into())));
+        let local_y1 = ast::RcLocal::new(ast::Local::new("y1".to_string().into()));
+        let local_y2 = ast::RcLocal::new(ast::Local::new("y2".to_string().into()));
+        let local_z1 = ast::RcLocal::new(ast::Local::new("z1".to_string().into()));
+        let local_z2 = ast::RcLocal::new(ast::Local::new("z2".to_string().into()));
 
         let entry_node = function.new_block();
         let block1_node = function.new_block();
@@ -164,10 +164,10 @@ mod tests {
     fn test_directed_fvs() {
         let mut function = Function::default();
 
-        let local_y1 = ast::RcLocal::new(Rc::new(ast::Local::new("y1".to_string().into())));
-        let local_y2 = ast::RcLocal::new(Rc::new(ast::Local::new("y2".to_string().into())));
-        let local_z1 = ast::RcLocal::new(Rc::new(ast::Local::new("z1".to_string().into())));
-        let local_z2 = ast::RcLocal::new(Rc::new(ast::Local::new("z2".to_string().into())));
+        let local_y1 = ast::RcLocal::new(ast::Local::new("y1".to_string().into()));
+        let local_y2 = ast::RcLocal::new(ast::Local::new("y2".to_string().into()));
+        let local_z1 = ast::RcLocal::new(ast::Local::new("z1".to_string().into()));
+        let local_z2 = ast::RcLocal::new(ast::Local::new("z2".to_string().into()));
 
         let entry_node = function.new_block();
         let block1_node = function.new_block();
@@ -218,14 +218,14 @@ mod tests {
     fn test_multiple_directed_fvs() {
         let mut function = Function::default();
 
-        let local_y1 = ast::RcLocal::new(Rc::new(ast::Local::new("y1".to_string().into())));
-        let local_y2 = ast::RcLocal::new(Rc::new(ast::Local::new("y2".to_string().into())));
-        let local_z1 = ast::RcLocal::new(Rc::new(ast::Local::new("z1".to_string().into())));
-        let local_z2 = ast::RcLocal::new(Rc::new(ast::Local::new("z2".to_string().into())));
-        let local_a1 = ast::RcLocal::new(Rc::new(ast::Local::new("a1".to_string().into())));
-        let local_a2 = ast::RcLocal::new(Rc::new(ast::Local::new("a2".to_string().into())));
-        let local_b1 = ast::RcLocal::new(Rc::new(ast::Local::new("b1".to_string().into())));
-        let local_b2 = ast::RcLocal::new(Rc::new(ast::Local::new("b2".to_string().into())));
+        let local_y1 = ast::RcLocal::new(ast::Local::new("y1".to_string().into()));
+        let local_y2 = ast::RcLocal::new(ast::Local::new("y2".to_string().into()));
+        let local_z1 = ast::RcLocal::new(ast::Local::new("z1".to_string().into()));
+        let local_z2 = ast::RcLocal::new(ast::Local::new("z2".to_string().into()));
+        let local_a1 = ast::RcLocal::new(ast::Local::new("a1".to_string().into()));
+        let local_a2 = ast::RcLocal::new(ast::Local::new("a2".to_string().into()));
+        let local_b1 = ast::RcLocal::new(ast::Local::new("b1".to_string().into()));
+        let local_b2 = ast::RcLocal::new(ast::Local::new("b2".to_string().into()));
 
         let entry_node = function.new_block();
         let block1_node = function.new_block();
