@@ -2,7 +2,7 @@
 #![feature(let_chains)]
 
 use ast::{name_locals::name_locals, structure_functions::structure_functions};
-use cfg::ssa::structuring::structure_for_loops;
+use cfg::ssa::structuring::{structure_for_loops, structure_method_calls};
 use indexmap::IndexMap;
 use restructure::post_dominators;
 use std::{fs::File, io::Read, time};
@@ -96,6 +96,7 @@ fn main() -> anyhow::Result<()> {
                         &post_dominators,
                     )
                 }
+                && !structure_method_calls(&mut function)
             {
                 break;
             }

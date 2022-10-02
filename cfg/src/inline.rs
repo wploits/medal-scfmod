@@ -177,7 +177,7 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                             table.0.push((None, value));
                         }
                         // table already has tail?
-                        assert!(!table.0.last().map_or(false, |(k, v)| k.is_none() && matches!(v, ast::RValue::VarArg(_) | ast::RValue::Call(_))));
+                        assert!(!table.0.last().map_or(false, |(k, v)| k.is_none() && matches!(v, ast::RValue::VarArg(_) | ast::RValue::Call(_) | ast::RValue::MethodCall(_))));
                         if let Some(tail) = setlist.tail {
                             table.0.push((None, tail));
                         }

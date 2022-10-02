@@ -74,6 +74,7 @@ pub trait Reduce {
 pub enum Select {
     VarArg(VarArg),
     Call(Call),
+    MethodCall(MethodCall),
 }
 
 impl fmt::Display for Select {
@@ -81,6 +82,7 @@ impl fmt::Display for Select {
         match self {
             Select::VarArg(var_arg) => write!(f, "{}", var_arg),
             Select::Call(call) => write!(f, "{}", call),
+            Select::MethodCall(method_call) => write!(f, "{}", method_call),
         }
     }
 }
@@ -91,6 +93,7 @@ pub enum RValue {
     Local(RcLocal),
     Global(Global),
     Call(Call),
+    MethodCall(MethodCall),
     VarArg(VarArg),
     Table(Table),
     Literal(Literal),
@@ -153,6 +156,7 @@ impl fmt::Display for RValue {
             RValue::Global(global) => write!(f, "{}", global),
             RValue::Literal(literal) => write!(f, "{}", literal),
             RValue::Call(call) => write!(f, "{}", call),
+            RValue::MethodCall(method_call) => write!(f, "{}", method_call),
             RValue::VarArg(var_arg) => write!(f, "{}", var_arg),
             RValue::Table(table) => write!(f, "{}", table),
             RValue::Index(index) => write!(f, "{}", index),
@@ -238,6 +242,7 @@ impl LocalRw for Comment {}
 pub enum Statement {
     Empty(Empty),
     Call(Call),
+    MethodCall(MethodCall),
     Assign(Assign),
     If(If),
     Goto(Goto),
@@ -284,6 +289,7 @@ impl fmt::Display for Statement {
         match self {
             // TODO: order in same order as `Statement` enum
             Statement::Call(call) => write!(f, "{}", call),
+            Statement::MethodCall(method_call) => write!(f, "{}", method_call),
             Statement::Assign(assign) => write!(f, "{}", assign),
             // TODO: replace all `if_` with `r#if`, etc
             Statement::If(if_) => write!(f, "{}", if_),

@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt, iter, io};
 
 use itertools::Itertools;
 
-use crate::{Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement};
+use crate::{Assign, Block, Call, If, Index, LValue, Literal, RValue, Return, Select, Statement, MethodCall};
 
 pub enum IndentationMode {
     Spaces(u8),
@@ -88,7 +88,6 @@ impl<'a, W: io::Write> Formatter<'a, W> {
             RValue::Local(_)
                 | RValue::Global(_)
                 | RValue::Index(_)
-                | RValue::Select(Select::Call(_))
         )
     }
 
@@ -113,14 +112,17 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                         RValue::Local(_)
                         | RValue::Global(_)
                         | RValue::Index(_)
-                        | RValue::Call(_) => true,
+                        | RValue::Call(_)
+                        | RValue::MethodCall(_)
+                        | RValue::Select(Select::Call(_) | Select::MethodCall(_)) => true,
                         RValue::Binary(binary) => is_ambiguous(&binary.right),
                         _ => false,
                     }
                 }
 
                 let disambiguate = match statement {
-                    Statement::Call(_) => true,
+                    Statement::Call(_) 
+                    | Statement::MethodCall(_) => true,
                     Statement::Repeat(repeat) => is_ambiguous(&repeat.condition),
                     Statement::Assign(Assign { right: list, .. })
                     | Statement::Return(Return { values: list }) => {
@@ -146,7 +148,8 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                                 false
                             }
                         }
-                        Statement::Call(call) => Self::should_wrap_left_rvalue(&call.value),
+                        Statement::Call(Call { value, .. })
+                        | Statement::MethodCall(MethodCall { value, .. }) => Self::should_wrap_left_rvalue(value),
                         Statement::Comment(_) => unimplemented!(),
                         _ => false,
                     };
@@ -168,6 +171,7 @@ impl<'a, W: io::Write> Formatter<'a, W> {
     fn format_rvalue(&mut self, rvalue: &RValue) -> io::Result<()> {
         match rvalue {
             RValue::Select(Select::Call(call)) | RValue::Call(call) => self.format_call(call)?,
+            RValue::Select(Select::MethodCall(method_call)) | RValue::MethodCall(method_call) => self.format_method_call(method_call)?,
             RValue::Table(table) => {
                 write!(self.output, "{{")?;
                 for (index, (key, value)) in table.0.iter().enumerate() {
@@ -317,6 +321,23 @@ impl<'a, W: io::Write> Formatter<'a, W> {
         write!(self.output, ")")
     }
 
+    fn format_method_call(&mut self, method_call: &MethodCall) -> io::Result<()> {
+        let wrap = Self::should_wrap_left_rvalue(&method_call.value);
+        if wrap {
+            write!(self.output, "(")?;
+        }
+        self.format_rvalue(&method_call.value)?;
+        if wrap {
+            write!(self.output, ")")?;
+        }
+
+        write!(self.output, ":{}", method_call.method);
+
+        write!(self.output, "(")?;
+        self.format_arg_list(&method_call.arguments)?;
+        write!(self.output, ")")
+    }
+
     fn format_if(&mut self, r#if: &If) -> io::Result<()> {
         write!(self.output, "if ")?;
 
@@ -352,92 +373,9 @@ impl<'a, W: io::Write> Formatter<'a, W> {
 
         match statement {
             Statement::Assign(assign) => {
-                /*let mut left = Vec::new();
-                let mut right = Vec::new();
-
-                for ((lvalue, annotation), rvalue) in assign.left.iter().zip(assign.right.iter()) {
-                    if let (Some(name), RValue::Closure(function)) = (
-                        match lvalue {
-                            LValue::Local(local) => Some(local.0.to_string()),
-                            LValue::Global(global) => Some(global.0.clone()),
-                            _ => None,
-                        },
-                        rvalue,
-                    ) {
-                        let (parameters_types, return_values_types) =
-                            match annotation.as_ref().unwrap() {
-                                Type::Function(p, r) => (p, r),
-                                _ => unreachable!(),
-                            };
-
-                        self.write(
-                            format!(
-                                "function {}({}){}\n",
-                                name,
-                                function
-                                    .parameters
-                                    .iter()
-                                    .zip(parameters_types.iter())
-                                    .map(|(l, t)| format!("{}: {}", l, t))
-                                    .join(", "),
-                                if return_values_types.is_empty() {
-                                    String::new()
-                                } else if return_values_types.len() == 1 {
-                                    format!(": {}", return_values_types[0])
-                                } else {
-                                    format!(": ({})", return_values_types.iter().join(", "))
-                                }
-                            )
-                            .chars(),
-                        );
-                        self.format_block(&function.body);
-                        write!(self.output, "\n")?;
-                        self.indent();
-                        write!(self.output, "end")?;
-                    } else {
-                        left.push((lvalue, annotation));
-                        right.push(rvalue);
-                    }
-                }
-
-                if let Some(RValue::Call(_)) = assign.right.last() {
-                    let len = assign.left.len();
-
-                    left.extend(
-                        assign.left[len - 1..2 * len - 2]
-                            .iter()
-                            .map(|(a, b)| (a, b)),
-                    )
-                }
-
-                left = assign.left.clone();
-                right = assign.right.clone();*/
-
                 if assign.prefix {
                     write!(self.output, "local ")?;
                 }
-
-                /*if !(left.is_empty() || right.is_empty()) {
-                    self.write(
-                        format!(
-                            "{} = {}",
-                            left.iter()
-                                .map(|(lvalue, annotation)| {
-                                    format!(
-                                        "{}{}",
-                                        lvalue,
-                                        annotation
-                                            .as_ref()
-                                            .map(|t| format!(": {}", t))
-                                            .unwrap_or_default(),
-                                    )
-                                })
-                                .join(", "),
-                            right.iter().join(", ")
-                        )
-                        .chars(),
-                    );
-                }*/
 
                 for (i, lvalue) in assign.left.iter().enumerate() {
                     if i != 0 {
@@ -513,7 +451,8 @@ impl<'a, W: io::Write> Formatter<'a, W> {
                 self.indent()?;
                 write!(self.output, "end")?;
             }
-            Statement::Call(c) => self.format_call(c)?,
+            Statement::Call(call) => self.format_call(call)?,
+            Statement::MethodCall(method_call) => self.format_method_call(method_call)?,
             Statement::Return(r#return) => {
                 write!(self.output, "return")?;
                 for (i, rvalue) in r#return.values.iter().enumerate() {

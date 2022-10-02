@@ -53,7 +53,7 @@ impl fmt::Display for Index {
         write!(
             f,
             "{}{}",
-            // TODO: this is repeated in call
+            // TODO: this is duplicated in Call and MethodCall
             match self.left.as_ref() {
                 RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.left.to_string(),
                 _ => "(".to_string() + &self.left.to_string() + ")",

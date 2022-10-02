@@ -1,4 +1,4 @@
-use ast::LocalRw;
+use ast::{LocalRw, RcLocal, RValue, SideEffects, Traverse};
 use ast::{Reduce, UnaryOperation};
 use fxhash::FxHashSet;
 use itertools::Itertools;
@@ -363,6 +363,49 @@ pub fn structure_for_loops(
                     todo!();
                 }
             }
+        }
+    }
+    did_structure
+}
+
+fn match_method_call(call: &ast::Call) -> Option<(&RValue, &String)> {
+    // TODO: make sure a:method with space() doesnt happen
+    if !call.arguments.is_empty()
+        && !call.arguments[0].has_side_effects()
+        && let Some(ast::Index { box left, right: box ast::RValue::Literal(ast::Literal::String(index)) }) = call.value.as_index()
+        && left == &call.arguments[0] {
+        Some((left, index))
+    } else {
+        None
+    }
+}
+
+// This code does not apply to Luau
+pub fn structure_method_calls(function: &mut Function) -> bool {
+    let mut did_structure = false;
+    for (_, block) in function.blocks_mut() {
+        for stat in &mut block.ast.0 {
+            if let ast::Statement::Call(call) = stat {
+                if let Some((value, method)) = match_method_call(call) {
+                    *stat = ast::MethodCall::new(value.clone(), method.clone(), call.arguments.drain(1..).collect()).into();
+                    did_structure = true;
+                }
+            }
+            stat.traverse_rvalues(&mut |rvalue| {
+                if let ast::RValue::Call(call) = rvalue {
+                    if let Some((value, method)) = match_method_call(call) {
+                        *rvalue = ast::MethodCall::new(value.clone(), method.clone(), call.arguments.drain(1..).collect()).into();
+                        did_structure = true;
+                    }
+                } else if let ast::RValue::Select(select) = rvalue {
+                    if let ast::Select::Call(call) = select {
+                        if let Some((value, method)) = match_method_call(call) {
+                            *select = ast::MethodCall::new(value.clone(), method.clone(), call.arguments.drain(1..).collect()).into();
+                            did_structure = true;
+                        }
+                    } 
+                }
+            });
         }
     }
     did_structure
