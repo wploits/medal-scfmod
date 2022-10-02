@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, iter};
+use std::{borrow::Cow, fmt, iter, io};
 
 use itertools::Itertools;
 
@@ -56,34 +56,28 @@ pub(crate) fn format_arg_list(list: &[RValue]) -> String {
     s
 }
 
-pub struct Formatter {
+pub struct Formatter<'a, W: io::Write> {
     indentation_level: usize,
     indentation_mode: IndentationMode,
-    output: String,
+    output: &'a mut W,
 }
 
-impl Formatter {
-    pub fn format(main: &Block, indentation_mode: IndentationMode) -> String {
+impl<'a, W: io::Write> Formatter<'a, W> {
+    pub fn format(main: &Block, output: &'a mut W, indentation_mode: IndentationMode) -> io::Result<()> {
         let mut formatter = Self {
             indentation_level: 0,
             indentation_mode,
-            output: String::new(),
+            output,
         };
-        formatter.format_block_no_indent(main);
-        formatter.output.trim_end().to_string()
+        formatter.format_block_no_indent(main)
     }
 
-    fn write(&mut self, iter: impl Iterator<Item = char>) {
-        self.output.extend(iter);
-    }
-
-    fn indent(&mut self) {
-        self.write(
+    fn indent(&mut self) -> io::Result<()> {
+        write!(self.output, "{}",
             // TODO: make display return an iterator
             self.indentation_mode
                 .display(self.indentation_level)
-                .chars(),
-        );
+        )
     }
 
     // (function() end)()
@@ -98,15 +92,19 @@ impl Formatter {
         )
     }
 
-    fn format_block(&mut self, block: &Block) {
+    fn format_block(&mut self, block: &Block) -> io::Result<()> {
         self.indentation_level += 1;
-        self.format_block_no_indent(block);
+        self.format_block_no_indent(block)?;
         self.indentation_level -= 1;
+        Ok(())
     }
 
-    fn format_block_no_indent(&mut self, block: &Block) {
+    fn format_block_no_indent(&mut self, block: &Block) -> io::Result<()> {
         for (i, statement) in block.iter().enumerate() {
-            self.format_statement(statement);
+            if i != 0 {
+                writeln!(self.output)?;
+            }
+            self.format_statement(statement)?;
             if let Some(next_statement) =
                 block.iter().skip(i + 1).find(|s| s.as_comment().is_none())
             {
@@ -153,88 +151,86 @@ impl Formatter {
                         _ => false,
                     };
                 if disambiguate {
-                    self.write(iter::once(';'));
+                    write!(self.output, ";")?;
                 }
             }
-            self.write(iter::once('\n'));
         }
+        Ok(())
     }
 
-    fn format_lvalue(&mut self, lvalue: &LValue) {
+    fn format_lvalue(&mut self, lvalue: &LValue) -> io::Result<()> {
         match lvalue {
             LValue::Index(index) => self.format_index(index),
-            _ => self.write(lvalue.to_string().chars()),
+            _ => write!(self.output, "{}", lvalue)
         }
     }
 
-    fn format_rvalue(&mut self, rvalue: &RValue) {
+    fn format_rvalue(&mut self, rvalue: &RValue) -> io::Result<()> {
         match rvalue {
-            RValue::Select(Select::Call(call)) | RValue::Call(call) => self.format_call(call),
+            RValue::Select(Select::Call(call)) | RValue::Call(call) => self.format_call(call)?,
             RValue::Table(table) => {
-                self.write("{".chars());
+                write!(self.output, "{{")?;
                 for (index, (key, value)) in table.0.iter().enumerate() {
                     let is_last = index + 1 == table.0.len();
                     if is_last && key.is_none() {
                         let wrap = matches!(value, RValue::Select(_));
                         if wrap {
-                            self.write("(".chars());
+                            write!(self.output, "(")?;
                         }
-                        self.format_rvalue(value);
+                        self.format_rvalue(value)?;
                         if wrap {
-                            self.write(")".chars());
+                            write!(self.output, ")")?;
                         }
                     } else {
                         if let Some(key) = key {
-                            self.write("[".chars());
-                            self.format_rvalue(key);
-                            self.write("] = ".chars());
+                            write!(self.output, "[")?;
+                            self.format_rvalue(key)?;
+                            write!(self.output, "] = ")?;
                         }
-                        self.format_rvalue(value);
+                        self.format_rvalue(value)?;
                         if !is_last {
-                            self.write(", ".chars());
+                            write!(self.output, ", ")?;
                         }
                     }
                 }
-                self.write("}".chars());
+                write!(self.output, "}}")?;
             }
-            RValue::Index(index) => self.format_index(index),
+            RValue::Index(index) => self.format_index(index)?,
             RValue::Unary(unary) => {
-                self.write(unary.operation.to_string().chars());
+                write!(self.output, "{}", unary.operation)?;
                 let wrap =
                     unary.precedence() > unary.value.precedence() && unary.value.precedence() != 0;
                 if wrap {
-                    self.write("(".chars());
+                    write!(self.output, "(")?;
                 }
-                self.format_rvalue(&unary.value);
+                self.format_rvalue(&unary.value)?;
                 if wrap {
-                    self.write(")".chars());
+                    write!(self.output, ")")?;
                 }
             }
             RValue::Binary(binary) => {
-                let parentheses = |f: &mut Self, rvalue: &RValue| {
+                let parentheses = |f: &mut Self, rvalue: &RValue| -> io::Result<()> {
                     let wrap =
                         binary.precedence() > rvalue.precedence() && rvalue.precedence() != 0;
                     if wrap {
-                        f.write("(".chars());
+                        write!(f.output, "(")?;
                     }
-                    f.format_rvalue(rvalue);
+                    f.format_rvalue(rvalue)?;
                     if wrap {
-                        f.write(")".chars());
+                        write!(f.output, ")")?;
                     }
+                    Ok(())
                 };
 
-                parentheses(self, &binary.left);
-                self.write(
-                    iter::once(' ')
-                        .chain(binary.operation.to_string().chars())
-                        .chain(iter::once(' ')),
-                );
-                parentheses(self, &binary.right);
+                parentheses(self, &binary.left)?;
+                write!(self.output, " {} ",
+                    binary.operation
+                )?;
+                parentheses(self, &binary.right)?;
             }
             RValue::Closure(closure) => {
                 if closure.is_variadic {
-                    self.write(
-                        format!(
+                    write!(self.output,
                             "function({})",
                             closure
                                 .parameters
@@ -242,52 +238,51 @@ impl Formatter {
                                 .map(|x| x.to_string())
                                 .chain(std::iter::once("...".into()))
                                 .join(", ")
-                        )
-                        .chars(),
-                    );
+                    )?;
                 } else {
-                    self.write(
-                        format!("function({})", closure.parameters.iter().join(", ")).chars(),
-                    );
+                    write!(self.output, "function({})", closure.parameters.iter().join(", "))?;
                 }
                 if !closure.body.is_empty() {
                     // TODO: output.push?
-                    self.write(iter::once('\n'));
-                    self.format_block(&closure.body);
-                    self.indent();
+                    writeln!(self.output)?;
+                    self.format_block(&closure.body)?;
+                    writeln!(self.output)?;
+                    self.indent()?;
                 }
-                self.write("end".chars());
+                write!(self.output, "end")?;
             }
-            _ => self.write(rvalue.to_string().chars()),
+            _ => write!(self.output, "{}", rvalue)?,
         }
+        Ok(())
     }
 
-    fn format_arg_list(&mut self, list: &[RValue]) {
+    fn format_arg_list(&mut self, list: &[RValue]) -> io::Result<()> {
         for (index, rvalue) in list.iter().enumerate() {
             if index + 1 == list.len() {
                 let wrap = matches!(rvalue, RValue::Select(_));
                 if wrap {
-                    self.write("(".chars());
+                    write!(self.output, "(")?;
                 }
-                self.format_rvalue(rvalue);
+                self.format_rvalue(rvalue)?;
                 if wrap {
-                    self.write(")".chars());
+                    write!(self.output, ")")?;
                 }
             } else {
-                self.format_rvalue(rvalue);
-                self.write(", ".chars());
+                self.format_rvalue(rvalue)?;
+                write!(self.output, ", ")?;
             }
         }
+        Ok(())
     }
 
-    fn format_index(&mut self, index: &Index) {
+    fn format_index(&mut self, index: &Index) -> io::Result<()> {
         let wrap = Self::should_wrap_left_rvalue(&index.left);
         if wrap {
-            self.write("(".chars());
+            write!(self.output, "(")?;
         }
-        self.format_rvalue(&index.left);
+        self.format_rvalue(&index.left)?;
         if wrap {
-            self.write(")".chars());
+            write!(self.output, ")")?;
         }
 
         match index.right.as_ref() {
@@ -297,61 +292,63 @@ impl Formatter {
                         (i != 0 && c.is_ascii_digit()) || c.is_ascii_alphabetic() || c == '_'
                     }) =>
             {
-                self.write(format!(".{}", field).chars())
+                write!(self.output, ".{}", field)
             }
             _ => {
-                self.write("[".chars());
-                self.format_rvalue(&index.right);
-                self.write("]".chars());
+                write!(self.output, "[")?;
+                self.format_rvalue(&index.right)?;
+                write!(self.output, "]")
             }
         }
     }
 
-    fn format_call(&mut self, call: &Call) {
+    fn format_call(&mut self, call: &Call) -> io::Result<()> {
         let wrap = Self::should_wrap_left_rvalue(&call.value);
         if wrap {
-            self.write("(".chars());
+            write!(self.output, "(")?;
         }
-        self.format_rvalue(&call.value);
+        self.format_rvalue(&call.value)?;
         if wrap {
-            self.write(")".chars());
+            write!(self.output, ")")?;
         }
 
-        self.write("(".chars());
-        self.format_arg_list(&call.arguments);
-        self.write(")".chars());
+        write!(self.output, "(")?;
+        self.format_arg_list(&call.arguments)?;
+        write!(self.output, ")")
     }
 
-    fn format_if(&mut self, r#if: &If) {
-        self.write("if ".chars());
+    fn format_if(&mut self, r#if: &If) -> io::Result<()> {
+        write!(self.output, "if ")?;
 
-        self.format_rvalue(&r#if.condition);
+        self.format_rvalue(&r#if.condition)?;
 
-        self.write(" then\n".chars());
+        writeln!(self.output, " then")?;
 
         if let Some(b) = &r#if.then_block {
-            self.format_block(b);
+            self.format_block(b)?;
+            writeln!(self.output)?;
         }
 
         if let Some(b) = &r#if.else_block {
-            self.indent();
+            assert!(r#if.then_block.is_some());
+            self.indent()?;
             if b.len() == 1
                 && let Some(else_if) = b[0].as_if()
             {
-                self.write("else".chars());
-                self.format_if(else_if);
-                return;
+                write!(self.output, "else")?;
+                return self.format_if(else_if);
             }
-            self.write("else\n".chars());
-            self.format_block(b);
+            writeln!(self.output, "else")?;
+            self.format_block(b)?;
+            writeln!(self.output)?;
         }
 
-        self.indent();
-        self.write("end".chars());
+        self.indent()?;
+        write!(self.output, "end")
     }
 
-    fn format_statement(&mut self, statement: &Statement) {
-        self.indent();
+    fn format_statement(&mut self, statement: &Statement) -> io::Result<()> {
+        self.indent()?;
 
         match statement {
             Statement::Assign(assign) => {
@@ -394,8 +391,9 @@ impl Formatter {
                             .chars(),
                         );
                         self.format_block(&function.body);
+                        write!(self.output, "\n")?;
                         self.indent();
-                        self.write("end".chars());
+                        write!(self.output, "end")?;
                     } else {
                         left.push((lvalue, annotation));
                         right.push(rvalue);
@@ -416,7 +414,7 @@ impl Formatter {
                 right = assign.right.clone();*/
 
                 if assign.prefix {
-                    self.write("local ".chars());
+                    write!(self.output, "local ")?;
                 }
 
                 /*if !(left.is_empty() || right.is_empty()) {
@@ -443,89 +441,92 @@ impl Formatter {
 
                 for (i, lvalue) in assign.left.iter().enumerate() {
                     if i != 0 {
-                        self.write(", ".chars());
+                        write!(self.output, ", ")?;
                     }
-                    self.format_lvalue(lvalue);
+                    self.format_lvalue(lvalue)?;
                 }
 
-                self.write(" = ".chars());
+                write!(self.output, " = ")?;
 
                 // TODO: move to format_rvalue_list function
                 for (i, rvalue) in assign.right.iter().enumerate() {
                     if i != 0 {
-                        self.write(", ".chars());
+                        write!(self.output, ", ")?;
                     }
-                    self.format_rvalue(rvalue);
+                    self.format_rvalue(rvalue)?;
                 }
             }
-            Statement::If(r#if) => self.format_if(r#if),
+            Statement::If(r#if) => self.format_if(r#if)?,
             Statement::While(r#while) => {
-                self.write("while ".chars());
+                write!(self.output, "while ")?;
 
-                self.format_rvalue(&r#while.condition);
+                self.format_rvalue(&r#while.condition)?;
 
-                self.write(" do\n".chars());
+                writeln!(self.output, " do")?;
 
-                self.format_block(&r#while.block);
-                self.indent();
-                self.write("end".chars());
+                self.format_block(&r#while.block)?;
+                writeln!(self.output)?;
+                self.indent()?;
+                write!(self.output, "end")?;
             }
             Statement::Repeat(repeat) => {
-                self.write("repeat\n".chars());
-                self.format_block(&repeat.block);
-                self.indent();
+                writeln!(self.output, "repeat")?;
+                self.format_block(&repeat.block)?;
+                writeln!(self.output)?;
+                self.indent()?;
 
-                self.write("until ".chars());
+                write!(self.output, "until ")?;
 
-                self.format_rvalue(&repeat.condition);
+                self.format_rvalue(&repeat.condition)?;
             }
             Statement::NumericFor(numeric_for) => {
-                self.write(format!("for {} = ", numeric_for.counter).chars());
-                self.format_rvalue(&numeric_for.initial);
-                self.write(", ".chars());
-                self.format_rvalue(&numeric_for.limit);
+                write!(self.output, "for {} = ", numeric_for.counter)?;
+                self.format_rvalue(&numeric_for.initial)?;
+                write!(self.output, ", ")?;
+                self.format_rvalue(&numeric_for.limit)?;
                 let skip_step = if let RValue::Literal(Literal::Number(n)) = numeric_for.step {
                     n == 1.0
                 } else {
                     false
                 };
                 if !skip_step {
-                    self.write(", ".chars());
-                    self.format_rvalue(&numeric_for.step);
+                    write!(self.output, ", ")?;
+                    self.format_rvalue(&numeric_for.step)?;
                 }
-                self.write(" do\n".chars());
-                self.format_block(&numeric_for.block);
-                self.indent();
-                self.write("end".chars());
+                writeln!(self.output, " do")?;
+                self.format_block(&numeric_for.block)?;
+                writeln!(self.output)?;
+                self.indent()?;
+                write!(self.output, "end")?;
             }
             Statement::GenericFor(generic_for) => {
-                self.write(
-                    format!("for {} in ", generic_for.res_locals.iter().join(", "),).chars(),
-                );
+                write!(self.output, "for {} in ", generic_for.res_locals.iter().join(", "))?;
                 for (i, rvalue) in generic_for.right.iter().enumerate() {
                     if i != 0 {
-                        self.write(", ".chars());
+                        write!(self.output, ", ")?;
                     }
-                    self.format_rvalue(rvalue);
+                    self.format_rvalue(rvalue)?;
                 }
-                self.write(" do\n".chars());
-                self.format_block(&generic_for.block);
-                self.indent();
-                self.write("end".chars());
+                writeln!(self.output, " do")?;
+                self.format_block(&generic_for.block)?;
+                writeln!(self.output)?;
+                self.indent()?;
+                write!(self.output, "end")?;
             }
-            Statement::Call(c) => self.format_call(c),
+            Statement::Call(c) => self.format_call(c)?,
             Statement::Return(r#return) => {
-                self.write("return".chars());
+                write!(self.output, "return")?;
                 for (i, rvalue) in r#return.values.iter().enumerate() {
                     if i == 0 {
-                        self.write(iter::once(' '));
+                        write!(self.output, " ")?;
                     } else {
-                        self.write(", ".chars());
+                        write!(self.output, ", ")?;
                     }
-                    self.format_rvalue(rvalue);
+                    self.format_rvalue(rvalue)?;
                 }
             }
-            _ => self.write(statement.to_string().chars()),
+            _ => write!(self.output, "{}", statement)?,
         }
+        Ok(())
     }
 }

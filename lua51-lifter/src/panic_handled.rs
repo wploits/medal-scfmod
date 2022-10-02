@@ -167,8 +167,7 @@ fn main() -> anyhow::Result<()> {
 
     name_locals(&mut main, true);
 
-    let formatted = ast::formatter::Formatter::format(&main, Default::default());
-    std::fs::write("result.lua", formatted).unwrap();
+    ast::formatter::Formatter::format(&main, &mut File::create("result.lua")?, Default::default())?;
 
     println!(
         "longest func time: {:?}",

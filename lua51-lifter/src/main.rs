@@ -156,8 +156,7 @@ fn main() -> anyhow::Result<()> {
 
     name_locals(&mut main, true);
 
-    let formatted = ast::formatter::Formatter::format(&main, Default::default());
-    println!("{}", formatted);
+    ast::formatter::Formatter::format(&main, &mut std::io::stdout(), Default::default())?;
 
     println!("total time: {:?}", total_now.elapsed());
 
