@@ -3,7 +3,7 @@ use std::fmt;
 
 use crate::{formatter::Formatter, LocalRw, SideEffects, Traverse};
 
-#[derive(Debug, From, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, From, PartialEq, Eq, PartialOrd, Clone)]
 pub struct Global(pub Vec<u8>);
 
 impl Global {

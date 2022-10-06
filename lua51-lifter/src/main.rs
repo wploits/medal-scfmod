@@ -2,23 +2,12 @@
 #![feature(let_chains)]
 
 use ast::name_locals::name_locals;
-use cfg::ssa::structuring::{structure_for_loops, structure_method_calls};
-use indexmap::IndexMap;
-use restructure::post_dominators;
 use std::io::Write;
-use std::{fs::File, io::Read, time};
+use std::{fs::File, io::Read};
 
 use clap::Parser;
 
-//use lifter::Lifter;
-use cfg::{
-    function::Function,
-    inline::inline,
-    ssa::structuring::{structure_compound_conditionals, structure_jumps},
-};
-use fxhash::FxHashMap;
 use lua51_deserializer::chunk::Chunk;
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
 
 mod lifter;
 

@@ -134,13 +134,16 @@ impl GraphStructurer {
             self.function.remove_block(node);
         }
 
-        cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+        //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         let mut changed = false;
         while let Some(node) = dfs_postorder.next(self.function.graph()) {
-            println!("matching {:?}", node);
-            changed |= self.try_match_pattern(node, &dominators);
-            cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+            //println!("matching {:?}", node);
+            let matched = self.try_match_pattern(node, &dominators);
+            changed |= matched;
+            // if matched {
+            //     cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+            // }
         }
 
         changed

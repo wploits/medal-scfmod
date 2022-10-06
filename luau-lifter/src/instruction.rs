@@ -91,7 +91,7 @@ LOP_FORGPREP, ad
 
 #[derive(Debug, Clone, Copy)]
 pub enum Instruction {
-    ABC {
+    BC {
         op_code: OpCode,
         a: u8,
         b: u8,
@@ -132,7 +132,7 @@ impl Instruction {
             | 73..=75 => {
                 let (a, b, c) = Self::parse_abc(insn);
 
-                Ok(Self::ABC {
+                Ok(Self::BC {
                     op_code: OpCode::try_from(op_code).unwrap(),
                     a,
                     b,

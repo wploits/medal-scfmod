@@ -18,6 +18,9 @@ struct RawInstruction(OperationCode, Layout);
 
 impl RawInstruction {
     pub fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+        // TODO: we read the operation code and then the instruction including the operation code
+        // while parsing the layout.
+        // we should instead read the instruction here and pass it to Layout::parse
         let operation_code = OperationCode::parse(input).map(|r| r.1)?;
         let (input, layout) = Layout::parse(input, operation_code.to_u8().unwrap())?;
 
@@ -201,62 +204,62 @@ impl Instruction {
     pub fn parse(input: &[u8]) -> IResult<&[u8], Self> {
         let (input, instruction) = RawInstruction::parse(input)?;
         let instruction = match instruction {
-            RawInstruction(OperationCode::Move, Layout::ABC { a, b, .. }) => Self::Move {
+            RawInstruction(OperationCode::Move, Layout::BC { a, b, .. }) => Self::Move {
                 destination: Register(a),
                 source: Register(b as u8),
             },
-            RawInstruction(OperationCode::LoadConstant, Layout::ABx { a, bx }) => {
+            RawInstruction(OperationCode::LoadConstant, Layout::BX { a, b_x }) => {
                 Self::LoadConstant {
                     destination: Register(a),
-                    source: Constant(bx),
+                    source: Constant(b_x),
                 }
             }
-            RawInstruction(OperationCode::LoadBoolean, Layout::ABC { a, b, c }) => {
+            RawInstruction(OperationCode::LoadBoolean, Layout::BC { a, b, c }) => {
                 Self::LoadBoolean {
                     destination: Register(a),
                     value: b == 1,
                     skip_next: c == 1,
                 }
             }
-            RawInstruction(OperationCode::LoadNil, Layout::ABC { a, b, .. }) => {
+            RawInstruction(OperationCode::LoadNil, Layout::BC { a, b, .. }) => {
                 Self::LoadNil((a..=b as u8).map(Register).collect())
             }
-            RawInstruction(OperationCode::GetUpvalue, Layout::ABC { a, b, .. }) => {
+            RawInstruction(OperationCode::GetUpvalue, Layout::BC { a, b, .. }) => {
                 Self::GetUpvalue {
                     destination: Register(a),
                     upvalue: Upvalue(b as u8),
                 }
             }
-            RawInstruction(OperationCode::GetGlobal, Layout::ABx { a, bx }) => Self::GetGlobal {
+            RawInstruction(OperationCode::GetGlobal, Layout::BX { a, b_x }) => Self::GetGlobal {
                 destination: Register(a),
-                global: Constant(bx),
+                global: Constant(b_x),
             },
-            RawInstruction(OperationCode::GetIndex, Layout::ABC { a, b, c }) => Self::GetIndex {
+            RawInstruction(OperationCode::GetIndex, Layout::BC { a, b, c }) => Self::GetIndex {
                 destination: Register(a),
                 object: Register(b as u8),
                 key: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::SetGlobal, Layout::ABx { a, bx }) => Self::SetGlobal {
-                destination: Constant(bx),
+            RawInstruction(OperationCode::SetGlobal, Layout::BX { a, b_x }) => Self::SetGlobal {
+                destination: Constant(b_x),
                 value: Register(a),
             },
-            RawInstruction(OperationCode::SetUpvalue, Layout::ABC { a, b, .. }) => {
+            RawInstruction(OperationCode::SetUpvalue, Layout::BC { a, b, .. }) => {
                 Self::SetUpvalue {
                     destination: Upvalue(b as u8),
                     source: Register(a),
                 }
             }
-            RawInstruction(OperationCode::SetIndex, Layout::ABC { a, b, c }) => Self::SetIndex {
+            RawInstruction(OperationCode::SetIndex, Layout::BC { a, b, c }) => Self::SetIndex {
                 object: Register(a),
                 key: RegisterOrConstant::from(b as u32),
                 value: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::NewTable, Layout::ABC { a, b, c }) => Self::NewTable {
+            RawInstruction(OperationCode::NewTable, Layout::BC { a, b, c }) => Self::NewTable {
                 destination: Register(a),
                 array_size: b as u8,
                 hash_size: c as u8,
             },
-            RawInstruction(OperationCode::PrepMethodCall, Layout::ABC { a, b, c }) => {
+            RawInstruction(OperationCode::PrepMethodCall, Layout::BC { a, b, c }) => {
                 Self::PrepMethodCall {
                     destination: Register(a),
                     self_arg: Register(a + 1),
@@ -264,106 +267,106 @@ impl Instruction {
                     method: RegisterOrConstant::from(c as u32),
                 }
             }
-            RawInstruction(OperationCode::Add, Layout::ABC { a, b, c }) => Self::Add {
+            RawInstruction(OperationCode::Add, Layout::BC { a, b, c }) => Self::Add {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Subtract, Layout::ABC { a, b, c }) => Self::Sub {
+            RawInstruction(OperationCode::Subtract, Layout::BC { a, b, c }) => Self::Sub {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Multiply, Layout::ABC { a, b, c }) => Self::Mul {
+            RawInstruction(OperationCode::Multiply, Layout::BC { a, b, c }) => Self::Mul {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Divide, Layout::ABC { a, b, c }) => Self::Div {
+            RawInstruction(OperationCode::Divide, Layout::BC { a, b, c }) => Self::Div {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Modulo, Layout::ABC { a, b, c }) => Self::Mod {
+            RawInstruction(OperationCode::Modulo, Layout::BC { a, b, c }) => Self::Mod {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Power, Layout::ABC { a, b, c }) => Self::Pow {
+            RawInstruction(OperationCode::Power, Layout::BC { a, b, c }) => Self::Pow {
                 destination: Register(a),
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
             },
-            RawInstruction(OperationCode::Minus, Layout::ABC { a, b, .. }) => Self::Minus {
+            RawInstruction(OperationCode::Minus, Layout::BC { a, b, .. }) => Self::Minus {
                 destination: Register(a),
                 operand: Register(b as u8),
             },
-            RawInstruction(OperationCode::Not, Layout::ABC { a, b, c: _ }) => Self::Not {
+            RawInstruction(OperationCode::Not, Layout::BC { a, b, c: _ }) => Self::Not {
                 destination: Register(a),
                 operand: Register(b as u8),
             },
-            RawInstruction(OperationCode::Length, Layout::ABC { a, b, c: _ }) => Self::Length {
+            RawInstruction(OperationCode::Length, Layout::BC { a, b, c: _ }) => Self::Length {
                 destination: Register(a),
                 operand: Register(b as u8),
             },
-            RawInstruction(OperationCode::Concatenate, Layout::ABC { a, b, c }) => {
+            RawInstruction(OperationCode::Concatenate, Layout::BC { a, b, c }) => {
                 Self::Concatenate {
                     destination: Register(a),
                     operands: (b..=c).map(|r| Register(r as u8)).collect(),
                 }
             }
-            RawInstruction(OperationCode::Jump, Layout::AsBx { sbx, .. }) => Self::Jump(sbx),
-            RawInstruction(OperationCode::Equal, Layout::ABC { a, b, c }) => Self::Equal {
+            RawInstruction(OperationCode::Jump, Layout::BSx { b_sx, .. }) => Self::Jump(b_sx),
+            RawInstruction(OperationCode::Equal, Layout::BC { a, b, c }) => Self::Equal {
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
                 comparison_value: a == 1,
             },
-            RawInstruction(OperationCode::LessThan, Layout::ABC { a, b, c }) => Self::LessThan {
+            RawInstruction(OperationCode::LessThan, Layout::BC { a, b, c }) => Self::LessThan {
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
                 comparison_value: a == 1,
             },
-            RawInstruction(OperationCode::LessThanOrEqual, Layout::ABC { a, b, c }) => {
+            RawInstruction(OperationCode::LessThanOrEqual, Layout::BC { a, b, c }) => {
                 Self::LessThanOrEqual {
                     lhs: RegisterOrConstant::from(b as u32),
                     rhs: RegisterOrConstant::from(c as u32),
                     comparison_value: a == 1,
                 }
             }
-            RawInstruction(OperationCode::Test, Layout::ABC { a, c, .. }) => Self::Test {
+            RawInstruction(OperationCode::Test, Layout::BC { a, c, .. }) => Self::Test {
                 value: Register(a),
                 comparison_value: c == 1,
             },
-            RawInstruction(OperationCode::TestSet, Layout::ABC { a, b, c }) => Self::TestSet {
+            RawInstruction(OperationCode::TestSet, Layout::BC { a, b, c }) => Self::TestSet {
                 destination: Register(a),
                 value: Register(b as u8),
                 comparison_value: c == 1,
             },
-            RawInstruction(OperationCode::Call, Layout::ABC { a, b, c }) => Self::Call {
+            RawInstruction(OperationCode::Call, Layout::BC { a, b, c }) => Self::Call {
                 function: Register(a),
                 arguments: b as u8,
                 return_values: c as u8,
             },
-            RawInstruction(OperationCode::TailCall, Layout::ABC { a, b, .. }) => Self::TailCall {
+            RawInstruction(OperationCode::TailCall, Layout::BC { a, b, .. }) => Self::TailCall {
                 function: Register(a),
                 arguments: b as u8,
             },
-            RawInstruction(OperationCode::Return, Layout::ABC { a, b, .. }) => {
+            RawInstruction(OperationCode::Return, Layout::BC { a, b, .. }) => {
                 Self::Return(Register(a), b as u8)
             }
-            RawInstruction(OperationCode::IterateNumericForLoop, Layout::AsBx { a, sbx }) => {
+            RawInstruction(OperationCode::IterateNumericForLoop, Layout::BSx { a, b_sx }) => {
                 Self::IterateNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
-                    skip: sbx,
+                    skip: b_sx,
                 }
             }
-            RawInstruction(OperationCode::InitNumericForLoop, Layout::AsBx { a, sbx }) => {
+            RawInstruction(OperationCode::InitNumericForLoop, Layout::BSx { a, b_sx }) => {
                 Self::InitNumericForLoop {
                     control: (a..=a + 4).map(Register).collect(),
-                    skip: sbx,
+                    skip: b_sx,
                 }
             }
-            RawInstruction(OperationCode::IterateGenericForLoop, Layout::ABC { a, c, .. }) => {
+            RawInstruction(OperationCode::IterateGenericForLoop, Layout::BC { a, c, .. }) => {
                 let res = Self::IterateGenericForLoop {
                     generator: Register(a),
                     state: Register(a + 1),
@@ -377,17 +380,17 @@ impl Instruction {
                 });
                 res
             }
-            RawInstruction(OperationCode::SetList, Layout::ABC { a, b, c }) => Self::SetList {
+            RawInstruction(OperationCode::SetList, Layout::BC { a, b, c }) => Self::SetList {
                 table: Register(a),
                 number_of_elements: b as u8,
                 block_number: c as u8,
             },
-            RawInstruction(OperationCode::Close, Layout::ABC { a, .. }) => Self::Close(Register(a)),
-            RawInstruction(OperationCode::Closure, Layout::ABx { a, bx }) => Self::Closure {
+            RawInstruction(OperationCode::Close, Layout::BC { a, .. }) => Self::Close(Register(a)),
+            RawInstruction(OperationCode::Closure, Layout::BX { a, b_x }) => Self::Closure {
                 destination: Register(a),
-                function: Function(bx),
+                function: Function(b_x),
             },
-            RawInstruction(OperationCode::VarArg, Layout::ABC { a, b, .. }) => {
+            RawInstruction(OperationCode::VarArg, Layout::BC { a, b, .. }) => {
                 Self::VarArg(Register(a), b as u8)
             }
             _ => {

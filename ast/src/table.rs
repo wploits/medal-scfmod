@@ -1,6 +1,6 @@
 use crate::{
-    formatter::{self, Formatter},
-    has_side_effects, LocalRw, RValue, RcLocal, SideEffects, Traverse,
+    formatter::Formatter,
+    LocalRw, RValue, RcLocal, SideEffects, Traverse,
 };
 
 use std::{fmt, iter};

@@ -108,7 +108,7 @@ impl<'a> Lifter<'a> {
 		self.blocks.insert(0, self.lifted_function.new_block()?);
 		for (insn_index, insn) in self.function_list[self.function].instructions.iter().enumerate() {
 			match insn {
-                Instruction::ABC { op_code, c, .. } => match op_code {
+                Instruction::BC { op_code, c, .. } => match op_code {
                     OpCode::LOP_LOADB if *c != 0 => {
                         self.blocks
                             .entry(insn_index.wrapping_add(*c as usize) + 1)
@@ -188,7 +188,7 @@ impl<'a> Lifter<'a> {
 		{
 			let instruction_index = block_start + index;
 			match *instruction {
-                Instruction::ABC { op_code, a, b, c, aux } => match op_code {
+                Instruction::BC { op_code, a, b, c, aux } => match op_code {
                     OpCode::LOP_NOP => {}
                     OpCode::LOP_BREAK => {}
                     OpCode::LOP_LOADNIL => unimplemented!(),
@@ -336,7 +336,7 @@ impl<'a> Lifter<'a> {
 
 	fn is_terminator(instruction: Instruction) -> bool {
         match instruction {
-            Instruction::ABC { op_code, c, .. } => match op_code {
+            Instruction::BC { op_code, c, .. } => match op_code {
                 OpCode::LOP_RETURN => true,
                 OpCode::LOP_LOADB if c != 0 => true,
                 _ => false,

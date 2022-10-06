@@ -85,7 +85,7 @@ impl<'a> LifterContext<'a> {
                 }
                 Instruction::Jump(skip) => {
                     let dest_index = insn_index + skip as usize - 131070;
-                    let dest_block = *self
+                    /* let dest_block = * */self
                         .nodes
                         .entry(dest_index)
                         .or_insert_with(|| self.function.new_block());

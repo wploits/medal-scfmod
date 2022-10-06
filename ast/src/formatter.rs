@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, io, iter};
+use std::{borrow::Cow, fmt};
 
 use itertools::Itertools;
 
@@ -374,7 +374,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             write!(self.output, ")")?;
         }
 
-        write!(self.output, ":{}", method_call.method);
+        write!(self.output, ":{}", method_call.method)?;
 
         write!(self.output, "(")?;
         self.format_arg_list(&method_call.arguments)?;

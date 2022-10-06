@@ -4,7 +4,7 @@
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 use formatter::Formatter;
-use itertools::{Either, Itertools};
+use itertools::Either;
 
 use std::{
     fmt,

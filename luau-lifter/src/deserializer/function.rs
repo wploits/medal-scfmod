@@ -36,7 +36,7 @@ impl Function {
         loop {
             let ins = Instruction::parse(vec[pc]).unwrap();
             let op = match ins {
-                Instruction::ABC {
+                Instruction::BC {
                     op_code,
                     a,
                     b,
@@ -81,10 +81,10 @@ impl Function {
                     let aux = vec[pc + 1];
                     pc += 2;
                     match ins {
-                        Instruction::ABC {
+                        Instruction::BC {
                             op_code, a, b, c, ..
                         } => {
-                            v.push(Instruction::ABC {
+                            v.push(Instruction::BC {
                                 op_code,
                                 a,
                                 b,
@@ -97,7 +97,7 @@ impl Function {
                         }
                         _ => unreachable!(),
                     }
-                    v.push(Instruction::ABC {
+                    v.push(Instruction::BC {
                         op_code: OpCode::LOP_NOP,
                         a: 0,
                         b: 0,

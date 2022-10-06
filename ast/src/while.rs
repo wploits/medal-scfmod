@@ -1,5 +1,4 @@
 use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
-use itertools::Itertools;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone)]

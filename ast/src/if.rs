@@ -2,7 +2,6 @@ use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::{Block, RValue};
 
-use itertools::Itertools;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone)]

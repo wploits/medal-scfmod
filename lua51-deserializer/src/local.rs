@@ -6,8 +6,8 @@ use crate::value::parse_string;
 
 #[derive(Debug)]
 pub struct Local<'a> {
-    name: &'a [u8],
-    range: Range<u32>,
+    pub name: &'a [u8],
+    pub range: Range<u32>,
 }
 
 impl<'a> Local<'a> {

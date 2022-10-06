@@ -1,3 +1,4 @@
+use crate::instruction::layout::LayoutDiscriminants;
 use nom::{
     error::{Error, ErrorKind, ParseError},
     number::complete::le_u8,
@@ -67,52 +68,52 @@ impl OperationCode {
         ))
     }
 
-    pub fn instruction_layout(&self) -> usize {
+    pub fn instruction_layout(&self) -> LayoutDiscriminants {
         /*
-           0 = ABC
-           1 = ABx
-           2 = AsBx
+           0 = BC
+           1 = BX
+           2 = BSx
         */
 
         match self {
-            Self::Move => 0,
-            Self::LoadConstant => 1,
-            Self::LoadBoolean => 0,
-            Self::LoadNil => 0,
-            Self::GetUpvalue => 0,
-            Self::GetGlobal => 1,
-            Self::GetIndex => 0,
-            Self::SetGlobal => 1,
-            Self::SetUpvalue => 0,
-            Self::SetIndex => 0,
-            Self::NewTable => 0,
-            Self::PrepMethodCall => 0,
-            Self::Add => 0,
-            Self::Subtract => 0,
-            Self::Multiply => 0,
-            Self::Divide => 0,
-            Self::Modulo => 0,
-            Self::Power => 0,
-            Self::Minus => 0,
-            Self::Not => 0,
-            Self::Length => 0,
-            Self::Concatenate => 0,
-            Self::Jump => 2,
-            Self::Equal => 0,
-            Self::LessThan => 0,
-            Self::LessThanOrEqual => 0,
-            Self::Test => 0,
-            Self::TestSet => 0,
-            Self::Call => 0,
-            Self::TailCall => 0,
-            Self::Return => 0,
-            Self::IterateNumericForLoop => 2,
-            Self::InitNumericForLoop => 2,
-            Self::IterateGenericForLoop => 0,
-            Self::SetList => 0,
-            Self::Close => 0,
-            Self::Closure => 1,
-            Self::VarArg => 0,
+            Self::Move => LayoutDiscriminants::BC,
+            Self::LoadConstant => LayoutDiscriminants::BX,
+            Self::LoadBoolean => LayoutDiscriminants::BC,
+            Self::LoadNil => LayoutDiscriminants::BC,
+            Self::GetUpvalue => LayoutDiscriminants::BC,
+            Self::GetGlobal => LayoutDiscriminants::BX,
+            Self::GetIndex => LayoutDiscriminants::BC,
+            Self::SetGlobal => LayoutDiscriminants::BX,
+            Self::SetUpvalue => LayoutDiscriminants::BC,
+            Self::SetIndex => LayoutDiscriminants::BC,
+            Self::NewTable => LayoutDiscriminants::BC,
+            Self::PrepMethodCall => LayoutDiscriminants::BC,
+            Self::Add => LayoutDiscriminants::BC,
+            Self::Subtract => LayoutDiscriminants::BC,
+            Self::Multiply => LayoutDiscriminants::BC,
+            Self::Divide => LayoutDiscriminants::BC,
+            Self::Modulo => LayoutDiscriminants::BC,
+            Self::Power => LayoutDiscriminants::BC,
+            Self::Minus => LayoutDiscriminants::BC,
+            Self::Not => LayoutDiscriminants::BC,
+            Self::Length => LayoutDiscriminants::BC,
+            Self::Concatenate => LayoutDiscriminants::BC,
+            Self::Jump => LayoutDiscriminants::BSx,
+            Self::Equal => LayoutDiscriminants::BC,
+            Self::LessThan => LayoutDiscriminants::BC,
+            Self::LessThanOrEqual => LayoutDiscriminants::BC,
+            Self::Test => LayoutDiscriminants::BC,
+            Self::TestSet => LayoutDiscriminants::BC,
+            Self::Call => LayoutDiscriminants::BC,
+            Self::TailCall => LayoutDiscriminants::BC,
+            Self::Return => LayoutDiscriminants::BC,
+            Self::IterateNumericForLoop => LayoutDiscriminants::BSx,
+            Self::InitNumericForLoop => LayoutDiscriminants::BSx,
+            Self::IterateGenericForLoop => LayoutDiscriminants::BC,
+            Self::SetList => LayoutDiscriminants::BC,
+            Self::Close => LayoutDiscriminants::BC,
+            Self::Closure => LayoutDiscriminants::BX,
+            Self::VarArg => LayoutDiscriminants::BC,
         }
     }
 }

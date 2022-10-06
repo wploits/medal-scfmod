@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    formatter::{self, Formatter},
+    formatter::Formatter,
     LocalRw, RcLocal, SideEffects, Traverse,
 };
 

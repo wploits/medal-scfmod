@@ -4,40 +4,43 @@ use nom::{
     Err, IResult,
 };
 use num_traits::FromPrimitive;
+use strum_macros::EnumDiscriminants;
 
 use super::OperationCode;
 
-#[derive(Debug)]
+#[derive(Debug, EnumDiscriminants)]
 pub enum Layout {
-    ABC { a: u8, b: u16, c: u16 },
-    ABx { a: u8, bx: u32 },
-    AsBx { a: u8, sbx: i32 },
+    BC { a: u8, b: u16, c: u16 },
+    // b extended
+    BX { a: u8, b_x: u32 },
+    // b signed, extended
+    BSx { a: u8, b_sx: i32 },
 }
 
 impl Layout {
     pub fn parse(input: &[u8], operation_code: u8) -> IResult<&[u8], Self> {
         let (input, instruction) = le_u32(input)?;
-
-        match FromPrimitive::from_u8(operation_code).map(|o: OperationCode| o.instruction_layout())
+        
+        match OperationCode::from_u8(operation_code).map(|o: OperationCode| o.instruction_layout())
         {
-            Some(0) => {
+            Some(LayoutDiscriminants::BC) => {
                 let a = ((instruction >> 6) & 0xFF) as u8;
                 let c = ((instruction >> 14) & 0x1FF) as u16;
                 let b = ((instruction >> 23) & 0x1FF) as u16;
 
-                Ok((input, Self::ABC { a, b, c }))
+                Ok((input, Self::BC { a, b, c }))
             }
-            Some(1) => {
+            Some(LayoutDiscriminants::BX) => {
                 let a = ((instruction >> 6) & 0xFF) as u8;
-                let bx = ((instruction >> 14) & 0x3FFFF) as u32;
+                let b_x = ((instruction >> 14) & 0x3FFFF) as u32;
 
-                Ok((input, Self::ABx { a, bx }))
+                Ok((input, Self::BX { a, b_x }))
             }
-            Some(2) => {
+            Some(LayoutDiscriminants::BSx) => {
                 let a = ((instruction >> 6) & 0xFF) as u8;
-                let sbx = ((instruction >> 14) & 0x3FFFF) as i32;
+                let b_sx = ((instruction >> 14) & 0x3FFFF) as i32;
 
-                Ok((input, Self::AsBx { a, sbx }))
+                Ok((input, Self::BSx { a, b_sx }))
             }
             _ => Err(Err::Failure(Error::from_error_kind(
                 input,

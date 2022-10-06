@@ -1,5 +1,3 @@
-use std::process;
-
 use array_tool::vec::Intersect;
 use ast::{LocalRw, Traverse};
 use fxhash::{FxHashMap, FxHashSet};

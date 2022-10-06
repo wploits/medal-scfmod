@@ -1,4 +1,4 @@
-use ast::{LocalRw, RValue, RcLocal, SideEffects, Traverse};
+use ast::{LocalRw, SideEffects, Traverse};
 use ast::{Reduce, UnaryOperation};
 use fxhash::FxHashSet;
 use itertools::Itertools;
@@ -368,7 +368,7 @@ pub fn structure_for_loops(
     did_structure
 }
 
-fn match_method_call(call: &ast::Call) -> Option<(&RValue, &str)> {
+fn match_method_call(call: &ast::Call) -> Option<(&ast::RValue, &str)> {
     // TODO: make sure `a:method with space()` doesnt happen
     if !call.arguments.is_empty()
         && !call.arguments[0].has_side_effects()

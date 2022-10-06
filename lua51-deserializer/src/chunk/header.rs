@@ -5,46 +5,41 @@ use nom::{
     Err, IResult,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Endianness {
     Big,
     Little,
 }
 
-#[derive(Debug)]
-pub enum IntegralFlag {
-    FloatingPoint,
-    Integral,
-}
-
-#[derive(Debug)]
-pub enum Version {
+#[derive(Debug, PartialEq, Eq)]
+pub enum Format {
     Official,
 }
 
 #[derive(Debug)]
 pub struct Header {
-    version_number: u8,
-    version: Version,
-    endianness: Endianness,
-    size_of_integer: u8,
-    size_of_size_t: u8,
-    size_of_instruction: u8,
-    size_of_lua_number: u8,
-    integral_flag: IntegralFlag,
+    pub(crate) version_number: u8,
+    pub(crate) format: Format,
+    pub(crate) endianness: Endianness,
+    pub(crate) int_width: u8,
+    pub(crate) size_t_width: u8,
+    pub(crate) instr_width: u8,
+    pub(crate) number_width: u8,
+    pub(crate) number_is_integral: bool,
 }
 
 impl Header {
     pub fn parse(input: &[u8]) -> IResult<&[u8], Self> {
         let (input, _) = tag("\x1BLua")(input)?;
         let (input, version_number) = le_u8(input)?;
-        let (input, version) = match le_u8(input)? {
-            (input, 0) => Ok((input, Version::Official)),
+        let (input, format) = match le_u8(input)? {
+            (input, 0) => Ok((input, Format::Official)),
             _ => Err(Err::Failure(Error::from_error_kind(
                 input,
                 ErrorKind::Switch,
             ))),
         }?;
+        // TODO: try_into instead
         let (input, endianness) = match le_u8(input)? {
             (input, 0) => Ok((input, Endianness::Big)),
             (input, 1) => Ok((input, Endianness::Little)),
@@ -53,13 +48,13 @@ impl Header {
                 ErrorKind::Switch,
             ))),
         }?;
-        let (input, size_of_integer) = le_u8(input)?;
-        let (input, size_of_size_t) = le_u8(input)?;
-        let (input, size_of_instruction) = le_u8(input)?;
-        let (input, size_of_lua_number) = le_u8(input)?;
-        let (input, integral_flag) = match le_u8(input)? {
-            (input, 0) => Ok((input, IntegralFlag::FloatingPoint)),
-            (input, 1) => Ok((input, IntegralFlag::Integral)),
+        let (input, int_width) = le_u8(input)?;
+        let (input, size_t_width) = le_u8(input)?;
+        let (input, instr_width) = le_u8(input)?;
+        let (input, number_width) = le_u8(input)?;
+        let (input, number_is_integral) = match le_u8(input)? {
+            (input, 0) => Ok((input, false)),
+            (input, 1) => Ok((input, true)),
             _ => Err(Err::Failure(Error::from_error_kind(
                 input,
                 ErrorKind::Switch,
@@ -70,13 +65,13 @@ impl Header {
             input,
             Self {
                 version_number,
-                version,
+                format,
                 endianness,
-                size_of_integer,
-                size_of_size_t,
-                size_of_instruction,
-                size_of_lua_number,
-                integral_flag,
+                int_width,
+                size_t_width,
+                instr_width,
+                number_width,
+                number_is_integral,
             },
         ))
     }

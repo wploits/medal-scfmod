@@ -1,5 +1,4 @@
 use petgraph::{algo::toposort, stable_graph::NodeIndex};
-use std::rc::Rc;
 
 use crate::{function::Function, ssa::param_dependency_graph::ParamDependencyGraph};
 

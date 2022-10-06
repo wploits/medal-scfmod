@@ -80,7 +80,7 @@ impl GraphStructurer {
                 std::mem::swap(&mut next, &mut body);
             }
 
-            println!("{:?} {:?}", next, body);
+            //println!("{:?} {:?}", next, body);
 
             if self
                 .function
@@ -127,7 +127,7 @@ impl GraphStructurer {
             }*/
             let continues = Vec::new();
 
-            println!("continues: {:?}", continues);
+            //println!("continues: {:?}", continues);
 
             let mut changed = false;
 

@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::fmt;
 
 use crate::{formatter::Formatter, has_side_effects, LocalRw, RcLocal, Traverse};

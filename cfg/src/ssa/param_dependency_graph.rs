@@ -88,8 +88,6 @@ impl ParamDependencyGraph {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use petgraph::dot::Dot;
 
     use crate::block::{BasicBlockEdge, Terminator};

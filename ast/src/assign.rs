@@ -1,7 +1,5 @@
 use std::fmt;
 
-use itertools::Itertools;
-
 use crate::{formatter::Formatter, RcLocal, SideEffects, Traverse};
 
 use super::{LValue, LocalRw, RValue};
