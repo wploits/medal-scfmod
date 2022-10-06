@@ -363,13 +363,19 @@ impl<'a> SsaConstructor<'a> {
             let block = self.function.block(node).unwrap();
             for stat in &block.ast.0 {
                 for read in stat.values_read() {
-                    local_usages.entry(read.clone()).or_insert_with(FxHashSet::default).insert(node);
+                    local_usages
+                        .entry(read.clone())
+                        .or_insert_with(FxHashSet::default)
+                        .insert(node);
                 }
             }
             if let Some(terminator) = block.terminator() {
                 for edge in terminator.edges() {
                     for (_, arg) in &edge.arguments {
-                        local_usages.entry(arg.clone()).or_insert_with(FxHashSet::default).insert(node);
+                        local_usages
+                            .entry(arg.clone())
+                            .or_insert_with(FxHashSet::default)
+                            .insert(node);
                     }
                 }
             }
