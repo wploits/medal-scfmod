@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::fmt;
 
-use crate::{has_side_effects, LocalRw, RcLocal, Traverse};
+use crate::{formatter::Formatter, has_side_effects, LocalRw, RcLocal, Traverse};
 
 use super::RValue;
 
@@ -43,6 +43,11 @@ impl LocalRw for Return {
 
 impl fmt::Display for Return {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "return {}", self.values.iter().join(", "))
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_return(self)
     }
 }

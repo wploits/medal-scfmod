@@ -1,4 +1,4 @@
-use crate::{has_side_effects, LocalRw, RcLocal, Traverse};
+use crate::{formatter::Formatter, has_side_effects, LocalRw, RcLocal, Traverse};
 
 use super::RValue;
 use std::fmt;
@@ -50,26 +50,11 @@ impl Traverse for Index {
 
 impl fmt::Display for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}{}",
-            // TODO: this is duplicated in Call and MethodCall
-            match self.left.as_ref() {
-                RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.left.to_string(),
-                _ => "(".to_string() + &self.left.to_string() + ")",
-            },
-            match self.right.as_ref() {
-                RValue::Literal(super::Literal::String(field))
-                    if field.is_ascii()
-                        && field
-                            .chars()
-                            .enumerate()
-                            .all(|(i, c)| (i != 0 && c.is_ascii_digit())
-                                || c.is_ascii_alphabetic()
-                                || c == '_') =>
-                    format!(".{}", field),
-                _ => format!("[{}]", self.right),
-            }
-        )
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_index(self)
     }
 }

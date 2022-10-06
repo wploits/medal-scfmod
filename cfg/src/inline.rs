@@ -72,6 +72,8 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
                     .filter(|&l| {
                         local_usages[l] == 1
                             && !upvalue_to_group.contains_key(l)
+                            // sadly we cant inline into block params
+                            // TODO: but maybe we should be able to?
                             && !locals_out.contains(l)
                     })
                     .cloned()

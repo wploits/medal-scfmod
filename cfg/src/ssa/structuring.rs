@@ -368,13 +368,18 @@ pub fn structure_for_loops(
     did_structure
 }
 
-fn match_method_call(call: &ast::Call) -> Option<(&RValue, &String)> {
-    // TODO: make sure a:method with space() doesnt happen
+fn match_method_call(call: &ast::Call) -> Option<(&RValue, &str)> {
+    // TODO: make sure `a:method with space()` doesnt happen
     if !call.arguments.is_empty()
         && !call.arguments[0].has_side_effects()
         && let Some(ast::Index { box left, right: box ast::RValue::Literal(ast::Literal::String(index)) }) = call.value.as_index()
-        && left == &call.arguments[0] {
-        Some((left, index))
+        && left == &call.arguments[0]
+    {
+        if let Ok(index) = std::str::from_utf8(index) {
+            Some((left, index))
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -389,7 +394,7 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
                 if let Some((value, method)) = match_method_call(call) {
                     *stat = ast::MethodCall::new(
                         value.clone(),
-                        method.clone(),
+                        method.to_string(),
                         call.arguments.drain(1..).collect(),
                     )
                     .into();
@@ -401,7 +406,7 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
                     if let Some((value, method)) = match_method_call(call) {
                         *rvalue = ast::MethodCall::new(
                             value.clone(),
-                            method.clone(),
+                            method.to_string(),
                             call.arguments.drain(1..).collect(),
                         )
                         .into();
@@ -412,7 +417,7 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
                         if let Some((value, method)) = match_method_call(call) {
                             *select = ast::MethodCall::new(
                                 value.clone(),
-                                method.clone(),
+                                method.to_string(),
                                 call.arguments.drain(1..).collect(),
                             )
                             .into();
@@ -435,15 +440,19 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
         if let Some(block) = function.block(node) {
             if let Some(Terminator::Jump(jump)) = block.terminator.clone()
                 && jump.node != node
-                && jump.arguments.is_empty()
-                && function.predecessor_blocks(jump.node).collect_vec() == [node]
-                && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
             {
-                let terminator = function.block_mut(jump.node).unwrap().terminator.take();
-                let body = function.remove_block(jump.node).unwrap().ast;
-                function.block_mut(node).unwrap().ast.extend(body.0);
-                function.set_block_terminator(node, terminator);
-                did_structure = true;
+                assert!(jump.arguments.is_empty());
+                if block.ast.is_empty() {
+                    todo!();
+                } else if function.predecessor_blocks(jump.node).count() == 1
+                    && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
+                {
+                    let terminator = function.block_mut(jump.node).unwrap().terminator.take();
+                    let body = function.remove_block(jump.node).unwrap().ast;
+                    function.block_mut(node).unwrap().ast.extend(body.0);
+                    function.set_block_terminator(node, terminator);
+                    did_structure = true;
+                }
             }
         }
     }

@@ -12,7 +12,7 @@ pub enum Value<'a> {
     Nil,
     Boolean(bool),
     Number(f64),
-    String(&'a str),
+    String(&'a [u8]),
 }
 
 impl<'a> Value<'a> {
@@ -34,6 +34,7 @@ impl<'a> Value<'a> {
             4 => {
                 let (input, value) = parse_string(input)?;
 
+                // exclude null terminator
                 Ok((input, Self::String(&value[..value.len() - 1])))
             }
             _ => Err(Err::Failure(Error::from_error_kind(
@@ -44,16 +45,14 @@ impl<'a> Value<'a> {
     }
 }
 
-pub fn parse_string(input: &[u8]) -> IResult<&[u8], &str> {
-    let (input, name_length) = le_u32(input)?;
-    let (input, string) = take(name_length as usize)(input)?;
-
-    Ok((input, unsafe { std::str::from_utf8_unchecked(string) }))
+pub fn parse_string(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    let (input, string_length) = le_u32(input)?;
+    take(string_length as usize)(input)
 }
 
-pub fn parse_strings(input: &[u8]) -> IResult<&[u8], Vec<&str>> {
-    let (input, upvalues_length) = le_u32(input)?;
-    let (input, upvalues) = count(parse_string, upvalues_length as usize)(input)?;
+pub fn parse_strings(input: &[u8]) -> IResult<&[u8], Vec<&[u8]>> {
+    let (input, string_count) = le_u32(input)?;
+    let (input, strings) = count(parse_string, string_count as usize)(input)?;
 
-    Ok((input, upvalues))
+    Ok((input, strings))
 }

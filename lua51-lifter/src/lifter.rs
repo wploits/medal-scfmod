@@ -143,7 +143,7 @@ impl<'a> LifterContext<'a> {
             Value::Nil => ast::Literal::Nil,
             Value::Boolean(v) => ast::Literal::Boolean(*v),
             Value::Number(v) => ast::Literal::Number(*v),
-            Value::String(v) => ast::Literal::String(v.to_string()),
+            Value::String(v) => ast::Literal::String(v.to_vec()),
         };
         self.constants
             .entry(constant.0 as usize)
@@ -896,19 +896,16 @@ impl<'a> LifterContext<'a> {
 
             //let now = time::Instant::now();
             loop {
+                let dominators = simple_fast(function.graph(), function.entry().unwrap());
+                structure_jumps(&mut function, &dominators);
+
                 // TODO: remove unused variables without side effects
                 inline(&mut function, &upvalue_to_group);
 
-                let mut dominators = None;
                 if !structure_compound_conditionals(&mut function)
                     && !{
-                        dominators = Some(simple_fast(function.graph(), function.entry().unwrap()));
                         let post_dominators = post_dominators(function.graph().clone());
-                        structure_for_loops(
-                            &mut function,
-                            dominators.as_ref().unwrap(),
-                            &post_dominators,
-                        )
+                        structure_for_loops(&mut function, &dominators, &post_dominators)
                     }
                     && !structure_method_calls(&mut function)
                 {
@@ -918,11 +915,6 @@ impl<'a> LifterContext<'a> {
                 let mut local_map = FxHashMap::default();
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
                 cfg::ssa::construct::apply_local_map(&mut function, local_map);
-
-                if dominators.is_none() {
-                    dominators = Some(simple_fast(function.graph(), function.entry().unwrap()));
-                }
-                structure_jumps(&mut function, dominators.as_ref().unwrap());
             }
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             // let inlined = now.elapsed();
@@ -931,12 +923,12 @@ impl<'a> LifterContext<'a> {
             //     iterations, inlined
             // );
 
-            //cfg::dot::render_to(&function, &mut std::io::stdout())?;
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
-            //cfg::dot::render_to(&function, &mut std::io::stdout())?;
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let upvalues_in = cfg::ssa::destruct(
                 &mut function,

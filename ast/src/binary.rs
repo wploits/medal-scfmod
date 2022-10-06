@@ -1,5 +1,7 @@
 use std::fmt;
 
+use itertools::Itertools;
+
 use crate::{Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse};
 
 use super::{Unary, UnaryOperation};
@@ -149,7 +151,9 @@ impl<'a: 'b, 'b> Reduce for Binary {
                 box RValue::Literal(Literal::String(left)),
                 box RValue::Literal(Literal::String(right)),
                 BinaryOperation::Concat,
-            ) => RValue::Literal(Literal::String(format!("{}{}", left, right))),
+            ) => RValue::Literal(Literal::String(
+                left.into_iter().chain(right.into_iter()).collect(),
+            )),
             (left, right, operation) => Self {
                 left: Box::new(left.reduce()),
                 right: Box::new(right.reduce()),

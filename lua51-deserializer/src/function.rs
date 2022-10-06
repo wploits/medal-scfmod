@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Function<'a> {
-    pub name: &'a str,
+    pub name: &'a [u8],
     pub line_defined: u32,
     pub last_line_defined: u32,
     pub number_of_upvalues: u8,
@@ -24,7 +24,7 @@ pub struct Function<'a> {
     pub closures: Vec<Function<'a>>,
     pub positions: Vec<Position>,
     pub locals: Vec<Local<'a>>,
-    pub upvalues: Vec<&'a str>,
+    pub upvalues: Vec<&'a [u8]>,
     pub number_of_parameters: u8,
 }
 
@@ -44,7 +44,7 @@ impl<'a> Function<'a> {
         let (input, closures_length) = le_u32(input)?;
         let (input, closures) = count(Self::parse, closures_length as usize)(input)?;
         let (input, positions) = opt(Position::parse)(input)?;
-        let (input, locals) = opt(Local::parse)(input)?;
+        let (input, locals) = opt(Local::parse_list)(input)?;
         let (input, upvalues) = opt(value::parse_strings)(input)?;
 
         Ok((

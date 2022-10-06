@@ -1,4 +1,4 @@
-use crate::{has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
+use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
 use itertools::Itertools;
 use std::fmt;
 
@@ -38,14 +38,11 @@ impl LocalRw for Repeat {
 
 impl fmt::Display for Repeat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "repeat\n{}\nuntil {}",
-            self.block
-                .iter()
-                .map(|n| n.to_string().replace('\n', "\n\t"))
-                .join("\n\t"),
-            self.condition,
-        )
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_repeat(self)
     }
 }

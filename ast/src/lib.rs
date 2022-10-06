@@ -3,6 +3,7 @@
 
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
+use formatter::Formatter;
 use itertools::{Either, Itertools};
 
 use std::{
@@ -26,7 +27,7 @@ mod index;
 mod literal;
 mod local;
 pub mod local_allocator;
-mod name_gen;
+//mod name_gen;
 pub mod name_locals;
 mod repeat;
 pub mod replace_locals;
@@ -340,14 +341,6 @@ impl DerefMut for Block {
 
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.0
-                .iter()
-                .filter(|s| s.as_empty().is_none())
-                .map(|s| s.to_string())
-                .join("\n")
-        )
+        Formatter::format(self, f, Default::default())
     }
 }

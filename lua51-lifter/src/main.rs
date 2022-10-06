@@ -5,6 +5,7 @@ use ast::name_locals::name_locals;
 use cfg::ssa::structuring::{structure_for_loops, structure_method_calls};
 use indexmap::IndexMap;
 use restructure::post_dominators;
+use std::io::Write;
 use std::{fs::File, io::Read, time};
 
 use clap::Parser;
@@ -57,7 +58,7 @@ fn main() -> anyhow::Result<()> {
 
     name_locals(&mut main, true);
 
-    ast::formatter::Formatter::format(&main, &mut File::create("result.lua")?, Default::default())?;
+    write!(File::create("result.lua")?, "{}", main)?;
 
     Ok(())
 }

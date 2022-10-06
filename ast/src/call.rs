@@ -1,6 +1,9 @@
 use std::fmt;
 
-use crate::{formatter, LocalRw, RcLocal, SideEffects, Traverse};
+use crate::{
+    formatter::{self, Formatter},
+    LocalRw, RcLocal, SideEffects, Traverse,
+};
 
 use super::RValue;
 
@@ -59,16 +62,12 @@ impl LocalRw for Call {
 
 impl fmt::Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}({})",
-            // TODO: this is duplicated in Index and MethodCall
-            match self.value.as_ref() {
-                RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.value.to_string(),
-                _ => "(".to_string() + &self.value.to_string() + ")",
-            },
-            formatter::format_arg_list(&self.arguments)
-        )
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_call(self)
     }
 }
 
@@ -130,16 +129,11 @@ impl LocalRw for MethodCall {
 
 impl fmt::Display for MethodCall {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}:{}({})",
-            // TODO: this is duplicated in Index and Call
-            match self.value.as_ref() {
-                RValue::Local(_) | RValue::Global(_) | RValue::Index(_) => self.value.to_string(),
-                _ => "(".to_string() + &self.value.to_string() + ")",
-            },
-            self.method,
-            formatter::format_arg_list(&self.arguments)
-        )
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_method_call(self)
     }
 }

@@ -3,6 +3,7 @@ use std::fmt;
 use itertools::Itertools;
 
 use crate::{
+    formatter::Formatter,
     type_system::{Infer, TypeSystem},
     Block, LocalRw, RcLocal, SideEffects, Traverse, Type,
 };
@@ -30,13 +31,12 @@ impl Infer for Closure {
 
 impl fmt::Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "function({})\n-- upvalues: {}\n{}\nend",
-            self.parameters.iter().join(", "),
-            self.upvalues.iter().join(", "),
-            self.body.0.iter().join("\n"),
-        )
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_closure(self)
     }
 }
 

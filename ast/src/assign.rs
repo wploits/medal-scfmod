@@ -2,7 +2,7 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{RcLocal, SideEffects, Traverse};
+use crate::{formatter::Formatter, RcLocal, SideEffects, Traverse};
 
 use super::{LValue, LocalRw, RValue};
 
@@ -75,36 +75,11 @@ impl LocalRw for Assign {
 
 impl fmt::Display for Assign {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        /*write!(
-            f,
-            "{}{}",
-            if self.left.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    "{} = ",
-                    self.left
-                        .iter()
-                        .map(|(l, annotation)| {
-                            format!(
-                                "{}{}",
-                                l,
-                                annotation
-                                    .as_ref()
-                                    .map(|t| format!(": {}", t))
-                                    .unwrap_or_default(),
-                            )
-                        })
-                        .join(", ")
-                )
-            },
-            self.right.iter().map(ToString::to_string).join(", ")
-        )*/
-        write!(
-            f,
-            "{} = {}",
-            self.left.iter().join(", "),
-            self.right.iter().join(", ")
-        )
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_assign(self)
     }
 }

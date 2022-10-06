@@ -1,4 +1,7 @@
-use crate::{formatter, has_side_effects, LocalRw, RValue, RcLocal, SideEffects, Traverse};
+use crate::{
+    formatter::{self, Formatter},
+    has_side_effects, LocalRw, RValue, RcLocal, SideEffects, Traverse,
+};
 
 use std::{fmt, iter};
 
@@ -100,8 +103,11 @@ impl SideEffects for Table {
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: table formatting here
-        write!(f, "{{--[[table]]}}")
-        // write!(f, "{{{}}}", formatter::format_arg_list(&self.0))
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
+        }
+        .format_table(self)
     }
 }

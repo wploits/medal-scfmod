@@ -1,4 +1,4 @@
-use crate::{LocalRw, RcLocal, SideEffects, Traverse};
+use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::{Block, RValue};
 
@@ -50,29 +50,11 @@ impl LocalRw for If {
 
 impl fmt::Display for If {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "if {} then", self.condition,)?;
-        if let Some(then_block) = &self.then_block {
-            write!(
-                f,
-                "\n\t{}",
-                then_block
-                    .0
-                    .iter()
-                    .map(|n| n.to_string().replace('\n', "\n\t"))
-                    .join("\n\t")
-            )?;
+        Formatter {
+            indentation_level: 0,
+            indentation_mode: Default::default(),
+            output: f,
         }
-        if let Some(else_block) = &self.else_block {
-            write!(
-                f,
-                "\nelse\n\t{}",
-                else_block
-                    .0
-                    .iter()
-                    .map(|n| n.to_string().replace('\n', "\n\t"))
-                    .join("\n\t")
-            )?;
-        }
-        write!(f, "\nend")
+        .format_if(self)
     }
 }

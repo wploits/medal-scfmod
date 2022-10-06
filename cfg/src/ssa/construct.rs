@@ -345,12 +345,23 @@ impl<'a> SsaConstructor<'a> {
         res
     }
 
-    // local copy propagation
+    // block-local copy propagation
     // TODO: do in local inlining instead since blocks are merged
+    // we can also propagate copies where we can guarantee there is no overlap of locals that correspond to the same
+    // original local
+    // for example:
+    /*
+    local a = a
+    local b
+    if g then b = "hi" else b = a end
+    return b
+    */
     fn propagate_copies(&mut self) {
         // TODO: blocks_mut
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();
+            // TODO: arguments of successor blocks dont necessarily contain block arguments,
+            // so this is incorrect.
             let mut locals_out = FxHashSet::default();
             if let Some(terminator) = &block.terminator {
                 locals_out.extend(
