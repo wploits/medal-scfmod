@@ -38,26 +38,13 @@ fn main() -> anyhow::Result<()> {
     let _profiler = dhat::Profiler::new_heap();
 
     let args = Args::parse();
-
     let mut input = File::open(args.file)?;
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
-    let total_now = time::Instant::now();
-    let now = time::Instant::now();
     let chunk = Chunk::parse(&buffer).unwrap().1;
-    //println!("{:#?}", chunk);
-    let parsed = now.elapsed();
-    println!("parsing: {:?}", parsed);
-
-    let now = time::Instant::now();
-    //let function = Lifter::new(&chunk.function).lift_function()?;
     let (mut main, _, _) = lifter::LifterContext::lift(&chunk.function, Default::default());
-    let lifted = now.elapsed();
-    println!("lifting: {:?}", lifted);
-
     name_locals(&mut main, true);
-
     write!(File::create("result.lua")?, "{}", main)?;
 
     Ok(())

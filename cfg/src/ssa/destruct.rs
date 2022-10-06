@@ -1,5 +1,3 @@
-use std::time;
-
 use ast::RcLocal;
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
@@ -29,30 +27,12 @@ pub fn destruct(
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
     upvalues_in_count: usize,
 ) -> IndexSet<RcLocal> {
-    let now = time::Instant::now();
     resolve_param_dependencies::resolve(function);
-    let elapsed = now.elapsed();
-    //println!("resolve param dependencies: {:?}", elapsed);
-
-    let now = time::Instant::now();
     let liveness = Liveness::new(function);
-    let elapsed = now.elapsed();
-    //println!("liveness: {:?}", elapsed);
-
-    let now = time::Instant::now();
     let mut interference_graph = InterferenceGraph::new(function, &liveness, local_count);
-    let elapsed = now.elapsed();
-    //println!("interference graph: {:?}", elapsed);
-
-    let now = time::Instant::now();
     ParamLifter::new(function, Some(&mut interference_graph)).lift();
-    let elapsed = now.elapsed();
-    //println!("param lifter: {:?}", elapsed);
-
     let mut local_nodes = FxHashMap::default();
-
     // interference graph is no longer chordal, coloring is not optimal
-    let now = time::Instant::now();
     let upvalues = LocalRenamer::new(
         function,
         local_groups,
@@ -61,19 +41,10 @@ pub fn destruct(
         &mut local_nodes,
     )
     .rename();
-    let elapsed = now.elapsed();
-    //println!("var renamer: {:?}", elapsed);
-
     //crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
-
     let mut upvalues_in = upvalues;
     upvalues_in.truncate(upvalues_in_count);
-
-    let now = time::Instant::now();
     let dominators = simple_fast(function.graph(), function.entry().unwrap());
     local_declarations::declare_locals(function, &upvalues_in, local_nodes, &dominators);
-    let elapsed = now.elapsed();
-    //println!("local declarations: {:?}", elapsed);
-
     upvalues_in
 }

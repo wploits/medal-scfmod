@@ -894,7 +894,6 @@ impl<'a> LifterContext<'a> {
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
                 .collect::<IndexMap<_, _>>();
 
-            //let now = time::Instant::now();
             loop {
                 let dominators = simple_fast(function.graph(), function.entry().unwrap());
                 structure_jumps(&mut function, &dominators);
@@ -916,13 +915,6 @@ impl<'a> LifterContext<'a> {
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
                 cfg::ssa::construct::apply_local_map(&mut function, local_map);
             }
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-            // let inlined = now.elapsed();
-            // println!(
-            //     "inlining and structuring (looped {} times): {:?}",
-            //     iterations, inlined
-            // );
-
             //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
