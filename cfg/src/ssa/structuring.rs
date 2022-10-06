@@ -442,9 +442,9 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                 && jump.node != node
             {
                 assert!(jump.arguments.is_empty());
-                if block.ast.is_empty() {
+                /*if block.ast.is_empty() {
                     todo!();
-                } else if function.predecessor_blocks(jump.node).count() == 1
+                } else*/ if function.predecessor_blocks(jump.node).count() == 1
                     && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
                 {
                     let terminator = function.block_mut(jump.node).unwrap().terminator.take();
