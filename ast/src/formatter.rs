@@ -527,11 +527,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             Statement::Call(call) => self.format_call(call),
             Statement::MethodCall(method_call) => self.format_method_call(method_call),
             Statement::Return(r#return) => self.format_return(r#return),
-            Statement::NumForInit(_) => todo!(),
-            Statement::NumForNext(_) => todo!(),
-            Statement::GenericForInit(_) => todo!(),
-            Statement::GenericForNext(_) => todo!(),
-            Statement::SetList(_) => todo!(),
             _ => write!(self.output, "{}", statement),
         }
     }

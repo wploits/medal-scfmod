@@ -357,21 +357,26 @@ impl<'a> SsaConstructor<'a> {
     return b
     */
     fn propagate_copies(&mut self) {
-        // TODO: blocks_mut
-        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
-            let block = self.function.block_mut(node).unwrap();
-            // TODO: arguments of successor blocks dont necessarily contain block arguments,
-            // so this is incorrect.
-            let mut locals_out = FxHashSet::default();
-            if let Some(terminator) = &block.terminator {
-                locals_out.extend(
-                    terminator
-                        .edges()
-                        .into_iter()
-                        .flat_map(|e| e.arguments.iter().map(|(_, a)| a))
-                        .cloned(),
-                );
+        // TODO: repeated in inline.rs, move to separate function
+        let node_indices = self.function.graph().node_indices().collect::<Vec<_>>();
+        let mut local_usages = FxHashMap::default();
+        for &node in &node_indices {
+            let block = self.function.block(node).unwrap();
+            for stat in &block.ast.0 {
+                for read in stat.values_read() {
+                    local_usages.entry(read.clone()).or_insert_with(FxHashSet::default).insert(node);
+                }
             }
+            if let Some(terminator) = block.terminator() {
+                for edge in terminator.edges() {
+                    for (_, arg) in &edge.arguments {
+                        local_usages.entry(arg.clone()).or_insert_with(FxHashSet::default).insert(node);
+                    }
+                }
+            }
+        }
+        for node in node_indices {
+            let block = self.function.block_mut(node).unwrap();
             let mut assigned_locals = FxHashSet::default();
             let mut indices_to_remove = Vec::new();
             for index in block
@@ -392,7 +397,7 @@ impl<'a> SsaConstructor<'a> {
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    if !locals_out.contains(from) || assigned_locals.contains(to) {
+                    if local_usages[from].len() == 1 || assigned_locals.contains(to) {
                         self.local_map.insert(from.clone(), to.clone());
                         indices_to_remove.push(index);
                     }
