@@ -4,6 +4,7 @@
 
 use ast::name_locals::name_locals;
 use std::io::Write;
+use std::time::Instant;
 use std::{fs::File, io::Read};
 
 use clap::Parser;
@@ -32,10 +33,15 @@ fn main() -> anyhow::Result<()> {
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
+    let start = Instant::now();
     let chunk = Chunk::parse(&buffer).unwrap().1;
     let (mut main, _, _) = lifter::LifterContext::lift(&chunk.function, Default::default());
     name_locals(&mut main, true);
-    write!(File::create("result.lua")?, "{}", main)?;
+    let duration = start.elapsed();
+
+    let mut out = File::create("result.lua")?;
+    writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
+    write!(out, "{}", main)?;
 
     Ok(())
 }
