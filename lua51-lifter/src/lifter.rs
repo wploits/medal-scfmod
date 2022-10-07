@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+use std::panic;
 use std::{cell::RefCell, rc::Rc};
 
 use either::Either;
@@ -974,11 +976,23 @@ impl<'a> LifterContext<'a> {
         match () {
             #[cfg(feature = "panic_handled")]
             () => {
+                thread_local! {
+                    static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
+                }
+                
                 let mut function = std::panic::AssertUnwindSafe(Some(context.function));
                 let mut upvalues_in = std::panic::AssertUnwindSafe(Some(context.upvalues));
-                let result = std::panic::catch_unwind(move || {
+
+                let prev_hook = panic::take_hook();
+                panic::set_hook(Box::new(|_| {
+                    let trace = Backtrace::capture();
+                    BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
+                }));
+                let result = panic::catch_unwind(move || {
                     func(function.take().unwrap(), upvalues_in.take().unwrap())
                 });
+                panic::set_hook(prev_hook);
+
                 match result {
                     Ok(r) => r,
                     Err(e) => {
@@ -991,12 +1005,15 @@ impl<'a> LifterContext<'a> {
                         };
 
                         let mut block = ast::Block::from_vec(vec![ast::Comment::new(
-                            "the decompiler panicked while decompiling this function".to_string(),
+                            format!("panicked at '{}'", panic_information),
                         )
                         .into()]);
 
-                        for line in panic_information.split('\n') {
-                            block.push(ast::Comment::new(line.to_string()).into());
+                        if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
+                            block.push(ast::Comment::new("stack backtrace:".to_string()).into());
+                            for line in backtrace.to_string().trim_end().split('\n') {
+                                block.push(ast::Comment::new(line.to_string()).into());
+                            }
                         }
 
                         (block, Vec::new(), Vec::new())
