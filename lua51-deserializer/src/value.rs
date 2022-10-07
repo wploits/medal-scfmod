@@ -34,6 +34,11 @@ impl<'a> Value<'a> {
             4 => {
                 let (input, value) = parse_string(input)?;
 
+                // TODO: lua bytecode actually allows the string to be completely empty
+                // it sets the type to string but gc to NULL
+                // this probably causes some weird behavior
+                assert!(!value.is_empty());
+
                 // exclude null terminator
                 Ok((input, Self::String(&value[..value.len() - 1])))
             }
