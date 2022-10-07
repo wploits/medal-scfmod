@@ -1,21 +1,22 @@
-use std::rc::Rc;
+use std::{rc::Rc, collections::HashMap};
 
 use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
 struct Namer {
     rename: bool,
-    counter: usize,
+    counter: HashMap<String, usize>,
 }
 
 impl Namer {
-    fn name_local(&mut self, local: &RcLocal) {
+    fn name_local(&mut self, prefix: &str, local: &RcLocal) {
         if self.rename || local.0 .0.borrow().0.is_none() {
             // TODO: hacky
             if Rc::strong_count(local) == 1 {
                 local.0 .0.borrow_mut().0 = Some("_".to_string());
             } else {
-                local.0 .0.borrow_mut().0 = Some(format!("l_{}", self.counter));
-                self.counter += 1;
+                let counter = self.counter.entry(prefix.to_string()).or_insert(1);
+                local.0 .0.borrow_mut().0 = Some(format!("{}{}", prefix, counter));
+                *counter += 1;
             }
         }
     }
@@ -26,7 +27,7 @@ impl Namer {
             statement.post_traverse_values(&mut |value| -> Option<()> {
                 if let itertools::Either::Right(RValue::Closure(closure)) = value {
                     for param in &closure.parameters {
-                        self.name_local(param);
+                        self.name_local("p", param);
                     }
                     self.name_locals(&mut closure.body);
                 };
@@ -35,7 +36,7 @@ impl Namer {
             match statement {
                 Statement::Assign(assign) if assign.prefix => {
                     for lvalue in &assign.left {
-                        self.name_local(lvalue.as_local().unwrap());
+                        self.name_local("v", lvalue.as_local().unwrap());
                     }
                 }
                 Statement::If(r#if) => {
@@ -51,12 +52,12 @@ impl Namer {
                     self.name_locals(&mut r#while.block);
                 }
                 Statement::NumericFor(numeric_for) => {
-                    self.name_local(&numeric_for.counter);
+                    self.name_local("v", &numeric_for.counter);
                     self.name_locals(&mut numeric_for.block);
                 }
                 Statement::GenericFor(generic_for) => {
                     for res_local in &generic_for.res_locals {
-                        self.name_local(res_local);
+                        self.name_local("v", res_local);
                     }
                     self.name_locals(&mut generic_for.block);
                 }
@@ -67,5 +68,5 @@ impl Namer {
 }
 
 pub fn name_locals(block: &mut Block, rename: bool) {
-    Namer { rename, counter: 1 }.name_locals(block);
+    Namer { rename, counter: HashMap::new() }.name_locals(block);
 }
