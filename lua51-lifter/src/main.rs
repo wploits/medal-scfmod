@@ -1,5 +1,6 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
+#![feature(mixed_integer_ops)]
 
 use ast::name_locals::name_locals;
 use std::io::Write;

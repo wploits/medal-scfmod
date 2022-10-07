@@ -50,6 +50,9 @@ impl<'a> LifterContext<'a> {
         }
     }
 
+    // TODO: support jumps to invalid destinations
+    // including cases where there is usize::MAX instructions and the last instruction
+    // skips forward, overflowing
     fn create_block_map(&mut self) {
         self.nodes.insert(0, self.function.new_block());
         for (insn_index, insn) in self.bytecode.code.iter().enumerate() {
@@ -84,7 +87,7 @@ impl<'a> LifterContext<'a> {
                         .or_insert_with(|| self.function.new_block());
                 }
                 Instruction::Jump(skip) => {
-                    let dest_index = insn_index + skip as usize - 131070;
+                    let dest_index = insn_index.checked_add_signed(skip.try_into().unwrap()).unwrap() + 1;
                     /* let dest_block = * */self
                         .nodes
                         .entry(dest_index)
@@ -106,7 +109,7 @@ impl<'a> LifterContext<'a> {
                 Instruction::IterateNumericForLoop { skip, .. }
                 | Instruction::InitNumericForLoop { skip, .. } => {
                     self.nodes
-                        .entry(insn_index + skip as usize - 131070)
+                        .entry(insn_index.checked_add_signed(skip.try_into().unwrap()).unwrap() + 1)
                         .or_insert_with(|| self.function.new_block());
                     self.nodes
                         .entry(insn_index + 1)
@@ -164,6 +167,7 @@ impl<'a> LifterContext<'a> {
             statements.reserve(end - start + 1);
         }
         let mut top: Option<(ast::RValue, u8)> = None;
+        // TODO: we should consume the instructions, reducing clones
         let mut iter = self.bytecode.code[start..=end].iter();
         while let Some(instruction) = iter.next() {
             match instruction {
@@ -704,7 +708,7 @@ impl<'a> LifterContext<'a> {
                     );
                     statements.push(ast::NumForInit::new(internal_counter, limit, step).into());
                 }
-                Instruction::IterateNumericForLoop { control, skip } => {
+                &Instruction::IterateNumericForLoop { ref control, skip } => {
                     let (internal_counter, limit, step, external_counter) = (
                         self.locals[&control[0]].clone(),
                         self.locals[&control[1]].clone(),
@@ -716,7 +720,7 @@ impl<'a> LifterContext<'a> {
                             .into(),
                     );
                     self.function
-                        .block_mut(self.get_node(&(end + *skip as usize - 131070)))
+                        .block_mut(self.get_node(&(end.checked_add_signed(skip.try_into().unwrap()).unwrap() + 1)))
                         .unwrap()
                         .ast
                         .insert(
@@ -810,7 +814,7 @@ impl<'a> LifterContext<'a> {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::conditional(
-                            self.get_node(&(end + skip as usize - 131070)),
+                            self.get_node(&(end.checked_add_signed(skip.try_into().unwrap()).unwrap() + 1)),
                             self.get_node(&(end + 1)),
                         )),
                     );
@@ -819,7 +823,7 @@ impl<'a> LifterContext<'a> {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::jump(
-                            self.get_node(&(end + skip as usize - 131070)),
+                            self.get_node(&(end.checked_add_signed(skip.try_into().unwrap()).unwrap() + 1)),
                         )),
                     );
                 }

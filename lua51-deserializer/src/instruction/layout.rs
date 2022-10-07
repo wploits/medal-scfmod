@@ -38,7 +38,9 @@ impl Layout {
             }
             Some(LayoutDiscriminants::BSx) => {
                 let a = ((instruction >> 6) & 0xFF) as u8;
-                let b_sx = ((instruction >> 14) & 0x3FFFF) as i32;
+                let b_x = ((instruction >> 14) & 0x3FFFF) as u32;
+                // subtract maximum 18 bit signed int
+                let b_sx = b_x as i32 - (((1<<18)-1)>>1);
 
                 Ok((input, Self::BSx { a, b_sx }))
             }

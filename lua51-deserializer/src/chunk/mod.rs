@@ -25,7 +25,6 @@ impl<'a> Chunk<'a> {
         assert_eq!(header.instr_width as usize, mem::size_of::<u32>());
         assert_eq!(header.number_width as usize, mem::size_of::<f64>());
         assert!(!header.number_is_integral);
-        println!("{:#?}", header);
         let (input, function) = Function::parse(input)?;
 
         Ok((input, Self { function }))
