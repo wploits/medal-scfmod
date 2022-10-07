@@ -61,7 +61,6 @@ impl UpvaluesOpen {
                         let open_ranges = successor_open.entry(open).or_default();
                         // TODO: sorta ugly doing a saturating subtraction, use uninclusive ranges instead?
                         let range = 0..=successor_block.ast.len().saturating_sub(1);
-                        println!("{:?} {:?}", successor, range);
                         if let Some((prev_range, prev_locations)) = open_ranges.get_key_value(&0) {
                             assert_eq!(prev_range, &range);
                             locations.extend(prev_locations);
