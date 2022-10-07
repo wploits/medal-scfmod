@@ -1,9 +1,6 @@
 use std::fmt;
 
-use crate::{
-    formatter::Formatter,
-    LocalRw, RcLocal, SideEffects, Traverse,
-};
+use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::RValue;
 

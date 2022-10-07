@@ -88,9 +88,11 @@ impl<'a> LifterContext<'a> {
                         .or_insert_with(|| self.function.new_block());
                 }
                 Instruction::Jump(skip) => {
-                    let dest_index = (insn_index + 1).checked_add_signed(skip.try_into().unwrap()).unwrap();
-                    /* let dest_block = * */self
-                        .nodes
+                    let dest_index = (insn_index + 1)
+                        .checked_add_signed(skip.try_into().unwrap())
+                        .unwrap();
+                    /* let dest_block = * */
+                    self.nodes
                         .entry(dest_index)
                         .or_insert_with(|| self.function.new_block());
                     self.nodes
@@ -110,7 +112,11 @@ impl<'a> LifterContext<'a> {
                 Instruction::IterateNumericForLoop { skip, .. }
                 | Instruction::InitNumericForLoop { skip, .. } => {
                     self.nodes
-                        .entry((insn_index + 1).checked_add_signed(skip.try_into().unwrap()).unwrap())
+                        .entry(
+                            (insn_index + 1)
+                                .checked_add_signed(skip.try_into().unwrap())
+                                .unwrap(),
+                        )
                         .or_insert_with(|| self.function.new_block());
                     self.nodes
                         .entry(insn_index + 1)
@@ -721,7 +727,13 @@ impl<'a> LifterContext<'a> {
                             .into(),
                     );
                     self.function
-                        .block_mut(self.get_node(&((end + 1).checked_add_signed(skip.try_into().unwrap()).unwrap())))
+                        .block_mut(
+                            self.get_node(
+                                &((end + 1)
+                                    .checked_add_signed(skip.try_into().unwrap())
+                                    .unwrap()),
+                            ),
+                        )
                         .unwrap()
                         .ast
                         .insert(
@@ -817,7 +829,11 @@ impl<'a> LifterContext<'a> {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::conditional(
-                            self.get_node(&((end + 1).checked_add_signed(skip.try_into().unwrap()).unwrap())),
+                            self.get_node(
+                                &((end + 1)
+                                    .checked_add_signed(skip.try_into().unwrap())
+                                    .unwrap()),
+                            ),
                             self.get_node(&(end + 1)),
                         )),
                     );
@@ -826,7 +842,11 @@ impl<'a> LifterContext<'a> {
                     self.function.set_block_terminator(
                         self.nodes[&start],
                         Some(Terminator::jump(
-                            self.get_node(&((end + 1).checked_add_signed(skip.try_into().unwrap()).unwrap())),
+                            self.get_node(
+                                &((end + 1)
+                                    .checked_add_signed(skip.try_into().unwrap())
+                                    .unwrap()),
+                            ),
                         )),
                     );
                 }
@@ -873,7 +893,9 @@ impl<'a> LifterContext<'a> {
         context.function.set_entry(context.nodes[&0]);
 
         for node in context.function.graph().node_indices() {
-            if context.requires_single_pred.contains(&node) && context.function.predecessor_blocks(node).count() != 1 {
+            if context.requires_single_pred.contains(&node)
+                && context.function.predecessor_blocks(node).count() != 1
+            {
                 unimplemented!("block must have only one predecessor, but has multiple")
             }
         }

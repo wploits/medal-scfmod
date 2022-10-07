@@ -20,7 +20,7 @@ pub enum Layout {
 impl Layout {
     pub fn parse(input: &[u8], operation_code: u8) -> IResult<&[u8], Self> {
         let (input, instruction) = le_u32(input)?;
-        
+
         match OperationCode::from_u8(operation_code).map(|o: OperationCode| o.instruction_layout())
         {
             Some(LayoutDiscriminants::BC) => {
@@ -40,7 +40,7 @@ impl Layout {
                 let a = ((instruction >> 6) & 0xFF) as u8;
                 let b_x = ((instruction >> 14) & 0x3FFFF) as u32;
                 // subtract maximum 18 bit signed int
-                let b_sx = b_x as i32 - (((1<<18)-1)>>1);
+                let b_sx = b_x as i32 - (((1 << 18) - 1) >> 1);
 
                 Ok((input, Self::BSx { a, b_sx }))
             }

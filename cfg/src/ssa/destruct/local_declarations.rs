@@ -8,34 +8,37 @@ use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 use crate::{block::BasicBlock, function::Function};
 
 fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
+    let mut inline = true;
     let mut read_stat_index = None;
     for (index, statement) in block.ast.iter_mut().enumerate() {
         if statement.values_read().contains(&&local) {
-            if let Some(index) = read_stat_index {
-                let mut assignment =
-                    ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
-                assignment.prefix = true;
-                block.ast.insert(index, assignment.into());
-                return;
+            if read_stat_index.is_some() {
+                inline = false;
+                break;
             }
             read_stat_index = Some(index);
         } else if statement.values_written().contains(&&local) {
+            if read_stat_index.is_some() {
+                inline = false;
+                break;
+            }
             if let Some(assign) = statement.as_assign_mut() {
                 assign.prefix = true;
+                return;
             }
-            return;
         }
     }
 
     if let Some(index) = read_stat_index {
-        let mut inline = true;
         let mut local_usages = 0usize;
-        for read in block.ast[index].values_read() {
-            if read == &local {
-                local_usages += 1;
-                if local_usages > 1 {
-                    inline = false;
-                    break;
+        if inline {
+            for read in block.ast[index].values_read() {
+                if read == &local {
+                    local_usages += 1;
+                    if local_usages > 1 {
+                        inline = false;
+                        break;
+                    }
                 }
             }
         }
@@ -54,10 +57,12 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
                     }
                 }
             }
+        }
 
-            if inline {
-                // we can replace usage of this local with `nil` :)
-                let res = block.ast[index].post_traverse_values(&mut |v| {
+        if inline {
+            // we can replace usage of this local with `nil` :)
+            let res = block.ast[index]
+                .post_traverse_values(&mut |v| {
                     if let Either::Right(rvalue) = v {
                         if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == local {
                             *rvalue = ast::RValue::Literal(ast::Literal::Nil);
@@ -65,23 +70,24 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
                         }
                     }
                     None
-                }).is_some();
-                // res can be false in cases where the local is read, but there is no RValue local
-                /*
-                local a
-                local function b()
-                    return a
-                end
-                */
-                if !res {
-                    let mut assignment =
-                        ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
-                    assignment.prefix = true;
-                    block.ast.insert(index, assignment.into());
-                }
+                })
+                .is_some();
+            // res can be false in cases where the local is read, but there is no RValue local
+            /*
+            local a
+            local function b()
+                return a
+            end
+            */
+            if res {
                 return;
             }
         }
+
+        let mut assignment = ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
+        assignment.prefix = true;
+        block.ast.insert(index, assignment.into());
+        return;
     }
 
     let mut declaration = ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
