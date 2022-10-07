@@ -431,6 +431,9 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get(stat_index)
                     .unwrap();
+                // TODO: use traverse rvalues instead (also in UpvaluesOpen)
+                // this is because the lifter isnt guaranteed to be lifting bytecode
+                // it could be lifting lua source code for deobfuscation purposes
                 if let ast::Statement::Assign(assign) = statement {
                     for opened in assign
                         .right
@@ -451,7 +454,12 @@ impl<'a> SsaConstructor<'a> {
                     .collect::<Vec<_>>();
                 for value in written {
                     let old_local = &self.old_locals[&value];
-                    if let Some(open_locations) = upvalues_open.open.get(&node).and_then(|m| m.get(old_local)).and_then(|m| m.get(&stat_index)) {
+                    if let Some(open_locations) = upvalues_open
+                        .open
+                        .get(&node)
+                        .and_then(|m| m.get(old_local))
+                        .and_then(|m| m.get(&stat_index))
+                    {
                         //println!("{:?} {:?}", node, upvalues_open.open.get(&node).and_then(|m| m.get(old_local)).unwrap());
                         self.upvalue_groups
                             .entry(old_local.clone())

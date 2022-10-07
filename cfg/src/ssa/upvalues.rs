@@ -6,7 +6,10 @@ use crate::function::Function;
 
 #[derive(Debug)]
 pub(crate) struct UpvaluesOpen {
-    pub open: FxHashMap<NodeIndex, FxHashMap<ast::RcLocal, RangeInclusiveMap<usize, Vec<(NodeIndex, usize)>>>>,
+    pub open: FxHashMap<
+        NodeIndex,
+        FxHashMap<ast::RcLocal, RangeInclusiveMap<usize, Vec<(NodeIndex, usize)>>>,
+    >,
     old_locals: FxHashMap<ast::RcLocal, ast::RcLocal>,
 }
 
@@ -24,6 +27,9 @@ impl UpvaluesOpen {
             let block = function.block(node).unwrap();
             let block_opened = this.open.entry(node).or_default();
             for (stat_index, statement) in block.ast.iter().enumerate() {
+                // TODO: use traverse rvalues instead (also in mark_upvalues)
+                // this is because the lifter isnt guaranteed to be lifting bytecode
+                // it could be lifting lua source code for deobfuscation purposes
                 if let ast::Statement::Assign(assign) = statement {
                     for opened in assign
                         .right
@@ -34,7 +40,9 @@ impl UpvaluesOpen {
                     {
                         let open_ranges = block_opened.entry(opened).or_default();
                         let mut open_locations = Vec::new();
-                        if let Some((prev_range, prev_locations)) = open_ranges.get_key_value(&stat_index) {
+                        if let Some((prev_range, prev_locations)) =
+                            open_ranges.get_key_value(&stat_index)
+                        {
                             assert!(prev_range.contains(&(block.ast.len() - 1)));
                             open_locations.extend(prev_locations);
                         }
@@ -55,7 +63,15 @@ impl UpvaluesOpen {
                 // maybe possible with multiple opens
                 if !visited.contains(&successor) {
                     let successor_block = function.block(successor).unwrap();
-                    let open_at_end = this.open[&node].iter().filter_map(|(l, m)| Some((l.clone(), m.get(&(block.ast.len().saturating_sub(1)))?.clone()))).collect::<Vec<_>>();
+                    let open_at_end = this.open[&node]
+                        .iter()
+                        .filter_map(|(l, m)| {
+                            Some((
+                                l.clone(),
+                                m.get(&(block.ast.len().saturating_sub(1)))?.clone(),
+                            ))
+                        })
+                        .collect::<Vec<_>>();
                     let successor_open = this.open.entry(successor).or_default();
                     for (open, mut locations) in open_at_end {
                         let open_ranges = successor_open.entry(open).or_default();
@@ -67,7 +83,7 @@ impl UpvaluesOpen {
                         }
                         open_ranges.insert(range, locations);
                     }
-                    
+
                     stack.push(successor);
                 }
             }
