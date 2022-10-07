@@ -24,8 +24,8 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
             }
             if let Some(assign) = statement.as_assign_mut() {
                 assign.prefix = true;
-                return;
             }
+            return;
         }
     }
 
