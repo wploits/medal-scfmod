@@ -489,8 +489,8 @@ impl<'a> SsaConstructor<'a> {
                     .into_iter()
                     .cloned()
                     .collect::<Vec<_>>();
-
                 let mut map = FxHashMap::default();
+
                 for local in &read {
                     let new_local = self.find_local(node, local);
                     map.insert(local.clone(), new_local);
@@ -506,29 +506,6 @@ impl<'a> SsaConstructor<'a> {
                     *statement.values_read_mut()[local_index] = map[&local].clone();
                 }
 
-                // write
-                for (local_index, local) in written.iter().enumerate() {
-                    let new_local = self.function.local_allocator.borrow_mut().allocate();
-                    self.old_locals.insert(new_local.clone(), local.clone());
-                    if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
-                        upvalues.insert(new_local.clone());
-                    }
-                    self.local_count += 1;
-                    self.write_local(node, local, &new_local);
-                    let statement = self
-                        .function
-                        .block_mut(node)
-                        .unwrap()
-                        .ast
-                        .get_mut(stat_index)
-                        .unwrap();
-                    *statement.values_written_mut()[local_index] = new_local;
-                }
-
-                for local in &written {
-                    let new_local = self.find_local(node, local);
-                    map.insert(local.clone(), new_local);
-                }
                 let statement = self
                     .function
                     .block_mut(node)
@@ -536,11 +513,73 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get_mut(stat_index)
                     .unwrap();
-                statement.traverse_rvalues(&mut |rvalue| {
-                    if let Some(closure) = rvalue.as_closure_mut() {
-                        replace_locals(&mut closure.body, &map)
+                if let Some(assign) = statement.as_assign()
+                    && assign.left.len() == 1
+                    && assign.right.len() == 1
+                    && let Some(local) = assign.left[0].as_local().cloned()
+                    && assign.right[0].as_closure().is_some()
+                {
+                    let new_local = self.function.local_allocator.borrow_mut().allocate();
+                    self.old_locals.insert(new_local.clone(), local.clone());
+                    if let Some(upvalues) = self.new_upvalues_in.get_mut(&local) {
+                        upvalues.insert(new_local.clone());
                     }
-                });
+                    self.local_count += 1;
+                    self.write_local(node, &local, &new_local);
+                    let statement = self
+                        .function
+                        .block_mut(node)
+                        .unwrap()
+                        .ast
+                        .get_mut(stat_index)
+                        .unwrap();
+                    let assign = statement.as_assign_mut().unwrap();
+                    *assign.left[0].as_local_mut().unwrap() = new_local.clone();
+                    if let Some(upvalue) = assign.right[0]
+                        .as_closure_mut()
+                        .unwrap()
+                        .upvalues
+                        .iter_mut()
+                        .find(|u| self.old_locals[u] == local)
+                    {
+                        *upvalue = new_local.clone();
+                        map.insert(local, new_local);
+                    }
+                } else {
+                    // write
+                    for (local_index, local) in written.iter().enumerate() {
+                        let new_local = self.function.local_allocator.borrow_mut().allocate();
+                        self.old_locals.insert(new_local.clone(), local.clone());
+                        if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
+                            upvalues.insert(new_local.clone());
+                        }
+                        self.local_count += 1;
+                        self.write_local(node, local, &new_local);
+                        let statement = self
+                            .function
+                            .block_mut(node)
+                            .unwrap()
+                            .ast
+                            .get_mut(stat_index)
+                            .unwrap();
+                        *statement.values_written_mut()[local_index] = new_local;
+                    }
+                }
+
+                if !map.is_empty() {
+                    let statement = self
+                        .function
+                        .block_mut(node)
+                        .unwrap()
+                        .ast
+                        .get_mut(stat_index)
+                        .unwrap();
+                    statement.traverse_rvalues(&mut |rvalue| {
+                        if let Some(closure) = rvalue.as_closure_mut() {
+                            replace_locals(&mut closure.body, &map)
+                        }
+                    });
+                }
             }
             self.filled_blocks.insert(node);
 
