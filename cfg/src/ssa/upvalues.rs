@@ -1,11 +1,12 @@
 use fxhash::{FxHashMap, FxHashSet};
 use petgraph::stable_graph::NodeIndex;
+use rangemap::RangeInclusiveMap;
 
 use crate::function::Function;
 
 #[derive(Debug)]
 pub(crate) struct UpvaluesOpen {
-    open: FxHashMap<NodeIndex, FxHashSet<ast::RcLocal>>,
+    pub open: FxHashMap<NodeIndex, FxHashMap<ast::RcLocal, RangeInclusiveMap<usize, Vec<(NodeIndex, usize)>>>>,
     old_locals: FxHashMap<ast::RcLocal, ast::RcLocal>,
 }
 
@@ -22,82 +23,56 @@ impl UpvaluesOpen {
             visited.insert(node);
             let block = function.block(node).unwrap();
             let block_opened = this.open.entry(node).or_default();
-            for statement in block.ast.iter() {
+            for (stat_index, statement) in block.ast.iter().enumerate() {
                 if let ast::Statement::Assign(assign) = statement {
-                    // TODO: collect_into when stabilized
-                    block_opened.extend(
-                        assign
-                            .right
-                            .iter()
-                            .filter_map(|r| r.as_closure())
-                            .flat_map(|c| c.upvalues.iter())
-                            .cloned(),
-                    );
+                    for opened in assign
+                        .right
+                        .iter()
+                        .filter_map(|r| r.as_closure())
+                        .flat_map(|c| c.upvalues.iter())
+                        .map(|l| this.old_locals[l].clone())
+                    {
+                        let open_ranges = block_opened.entry(opened).or_default();
+                        let mut open_locations = Vec::new();
+                        if let Some((prev_range, prev_locations)) = open_ranges.get_key_value(&stat_index) {
+                            assert!(prev_range.contains(&(block.ast.len() - 1)));
+                            open_locations.extend(prev_locations);
+                        }
+                        open_locations.push((node, stat_index));
+                        open_ranges.insert(stat_index..=block.ast.len() - 1, open_locations);
+                    }
                 } else if let ast::Statement::Close(close) = statement {
-                    let closed = close.locals.iter().collect::<FxHashSet<_>>();
-                    block_opened.retain(|opened| !closed.contains(&&this.old_locals[opened]));
+                    for closed in &close.locals {
+                        if let Some(open_ranges) = block_opened.get_mut(closed) {
+                            open_ranges.remove(stat_index..=block.ast.len() - 1);
+                        }
+                    }
                 }
             }
             for successor in function.successor_blocks(node) {
+                // TODO: is there any case where successor is visited but has open stuff
+                // that wasnt already discovered?
+                // maybe possible with multiple opens
                 if !visited.contains(&successor) {
-                    let successor_opened =
-                        this.open[&node].iter().cloned().collect::<FxHashSet<_>>();
-                    this.open
-                        .entry(successor)
-                        .or_default()
-                        .extend(successor_opened);
+                    let successor_block = function.block(successor).unwrap();
+                    let open_at_end = this.open[&node].iter().filter_map(|(l, m)| Some((l.clone(), m.get(&(block.ast.len().saturating_sub(1)))?.clone()))).collect::<Vec<_>>();
+                    let successor_open = this.open.entry(successor).or_default();
+                    for (open, mut locations) in open_at_end {
+                        let open_ranges = successor_open.entry(open).or_default();
+                        // TODO: sorta ugly doing a saturating subtraction, use uninclusive ranges instead?
+                        let range = 0..=successor_block.ast.len().saturating_sub(1);
+                        println!("{:?} {:?}", successor, range);
+                        if let Some((prev_range, prev_locations)) = open_ranges.get_key_value(&0) {
+                            assert_eq!(prev_range, &range);
+                            locations.extend(prev_locations);
+                        }
+                        open_ranges.insert(range, locations);
+                    }
+                    
                     stack.push(successor);
                 }
             }
         }
         this
-    }
-
-    pub fn is_open(
-        &self,
-        node: NodeIndex,
-        index: usize,
-        local: &ast::RcLocal,
-        function: &Function,
-    ) -> bool {
-        let old_local = &self.old_locals[local];
-        for statement in function
-            .block(node)
-            .unwrap()
-            .ast
-            .iter()
-            .take(index + 1)
-            .rev()
-        {
-            if let ast::Statement::Assign(assign) = statement {
-                for opened in assign
-                    .right
-                    .iter()
-                    .filter_map(|r| r.as_closure())
-                    .flat_map(|c| c.upvalues.iter())
-                {
-                    if &self.old_locals[opened] == old_local {
-                        return true;
-                    }
-                }
-            } else if let ast::Statement::Close(close) = statement {
-                for closed in &close.locals {
-                    if closed == old_local {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        for pred in function.predecessor_blocks(node) {
-            if self.open[&pred]
-                .iter()
-                .any(|open_local| &self.old_locals[open_local] == old_local)
-            {
-                return true;
-            }
-        }
-
-        false
     }
 }

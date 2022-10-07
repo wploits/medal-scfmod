@@ -450,9 +450,11 @@ impl<'a> SsaConstructor<'a> {
                     .cloned()
                     .collect::<Vec<_>>();
                 for value in written {
-                    if upvalues_open.is_open(node, stat_index, &value, self.function) {
+                    let old_local = &self.old_locals[&value];
+                    if let Some(open_locations) = upvalues_open.open.get(&node).and_then(|m| m.get(old_local)).and_then(|m| m.get(&stat_index)) {
+                        //println!("{:?} {:?}", node, upvalues_open.open.get(&node).and_then(|m| m.get(old_local)).unwrap());
                         self.upvalue_groups
-                            .entry(self.old_locals[&value].clone())
+                            .entry(old_local.clone())
                             .or_default()
                             .insert(value);
                     }
