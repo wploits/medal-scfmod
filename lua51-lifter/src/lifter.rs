@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use either::Either;
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::Itertools;
 
@@ -27,6 +27,7 @@ use restructure::post_dominators;
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeIndex>,
+    requires_single_pred: FxHashSet<NodeIndex>,
     blocks_to_skip: FxHashMap<usize, usize>,
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
@@ -759,7 +760,9 @@ impl<'a> LifterContext<'a> {
                     );
                     statements.push(ast::If::new(control.clone().into(), None, None).into());
 
+                    // TODO: this wont be accurate if the body has multiple predecessors
                     let body_node = self.get_node(&(end + 1));
+                    self.requires_single_pred.insert(body_node);
                     self.function.block_mut(body_node).unwrap().ast.insert(
                         0,
                         ast::Assign::new(
@@ -855,6 +858,7 @@ impl<'a> LifterContext<'a> {
         let mut context = Self {
             bytecode,
             nodes: FxHashMap::default(),
+            requires_single_pred: FxHashSet::default(),
             blocks_to_skip: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
@@ -867,6 +871,12 @@ impl<'a> LifterContext<'a> {
         context.lift_blocks();
 
         context.function.set_entry(context.nodes[&0]);
+
+        for node in context.function.graph().node_indices() {
+            if context.requires_single_pred.contains(&node) && context.function.predecessor_blocks(node).count() != 1 {
+                unimplemented!("block must have only one predecessor, but has multiple")
+            }
+        }
 
         // merge blocks where possible
         // let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());
