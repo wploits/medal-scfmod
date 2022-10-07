@@ -1,4 +1,4 @@
-use std::{rc::Rc, collections::HashMap};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
@@ -68,5 +68,9 @@ impl Namer {
 }
 
 pub fn name_locals(block: &mut Block, rename: bool) {
-    Namer { rename, counter: HashMap::new() }.name_locals(block);
+    Namer {
+        rename,
+        counter: HashMap::new(),
+    }
+    .name_locals(block);
 }
