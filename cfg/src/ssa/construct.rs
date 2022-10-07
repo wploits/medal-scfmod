@@ -26,7 +26,8 @@ struct SsaConstructor<'a> {
     old_locals: FxHashMap<RcLocal, RcLocal>,
     local_count: usize,
     local_map: FxHashMap<RcLocal, RcLocal>,
-    upvalue_groups: IndexMap<RcLocal, FxHashSet<RcLocal>>,
+    new_upvalues_in: IndexMap<RcLocal, FxHashSet<RcLocal>>,
+    upvalues_passed: FxHashMap<RcLocal, FxHashMap<(NodeIndex, usize), FxHashSet<RcLocal>>>,
 }
 
 // https://github.com/fkie-cad/dewolf/blob/7afe5b46e79a7b56e9904e63f29d54bd8f7302d9/decompiler/pipeline/ssa/phi_cleaner.py
@@ -313,7 +314,7 @@ impl<'a> SsaConstructor<'a> {
                 // TODO: this code is repeated multiple times, create new_local function
                 let param_local = self.function.local_allocator.borrow_mut().allocate();
                 self.old_locals.insert(param_local.clone(), local.clone());
-                if let Some(upvalues) = self.upvalue_groups.get_mut(local) {
+                if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
                     upvalues.insert(param_local.clone());
                 }
                 self.local_count += 1;
@@ -330,7 +331,7 @@ impl<'a> SsaConstructor<'a> {
                 } else {
                     let param_local = self.function.local_allocator.borrow_mut().allocate();
                     self.old_locals.insert(param_local.clone(), local.clone());
-                    if let Some(upvalues) = self.upvalue_groups.get_mut(local) {
+                    if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
                         upvalues.insert(param_local.clone());
                     }
                     self.local_count += 1;
@@ -395,7 +396,9 @@ impl<'a> SsaConstructor<'a> {
                 let assign = block.ast[index].as_assign().unwrap();
                 if assign.left.len() == 1 && assign.right.len() == 1
                     && let Some(from) = assign.left[0].as_local()
-                    && !self.upvalue_groups.contains_key(&self.old_locals[from])
+                    && let from_old = &self.old_locals[from]
+                    && !self.new_upvalues_in.contains_key(from_old)
+                    && !self.upvalues_passed.contains_key(from_old)
                     && let Some(mut to) = assign.right[0].as_local()
                 {
                     // TODO: wtf is this name lol
@@ -431,28 +434,8 @@ impl<'a> SsaConstructor<'a> {
                     .ast
                     .get(stat_index)
                     .unwrap();
-                // TODO: use traverse rvalues instead (also in UpvaluesOpen)
-                // this is because the lifter isnt guaranteed to be lifting bytecode
-                // it could be lifting lua source code for deobfuscation purposes
-                if let ast::Statement::Assign(assign) = statement {
-                    for opened in assign
-                        .right
-                        .iter()
-                        .filter_map(|r| r.as_closure())
-                        .flat_map(|c| c.upvalues.iter())
-                    {
-                        self.upvalue_groups
-                            .entry(self.old_locals[opened].clone())
-                            .or_default()
-                            .insert(opened.clone());
-                    }
-                }
-                let written = statement
-                    .values_written()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                for value in written {
+                let values = statement.values().into_iter().cloned().collect::<Vec<_>>();
+                for value in values {
                     let old_local = &self.old_locals[&value];
                     if let Some(open_locations) = upvalues_open
                         .open
@@ -460,11 +443,16 @@ impl<'a> SsaConstructor<'a> {
                         .and_then(|m| m.get(old_local))
                         .and_then(|m| m.get(&stat_index))
                     {
-                        //println!("{:?} {:?}", node, upvalues_open.open.get(&node).and_then(|m| m.get(old_local)).unwrap());
-                        self.upvalue_groups
-                            .entry(old_local.clone())
-                            .or_default()
-                            .insert(value);
+                        if let Some(new_upvalues_in) = self.new_upvalues_in.get_mut(old_local) {
+                            assert!(new_upvalues_in.contains(&value));
+                        } else {
+                            self.upvalues_passed
+                                .entry(old_local.clone())
+                                .or_default()
+                                .entry(*open_locations.first().unwrap())
+                                .or_default()
+                                .insert(value);
+                        }
                     }
                 }
             }
@@ -522,7 +510,7 @@ impl<'a> SsaConstructor<'a> {
                 for (local_index, local) in written.iter().enumerate() {
                     let new_local = self.function.local_allocator.borrow_mut().allocate();
                     self.old_locals.insert(new_local.clone(), local.clone());
-                    if let Some(upvalues) = self.upvalue_groups.get_mut(local) {
+                    if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
                         upvalues.insert(new_local.clone());
                     }
                     self.local_count += 1;
@@ -566,7 +554,7 @@ impl<'a> SsaConstructor<'a> {
                 {
                     if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
                         for (local, param_local) in incomplete_params {
-                            if !self.upvalue_groups.contains_key(&local) {
+                            if !self.new_upvalues_in.contains_key(&local) {
                                 self.add_param_args(node, &local, param_local);
                             }
                         }
@@ -603,7 +591,14 @@ impl<'a> SsaConstructor<'a> {
         (
             self.local_count,
             self.all_definitions.into_values().collect(),
-            self.upvalue_groups.into_values().collect(),
+            self.new_upvalues_in
+                .into_values()
+                .chain(
+                    self.upvalues_passed
+                        .into_values()
+                        .flat_map(|m| m.into_values()),
+                )
+                .collect(),
         )
     }
 }
@@ -612,9 +607,9 @@ pub fn construct(
     function: &mut Function,
     upvalues_in: &Vec<RcLocal>,
 ) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<FxHashSet<RcLocal>>) {
-    let mut upvalue_groups = IndexMap::new();
+    let mut new_upvalues_in = IndexMap::with_capacity(upvalues_in.len());
     for upvalue in upvalues_in {
-        upvalue_groups.insert(upvalue.clone(), FxHashSet::default());
+        new_upvalues_in.insert(upvalue.clone(), FxHashSet::default());
     }
 
     let dfs = Dfs::new(function.graph(), function.entry().unwrap())
@@ -640,7 +635,8 @@ pub fn construct(
         old_locals: FxHashMap::default(),
         local_count: 0,
         local_map: FxHashMap::default(),
-        upvalue_groups,
+        new_upvalues_in,
+        upvalues_passed: FxHashMap::default(),
     }
     .construct()
 }

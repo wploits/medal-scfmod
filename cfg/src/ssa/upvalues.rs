@@ -27,7 +27,7 @@ impl UpvaluesOpen {
             let block = function.block(node).unwrap();
             let block_opened = this.open.entry(node).or_default();
             for (stat_index, statement) in block.ast.iter().enumerate() {
-                // TODO: use traverse rvalues instead (also in mark_upvalues)
+                // TODO: use traverse rvalues instead
                 // this is because the lifter isnt guaranteed to be lifting bytecode
                 // it could be lifting lua source code for deobfuscation purposes
                 if let ast::Statement::Assign(assign) = statement {

@@ -921,7 +921,7 @@ impl<'a> LifterContext<'a> {
             let (local_count, local_groups, upvalue_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
-            //cfg::dot::render_to(&function, &mut std::io::stdout())?;
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let upvalue_to_group = upvalue_groups
                 .iter()
@@ -968,7 +968,7 @@ impl<'a> LifterContext<'a> {
             .into_iter()
             .collect::<Vec<_>>();
 
-            // cfg::dot::render_to(&function, &mut std::io::stdout())?;
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             let params = function.parameters.clone();
             (restructure::lift(function.clone()), params, upvalues_in)
         };
