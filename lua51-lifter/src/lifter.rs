@@ -1,4 +1,5 @@
 use std::backtrace::Backtrace;
+use std::fmt::Write;
 use std::panic;
 use std::{cell::RefCell, rc::Rc};
 
@@ -979,7 +980,7 @@ impl<'a> LifterContext<'a> {
                 thread_local! {
                     static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
                 }
-                
+
                 let mut function = std::panic::AssertUnwindSafe(Some(context.function));
                 let mut upvalues_in = std::panic::AssertUnwindSafe(Some(context.upvalues));
 
@@ -1004,18 +1005,19 @@ impl<'a> LifterContext<'a> {
                             },
                         };
 
-                        let mut block = ast::Block::from_vec(vec![ast::Comment::new(
-                            format!("panicked at '{}'", panic_information),
-                        )
-                        .into()]);
-
+                        let mut message = String::new();
+                        writeln!(message, "panicked at '{}'", panic_information).unwrap();
                         if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
-                            block.push(ast::Comment::new("stack backtrace:".to_string()).into());
-                            for line in backtrace.to_string().trim_end().split('\n') {
-                                block.push(ast::Comment::new(line.to_string()).into());
-                            }
+                            write!(message, "stack backtrace:\n{}", backtrace).unwrap();
                         }
 
+                        let block = ast::Block::from_vec(
+                            message
+                                .trim_end()
+                                .split('\n')
+                                .map(|s| ast::Comment::new(s.to_string()).into())
+                                .collect(),
+                        );
                         (block, Vec::new(), Vec::new())
                     }
                 }
