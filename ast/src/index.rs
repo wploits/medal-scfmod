@@ -9,6 +9,7 @@ pub struct Index {
     pub right: Box<RValue>,
 }
 
+// this should be the same as MethodCall
 has_side_effects!(Index);
 
 impl Index {

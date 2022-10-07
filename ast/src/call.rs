@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
+use crate::{formatter::Formatter, has_side_effects, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::RValue;
 
@@ -21,7 +21,9 @@ impl Call {
 
 impl SideEffects for Call {
     fn has_side_effects(&self) -> bool {
-        self.value.has_side_effects() || self.arguments.iter().any(|arg| arg.has_side_effects())
+        matches!(self.value, box RValue::Local(_))
+            || self.value.has_side_effects()
+            || self.arguments.iter().any(|arg| arg.has_side_effects())
     }
 }
 
@@ -86,11 +88,8 @@ impl MethodCall {
     }
 }
 
-impl SideEffects for MethodCall {
-    fn has_side_effects(&self) -> bool {
-        self.value.has_side_effects() || self.arguments.iter().any(|arg| arg.has_side_effects())
-    }
-}
+// this should reflect Index
+has_side_effects!(MethodCall);
 
 impl Traverse for MethodCall {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
