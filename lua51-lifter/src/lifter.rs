@@ -726,24 +726,22 @@ impl<'a> LifterContext<'a> {
                         ast::NumForNext::new(internal_counter.clone(), limit.into(), step.into())
                             .into(),
                     );
-                    self.function
-                        .block_mut(
-                            self.get_node(
-                                &((end + 1)
-                                    .checked_add_signed(skip.try_into().unwrap())
-                                    .unwrap()),
-                            ),
+
+                    // TODO: this wont be accurate if the body has multiple predecessors
+                    let body_node = self.get_node(
+                        &((end + 1)
+                            .checked_add_signed(skip.try_into().unwrap())
+                            .unwrap()),
+                    );
+                    self.requires_single_pred.insert(body_node);
+                    self.function.block_mut(body_node).unwrap().ast.insert(
+                        0,
+                        ast::Assign::new(
+                            vec![external_counter.into()],
+                            vec![internal_counter.into()],
                         )
-                        .unwrap()
-                        .ast
-                        .insert(
-                            0,
-                            ast::Assign::new(
-                                vec![external_counter.into()],
-                                vec![internal_counter.into()],
-                            )
-                            .into(),
-                        );
+                        .into(),
+                    );
                 }
                 Instruction::IterateGenericForLoop {
                     generator,
