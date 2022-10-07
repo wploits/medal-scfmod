@@ -2,8 +2,8 @@
 #![feature(let_chains)]
 #![feature(mixed_integer_ops)]
 
-use ast::name_locals::name_locals;
 use std::io::Write;
+use ast::name_locals::name_locals;
 use std::time::Instant;
 use std::{fs::File, io::Read};
 
@@ -37,11 +37,13 @@ fn main() -> anyhow::Result<()> {
     let chunk = Chunk::parse(&buffer).unwrap().1;
     let (mut main, _, _) = lifter::LifterContext::lift(&chunk.function, Default::default());
     name_locals(&mut main, true);
+
+    let res = main.to_string();
     let duration = start.elapsed();
 
     let mut out = File::create("result.lua")?;
     writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
-    write!(out, "{}", main)?;
+    write!(out, "{}", res)?;
 
     Ok(())
 }
