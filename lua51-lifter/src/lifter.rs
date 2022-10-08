@@ -876,7 +876,7 @@ impl<'a> LifterContext<'a> {
         bytecode: &'a BytecodeFunction,
         local_allocator: Rc<RefCell<LocalAllocator>>,
     ) -> (ast::Block, Vec<RcLocal>, Vec<RcLocal>) {
-        let mut context = Self {
+        let context = Self {
             bytecode,
             nodes: FxHashMap::default(),
             requires_single_pred: FxHashSet::default(),
@@ -887,38 +887,24 @@ impl<'a> LifterContext<'a> {
             upvalues: Vec::new(),
         };
 
-        context.create_block_map();
-        context.allocate_locals();
-        context.lift_blocks();
-
-        context.function.set_entry(context.nodes[&0]);
-
-        for node in context.function.graph().node_indices() {
-            if context.requires_single_pred.contains(&node)
-                && context.function.predecessor_blocks(node).count() != 1
-            {
-                unimplemented!("block must have only one predecessor, but has multiple")
+        let func = |mut context: LifterContext| {
+            context.create_block_map();
+            context.allocate_locals();
+            context.lift_blocks();
+    
+            context.function.set_entry(context.nodes[&0]);
+    
+            for node in context.function.graph().node_indices() {
+                if context.requires_single_pred.contains(&node)
+                    && context.function.predecessor_blocks(node).count() != 1
+                {
+                    unimplemented!("block must have only one predecessor, but has multiple")
+                }
             }
-        }
 
-        // merge blocks where possible
-        // let dominators = simple_fast(context.function.graph(), context.function.entry().unwrap());
-        // for node in context.function.graph().node_indices().collect_vec() {
-        //     let mut successors = context.function.successor_blocks(node);
-        //     if let Some(target) = successors.next() && successors.next().is_none() && context.function.predecessor_blocks(target).count() == 1
-        //     && dominators.dominators(target).unwrap().contains(&node) && target != node {
-        //         let block = context.function.remove_block(target).unwrap();
-        //         let terminator = block.terminator;
-        //         context.function
-        //             .block_mut(node)
-        //             .unwrap()
-        //             .ast
-        //             .extend(block.ast.0);
-        //         context.function.set_block_terminator(node, terminator);
-        //     }
-        // }
+            let mut function = context.function;
+            let upvalues_in = context.upvalues;
 
-        let func = |mut function, upvalues_in| {
             let (local_count, local_groups, upvalue_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
@@ -981,16 +967,15 @@ impl<'a> LifterContext<'a> {
                     static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
                 }
 
-                let mut function = std::panic::AssertUnwindSafe(Some(context.function));
-                let mut upvalues_in = std::panic::AssertUnwindSafe(Some(context.upvalues));
-
+                let mut context = std::panic::AssertUnwindSafe(Some(context));
+                
                 let prev_hook = panic::take_hook();
                 panic::set_hook(Box::new(|_| {
                     let trace = Backtrace::capture();
                     BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
                 }));
                 let result = panic::catch_unwind(move || {
-                    func(function.take().unwrap(), upvalues_in.take().unwrap())
+                    func(context.take().unwrap())
                 });
                 panic::set_hook(prev_hook);
 
@@ -1023,7 +1008,7 @@ impl<'a> LifterContext<'a> {
                 }
             }
             #[cfg(not(feature = "panic_handled"))]
-            () => func(context.function, context.upvalues),
+            () => func(context),
         }
     }
 }
