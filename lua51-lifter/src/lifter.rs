@@ -938,7 +938,7 @@ impl<'a> LifterContext<'a> {
             let (local_count, local_groups, upvalue_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let upvalue_to_group = upvalue_groups
                 .iter()
@@ -968,8 +968,7 @@ impl<'a> LifterContext<'a> {
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
                 cfg::ssa::construct::apply_local_map(&mut function, local_map);
             }
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-            panic!();
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
