@@ -906,16 +906,28 @@ impl<'a> LifterContext<'a> {
             context.function.set_entry(context.nodes[&0]);
 
             for (node, (successor, stat)) in context.insert_between {
-                if context.function.predecessor_blocks(successor).count() == 1
-                {
-                    context.function.block_mut(successor).unwrap().ast.insert(0, stat);
+                if context.function.predecessor_blocks(successor).count() == 1 {
+                    context
+                        .function
+                        .block_mut(successor)
+                        .unwrap()
+                        .ast
+                        .insert(0, stat);
                 } else {
                     let between_node = context.function.new_block();
-                    context.function.block_mut(between_node).unwrap().ast.push(stat);
-                    context.function.set_block_terminator(between_node, Some(Terminator::Jump(BasicBlockEdge {
-                        node: successor,
-                        arguments: Vec::new(),
-                    })));
+                    context
+                        .function
+                        .block_mut(between_node)
+                        .unwrap()
+                        .ast
+                        .push(stat);
+                    context.function.set_block_terminator(
+                        between_node,
+                        Some(Terminator::Jump(BasicBlockEdge {
+                            node: successor,
+                            arguments: Vec::new(),
+                        })),
+                    );
                     context.function.replace_edge(node, successor, between_node);
                 }
             }
@@ -974,8 +986,8 @@ impl<'a> LifterContext<'a> {
             .collect::<Vec<_>>();
 
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-            let params = function.parameters.clone();
-            (restructure::lift(function.clone()), params, upvalues_in)
+            let params = std::mem::take(&mut function.parameters);
+            (restructure::lift(function), params, upvalues_in)
         };
 
         match () {
