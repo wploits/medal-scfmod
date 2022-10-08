@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter};
+use std::iter;
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
