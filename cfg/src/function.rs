@@ -100,10 +100,10 @@ impl Function {
     }
 
     // TODO: take EdgeIndex as argument
-    pub fn remove_edge(&mut self, source: NodeIndex, target: NodeIndex) {
-        self.graph
-            .remove_edge(self.graph.find_edge(source, target).unwrap());
-    }
+    // pub fn remove_edge(&mut self, source: NodeIndex, target: NodeIndex) {
+    //     self.graph
+    //         .remove_edge(self.graph.find_edge(source, target).unwrap());
+    // }
 
     pub fn graph(&self) -> &StableDiGraph<BasicBlock, ()> {
         &self.graph

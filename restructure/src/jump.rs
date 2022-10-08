@@ -44,7 +44,7 @@ impl super::GraphStructurer {
             }
             if !invalid {
                 for pred in preds {
-                    self.function.remove_edge(pred, node);
+                    assert!(!self.function.block(pred).unwrap().terminator.as_ref().map_or(false, |t| t.as_jump().is_none()));
                     self.function.set_block_terminator(pred, None);
                 }
                 self.function.remove_block(node);

@@ -3,6 +3,7 @@ use std::fmt::Write;
 use std::panic;
 use std::{cell::RefCell, rc::Rc};
 
+use cfg::block::BasicBlockEdge;
 use either::Either;
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
@@ -30,7 +31,7 @@ use restructure::post_dominators;
 pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeIndex>,
-    requires_single_pred: FxHashSet<NodeIndex>,
+    insert_between: FxHashMap<NodeIndex, (NodeIndex, Statement)>,
     blocks_to_skip: FxHashMap<usize, usize>,
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
@@ -736,15 +737,20 @@ impl<'a> LifterContext<'a> {
                             .checked_add_signed(skip.try_into().unwrap())
                             .unwrap()),
                     );
-                    self.requires_single_pred.insert(body_node);
-                    self.function.block_mut(body_node).unwrap().ast.insert(
-                        0,
-                        ast::Assign::new(
-                            vec![external_counter.into()],
-                            vec![internal_counter.into()],
+                    assert!(self
+                        .insert_between
+                        .insert(
+                            self.nodes[&start],
+                            (
+                                body_node,
+                                ast::Assign::new(
+                                    vec![external_counter.into()],
+                                    vec![internal_counter.into()],
+                                )
+                                .into()
+                            )
                         )
-                        .into(),
-                    );
+                        .is_none());
                 }
                 Instruction::IterateGenericForLoop {
                     generator,
@@ -775,15 +781,20 @@ impl<'a> LifterContext<'a> {
 
                     // TODO: this wont be accurate if the body has multiple predecessors
                     let body_node = self.get_node(&(end + 1));
-                    self.requires_single_pred.insert(body_node);
-                    self.function.block_mut(body_node).unwrap().ast.insert(
-                        0,
-                        ast::Assign::new(
-                            vec![internal_control.clone().into()],
-                            vec![control.clone().into()],
+                    assert!(self
+                        .insert_between
+                        .insert(
+                            self.nodes[&start],
+                            (
+                                body_node,
+                                ast::Assign::new(
+                                    vec![internal_control.clone().into()],
+                                    vec![control.clone().into()],
+                                )
+                                .into()
+                            )
                         )
-                        .into(),
-                    );
+                        .is_none());
                 }
             }
 
@@ -879,7 +890,7 @@ impl<'a> LifterContext<'a> {
         let context = Self {
             bytecode,
             nodes: FxHashMap::default(),
-            requires_single_pred: FxHashSet::default(),
+            insert_between: FxHashMap::default(),
             blocks_to_skip: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
@@ -891,14 +902,21 @@ impl<'a> LifterContext<'a> {
             context.create_block_map();
             context.allocate_locals();
             context.lift_blocks();
-    
+
             context.function.set_entry(context.nodes[&0]);
-    
-            for node in context.function.graph().node_indices() {
-                if context.requires_single_pred.contains(&node)
-                    && context.function.predecessor_blocks(node).count() != 1
+
+            for (node, (successor, stat)) in context.insert_between {
+                if context.function.predecessor_blocks(successor).count() == 1
                 {
-                    unimplemented!("block must have only one predecessor, but has multiple")
+                    context.function.block_mut(successor).unwrap().ast.insert(0, stat);
+                } else {
+                    let between_node = context.function.new_block();
+                    context.function.block_mut(between_node).unwrap().ast.push(stat);
+                    context.function.set_block_terminator(between_node, Some(Terminator::Jump(BasicBlockEdge {
+                        node: successor,
+                        arguments: Vec::new(),
+                    })));
+                    context.function.replace_edge(node, successor, between_node);
                 }
             }
 
@@ -968,15 +986,13 @@ impl<'a> LifterContext<'a> {
                 }
 
                 let mut context = std::panic::AssertUnwindSafe(Some(context));
-                
+
                 let prev_hook = panic::take_hook();
                 panic::set_hook(Box::new(|_| {
                     let trace = Backtrace::capture();
                     BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
                 }));
-                let result = panic::catch_unwind(move || {
-                    func(context.take().unwrap())
-                });
+                let result = panic::catch_unwind(move || func(context.take().unwrap()));
                 panic::set_hook(prev_hook);
 
                 match result {
