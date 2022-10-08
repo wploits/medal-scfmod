@@ -276,8 +276,7 @@ impl<'a> SsaConstructor<'a> {
                         .into_iter()
                         .map(|e| e.arguments.clone())
                         .collect::<Vec<_>>();
-                    let params = args_in[0].iter().map(|(p, _)| p).collect::<Vec<_>>();
-                    for mut param in params {
+                    for mut param in args_in[0].iter().map(|(p, _)| p) {
                         while let Some(param_to) = self.local_map.get(param) {
                             param = param_to;
                         }
