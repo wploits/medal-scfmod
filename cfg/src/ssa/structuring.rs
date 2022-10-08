@@ -431,6 +431,20 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
     did_structure
 }
 
+fn replace_edge_with_parameters(function: &mut Function, node: NodeIndex, old_target: NodeIndex, new_target: NodeIndex, parameters: Vec<(ast::RcLocal, ast::RcLocal)>) {
+    match function.block_mut(node).unwrap().terminator.as_mut().unwrap() {
+        Terminator::Jump(jump) => if jump.node == old_target {
+            jump.arguments.extend(parameters);
+        },
+        Terminator::Conditional(then_edge, else_edge) => if then_edge.node == old_target {
+            then_edge.arguments.extend(parameters);
+        } else if else_edge.node == old_target {
+            else_edge.arguments.extend(parameters);
+        },
+    }
+    function.replace_edge(node, old_target, new_target);
+}
+
 // TODO: this code is repeated in LifterContext::lift
 // TODO: rename to merge_blocks or something
 pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeIndex>) -> bool {
@@ -441,17 +455,22 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             if let Some(Terminator::Jump(jump)) = block.terminator.clone()
                 && jump.node != node
             {
-                /*if block.ast.is_empty() {
-                    todo!();
-                } else*/ if function.predecessor_blocks(jump.node).count() == 1
+                if block.ast.is_empty() {
+                    let old_terminator = function.block(node).unwrap().terminator.as_ref().unwrap().as_jump().unwrap().clone();
+                    for pred in function.predecessor_blocks(node).collect_vec() {
+                        replace_edge_with_parameters(function, pred, node, jump.node, old_terminator.arguments.clone())
+                    }
+                    function.remove_block(node);
+                    did_structure = true;
+                } else if function.predecessor_blocks(jump.node).count() == 1
                     && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
                 {
-                    assert!(jump.arguments.is_empty());
-                    let terminator = function.block_mut(jump.node).unwrap().terminator.take();
+                    //assert!(jump.arguments.is_empty());
+                    /*let terminator = function.block_mut(jump.node).unwrap().terminator.take();
                     let body = function.remove_block(jump.node).unwrap().ast;
                     function.block_mut(node).unwrap().ast.extend(body.0);
                     function.set_block_terminator(node, terminator);
-                    did_structure = true;
+                    did_structure = true;*/
                 }
             }
         }
