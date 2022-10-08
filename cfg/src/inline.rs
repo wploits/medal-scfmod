@@ -7,10 +7,9 @@ use itertools::Either;
 fn inline_expression(
     statement: &mut ast::Statement,
     read: &ast::RcLocal,
-    new_expression: ast::RValue,
+    new_expression: &mut Option<ast::RValue>,
     new_expr_has_side_effects: bool,
 ) -> bool {
-    let mut new_expression = Some(new_expression);
     statement
         .post_traverse_values(&mut |v| {
             if let Either::Right(rvalue) = v {
@@ -108,11 +107,14 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
                             continue;
                         };
                         if !new_expr_has_side_effects || allow_side_effects {
-                            let new_expression = block.ast[stat_index].as_assign().unwrap().right[0].clone();
-                            if inline_expression(&mut block.ast[index], read, new_expression, new_expr_has_side_effects) {
+                            let mut new_expression = Some(block.ast[stat_index].as_assign_mut().unwrap().right.pop().unwrap());
+                            if inline_expression(&mut block.ast[index], read, &mut new_expression, new_expr_has_side_effects) {
+                                assert!(new_expression.is_none());
                                 block.ast[stat_index] = ast::Empty {}.into();
                                 *read_opt = None;
                                 continue 'w;
+                            } else {
+                                block.ast[stat_index].as_assign_mut().unwrap().right.push(new_expression.unwrap());
                             }
                         }
                     }
@@ -155,8 +157,8 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                         }) = &field_assign.left[0]
                         && local == &table_local
                     {
-                        let field_assign = std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into()).into_assign().unwrap();
-                        block.ast[table_index].as_assign_mut().unwrap().right.get_mut(0).unwrap().as_table_mut().unwrap().0.push((Some(Box::into_inner(field_assign.left.into_iter().next().unwrap().into_index().unwrap().right)), field_assign.right.into_iter().next().unwrap()));
+                        let field_assign = std::mem::replace(&mut block.ast[i], ast::Empty {}.into()).into_assign().unwrap();
+                        block.ast[table_index].as_assign_mut().unwrap().right[0].as_table_mut().unwrap().0.push((Some(Box::into_inner(field_assign.left.into_iter().next().unwrap().into_index().unwrap().right)), field_assign.right.into_iter().next().unwrap()));
                         changed = true;
                         i += 1;
                     }
@@ -169,17 +171,30 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
             for i in 1..block.ast.len() {
                 if let ast::Statement::SetList(setlist) = &block.ast[i] {
                     let table_local = setlist.table.clone();
-                    if let Some(assign)= block.ast.get_mut(i - 1).unwrap().as_assign_mut() && assign.left == [table_local.into()]
+                    if let Some(assign) = block.ast[i - 1].as_assign_mut()
+                        && assign.left == [table_local.into()]
                     {
-                        let setlist = std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into()).into_set_list().unwrap();
+                        let setlist =
+                            std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into())
+                                .into_set_list()
+                                .unwrap();
                         let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
                         let table = assign.right[0].as_table_mut().unwrap();
-                        assert!(table.0.iter().filter(|(k, _)| k.is_none()).count() == setlist.index - 1);
+                        assert!(
+                            table.0.iter().filter(|(k, _)| k.is_none()).count()
+                                == setlist.index - 1
+                        );
                         for value in setlist.values {
                             table.0.push((None, value));
                         }
                         // table already has tail?
-                        assert!(!table.0.last().map_or(false, |(k, v)| k.is_none() && matches!(v, ast::RValue::VarArg(_) | ast::RValue::Call(_) | ast::RValue::MethodCall(_))));
+                        assert!(!table.0.last().map_or(false, |(k, v)| k.is_none()
+                            && matches!(
+                                v,
+                                ast::RValue::VarArg(_)
+                                    | ast::RValue::Call(_)
+                                    | ast::RValue::MethodCall(_)
+                            )));
                         if let Some(tail) = setlist.tail {
                             table.0.push((None, tail));
                         }
