@@ -399,7 +399,7 @@ impl<'a> SsaConstructor<'a> {
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    if local_usages[from].len() == 1 || assigned_locals.contains(to) {
+                    if local_usages.entry(from.clone()).or_default().len() <= 1 || assigned_locals.contains(to) {
                         self.local_map.insert(from.clone(), to.clone());
                         indices_to_remove.push(index);
                     }
