@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, borrow::Cow};
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
@@ -229,20 +229,19 @@ impl<'a> SsaConstructor<'a> {
     fn try_remove_trivial_param(&mut self, node: NodeIndex, param_local: RcLocal) -> RcLocal {
         let mut same = None;
         let edges = self.function.edges_to_block(node);
-        let args_in = edges.iter().map(|(_, e)| {
-            e.arguments
+        let args_in = edges.into_iter().map(|(_, e)| {
+            &e.arguments
                 .iter()
                 .find(|(p, _)| p == &param_local)
                 .unwrap()
                 .1
-                .clone()
         });
         for mut arg in args_in {
-            while let Some(arg_to) = self.local_map.get(&arg) {
-                arg = arg_to.clone();
+            while let Some(arg_to) = self.local_map.get(arg) {
+                arg = arg_to;
             }
 
-            if Some(&arg) == same.as_ref() || arg == param_local {
+            if Some(&arg) == same.as_ref() || arg == &param_local {
                 // unique value or self-reference
                 continue;
             }
@@ -252,7 +251,7 @@ impl<'a> SsaConstructor<'a> {
             }
             same = Some(arg);
         }
-        let same = same.unwrap();
+        let same = same.unwrap().clone();
         self.local_map.insert(param_local.clone(), same.clone());
 
         // TODO: optimize
@@ -279,19 +278,19 @@ impl<'a> SsaConstructor<'a> {
                 let params = edges[0]
                     .arguments
                     .iter()
-                    .map(|(p, _)| p.clone())
+                    .map(|(p, _)| p)
                     .collect::<Vec<_>>();
                 for mut param in params {
-                    while let Some(param_to) = self.local_map.get(&param) {
-                        param = param_to.clone();
+                    while let Some(param_to) = self.local_map.get(param) {
+                        param = param_to;
                     }
 
-                    if param == param_local
+                    if param == &param_local
                         || edges
                             .iter()
-                            .any(|e| e.arguments.iter().any(|(p, _)| p == &param))
+                            .any(|e| e.arguments.iter().any(|(p, _)| p == param))
                     {
-                        self.try_remove_trivial_param(node, param);
+                        self.try_remove_trivial_param(node, param.clone());
                     }
                 }
             }
