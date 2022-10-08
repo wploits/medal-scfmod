@@ -2,8 +2,8 @@
 #![feature(let_chains)]
 #![feature(mixed_integer_ops)]
 
-use std::io::Write;
 use ast::name_locals::name_locals;
+use std::io::Write;
 use std::time::Instant;
 use std::{fs::File, io::Read};
 

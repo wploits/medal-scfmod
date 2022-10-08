@@ -1,4 +1,4 @@
-use std::{iter, borrow::Cow};
+use std::{borrow::Cow, iter};
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
@@ -266,31 +266,27 @@ impl<'a> SsaConstructor<'a> {
                 .peek()
                 .map(|e| !e.arguments.is_empty())
                 .unwrap_or(false)
-                && edges.any(|e| e.arguments.iter().any(|(_, a)| a == &param_local))
             {
-                let edges = self
-                    .function
-                    .edges_to_block(node)
-                    .into_iter()
-                    .map(|(_, e)| e)
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let params = edges[0]
-                    .arguments
+                let edges = edges.collect::<Vec<_>>();
+                if edges
                     .iter()
-                    .map(|(p, _)| p)
-                    .collect::<Vec<_>>();
-                for mut param in params {
-                    while let Some(param_to) = self.local_map.get(param) {
-                        param = param_to;
-                    }
+                    .any(|e| e.arguments.iter().any(|(_, a)| a == &param_local))
+                {
+                    let args_in = edges
+                        .into_iter()
+                        .map(|e| e.arguments.clone())
+                        .collect::<Vec<_>>();
+                    let params = args_in[0].iter().map(|(p, _)| p).collect::<Vec<_>>();
+                    for mut param in params {
+                        while let Some(param_to) = self.local_map.get(param) {
+                            param = param_to;
+                        }
 
-                    if param == &param_local
-                        || edges
-                            .iter()
-                            .any(|e| e.arguments.iter().any(|(p, _)| p == param))
-                    {
-                        self.try_remove_trivial_param(node, param.clone());
+                        if param == &param_local
+                            || args_in.iter().any(|e| e.iter().any(|(p, _)| p == param))
+                        {
+                            self.try_remove_trivial_param(node, param.clone());
+                        }
                     }
                 }
             }

@@ -12,15 +12,12 @@ pub fn replace_locals<H: std::hash::BuildHasher>(
         // TODO: traverse_values
         statement.post_traverse_values(&mut |value| -> Option<()> {
             match value {
-                Either::Left(LValue::Local(local))
-                | Either::Right(RValue::Local(local)) => {
+                Either::Left(LValue::Local(local)) | Either::Right(RValue::Local(local)) => {
                     if let Some(new_local) = map.get(local) {
                         *local = new_local.clone();
                     }
                 }
-                Either::Right(RValue::Closure(closure)) => {
-                    replace_locals(&mut closure.body, map)
-                }
+                Either::Right(RValue::Closure(closure)) => replace_locals(&mut closure.body, map),
                 _ => {}
             };
             None
