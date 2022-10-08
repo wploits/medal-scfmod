@@ -74,7 +74,7 @@ impl GraphStructurer {
                 return false;
             }
 
-            let post_dom = post_dominators(self.function.graph().clone());
+            let post_dom = post_dominators(self.function.graph_mut());
             let (mut next, mut body) = (successors[0], successors[1]);
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);

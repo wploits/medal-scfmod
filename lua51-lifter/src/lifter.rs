@@ -956,7 +956,7 @@ impl<'a> LifterContext<'a> {
 
                 if !structure_compound_conditionals(&mut function)
                     && !{
-                        let post_dominators = post_dominators(function.graph().clone());
+                        let post_dominators = post_dominators(function.graph_mut());
                         structure_for_loops(&mut function, &dominators, &post_dominators)
                     }
                     && !structure_method_calls(&mut function)

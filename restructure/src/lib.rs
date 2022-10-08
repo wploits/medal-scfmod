@@ -18,7 +18,7 @@ mod jump;
 mod r#loop;
 
 pub fn post_dominators<N: Default, E: Default>(
-    mut graph: StableDiGraph<N, E>,
+    graph: &mut StableDiGraph<N, E>,
 ) -> Dominators<NodeIndex> {
     let exits = graph
         .node_identifiers()
@@ -28,7 +28,9 @@ pub fn post_dominators<N: Default, E: Default>(
     for exit in exits {
         graph.add_edge(exit, fake_exit, Default::default());
     }
-    simple_fast(Reversed(&graph), fake_exit)
+    let res = simple_fast(Reversed(&*graph), fake_exit);
+    assert!(graph.remove_node(fake_exit).is_some());
+    res
 }
 
 struct GraphStructurer {
