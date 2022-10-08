@@ -93,18 +93,17 @@ fn match_conditional_assignment(
                     && let Some(assign) = single_assign(&function.block(assigner).unwrap().ast)
                     && assign.left.len() == 1 && assign.right.len() == 1
                     && let ast::LValue::Local(assigned_local) = &assign.left[0]
+                    && let Some(assigner_terminator) = function.block(assigner).unwrap().terminator.as_ref()
+                    && let Some(assign_edge) = assigner_terminator.as_jump()
+                    && let other_edge = if edges.0.node == next { edges.0 } else { edges.1 }
+                    && let Some(assign_param) = assign_edge.arguments.iter().find_map(|(k, v)| if v == assigned_local { Some(k) } else { None })
+                    && let Some(other_param) = other_edge.arguments.iter().find_map(|(k, v)| if v == condition { Some(k) } else { None })
+                    && assign_param == other_param
                 {
-                    let assign_edge = function.block(assigner).unwrap().terminator.as_ref().unwrap().as_jump().unwrap();
-                    let other_edge = if edges.0.node == next { edges.0 } else { edges.1 };
-                    
-                    let assign_parameter = assign_edge.arguments.iter().find_map(|(k, v)| if v == assigned_local { Some(k) } else { None }).unwrap();
-                    let other_parameter = other_edge.arguments.iter().find_map(|(k, v)| if v == condition { Some(k) } else { None }).unwrap();
-    
-                    if assign_parameter == other_parameter {
-                        return Some((assigned_local.clone(), assign.right[0].clone(), assign_parameter.clone()));
-                    }
+                    Some((assigned_local.clone(), assign.right[0].clone(), assign_param.clone()))
+                } else {
+                    None
                 }
-                None
             };
 
             let (a, b) = (edges.0.node, edges.1.node);
