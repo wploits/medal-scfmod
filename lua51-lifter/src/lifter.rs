@@ -611,7 +611,7 @@ impl<'a> LifterContext<'a> {
                 } => {
                     let closure = &self.bytecode.closures[function.0 as usize];
 
-                    let mut upvalues_passed = Vec::new();
+                    let mut upvalues_passed = Vec::with_capacity(closure.number_of_upvalues.into());
                     for _ in 0..closure.number_of_upvalues {
                         let local = match iter.next().as_ref().unwrap() {
                             Instruction::Move {

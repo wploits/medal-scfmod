@@ -56,7 +56,7 @@ impl<'a> ParamLifter<'a> {
                 .filter(|(p, a)| p != a)
                 .collect::<Vec<_>>();
 
-            let mut assign_instrs = Vec::new();
+            let mut assign_instrs = Vec::with_capacity(args.len());
             let mut defined_vars = FxHashSet::default();
             for (param, arg) in &args {
                 // TODO: this check has performance implications, should we remove it?

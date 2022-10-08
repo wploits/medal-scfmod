@@ -63,7 +63,7 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
         }
 
         // TODO: rename values_read to locals_read
-        let mut stat_to_values_read = Vec::new();
+        let mut stat_to_values_read = Vec::with_capacity(block.ast.len());
         for stat in &block.ast.0 {
             stat_to_values_read.push(
                 stat.values_read()
