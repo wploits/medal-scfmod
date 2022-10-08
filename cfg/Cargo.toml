@@ -9,7 +9,7 @@ thiserror = "1.0.37"
 enum_dispatch = "0.3.8"
 enum-as-inner = "0.5.1"
 # graph = { path = "../graph", features = ["dot"] }
-petgraph = "0.6.2"
+petgraph = { git = "https://github.com/jujhar16/petgraph.git", branch="ensure_len_resize_with" }
 indexmap = "1.9.1"
 ast = { path = "../ast" }
 dot = { version = "0.1.4" }
