@@ -4,6 +4,7 @@ use fxhash::FxHashSet;
 use itertools::Itertools;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::DfsPostOrder};
 
+use crate::dot::render_to;
 use crate::{
     block::{BasicBlock, BasicBlockEdge, Terminator},
     function::Function,
@@ -43,7 +44,15 @@ pub struct ConditionalSequencePattern {
     second_node: NodeIndex,
     first_condition: ast::RValue,
     second_condition: ast::RValue,
+    short_circuit: NodeIndex,
+    assign: bool,
     operator: PatternOperator,
+}
+
+impl ConditionalSequencePattern {
+    fn condition(self) -> ast::RValue {
+        ast::Binary::new(self.first_condition, self.second_condition, self.operator.into()).into()
+    }
 }
 
 #[derive(Debug)]
@@ -85,33 +94,57 @@ fn match_conditional_sequence(function: &Function, node: NodeIndex) -> Option<Co
             let second_conditional_successors = function
                 .successor_blocks(second_conditional)
                 .collect_vec();
-
-            if let Some(second_conditional_if) = function.block(second_conditional).unwrap().ast.last().unwrap().as_if() {
+            let second_block = function.block(second_conditional).unwrap();
+            if let Some(second_conditional_if) = second_block.ast.last().unwrap().as_if() {
                 if second_conditional_successors.len() == 2 && second_conditional_successors.contains(&other) {
-                    return Some(second_conditional_if.condition.clone());
+                    if second_block.ast.len() == 2 {
+                        if let ast::Statement::Assign(assign) = &second_block.ast[0] {
+                            let values_written = assign.values_written();
+                            if values_written.len() == 1 && second_conditional_if.condition == values_written[0].clone().into() {
+                                assert!(assign.right.len() == 1);
+                                return Some((assign.right[0].clone(), true));
+                            }
+                        }
+                        return None;
+                    }
+                    return Some((second_conditional_if.condition.clone(), false));
                 }
                    
             }
-
             None
-        };
+        };  
+        let first_terminator = block.terminator.as_ref().unwrap().as_conditional().unwrap();
         let (then_edge, else_edge) = block.terminator.as_ref().unwrap().as_conditional().unwrap();
-        if let Some(second_condition) = test_pattern(then_edge.node, else_edge.node) {
-            Some(ConditionalSequencePattern {
-                first_node: node,
-                second_node: then_edge.node,
-                first_condition,
-                second_condition,
-                operator: PatternOperator::And
-            })
-        } else if let Some(second_condition) = test_pattern(else_edge.node, then_edge.node) {
-            Some(ConditionalSequencePattern {
-                first_node: node,
-                second_node: then_edge.node,
-                first_condition,
-                second_condition,
-                operator: PatternOperator::Or
-            })
+        if let Some((second_condition, assign)) = test_pattern(then_edge.node, else_edge.node) {
+            let second_terminator = function.block(then_edge.node).unwrap().terminator.as_ref().unwrap().as_conditional().unwrap();
+            if second_terminator.0.node == else_edge.node {
+                Some(ConditionalSequencePattern {
+                    first_node: node,
+                    second_node: then_edge.node,
+                    first_condition,
+                    second_condition: ast::Unary::new(second_condition, UnaryOperation::Not).into(),
+                    short_circuit: else_edge.node,
+                    assign,
+                    operator: PatternOperator::And
+                })
+            } else {
+                Some(ConditionalSequencePattern {
+                    first_node: node,
+                    second_node: then_edge.node,
+                    first_condition,
+                    second_condition,
+                    short_circuit: else_edge.node,
+                    assign,
+                    operator: PatternOperator::And
+                })
+            }
+        } else if let Some((second_condition, assign)) = test_pattern(else_edge.node, then_edge.node) {
+            let second_terminator = function.block(else_edge.node).unwrap().terminator.as_ref().unwrap().as_conditional().unwrap();
+            if first_terminator.0.node == second_terminator.0.node {
+                panic!("3");
+            } else {
+                panic!("4");
+            }
         } else {
             None
         }
@@ -237,7 +270,32 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
         }
 
         if let Some(pattern) = match_conditional_sequence(function, node) {
-            //panic!("{:#?}", pattern);
+            let edges = function
+                .block(pattern.first_node)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .as_conditional()
+                .unwrap();
+            assert!(edges.0.arguments.is_empty());
+            assert!(edges.1.arguments.is_empty());
+            let mut removed_block = function.remove_block(pattern.second_node).unwrap();
+            let second_terminator = removed_block.terminator.unwrap().into_conditional().unwrap();
+            function.set_block_terminator(pattern.first_node, Some(Terminator::Conditional(second_terminator.0, second_terminator.1)));
+            let first_node = pattern.first_node;
+            if pattern.assign {
+                let assign = removed_block.ast.first_mut().unwrap().as_assign_mut().unwrap();
+                assign.right = vec![pattern.condition()];
+
+            } else {
+                let removed_if = removed_block.ast.last_mut().unwrap().as_if_mut().unwrap();
+                removed_if.condition = pattern.condition();
+            }
+            let first_block = function.block_mut(first_node).unwrap();
+            first_block.ast.pop();
+            first_block.ast.extend(removed_block.ast.0);
+            did_structure = true;
         }
     }
 
