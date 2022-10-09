@@ -579,12 +579,12 @@ impl<'a> SsaConstructor<'a> {
             self.filled_blocks.insert(node);
 
             for &node in &visited_nodes {
-                if !self.sealed_blocks.contains(&node)
+                if  node != entry
+                    && !self.sealed_blocks.contains(&node)
                     && !self
                         .function
                         .predecessor_blocks(node)
                         .any(|p| !self.filled_blocks.contains(&p))
-                    && self.function.predecessor_blocks(node).next().is_some()
                 {
                     if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
                         for (local, param_local) in incomplete_params {
