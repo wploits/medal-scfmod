@@ -1,7 +1,4 @@
-use std::backtrace::Backtrace;
-use std::fmt::Write;
-use std::panic;
-use std::{cell::RefCell, rc::Rc};
+use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
 
 use cfg::block::BasicBlockEdge;
 use either::Either;
@@ -972,8 +969,8 @@ impl<'a> LifterContext<'a> {
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
-            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-
+            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            panic!();
             let upvalues_in = cfg::ssa::destruct(
                 &mut function,
                 local_count,

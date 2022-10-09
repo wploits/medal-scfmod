@@ -73,7 +73,7 @@ fn main() -> anyhow::Result<()> {
     println!("ensure writes: {:?}", writes_ensured);
 
     let now = time::Instant::now();
-    ssa::construct::construct(cfg)?;
+    ssa::::construct(cfg)?;
     let ssa_constructed = now.elapsed();
     //dot::render_to(cfg, &mut std::io::stdout())?;
     println!("ssa construction: {:?}", ssa_constructed);

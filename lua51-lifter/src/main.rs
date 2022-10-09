@@ -3,9 +3,11 @@
 #![feature(mixed_integer_ops)]
 
 use ast::name_locals::name_locals;
-use std::io::Write;
-use std::time::Instant;
-use std::{fs::File, io::Read};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    time::Instant,
+};
 
 use clap::Parser;
 
@@ -43,7 +45,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut out = File::create("result.lua")?;
     writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
-    write!(out, "{}", res)?;
+    writeln!(out, "{}", res)?;
 
     Ok(())
 }

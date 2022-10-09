@@ -35,6 +35,17 @@ pub struct ConditionalAssignmentPattern {
     operator: PatternOperator,
 }
 
+type ConditionalSequenceConfiguration = (bool, bool);
+
+#[derive(Debug)]
+pub struct ConditionalSequencePattern {
+    first_node: NodeIndex,
+    second_node: NodeIndex,
+    first_condition: ast::RValue,
+    second_condition: ast::RValue,
+    operator: PatternOperator,
+}
+
 #[derive(Debug)]
 pub struct GenericForNextPattern {
     body_node: NodeIndex,
@@ -61,6 +72,49 @@ fn simplify_condition(function: &mut Function, node: NodeIndex) -> bool {
 fn single_assign(block: &ast::Block) -> Option<&ast::Assign> {
     if block.len() == 1 && let Some(assign) = block.last().unwrap().as_assign() {
         Some(assign)
+    } else {
+        None
+    }
+}
+
+fn match_conditional_sequence(function: &Function, node: NodeIndex) -> Option<ConditionalSequencePattern> {
+    let block = function.block(node).unwrap();
+    if let Some(r#if) = block.ast.last().and_then(|s| s.as_if()) {
+        let first_condition = r#if.condition.clone();
+        let test_pattern = |second_conditional, other| {
+            let second_conditional_successors = function
+                .successor_blocks(second_conditional)
+                .collect_vec();
+
+            if let Some(second_conditional_if) = function.block(second_conditional).unwrap().ast.last().unwrap().as_if() {
+                if second_conditional_successors.len() == 2 && second_conditional_successors.contains(&other) {
+                    return Some(second_conditional_if.condition.clone());
+                }
+                   
+            }
+
+            None
+        };
+        let (then_edge, else_edge) = block.terminator.as_ref().unwrap().as_conditional().unwrap();
+        if let Some(second_condition) = test_pattern(then_edge.node, else_edge.node) {
+            Some(ConditionalSequencePattern {
+                first_node: node,
+                second_node: then_edge.node,
+                first_condition,
+                second_condition,
+                operator: PatternOperator::And
+            })
+        } else if let Some(second_condition) = test_pattern(else_edge.node, then_edge.node) {
+            Some(ConditionalSequencePattern {
+                first_node: node,
+                second_node: then_edge.node,
+                first_condition,
+                second_condition,
+                operator: PatternOperator::Or
+            })
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -180,6 +234,10 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             );
 
             did_structure = true;
+        }
+
+        if let Some(pattern) = match_conditional_sequence(function, node) {
+            //panic!("{:#?}", pattern);
         }
     }
 
