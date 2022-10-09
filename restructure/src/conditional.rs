@@ -2,7 +2,7 @@ use ast::Reduce;
 use cfg::block::Terminator;
 use itertools::Itertools;
 
-use crate::GraphStructurer;
+use crate::{GraphStructurer, post_dominators};
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 impl GraphStructurer {
@@ -124,6 +124,11 @@ impl GraphStructurer {
                 return false;
             }
 
+            let post_dom = post_dominators(self.function.graph_mut());
+            if post_dom.immediate_dominator(entry) != Some(else_node) {
+                return false;
+            }
+
             let then_block = self.function.remove_block(then_node).unwrap();
 
             let block = self.function.block_mut(entry).unwrap();
@@ -209,6 +214,12 @@ impl GraphStructurer {
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
+        let block = self.function.block_mut(entry).unwrap();
+        if block.ast.last_mut().unwrap().as_if_mut().is_none() {
+            // for loops
+            return false;
+        }
+        
         self.match_diamond_conditional(entry, then_node, else_node, dominators)
             || self.match_triangle_conditional(entry, then_node, else_node, dominators)
             || self.match_early_exit_triangle_conditional(entry, then_node, else_node, dominators)
