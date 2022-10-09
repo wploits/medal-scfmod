@@ -47,6 +47,7 @@ pub fn remove_unnecessary_params(
                 .collect::<Vec<_>>();
             let mut params_to_remove = FxHashSet::default();
             for (index, mut param) in params.enumerate() {
+                // TODO: should we really be doing this by index?
                 let arg_set = args_in_by_block
                     .iter()
                     .map(|a| a[index])

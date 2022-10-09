@@ -120,6 +120,10 @@ impl GraphStructurer {
                 return false;
             }
 
+            if self.function.predecessor_blocks(then_node).count() != 1 {
+                return false;
+            }
+
             let then_block = self.function.remove_block(then_node).unwrap();
 
             let block = self.function.block_mut(entry).unwrap();

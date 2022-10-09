@@ -57,11 +57,9 @@ impl GraphStructurer {
     }
 
     fn block_is_no_op(block: &ast::Block) -> bool {
-        block
+        !block
             .iter()
-            .filter(|stmt| stmt.as_comment().is_some())
-            .count()
-            == block.len()
+            .any(|s| s.as_comment().is_none())
     }
 
     fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>) -> bool {
@@ -136,7 +134,7 @@ impl GraphStructurer {
             self.function.remove_block(node);
         }
 
-        //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+        // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         let mut changed = false;
         while let Some(node) = dfs_postorder.next(self.function.graph()) {

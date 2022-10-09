@@ -5,6 +5,7 @@ use petgraph::stable_graph::NodeIndex;
 #[derive(Debug, Clone)]
 pub struct BasicBlockEdge {
     pub node: NodeIndex,
+    // TODO: why is this not a hash map?
     pub arguments: Vec<(RcLocal, RcLocal)>,
 }
 
