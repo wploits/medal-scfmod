@@ -78,14 +78,14 @@ impl GraphStructurer {
                 .unwrap()
                 .as_conditional()
                 .unwrap();
-            if self.match_compound_conditional(node, then_edge.node, else_edge.node) {
+            if self.match_compound_conditional(node, then_edge.node, else_edge.node, dominators) {
+                // println!("matched compound conditional");
                 return true;
             }
         }
 
         if self.try_collapse_loop(node, dominators) {
-            //println!("changed");
-            //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+            // println!("matched loop");
             return true;
         }
 

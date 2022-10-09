@@ -1,6 +1,6 @@
 use cfg::block::Terminator;
 use itertools::Itertools;
-use petgraph::stable_graph::NodeIndex;
+use petgraph::{stable_graph::NodeIndex, algo::dominators::Dominators};
 
 #[derive(Debug)]
 struct CompoundAssignment {
@@ -182,7 +182,8 @@ impl super::GraphStructurer {
             .unwrap();
         let (first_else, second_else) = (first_terminator.1.node, second_terminator.1.node);
 
-        if self.function.block(second_conditional).unwrap().ast.len() > 2 {
+        if self.function.block(first_conditional).unwrap().ast.len() > 1
+            || self.function.block(second_conditional).unwrap().ast.len() > 1 {
             return false;
         }
 
@@ -242,7 +243,11 @@ impl super::GraphStructurer {
         true
     }
 
-    pub fn match_and_or(&mut self, node: NodeIndex, assigner: NodeIndex, end: NodeIndex) -> bool {
+    pub fn match_and_or(&mut self, node: NodeIndex, assigner: NodeIndex, end: NodeIndex, dominators: &Dominators<NodeIndex>,) -> bool {
+        if !dominators.dominators(assigner).unwrap().contains(&node) {
+            return false;
+        }
+
         let info = self.compound_info(assigner);
         if info.is_none() {
             return false;
@@ -287,6 +292,7 @@ impl super::GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let else_successors = self.function.successor_blocks(else_node).collect_vec();
         let then_successors = self.function.successor_blocks(then_node).collect_vec();
@@ -299,7 +305,7 @@ impl super::GraphStructurer {
                     changed = self.combine_conditionals(entry, else_node, then_node, end);
                 }
             } else {
-                changed = self.match_and_or(entry, else_node, then_node);
+                changed = self.match_and_or(entry, else_node, then_node, dominators);
             }
         } else if then_node != entry && then_successors.contains(&else_node) {
             if then_successors.len() == 2 {
@@ -308,7 +314,7 @@ impl super::GraphStructurer {
                     changed = self.combine_conditionals(entry, then_node, else_node, end);
                 }
             } else {
-                changed = self.match_and_or(entry, then_node, else_node);
+                changed = self.match_and_or(entry, then_node, else_node, dominators);
             }
         }
 
