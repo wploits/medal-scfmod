@@ -42,17 +42,9 @@ type ConditionalSequenceConfiguration = (bool, bool);
 pub struct ConditionalSequencePattern {
     first_node: NodeIndex,
     second_node: NodeIndex,
-    first_condition: ast::RValue,
-    second_condition: ast::RValue,
     short_circuit: NodeIndex,
     assign: bool,
-    operator: PatternOperator,
-}
-
-impl ConditionalSequencePattern {
-    fn condition(self) -> ast::RValue {
-        ast::Binary::new(self.first_condition, self.second_condition, self.operator.into()).into()
-    }
+    final_condition: ast::RValue
 }
 
 #[derive(Debug)]
@@ -115,35 +107,43 @@ fn match_conditional_sequence(function: &Function, node: NodeIndex) -> Option<Co
         };  
         let first_terminator = block.terminator.as_ref().unwrap().as_conditional().unwrap();
         let (then_edge, else_edge) = block.terminator.as_ref().unwrap().as_conditional().unwrap();
-        if let Some((second_condition, assign)) = test_pattern(then_edge.node, else_edge.node) {
+        if function.predecessor_blocks(then_edge.node).count() == 1 && let Some((second_condition, assign)) = test_pattern(then_edge.node, else_edge.node) {
             let second_terminator = function.block(then_edge.node).unwrap().terminator.as_ref().unwrap().as_conditional().unwrap();
             if second_terminator.0.node == else_edge.node {
                 Some(ConditionalSequencePattern {
                     first_node: node,
                     second_node: then_edge.node,
-                    first_condition,
-                    second_condition: ast::Unary::new(second_condition, UnaryOperation::Not).into(),
                     short_circuit: else_edge.node,
                     assign,
-                    operator: PatternOperator::And
+                    final_condition: ast::Binary::new(first_condition, ast::Unary::new(second_condition, ast::UnaryOperation::Not).into(), ast::BinaryOperation::And).into()
                 })
             } else {
                 Some(ConditionalSequencePattern {
                     first_node: node,
                     second_node: then_edge.node,
-                    first_condition,
-                    second_condition,
                     short_circuit: else_edge.node,
                     assign,
-                    operator: PatternOperator::And
+                    final_condition: ast::Binary::new(first_condition, second_condition, ast::BinaryOperation::And).into()
                 })
             }
-        } else if let Some((second_condition, assign)) = test_pattern(else_edge.node, then_edge.node) {
+        } else if function.predecessor_blocks(else_edge.node).count() == 1 && let Some((second_condition, assign)) = test_pattern(else_edge.node, then_edge.node) {
             let second_terminator = function.block(else_edge.node).unwrap().terminator.as_ref().unwrap().as_conditional().unwrap();
             if first_terminator.0.node == second_terminator.0.node {
-                panic!("3");
+                Some(ConditionalSequencePattern {
+                    first_node: node,
+                    second_node: else_edge.node,
+                    short_circuit: then_edge.node,
+                    assign,
+                    final_condition: ast::Binary::new(first_condition, second_condition, ast::BinaryOperation::Or).into()
+                })
             } else {
-                panic!("4");
+                Some(ConditionalSequencePattern {
+                    first_node: node,
+                    second_node: else_edge.node,
+                    short_circuit: then_edge.node,
+                    assign,
+                    final_condition: ast::Binary::new(first_condition, ast::Unary::new(second_condition, ast::UnaryOperation::Not).into(), ast::BinaryOperation::Or).into()
+                })
             }
         } else {
             None
@@ -278,24 +278,42 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
                 .unwrap()
                 .as_conditional()
                 .unwrap();
+            let (first_then, first_else) = (edges.0.node, edges.1.node);
             assert!(edges.0.arguments.is_empty());
             assert!(edges.1.arguments.is_empty());
+
+            let second_terminator = function
+                .block(pattern.second_node)
+                .unwrap()
+                .terminator
+                .as_ref()
+                .unwrap()
+                .as_conditional()
+                .unwrap();
+            let other_node = if second_terminator.0.node == pattern.short_circuit {
+                second_terminator.1.node
+            } else {
+                second_terminator.0.node
+            };
+            function.replace_edge(pattern.first_node, pattern.second_node, other_node);
+
+
             let mut removed_block = function.remove_block(pattern.second_node).unwrap();
-            let second_terminator = removed_block.terminator.unwrap().into_conditional().unwrap();
-            function.set_block_terminator(pattern.first_node, Some(Terminator::Conditional(second_terminator.0, second_terminator.1)));
             let first_node = pattern.first_node;
             if pattern.assign {
                 let assign = removed_block.ast.first_mut().unwrap().as_assign_mut().unwrap();
-                assign.right = vec![pattern.condition()];
+                assign.right = vec![pattern.final_condition];
 
             } else {
                 let removed_if = removed_block.ast.last_mut().unwrap().as_if_mut().unwrap();
-                removed_if.condition = pattern.condition();
+                removed_if.condition = pattern.final_condition;
             }
             let first_block = function.block_mut(first_node).unwrap();
             first_block.ast.pop();
             first_block.ast.extend(removed_block.ast.0);
             did_structure = true;
+
+            crate::dot::render_to(function, &mut std::io::stdout());
         }
     }
 
