@@ -124,11 +124,6 @@ impl GraphStructurer {
                 return false;
             }
 
-            let post_dom = post_dominators(self.function.graph_mut());
-            if post_dom.immediate_dominator(entry) != Some(else_node) {
-                return false;
-            }
-
             let then_block = self.function.remove_block(then_node).unwrap();
 
             let block = self.function.block_mut(entry).unwrap();
@@ -214,6 +209,10 @@ impl GraphStructurer {
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
+        if self.is_loop_header(entry) {
+            return false;
+        }
+
         let block = self.function.block_mut(entry).unwrap();
         if block.ast.last_mut().unwrap().as_if_mut().is_none() {
             // for loops
