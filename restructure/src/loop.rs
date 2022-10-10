@@ -1,4 +1,4 @@
-use ast::{Reduce, SideEffects};
+use ast::{Reduce, SideEffects, Traverse};
 use cfg::block::Terminator;
 use fxhash::FxHashSet;
 use itertools::Itertools;
@@ -17,6 +17,54 @@ impl GraphStructurer {
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
         if !self.is_loop_header(header) {
+            // TODO: this shouldnt be an issue if we use patterns for numfor
+            // for i = 1, 10 do break end
+            let block = self.function.block_mut(header).unwrap();
+            if block.ast.len() >= 2
+                && block.ast.last().unwrap().as_num_for_next().is_some()
+            {
+                let num_for_next = block.ast.pop().unwrap().into_num_for_next().unwrap();
+                let mut num_for_init = block.ast.pop().unwrap().into_num_for_init().unwrap();
+                block.ast.push(
+                    ast::Assign {
+                        left: num_for_init
+                            .lvalues_mut()
+                            .into_iter()
+                            .map(|l| &*l)
+                            .cloned()
+                            .collect(),
+                        right: num_for_init.rvalues().into_iter().cloned().collect(),
+                        prefix: true,
+                    }
+                    .into(),
+                );
+                block.ast.push(
+                    ast::Assign {
+                        left: vec![num_for_next.counter.0.clone()],
+                        right: vec![ast::Binary::new(
+                            num_for_next.counter.1.clone(),
+                            num_for_next.step,
+                            ast::BinaryOperation::Add,
+                        )
+                        .into()],
+                        prefix: true,
+                    }
+                    .into(),
+                );
+                block.ast.push(
+                    ast::If::new(
+                        ast::Binary::new(
+                            num_for_next.counter.0.as_local().unwrap().clone().into(),
+                            num_for_next.limit,
+                            ast::BinaryOperation::LessThanOrEqual,
+                        )
+                        .into(),
+                        None,
+                        None,
+                    )
+                    .into(),
+                )
+            }
             return false;
         }
 
