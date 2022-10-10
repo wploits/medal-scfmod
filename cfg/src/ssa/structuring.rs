@@ -89,7 +89,7 @@ fn match_conditional_sequence(
             let second_conditional_successors =
                 function.successor_blocks(second_conditional).collect_vec();
             let second_block = function.block(second_conditional).unwrap();
-            if let Some(second_conditional_if) = second_block.ast.last().unwrap().as_if() {
+            if let Some(second_conditional_if) = second_block.ast.last().and_then(|s| s.as_if()) {
                 if second_conditional_successors.len() == 2
                     && second_conditional_successors.contains(&other)
                 {
