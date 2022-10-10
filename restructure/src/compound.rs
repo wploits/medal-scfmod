@@ -1,6 +1,6 @@
 use cfg::block::Terminator;
 use itertools::Itertools;
-use petgraph::{stable_graph::NodeIndex, algo::dominators::Dominators};
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 #[derive(Debug)]
 struct CompoundAssignment {
@@ -183,7 +183,8 @@ impl super::GraphStructurer {
         let (first_else, second_else) = (first_terminator.1.node, second_terminator.1.node);
 
         if self.function.block(first_conditional).unwrap().ast.len() > 1
-            || self.function.block(second_conditional).unwrap().ast.len() > 1 {
+            || self.function.block(second_conditional).unwrap().ast.len() > 1
+        {
             return false;
         }
 
@@ -243,7 +244,13 @@ impl super::GraphStructurer {
         true
     }
 
-    pub fn match_and_or(&mut self, node: NodeIndex, assigner: NodeIndex, end: NodeIndex, dominators: &Dominators<NodeIndex>,) -> bool {
+    pub fn match_and_or(
+        &mut self,
+        node: NodeIndex,
+        assigner: NodeIndex,
+        end: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
+    ) -> bool {
         if !dominators.dominators(assigner).unwrap().contains(&node) {
             return false;
         }

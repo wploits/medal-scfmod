@@ -1022,13 +1022,12 @@ impl<'a> LifterContext<'a> {
                             write!(message, "stack backtrace:\n{}", backtrace).unwrap();
                         }
 
-                        let block = ast::Block::from_vec(
-                            message
-                                .trim_end()
-                                .split('\n')
-                                .map(|s| ast::Comment::new(s.to_string()).into())
-                                .collect(),
-                        );
+                        let block = message
+                            .trim_end()
+                            .split('\n')
+                            .map(|s| ast::Comment::new(s.to_string()).into())
+                            .collect::<Vec<_>>()
+                            .into();
                         (block, Vec::new(), Vec::new())
                     }
                 }

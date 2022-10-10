@@ -2,7 +2,7 @@ use ast::Reduce;
 use cfg::block::Terminator;
 use itertools::Itertools;
 
-use crate::{GraphStructurer, post_dominators};
+use crate::{post_dominators, GraphStructurer};
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 impl GraphStructurer {
@@ -183,14 +183,14 @@ impl GraphStructurer {
         let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
 
         if then_node == header && !header_successors.contains(&entry) {
-            if_stat.then_block = Some(ast::Block::from_vec(vec![ast::Continue {}.into()]));
+            if_stat.then_block = Some(vec![ast::Continue {}.into()].into());
         } else if then_node == next {
-            if_stat.then_block = Some(ast::Block::from_vec(vec![ast::Break {}.into()]));
+            if_stat.then_block = Some(vec![ast::Break {}.into()].into());
         }
         if else_node == header && !header_successors.contains(&entry) {
-            if_stat.else_block = Some(ast::Block::from_vec(vec![ast::Continue {}.into()]));
+            if_stat.else_block = Some(vec![ast::Continue {}.into()].into());
         } else if else_node == next {
-            if_stat.else_block = Some(ast::Block::from_vec(vec![ast::Break {}.into()]));
+            if_stat.else_block = Some(vec![ast::Break {}.into()].into());
         }
         if if_stat.then_block.is_some() && if_stat.else_block.is_none() {
             self.function
@@ -219,7 +219,7 @@ impl GraphStructurer {
             // for loops
             return false;
         }
-        
+
         self.match_diamond_conditional(entry, then_node, else_node, dominators)
             || self.match_triangle_conditional(entry, then_node, else_node, dominators)
             || self.match_early_exit_triangle_conditional(entry, then_node, else_node, dominators)

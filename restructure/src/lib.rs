@@ -57,9 +57,7 @@ impl GraphStructurer {
     }
 
     fn block_is_no_op(block: &ast::Block) -> bool {
-        !block
-            .iter()
-            .any(|s| s.as_comment().is_none())
+        !block.iter().any(|s| s.as_comment().is_none())
     }
 
     fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>) -> bool {
@@ -157,20 +155,19 @@ impl GraphStructurer {
         self.collapse();
         let nodes = self.function.graph().node_count();
         if self.function.graph().node_count() != 1 {
-            ast::Block::from_vec(
-                iter::once(
-                    ast::Comment::new(format!("failed to collapse, total nodes: {}", nodes)).into(),
-                )
-                .chain(
-                    self.function
-                        .remove_block(self.root)
-                        .unwrap()
-                        .ast
-                        .0
-                        .into_iter(),
-                )
-                .collect::<Vec<_>>(),
+            iter::once(
+                ast::Comment::new(format!("failed to collapse, total nodes: {}", nodes)).into(),
             )
+            .chain(
+                self.function
+                    .remove_block(self.root)
+                    .unwrap()
+                    .ast
+                    .0
+                    .into_iter(),
+            )
+            .collect::<Vec<_>>()
+            .into()
         } else {
             self.function.remove_block(self.root).unwrap().ast
         }

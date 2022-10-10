@@ -44,7 +44,7 @@ pub struct ConditionalSequencePattern {
     second_node: NodeIndex,
     short_circuit: NodeIndex,
     assign: bool,
-    final_condition: ast::RValue
+    final_condition: ast::RValue,
 }
 
 #[derive(Debug)]
@@ -78,21 +78,28 @@ fn single_assign(block: &ast::Block) -> Option<&ast::Assign> {
     }
 }
 
-fn match_conditional_sequence(function: &Function, node: NodeIndex) -> Option<ConditionalSequencePattern> {
+fn match_conditional_sequence(
+    function: &Function,
+    node: NodeIndex,
+) -> Option<ConditionalSequencePattern> {
     let block = function.block(node).unwrap();
     if let Some(r#if) = block.ast.last().and_then(|s| s.as_if()) {
         let first_condition = r#if.condition.clone();
         let test_pattern = |second_conditional, other| {
-            let second_conditional_successors = function
-                .successor_blocks(second_conditional)
-                .collect_vec();
+            let second_conditional_successors =
+                function.successor_blocks(second_conditional).collect_vec();
             let second_block = function.block(second_conditional).unwrap();
             if let Some(second_conditional_if) = second_block.ast.last().unwrap().as_if() {
-                if second_conditional_successors.len() == 2 && second_conditional_successors.contains(&other) {
+                if second_conditional_successors.len() == 2
+                    && second_conditional_successors.contains(&other)
+                {
                     if second_block.ast.len() == 2 {
                         if let ast::Statement::Assign(assign) = &second_block.ast[0] {
                             let values_written = assign.values_written();
-                            if values_written.len() == 1 && second_conditional_if.condition == values_written[0].clone().into() {
+                            if values_written.len() == 1
+                                && second_conditional_if.condition
+                                    == values_written[0].clone().into()
+                            {
                                 assert!(assign.right.len() == 1);
                                 return Some((assign.right[0].clone(), true));
                             }
@@ -101,10 +108,9 @@ fn match_conditional_sequence(function: &Function, node: NodeIndex) -> Option<Co
                     }
                     return Some((second_conditional_if.condition.clone(), false));
                 }
-                   
             }
             None
-        };  
+        };
         let first_terminator = block.terminator.as_ref().unwrap().as_conditional().unwrap();
         let (then_edge, else_edge) = block.terminator.as_ref().unwrap().as_conditional().unwrap();
         if function.predecessor_blocks(then_edge.node).count() == 1 && let Some((second_condition, assign)) = test_pattern(then_edge.node, else_edge.node) {
@@ -295,15 +301,24 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             } else {
                 second_terminator.0
             };
-            replace_edge_with_parameters(function, pattern.first_node, pattern.second_node, other_edge.node, other_edge.arguments.clone());
-
+            replace_edge_with_parameters(
+                function,
+                pattern.first_node,
+                pattern.second_node,
+                other_edge.node,
+                other_edge.arguments.clone(),
+            );
 
             let mut removed_block = function.remove_block(pattern.second_node).unwrap();
             let first_node = pattern.first_node;
             if pattern.assign {
-                let assign = removed_block.ast.first_mut().unwrap().as_assign_mut().unwrap();
+                let assign = removed_block
+                    .ast
+                    .first_mut()
+                    .unwrap()
+                    .as_assign_mut()
+                    .unwrap();
                 assign.right = vec![pattern.final_condition];
-
             } else {
                 let removed_if = removed_block.ast.last_mut().unwrap().as_if_mut().unwrap();
                 removed_if.condition = pattern.final_condition;
@@ -564,16 +579,32 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
     did_structure
 }
 
-fn replace_edge_with_parameters(function: &mut Function, node: NodeIndex, old_target: NodeIndex, new_target: NodeIndex, parameters: Vec<(ast::RcLocal, ast::RcLocal)>) {
-    match function.block_mut(node).unwrap().terminator.as_mut().unwrap() {
-        Terminator::Jump(jump) => if jump.node == old_target {
-            jump.arguments.extend(parameters);
-        },
-        Terminator::Conditional(then_edge, else_edge) => if then_edge.node == old_target {
-            then_edge.arguments.extend(parameters);
-        } else if else_edge.node == old_target {
-            else_edge.arguments.extend(parameters);
-        },
+fn replace_edge_with_parameters(
+    function: &mut Function,
+    node: NodeIndex,
+    old_target: NodeIndex,
+    new_target: NodeIndex,
+    parameters: Vec<(ast::RcLocal, ast::RcLocal)>,
+) {
+    match function
+        .block_mut(node)
+        .unwrap()
+        .terminator
+        .as_mut()
+        .unwrap()
+    {
+        Terminator::Jump(jump) => {
+            if jump.node == old_target {
+                jump.arguments.extend(parameters);
+            }
+        }
+        Terminator::Conditional(then_edge, else_edge) => {
+            if then_edge.node == old_target {
+                then_edge.arguments.extend(parameters);
+            } else if else_edge.node == old_target {
+                else_edge.arguments.extend(parameters);
+            }
+        }
     }
     function.replace_edge(node, old_target, new_target);
 }

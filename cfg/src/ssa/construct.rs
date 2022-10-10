@@ -579,7 +579,7 @@ impl<'a> SsaConstructor<'a> {
             self.filled_blocks.insert(node);
 
             for &node in &visited_nodes {
-                if  node != entry
+                if node != entry
                     && !self.sealed_blocks.contains(&node)
                     && !self
                         .function

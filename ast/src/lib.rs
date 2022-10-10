@@ -1,6 +1,7 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
 
+use derive_more::From;
 use enum_as_inner::EnumAsInner;
 use enum_dispatch::enum_dispatch;
 use formatter::Formatter;
@@ -315,14 +316,8 @@ impl fmt::Display for Statement {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default, From)]
 pub struct Block(pub Vec<Statement>);
-
-impl Block {
-    pub fn from_vec(statements: Vec<Statement>) -> Self {
-        Self(statements)
-    }
-}
 
 // rust-analyzer doesnt like derive_more :/
 impl Deref for Block {
