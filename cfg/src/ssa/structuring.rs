@@ -290,12 +290,12 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
                 .unwrap()
                 .as_conditional()
                 .unwrap();
-            let other_node = if second_terminator.0.node == pattern.short_circuit {
-                second_terminator.1.node
+            let other_edge = if second_terminator.0.node == pattern.short_circuit {
+                second_terminator.1
             } else {
-                second_terminator.0.node
+                second_terminator.0
             };
-            function.replace_edge(pattern.first_node, pattern.second_node, other_node);
+            replace_edge_with_parameters(function, pattern.first_node, pattern.second_node, other_edge.node, other_edge.arguments.clone());
 
 
             let mut removed_block = function.remove_block(pattern.second_node).unwrap();
