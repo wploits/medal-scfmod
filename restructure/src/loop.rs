@@ -19,7 +19,7 @@ impl GraphStructurer {
         if !self.is_loop_header(header) {
             return false;
         }
-        
+
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
         if successors.contains(&header)
             && !self

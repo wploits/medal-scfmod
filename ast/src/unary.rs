@@ -45,15 +45,7 @@ impl Traverse for Unary {
 
 impl Reduce for Unary {
     fn reduce(self) -> RValue {
-        let is_not_expression = |expression: &RValue| {
-            matches!(
-                expression,
-                RValue::Unary(Unary {
-                    value: _,
-                    operation: UnaryOperation::Not,
-                })
-            )
-        };
+        let does_reduce = |r: &RValue| &r.clone().reduce() != r;
 
         match (*self.value, self.operation) {
             (RValue::Literal(Literal::Boolean(value)), UnaryOperation::Not) => {
@@ -76,11 +68,96 @@ impl Reduce for Unary {
                 RValue::Binary(Binary {
                     left,
                     right,
+                    operation: BinaryOperation::GreaterThan,
+                }),
+                UnaryOperation::Not,
+            ) => Binary {
+                left,
+                right,
+                operation: BinaryOperation::LessThanOrEqual,
+            }
+            .reduce(),
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation: BinaryOperation::LessThanOrEqual,
+                }),
+                UnaryOperation::Not,
+            ) => Binary {
+                left,
+                right,
+                operation: BinaryOperation::GreaterThan,
+            }
+            .reduce(),
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation: BinaryOperation::GreaterThanOrEqual,
+                }),
+                UnaryOperation::Not,
+            ) => Binary {
+                left,
+                right,
+                operation: BinaryOperation::LessThan,
+            }
+            .reduce(),
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation: BinaryOperation::LessThan,
+                }),
+                UnaryOperation::Not,
+            ) => Binary {
+                left,
+                right,
+                operation: BinaryOperation::GreaterThanOrEqual,
+            }
+            .reduce(),
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation: BinaryOperation::Equal,
+                }),
+                UnaryOperation::Not,
+            ) => Binary {
+                left,
+                right,
+                operation: BinaryOperation::NotEqual,
+            }
+            .reduce(),
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation: BinaryOperation::NotEqual,
+                }),
+                UnaryOperation::Not,
+            ) => Binary {
+                left,
+                right,
+                operation: BinaryOperation::Equal,
+            }
+            .reduce(),
+            (
+                RValue::Binary(Binary {
+                    left,
+                    right,
                     operation,
                 }),
                 UnaryOperation::Not,
             ) if (operation == BinaryOperation::And || operation == BinaryOperation::Or)
-                && (is_not_expression(left.as_ref()) || is_not_expression(right.as_ref())) =>
+            // TODO: yucky
+                && (does_reduce(&Unary {
+                    value: left.clone(),
+                    operation: UnaryOperation::Not,
+                }.into()) || does_reduce(&Unary {
+                    value: right.clone(),
+                    operation: UnaryOperation::Not,
+                }.into())) =>
             {
                 Binary {
                     left: Box::new(

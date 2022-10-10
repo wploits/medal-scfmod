@@ -285,8 +285,6 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
                 .as_conditional()
                 .unwrap();
             let (first_then, first_else) = (edges.0.node, edges.1.node);
-            assert!(edges.0.arguments.is_empty());
-            assert!(edges.1.arguments.is_empty());
 
             let second_terminator = function
                 .block(pattern.second_node)
@@ -328,7 +326,7 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             first_block.ast.extend(removed_block.ast.0);
             did_structure = true;
 
-            crate::dot::render_to(function, &mut std::io::stdout());
+            // crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
         }
     }
 
