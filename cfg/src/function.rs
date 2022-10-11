@@ -174,6 +174,34 @@ impl Function {
             .collect()
     }
 
+    #[requires(self.graph.find_edge(source, target).is_some())]
+    pub fn edge(&self, source: NodeIndex, target: NodeIndex) -> Option<&BasicBlockEdge> {
+        match self.block(source).unwrap().terminator.as_ref().unwrap() {
+            Terminator::Jump(edge) => Some(edge),
+            Terminator::Conditional(then_edge, else_edge) if then_edge.node == target => {
+                Some(then_edge)
+            }
+            Terminator::Conditional(then_edge, else_edge) if else_edge.node == target => {
+                Some(else_edge)
+            }
+            _ => None,
+        }
+    }
+
+    #[requires(self.graph.find_edge(source, target).is_some())]
+    pub fn edge_mut(
+        &mut self,
+        source: NodeIndex,
+        target: NodeIndex,
+    ) -> Option<&mut BasicBlockEdge> {
+        match self.block_mut(source).unwrap().terminator.as_mut().unwrap() {
+            Terminator::Jump(edge) => Some(edge),
+            Terminator::Conditional(then_edge, _) if then_edge.node == target => Some(then_edge),
+            Terminator::Conditional(_, else_edge) if else_edge.node == target => Some(else_edge),
+            _ => None,
+        }
+    }
+
     pub fn new_block(&mut self) -> NodeIndex {
         self.graph.add_node(BasicBlock::default())
     }

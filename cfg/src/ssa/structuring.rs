@@ -105,8 +105,9 @@ fn match_conditional_sequence(
                             }
                         }
                         return None;
+                    } else if second_block.ast.len() == 1 {
+                        return Some((second_conditional_if.condition.clone(), false));
                     }
-                    return Some((second_conditional_if.condition.clone(), false));
                 }
             }
             None
@@ -285,8 +286,13 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
                 .as_conditional()
                 .unwrap();
             let (first_then, first_else) = (edges.0.node, edges.1.node);
-            assert!(edges.0.arguments.is_empty());
-            assert!(edges.1.arguments.is_empty());
+
+            let second_to_sc_edge = function.edge(pattern.second_node, pattern.short_circuit).unwrap().clone();
+            for arg in &mut function.edge_mut(pattern.first_node, pattern.short_circuit).unwrap().arguments {
+                if let Some(new_arg) = second_to_sc_edge.arguments.iter().find(|(k, _)| k == &arg.0) {
+                    *arg = new_arg.clone();
+                }
+            }
 
             let second_terminator = function
                 .block(pattern.second_node)
