@@ -1,12 +1,11 @@
-use ast::{LocalRw, SideEffects, Traverse};
-use ast::{Reduce, UnaryOperation};
+use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 use fxhash::FxHashSet;
 use itertools::Itertools;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::DfsPostOrder};
 
-use crate::dot::render_to;
 use crate::{
     block::{BasicBlock, BasicBlockEdge, Terminator},
+    dot::render_to,
     function::Function,
 };
 
@@ -89,7 +88,7 @@ fn match_conditional_sequence(
             let second_conditional_successors =
                 function.successor_blocks(second_conditional).collect_vec();
             let second_block = function.block(second_conditional).unwrap();
-            if let Some(second_conditional_if) = second_block.ast.last().unwrap().as_if() {
+            if let Some(second_conditional_if) = second_block.ast.last().and_then(|s| s.as_if()) {
                 if second_conditional_successors.len() == 2
                     && second_conditional_successors.contains(&other)
                 {
@@ -236,7 +235,10 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
         if simplify_condition(function, node) {
             did_structure = true;
         }
-        if let Some(pattern) = match_conditional_assignment(function, node) {
+        if let Some(pattern) = match_conditional_assignment(function, node)
+            // TODO: can we continue?
+            && &Some(pattern.assigner) != function.entry()
+        {
             let block = function.block_mut(node).unwrap();
             block.ast.pop();
             block.ast.push(
@@ -276,7 +278,10 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             did_structure = true;
         }
 
-        if let Some(pattern) = match_conditional_sequence(function, node) {
+        if let Some(pattern) = match_conditional_sequence(function, node)
+            // TODO: can we continue?
+            && &Some(pattern.second_node) != function.entry()
+        {
             let edges = function
                 .block(pattern.first_node)
                 .unwrap()
@@ -334,7 +339,7 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             first_block.ast.extend(removed_block.ast.0);
             did_structure = true;
 
-            crate::dot::render_to(function, &mut std::io::stdout());
+            // crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
         }
     }
 
@@ -449,77 +454,77 @@ pub fn structure_for_loops(
     dominators: &Dominators<NodeIndex>,
     post_dominators: &Dominators<NodeIndex>,
 ) -> bool {
-    return false;
+    false
 
-    let mut did_structure = false;
-    for node in function.graph().node_indices().collect_vec() {
-        if let Some(pattern) = match_for_next(function, post_dominators, node) {
-            let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
-                !dominators
-                    .dominators(n)
-                    .unwrap()
-                    .contains(&pattern.body_node)
-            });
-            let init_node = init_blocks.next().unwrap();
-            assert!(init_blocks.next().is_none());
-            assert!(function.successor_blocks(init_node).count() == 1);
+    // let mut did_structure = false;
+    // for node in function.graph().node_indices().collect_vec() {
+    //     if let Some(pattern) = match_for_next(function, post_dominators, node) {
+    //         let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
+    //             !dominators
+    //                 .dominators(n)
+    //                 .unwrap()
+    //                 .contains(&pattern.body_node)
+    //         });
+    //         let init_node = init_blocks.next().unwrap();
+    //         assert!(init_blocks.next().is_none());
+    //         assert!(function.successor_blocks(init_node).count() == 1);
 
-            let edges = function.edges_to_block(node);
-            let params = edges[0]
-                .1
-                .arguments
-                .iter()
-                .map(|(p, _)| p)
-                .collect::<FxHashSet<_>>();
+    //         let edges = function.edges_to_block(node);
+    //         let params = edges[0]
+    //             .1
+    //             .arguments
+    //             .iter()
+    //             .map(|(p, _)| p)
+    //             .collect::<FxHashSet<_>>();
 
-            // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
-            let mut generator_locals = pattern
-                .generator
-                .values_read()
-                .into_iter()
-                .filter(|l| !params.contains(l));
-            if let Some(generator_local) = generator_locals.next()
-                && generator_locals.next().is_none()
-            {
-                let generator_local = generator_local.clone();
+    //         // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
+    //         let mut generator_locals = pattern
+    //             .generator
+    //             .values_read()
+    //             .into_iter()
+    //             .filter(|l| !params.contains(l));
+    //         if let Some(generator_local) = generator_locals.next()
+    //             && generator_locals.next().is_none()
+    //         {
+    //             let generator_local = generator_local.clone();
 
-                if params.contains(&pattern.internal_control) {
-                    let initial_control = function.block(init_node).unwrap().terminator().as_ref().unwrap().edges()[0].arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.clone();
-                    let mut invalid_for = false;
-                    for (_, edge) in edges.into_iter().filter(|(p, _)| p != &init_node) {
-                        if edge.arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1
-                            != pattern.res_locals[0] {
-                                invalid_for = true;
-                                break;
-                            }
-                    }
-                    if !invalid_for {
-                        for edge in function.edges_to_block_mut(node) {
-                            edge.arguments.clear();
-                        }
+    //             if params.contains(&pattern.internal_control) {
+    //                 let initial_control = function.block(init_node).unwrap().terminator().as_ref().unwrap().edges()[0].arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.clone();
+    //                 let mut invalid_for = false;
+    //                 for (_, edge) in edges.into_iter().filter(|(p, _)| p != &init_node) {
+    //                     if edge.arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1
+    //                         != pattern.res_locals[0] {
+    //                             invalid_for = true;
+    //                             break;
+    //                         }
+    //                 }
+    //                 if !invalid_for {
+    //                     for edge in function.edges_to_block_mut(node) {
+    //                         edge.arguments.clear();
+    //                     }
 
-                        let block = function.block_mut(node).unwrap();
-                        let len = block.ast.len();
-                        block.ast.truncate(len - 2);
-                        block.ast.push(
-                            ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
-                        );
-        
-                        function.block_mut(init_node).unwrap().ast.push(
-                            ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
-                                .into(),
-                        );
-                        did_structure = true;
-                    }
-                } else {
-                    // initial_control is nil,
-                    // there is only a single control variable
-                    todo!();
-                }
-            }
-        }
-    }
-    did_structure
+    //                     let block = function.block_mut(node).unwrap();
+    //                     let len = block.ast.len();
+    //                     block.ast.truncate(len - 2);
+    //                     block.ast.push(
+    //                         ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+    //                     );
+
+    //                     function.block_mut(init_node).unwrap().ast.push(
+    //                         ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
+    //                             .into(),
+    //                     );
+    //                     did_structure = true;
+    //                 }
+    //             } else {
+    //                 // initial_control is nil,
+    //                 // there is only a single control variable
+    //                 todo!();
+    //             }
+    //         }
+    //     }
+    // }
+    // did_structure
 }
 
 fn match_method_call(call: &ast::Call) -> Option<(&ast::RValue, &str)> {
@@ -638,6 +643,9 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                     }
                     if can_remove {
                         function.remove_block(node);
+                        if &Some(node) == function.entry() {
+                            function.set_entry(jump.node);
+                        }
                     }
                     did_structure = true;
                 } else if function.predecessor_blocks(jump.node).count() == 1
@@ -646,6 +654,9 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                     assert!(jump.arguments.is_empty());
                     let terminator = function.block_mut(jump.node).unwrap().terminator.take();
                     let body = function.remove_block(jump.node).unwrap().ast;
+                    if &Some(jump.node) == function.entry() {
+                        function.set_entry(node);
+                    }
                     function.block_mut(node).unwrap().ast.extend(body.0);
                     function.set_block_terminator(node, terminator);
                     did_structure = true;

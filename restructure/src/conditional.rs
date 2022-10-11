@@ -124,11 +124,6 @@ impl GraphStructurer {
                 return false;
             }
 
-            let post_dom = post_dominators(self.function.graph_mut());
-            if post_dom.immediate_dominator(entry) != Some(else_node) {
-                return false;
-            }
-
             let then_block = self.function.remove_block(then_node).unwrap();
 
             let block = self.function.block_mut(entry).unwrap();
@@ -178,33 +173,41 @@ impl GraphStructurer {
         next: NodeIndex,
         _dominators: &Dominators<NodeIndex>,
     ) -> bool {
+        let mut changed = false;
         let header_successors = self.function.successor_blocks(header).collect_vec();
         let block = self.function.block_mut(entry).unwrap();
         let if_stat = block.ast.last_mut().unwrap().as_if_mut().unwrap();
 
         if then_node == header && !header_successors.contains(&entry) {
             if_stat.then_block = Some(vec![ast::Continue {}.into()].into());
+            changed = true;
         } else if then_node == next {
             if_stat.then_block = Some(vec![ast::Break {}.into()].into());
+            changed = true;
         }
         if else_node == header && !header_successors.contains(&entry) {
             if_stat.else_block = Some(vec![ast::Continue {}.into()].into());
+            changed = true;
         } else if else_node == next {
             if_stat.else_block = Some(vec![ast::Break {}.into()].into());
+            changed = true;
         }
         if if_stat.then_block.is_some() && if_stat.else_block.is_none() {
             self.function
                 .set_block_terminator(entry, Some(Terminator::jump(else_node)));
+            changed = true;
         } else if if_stat.then_block.is_none() && if_stat.else_block.is_some() {
             if_stat.condition =
                 ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
             std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
             self.function
                 .set_block_terminator(entry, Some(Terminator::jump(then_node)));
+            changed = true;
         } else if if_stat.then_block.is_some() && if_stat.else_block.is_some() {
             self.function.set_block_terminator(entry, None);
+            changed = true;
         }
-        true
+        changed
     }
 
     pub(crate) fn match_conditional(
@@ -214,6 +217,10 @@ impl GraphStructurer {
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
+        if self.is_loop_header(entry) {
+            return false;
+        }
+
         let block = self.function.block_mut(entry).unwrap();
         if block.ast.last_mut().unwrap().as_if_mut().is_none() {
             // for loops

@@ -13,27 +13,21 @@ pub enum IndentationMode {
 }
 
 impl IndentationMode {
-    pub fn display(&self, indentation_level: usize) -> String {
-        let string = self.to_string();
-
-        string
-            .chars()
-            .cycle()
-            .take(indentation_level * string.len())
-            .collect()
+    pub fn display(&self, out: &mut impl fmt::Write, indentation_level: usize) -> fmt::Result {
+        let string = match self {
+            Self::Spaces(spaces) => Cow::Owned(" ".repeat(*spaces as usize)),
+            Self::Tab => Cow::Borrowed("\u{09}"),
+        };
+        for _ in 0..indentation_level {
+            out.write_str(&string)?;
+        }
+        Ok(())
     }
 }
 
 impl fmt::Display for IndentationMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Spaces(spaces) => Cow::Owned(" ".repeat(*spaces as usize)),
-                Self::Tab => Cow::Borrowed("\u{09}"),
-            }
-        )
+        self.display(f, 1)
     }
 }
 
@@ -80,12 +74,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     fn indent(&mut self) -> fmt::Result {
-        write!(
-            self.output,
-            "{}",
-            // TODO: make display return an iterator
-            self.indentation_mode.display(self.indentation_level)
-        )
+        self.indentation_mode
+            .display(&mut self.output, self.indentation_level)
     }
 
     // (function() end)()
@@ -308,23 +298,36 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     // TODO: Cow like from_utf8_lossy
-    pub(crate) fn escape_string(string: &[u8]) -> String {
-        let mut s = String::with_capacity(string.len());
-        for &c in string {
+    pub(crate) fn escape_string(string: &[u8]) -> Cow<str> {
+        let mut owned: Option<String> = None;
+        for (i, &c) in string.iter().enumerate() {
             if c == b' ' || (c.is_ascii_graphic() && c != b'\\' && c != b'\'' && c != b'\"') {
-                s.push(c as char);
+                if let Some(owned) = &mut owned {
+                    owned.push(c as char);
+                }
             } else {
+                if owned.is_none() {
+                    // TODO: unchecked?
+                    owned = Some(std::str::from_utf8(&string[..i]).unwrap().to_string());
+                    owned.as_mut().unwrap().reserve((string.len() - i) * 2);
+                }
+                let owned = owned.as_mut().unwrap();
                 match c {
-                    b'\n' => s.push_str("\\n"),
-                    b'\r' => s.push_str("\\r"),
-                    b'\t' => s.push_str("\\t"),
-                    b'\"' => s.push_str("\\\""),
-                    b'\'' => s.push_str("\\'"),
-                    _ => s.push_str(&format!("\\{:0>3}", c)),
+                    b'\n' => owned.push_str(r"\n"),
+                    b'\r' => owned.push_str(r"\r"),
+                    b'\t' => owned.push_str(r"\t"),
+                    b'\"' => owned.push_str(r#"\""#),
+                    b'\'' => owned.push_str(r"\'"),
+                    _ => owned.push_str(&format!(r"\{:0>3}", c)),
                 };
             }
         }
-        s
+        if let Some(owned) = owned {
+            owned.into()
+        } else {
+            // TODO: unchecked?
+            std::str::from_utf8(string).unwrap().into()
+        }
     }
 
     pub(crate) fn format_index(&mut self, index: &Index) -> fmt::Result {

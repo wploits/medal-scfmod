@@ -12,7 +12,6 @@ use petgraph::{
     visit::*,
 };
 
-mod compound;
 mod conditional;
 mod jump;
 mod r#loop;
@@ -65,22 +64,6 @@ impl GraphStructurer {
 
         //println!("before");
         //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
-
-        if successors.len() == 2 {
-            let (then_edge, else_edge) = self
-                .function
-                .block(node)
-                .unwrap()
-                .terminator
-                .as_ref()
-                .unwrap()
-                .as_conditional()
-                .unwrap();
-            if self.match_compound_conditional(node, then_edge.node, else_edge.node, dominators) {
-                // println!("matched compound conditional");
-                return true;
-            }
-        }
 
         if self.try_collapse_loop(node, dominators) {
             // println!("matched loop");

@@ -1,11 +1,12 @@
 use ast::{local_allocator::LocalAllocator, RcLocal};
 use contracts::requires;
+use fxhash::FxHashMap;
 use itertools::Itertools;
 use petgraph::{
     stable_graph::{Neighbors, NodeIndex, StableDiGraph},
     Direction,
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::block::{BasicBlock, BasicBlockEdge, Terminator};
 
@@ -132,7 +133,7 @@ impl Function {
     }
 
     // TODO: indexmap
-    pub fn blocks_mut(&mut self) -> HashMap<NodeIndex, &mut BasicBlock> {
+    pub fn blocks_mut(&mut self) -> FxHashMap<NodeIndex, &mut BasicBlock> {
         self.graph
             .node_indices()
             .collect_vec()
@@ -149,20 +150,21 @@ impl Function {
         self.graph.neighbors_directed(block, Direction::Incoming)
     }
 
-    pub fn edges_to_block(&self, node: NodeIndex) -> Vec<(NodeIndex, &BasicBlockEdge)> {
+    pub fn edges_to_block(
+        &self,
+        node: NodeIndex,
+    ) -> impl Iterator<Item = (NodeIndex, &BasicBlockEdge)> {
         self.predecessor_blocks(node)
-            .flat_map(|p| {
+            .filter_map(|p| {
                 self.graph
                     .node_weight(p)
                     .unwrap()
                     .terminator
                     .as_ref()
-                    .map_or_else(Vec::new, |t| {
-                        t.edges().into_iter().map(|e| (p, e)).collect()
-                    })
+                    .map(|t| (p, t))
             })
-            .filter(|(_, e)| e.node == node)
-            .collect()
+            .flat_map(|(p, t)| t.edges().into_iter().map(move |e| (p, e)))
+            .filter(move |(_, e)| e.node == node)
     }
 
     pub fn edges_to_block_mut(&mut self, node: NodeIndex) -> Vec<&mut BasicBlockEdge> {

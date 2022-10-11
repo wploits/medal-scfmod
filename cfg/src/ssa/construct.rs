@@ -229,8 +229,7 @@ impl<'a> SsaConstructor<'a> {
 
     fn try_remove_trivial_param(&mut self, node: NodeIndex, param_local: RcLocal) -> RcLocal {
         let mut same = None;
-        let edges = self.function.edges_to_block(node);
-        let args_in = edges.into_iter().map(|(_, e)| {
+        let args_in = self.function.edges_to_block(node).map(|(_, e)| {
             &e.arguments
                 .iter()
                 .find(|(p, _)| p == &param_local)
@@ -260,7 +259,6 @@ impl<'a> SsaConstructor<'a> {
             let mut edges = self
                 .function
                 .edges_to_block(node)
-                .into_iter()
                 .map(|(_, e)| e)
                 .peekable();
             if edges
@@ -354,7 +352,8 @@ impl<'a> SsaConstructor<'a> {
     fn propagate_copies(&mut self) {
         // TODO: repeated in inline.rs, move to separate function
         let node_indices = self.function.graph().node_indices().collect::<Vec<_>>();
-        let mut local_usages = FxHashMap::default();
+        let mut local_usages =
+            FxHashMap::with_capacity_and_hasher(self.local_count, Default::default());
         for &node in &node_indices {
             let block = self.function.block(node).unwrap();
             for stat in &block.ast.0 {
@@ -484,7 +483,7 @@ impl<'a> SsaConstructor<'a> {
                     .into_iter()
                     .cloned()
                     .collect::<Vec<_>>();
-                let mut map = FxHashMap::default();
+                let mut map = FxHashMap::with_capacity_and_hasher(read.len(), Default::default());
 
                 for local in &read {
                     let new_local = self.find_local(node, local);

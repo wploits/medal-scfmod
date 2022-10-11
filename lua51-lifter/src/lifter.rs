@@ -29,7 +29,7 @@ pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeIndex>,
     insert_between: FxHashMap<NodeIndex, (NodeIndex, Statement)>,
-    blocks_to_skip: FxHashMap<usize, usize>,
+    //blocks_to_skip: FxHashMap<usize, usize>,
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
     function: Function,
@@ -38,11 +38,15 @@ pub struct LifterContext<'a> {
 
 impl<'a> LifterContext<'a> {
     fn allocate_locals(&mut self) {
+        self.upvalues
+            .reserve(self.bytecode.number_of_upvalues as usize);
         for _ in 0..self.bytecode.number_of_upvalues {
             self.upvalues
                 .push(self.function.local_allocator.borrow_mut().allocate());
         }
 
+        self.locals
+            .reserve(self.bytecode.maximum_stack_size as usize);
         for i in 0..self.bytecode.maximum_stack_size {
             let local = self.function.local_allocator.borrow_mut().allocate();
             if i < self.bytecode.number_of_parameters {
@@ -145,20 +149,21 @@ impl<'a> LifterContext<'a> {
             .iter()
             .cloned()
             .zip(ends)
-            .filter(|(s, _)| !self.blocks_to_skip.contains_key(s))
+            //.filter(|(s, _)| !self.blocks_to_skip.contains_key(s))
             .collect()
     }
 
     fn constant(&mut self, constant: Constant) -> ast::Literal {
-        let converted_constant = match self.bytecode.constants.get(constant.0 as usize).unwrap() {
-            Value::Nil => ast::Literal::Nil,
-            Value::Boolean(v) => ast::Literal::Boolean(*v),
-            Value::Number(v) => ast::Literal::Number(*v),
-            Value::String(v) => ast::Literal::String(v.to_vec()),
-        };
         self.constants
             .entry(constant.0 as usize)
-            .or_insert(converted_constant)
+            .or_insert_with(
+                || match self.bytecode.constants.get(constant.0 as usize).unwrap() {
+                    Value::Nil => ast::Literal::Nil,
+                    Value::Boolean(v) => ast::Literal::Boolean(*v),
+                    Value::Number(v) => ast::Literal::Number(*v),
+                    Value::String(v) => ast::Literal::String(v.to_vec()),
+                },
+            )
             .clone()
     }
 
@@ -802,9 +807,9 @@ impl<'a> LifterContext<'a> {
     }
 
     fn get_node(&'a self, mut index: &'a usize) -> NodeIndex {
-        while let Some(index_to) = self.blocks_to_skip.get(index) {
-            index = index_to;
-        }
+        // while let Some(index_to) = self.blocks_to_skip.get(index) {
+        //     index = index_to;
+        // }
         self.nodes[index]
     }
 
@@ -888,7 +893,7 @@ impl<'a> LifterContext<'a> {
             bytecode,
             nodes: FxHashMap::default(),
             insert_between: FxHashMap::default(),
-            blocks_to_skip: FxHashMap::default(),
+            // blocks_to_skip: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
             function: Function::with_allocator(local_allocator),
@@ -935,7 +940,7 @@ impl<'a> LifterContext<'a> {
             let (local_count, local_groups, upvalue_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let upvalue_to_group = upvalue_groups
                 .iter()
@@ -961,7 +966,7 @@ impl<'a> LifterContext<'a> {
                     break;
                 }
 
-                cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+                // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
                 let mut local_map = FxHashMap::default();
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
@@ -971,7 +976,7 @@ impl<'a> LifterContext<'a> {
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let upvalues_in = cfg::ssa::destruct(
                 &mut function,
