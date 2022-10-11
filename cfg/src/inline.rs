@@ -35,6 +35,7 @@ fn inline_expression(
 fn inline_expressions(
     function: &mut Function,
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
+    // we dont need to update local usages because we only inline locals with 1 original usage
     local_usages: &FxHashMap<ast::RcLocal, usize>,
 ) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
@@ -115,7 +116,6 @@ fn inline_expressions(
 }
 
 pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
-    // we dont need to update local usages because we only inline locals with 1 original usage
     let mut local_usages = FxHashMap::default();
     for node in function.graph().node_indices() {
         let block = function.block(node).unwrap();
@@ -184,6 +184,7 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                             std::mem::replace(block.ast.get_mut(i).unwrap(), ast::Empty {}.into())
                                 .into_set_list()
                                 .unwrap();
+                        *local_usages.get_mut(&setlist.table).unwrap() -= 1;
                         let assign = block.ast.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
                         let table = assign.right[0].as_table_mut().unwrap();
                         assert!(
