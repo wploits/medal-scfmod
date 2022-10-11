@@ -235,7 +235,10 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
         if simplify_condition(function, node) {
             did_structure = true;
         }
-        if let Some(pattern) = match_conditional_assignment(function, node) {
+        if let Some(pattern) = match_conditional_assignment(function, node)
+            // TODO: can we continue?
+            && &Some(pattern.assigner) != function.entry()
+        {
             let block = function.block_mut(node).unwrap();
             block.ast.pop();
             block.ast.push(
@@ -275,7 +278,10 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             did_structure = true;
         }
 
-        if let Some(pattern) = match_conditional_sequence(function, node) {
+        if let Some(pattern) = match_conditional_sequence(function, node)
+            // TODO: can we continue?
+            && &Some(pattern.second_node) != function.entry()
+        {
             let edges = function
                 .block(pattern.first_node)
                 .unwrap()
@@ -630,6 +636,9 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                     }
                     if can_remove {
                         function.remove_block(node);
+                        if &Some(node) == function.entry() {
+                            function.set_entry(jump.node);
+                        }
                     }
                     did_structure = true;
                 } else if function.predecessor_blocks(jump.node).count() == 1
@@ -638,6 +647,9 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                     assert!(jump.arguments.is_empty());
                     let terminator = function.block_mut(jump.node).unwrap().terminator.take();
                     let body = function.remove_block(jump.node).unwrap().ast;
+                    if &Some(jump.node) == function.entry() {
+                        function.set_entry(node);
+                    }
                     function.block_mut(node).unwrap().ast.extend(body.0);
                     function.set_block_terminator(node, terminator);
                     did_structure = true;
