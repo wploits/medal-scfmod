@@ -441,77 +441,77 @@ pub fn structure_for_loops(
     dominators: &Dominators<NodeIndex>,
     post_dominators: &Dominators<NodeIndex>,
 ) -> bool {
-    return false;
+    false
 
-    let mut did_structure = false;
-    for node in function.graph().node_indices().collect_vec() {
-        if let Some(pattern) = match_for_next(function, post_dominators, node) {
-            let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
-                !dominators
-                    .dominators(n)
-                    .unwrap()
-                    .contains(&pattern.body_node)
-            });
-            let init_node = init_blocks.next().unwrap();
-            assert!(init_blocks.next().is_none());
-            assert!(function.successor_blocks(init_node).count() == 1);
+    // let mut did_structure = false;
+    // for node in function.graph().node_indices().collect_vec() {
+    //     if let Some(pattern) = match_for_next(function, post_dominators, node) {
+    //         let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
+    //             !dominators
+    //                 .dominators(n)
+    //                 .unwrap()
+    //                 .contains(&pattern.body_node)
+    //         });
+    //         let init_node = init_blocks.next().unwrap();
+    //         assert!(init_blocks.next().is_none());
+    //         assert!(function.successor_blocks(init_node).count() == 1);
 
-            let edges = function.edges_to_block(node);
-            let params = edges[0]
-                .1
-                .arguments
-                .iter()
-                .map(|(p, _)| p)
-                .collect::<FxHashSet<_>>();
+    //         let edges = function.edges_to_block(node);
+    //         let params = edges[0]
+    //             .1
+    //             .arguments
+    //             .iter()
+    //             .map(|(p, _)| p)
+    //             .collect::<FxHashSet<_>>();
 
-            // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
-            let mut generator_locals = pattern
-                .generator
-                .values_read()
-                .into_iter()
-                .filter(|l| !params.contains(l));
-            if let Some(generator_local) = generator_locals.next()
-                && generator_locals.next().is_none()
-            {
-                let generator_local = generator_local.clone();
+    //         // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
+    //         let mut generator_locals = pattern
+    //             .generator
+    //             .values_read()
+    //             .into_iter()
+    //             .filter(|l| !params.contains(l));
+    //         if let Some(generator_local) = generator_locals.next()
+    //             && generator_locals.next().is_none()
+    //         {
+    //             let generator_local = generator_local.clone();
 
-                if params.contains(&pattern.internal_control) {
-                    let initial_control = function.block(init_node).unwrap().terminator().as_ref().unwrap().edges()[0].arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.clone();
-                    let mut invalid_for = false;
-                    for (_, edge) in edges.into_iter().filter(|(p, _)| p != &init_node) {
-                        if edge.arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1
-                            != pattern.res_locals[0] {
-                                invalid_for = true;
-                                break;
-                            }
-                    }
-                    if !invalid_for {
-                        for edge in function.edges_to_block_mut(node) {
-                            edge.arguments.clear();
-                        }
+    //             if params.contains(&pattern.internal_control) {
+    //                 let initial_control = function.block(init_node).unwrap().terminator().as_ref().unwrap().edges()[0].arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.clone();
+    //                 let mut invalid_for = false;
+    //                 for (_, edge) in edges.into_iter().filter(|(p, _)| p != &init_node) {
+    //                     if edge.arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1
+    //                         != pattern.res_locals[0] {
+    //                             invalid_for = true;
+    //                             break;
+    //                         }
+    //                 }
+    //                 if !invalid_for {
+    //                     for edge in function.edges_to_block_mut(node) {
+    //                         edge.arguments.clear();
+    //                     }
 
-                        let block = function.block_mut(node).unwrap();
-                        let len = block.ast.len();
-                        block.ast.truncate(len - 2);
-                        block.ast.push(
-                            ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
-                        );
-        
-                        function.block_mut(init_node).unwrap().ast.push(
-                            ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
-                                .into(),
-                        );
-                        did_structure = true;
-                    }
-                } else {
-                    // initial_control is nil,
-                    // there is only a single control variable
-                    todo!();
-                }
-            }
-        }
-    }
-    did_structure
+    //                     let block = function.block_mut(node).unwrap();
+    //                     let len = block.ast.len();
+    //                     block.ast.truncate(len - 2);
+    //                     block.ast.push(
+    //                         ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+    //                     );
+
+    //                     function.block_mut(init_node).unwrap().ast.push(
+    //                         ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
+    //                             .into(),
+    //                     );
+    //                     did_structure = true;
+    //                 }
+    //             } else {
+    //                 // initial_control is nil,
+    //                 // there is only a single control variable
+    //                 todo!();
+    //             }
+    //         }
+    //     }
+    // }
+    // did_structure
 }
 
 fn match_method_call(call: &ast::Call) -> Option<(&ast::RValue, &str)> {

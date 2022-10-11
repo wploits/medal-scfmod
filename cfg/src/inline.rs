@@ -32,24 +32,12 @@ fn inline_expression(
 
 // TODO: dont clone expressions
 // TODO: move to ssa module?
-fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
+fn inline_expressions(
+    function: &mut Function,
+    upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
+    local_usages: &FxHashMap<ast::RcLocal, usize>,
+) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
-    let mut local_usages = FxHashMap::default();
-    for &node in &node_indices {
-        let block = function.block(node).unwrap();
-        for stat in &block.ast.0 {
-            for read in stat.values_read() {
-                *local_usages.entry(read.clone()).or_insert(0usize) += 1;
-            }
-        }
-        if let Some(terminator) = block.terminator() {
-            for edge in terminator.edges() {
-                for (_, arg) in &edge.arguments {
-                    *local_usages.entry(arg.clone()).or_insert(0usize) += 1;
-                }
-            }
-        }
-    }
     for node in node_indices {
         let block = function.block_mut(node).unwrap();
         let mut locals_out = FxHashSet::default();
@@ -127,10 +115,28 @@ fn inline_expressions(function: &mut Function, upvalue_to_group: &IndexMap<ast::
 }
 
 pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
+    // we dont need to update local usages because we only inline locals with 1 original usage
+    let mut local_usages = FxHashMap::default();
+    for node in function.graph().node_indices() {
+        let block = function.block(node).unwrap();
+        for stat in &block.ast.0 {
+            for read in stat.values_read() {
+                *local_usages.entry(read.clone()).or_insert(0usize) += 1;
+            }
+        }
+        if let Some(terminator) = block.terminator() {
+            for edge in terminator.edges() {
+                for (_, arg) in &edge.arguments {
+                    *local_usages.entry(arg.clone()).or_insert(0usize) += 1;
+                }
+            }
+        }
+    }
+
     let mut changed = true;
     while changed {
         changed = false;
-        inline_expressions(function, upvalue_to_group);
+        inline_expressions(function, upvalue_to_group, &local_usages);
         for (_, block) in function.blocks_mut() {
             // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
             // TODO: fix ^
