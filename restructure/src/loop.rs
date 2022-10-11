@@ -20,9 +20,7 @@ impl GraphStructurer {
             // TODO: this shouldnt be an issue if we use patterns for numfor
             // for i = 1, 10 do break end
             let block = self.function.block_mut(header).unwrap();
-            if block.ast.len() >= 2
-                && block.ast.last().unwrap().as_num_for_next().is_some()
-            {
+            if block.ast.len() >= 2 && block.ast.last().unwrap().as_num_for_next().is_some() {
                 let num_for_next = block.ast.pop().unwrap().into_num_for_next().unwrap();
                 let mut num_for_init = block.ast.pop().unwrap().into_num_for_init().unwrap();
                 block.ast.push(
@@ -156,18 +154,12 @@ impl GraphStructurer {
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect_vec();
 
-            /*let mut continues = self
+            let continues = self
                 .function
                 .predecessor_blocks(header)
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect_vec();
-            if continues.len() == 1 {
-                continues.clear();
-            } else {
-                todo!("remove node that dominates all");
-            }*/
-            let continues = Vec::new();
-
+            //assert!(continues.len() <= 1);
             //println!("continues: {:?}", continues);
 
             let mut changed = false;
@@ -196,7 +188,7 @@ impl GraphStructurer {
                         );
                     }
                     Terminator::Jump(edge) => {
-                        self.refine_virtual_edge_jump(node, edge.node, header, next);
+                        changed |= self.refine_virtual_edge_jump(node, edge.node, header, next);
                     }
                 };
             }
