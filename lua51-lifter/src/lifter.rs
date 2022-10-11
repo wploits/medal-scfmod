@@ -949,21 +949,24 @@ impl<'a> LifterContext<'a> {
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
                 .collect::<IndexMap<_, _>>();
 
-            loop {
+            let mut changed = true;
+            while changed {
+                changed = false;
+
                 let dominators = simple_fast(function.graph(), function.entry().unwrap());
-                structure_jumps(&mut function, &dominators);
+                changed |= structure_jumps(&mut function, &dominators);
 
                 // TODO: remove unused variables without side effects
                 inline(&mut function, &upvalue_to_group);
 
-                if !structure_compound_conditionals(&mut function)
-                    && !{
+                if structure_compound_conditionals(&mut function)
+                    || {
                         let post_dominators = post_dominators(function.graph_mut());
                         structure_for_loops(&mut function, &dominators, &post_dominators)
                     }
-                    && !structure_method_calls(&mut function)
+                    || structure_method_calls(&mut function)
                 {
-                    break;
+                    changed = true;
                 }
 
                 // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
@@ -972,7 +975,8 @@ impl<'a> LifterContext<'a> {
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
                 cfg::ssa::construct::apply_local_map(&mut function, local_map);
             }
-            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+
+            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
