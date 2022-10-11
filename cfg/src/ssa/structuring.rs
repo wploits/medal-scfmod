@@ -632,18 +632,22 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             {
                 if block.ast.is_empty() {
                     let old_terminator = function.block(node).unwrap().terminator.as_ref().unwrap().as_jump().unwrap().clone();
+                    let mut can_remove = true;
                     for pred in function.predecessor_blocks(node).collect_vec() {
                         // TODO: support multiple edges from pred > jump.node
-                        if !function.successor_blocks(pred).any(|s| s == jump.node) {
-                            replace_edge_with_parameters(function, pred, node, jump.node, old_terminator.arguments.clone());
-                            function.remove_block(node);
-                            if &Some(node) == function.entry() {
-                                function.set_entry(jump.node);
-                            }
-                            did_structure = true;
+                        if function.successor_blocks(pred).any(|s| s == jump.node) {
+                            can_remove = false;
                         } else {
-                            panic!();
+                            replace_edge_with_parameters(function, pred, node, jump.node, old_terminator.arguments.clone());
+                            did_structure = true;
                         }
+                    }
+                    if can_remove {
+                        function.remove_block(node);
+                        if &Some(node) == function.entry() {
+                            function.set_entry(jump.node);
+                        }
+                        did_structure = true;
                     }
                 } else if function.predecessor_blocks(jump.node).count() == 1
                     && dominators.dominators(jump.node).map(|mut d| d.contains(&node)).unwrap_or(false)
