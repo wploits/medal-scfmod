@@ -1,3 +1,5 @@
+use std::fmt;
+
 use ast::RcLocal;
 use enum_as_inner::EnumAsInner;
 use petgraph::stable_graph::NodeIndex;
@@ -22,6 +24,16 @@ impl BlockEdge {
         Self {
             branch_type,
             arguments: Vec::new(),
+        }
+    }
+}
+
+impl fmt::Display for BlockEdge {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.branch_type {
+            BranchType::Unconditional => write!(f, "u"),
+            BranchType::Then => write!(f, "t"),
+            BranchType::Else => write!(f, "e"),
         }
     }
 }

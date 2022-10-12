@@ -6,5 +6,5 @@ pub mod block;
 pub mod dot;
 pub mod function;
 pub mod inline;
-//pub mod pattern;
+pub mod pattern;
 pub mod ssa;
