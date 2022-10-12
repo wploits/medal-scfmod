@@ -5,12 +5,12 @@ use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use petgraph::{
     stable_graph::NodeIndex,
-    visit::{Dfs, Walker},
+    visit::{Dfs, EdgeRef, Walker},
     Direction,
 };
 
 use crate::{
-    block::Terminator, function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
+    block::BlockEdge, function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
 };
 
 use super::upvalues::UpvaluesOpen;
@@ -38,12 +38,21 @@ pub fn remove_unnecessary_params(
     for node in function.blocks().map(|(i, _)| i).collect::<Vec<_>>() {
         let mut dependency_graph = ParamDependencyGraph::new(function, node);
         let mut removable_params = FxHashMap::default();
-        let mut edges = function.edges_to_block_mut(node);
+        let edges = function
+            .graph()
+            .edges_directed(node, Direction::Incoming)
+            .collect::<Vec<_>>();
         if !edges.is_empty() {
-            let params = edges[0].arguments.iter().map(|(p, _)| p);
+            let params = edges[0].weight().arguments.iter().map(|(p, _)| p);
             let args_in_by_block = edges
                 .iter()
-                .map(|e| e.arguments.iter().map(|(_, a)| a).collect::<Vec<_>>())
+                .map(|e| {
+                    e.weight()
+                        .arguments
+                        .iter()
+                        .map(|(_, a)| a)
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>();
             let mut params_to_remove = FxHashSet::default();
             for (index, mut param) in params.enumerate() {
@@ -75,8 +84,12 @@ pub fn remove_unnecessary_params(
                     params_to_remove.insert(param.clone());
                 }
             }
-            for edge in &mut edges {
-                edge.arguments
+            for edge in edges.into_iter().map(|e| e.id()).collect::<Vec<_>>() {
+                function
+                    .graph_mut()
+                    .edge_weight_mut(edge)
+                    .unwrap()
+                    .arguments
                     .retain(|(p, _)| !params_to_remove.contains(p))
             }
         }
@@ -124,7 +137,7 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
     // TODO: blocks_mut
     for node in function.graph().node_indices().collect::<Vec<_>>() {
         let block = function.block_mut(node).unwrap();
-        for stat in block.ast.iter_mut() {
+        for stat in block.iter_mut() {
             // TODO: figure out values_mut
             for (from, mut to) in stat
                 .values_written_mut()
@@ -154,20 +167,21 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                 }
             });
         }
-        if let Some(terminator) = block.terminator_mut() {
-            for edge in terminator.edges_mut() {
-                // TODO: rename Stat::values, Expr::values to locals() and refer to locals as locals everywhere
-                for local in edge
-                    .arguments
-                    .iter_mut()
-                    .flat_map(|(p, a)| iter::once(p).chain(iter::once(a)))
-                {
-                    if let Some(mut new_local) = local_map.get(local) {
-                        while let Some(new_to) = local_map.get(new_local) {
-                            new_local = new_to;
-                        }
-                        *local = new_local.clone();
+        for edge in function.edges(node).map(|e| e.id()).collect::<Vec<_>>() {
+            // TODO: rename Stat::values, Expr::values to locals() and refer to locals as locals everywhere
+            for local in function
+                .graph_mut()
+                .edge_weight_mut(edge)
+                .unwrap()
+                .arguments
+                .iter_mut()
+                .flat_map(|(p, a)| iter::once(p).chain(iter::once(a)))
+            {
+                if let Some(mut new_local) = local_map.get(local) {
+                    while let Some(new_to) = local_map.get(new_local) {
+                        new_local = new_to;
                     }
+                    *local = new_local.clone();
                 }
             }
         }
@@ -193,35 +207,20 @@ impl<'a> SsaConstructor<'a> {
         local: &RcLocal,
         param_local: RcLocal,
     ) -> RcLocal {
-        let mut preds = self.function.predecessor_blocks(node).detach();
-        while let Some((_, pred)) = preds.next(self.function.graph()) {
-            let argument_local = self.find_local(pred, local);
-            match self
-                .function
-                .block_mut(pred)
+        for (source, edge) in self
+            .function
+            .graph()
+            .edges_directed(node, Direction::Incoming)
+            .map(|e| (e.source(), e.id()))
+            .collect::<Vec<_>>()
+        {
+            let argument_local = self.find_local(source, local);
+            self.function
+                .graph_mut()
+                .edge_weight_mut(edge)
                 .unwrap()
-                .terminator
-                .as_mut()
-                .unwrap()
-            {
-                Terminator::Jump(edge) => {
-                    assert!(edge.node == node);
-                    edge.arguments.push((param_local.clone(), argument_local));
-                }
-                Terminator::Conditional(then_edge, else_edge) => {
-                    if then_edge.node == node {
-                        then_edge
-                            .arguments
-                            .push((param_local.clone(), argument_local));
-                    } else if else_edge.node == node {
-                        else_edge
-                            .arguments
-                            .push((param_local.clone(), argument_local));
-                    } else {
-                        unreachable!();
-                    }
-                }
-            }
+                .arguments
+                .push((param_local.clone(), argument_local));
         }
 
         self.try_remove_trivial_param(node, param_local)
@@ -356,7 +355,7 @@ impl<'a> SsaConstructor<'a> {
             FxHashMap::with_capacity_and_hasher(self.local_count, Default::default());
         for &node in &node_indices {
             let block = self.function.block(node).unwrap();
-            for stat in &block.ast.0 {
+            for stat in &block.0 {
                 for read in stat.values_read() {
                     local_usages
                         .entry(read.clone())
@@ -364,14 +363,12 @@ impl<'a> SsaConstructor<'a> {
                         .insert(node);
                 }
             }
-            if let Some(terminator) = block.terminator() {
-                for edge in terminator.edges() {
-                    for (_, arg) in &edge.arguments {
-                        local_usages
-                            .entry(arg.clone())
-                            .or_insert_with(FxHashSet::default)
-                            .insert(node);
-                    }
+            for edge in self.function.edges(node) {
+                for (_, arg) in &edge.weight().arguments {
+                    local_usages
+                        .entry(arg.clone())
+                        .or_insert_with(FxHashSet::default)
+                        .insert(node);
                 }
             }
         }
@@ -380,14 +377,13 @@ impl<'a> SsaConstructor<'a> {
             let mut assigned_locals = FxHashSet::default();
             let mut indices_to_remove = Vec::new();
             for index in block
-                .ast
                 .iter()
                 .enumerate()
                 .filter_map(|(i, s)| s.as_assign().map(|_| i))
                 .collect::<Vec<_>>()
             {
                 let block = self.function.block_mut(node).unwrap();
-                let assign = block.ast[index].as_assign().unwrap();
+                let assign = block[index].as_assign().unwrap();
                 if assign.left.len() == 1 && assign.right.len() == 1
                     && let Some(from) = assign.left[0].as_local()
                     && let from_old = &self.old_locals[from]
@@ -412,7 +408,7 @@ impl<'a> SsaConstructor<'a> {
             }
             let block = self.function.block_mut(node).unwrap();
             for index in indices_to_remove.into_iter().rev() {
-                block.ast.remove(index);
+                block.remove(index);
             }
         }
     }
@@ -420,14 +416,8 @@ impl<'a> SsaConstructor<'a> {
     fn mark_upvalues(&mut self) {
         let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
         for &node in &self.dfs {
-            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
-                let statement = self
-                    .function
-                    .block(node)
-                    .unwrap()
-                    .ast
-                    .get(stat_index)
-                    .unwrap();
+            for stat_index in 0..self.function.block(node).unwrap().len() {
+                let statement = self.function.block(node).unwrap().get(stat_index).unwrap();
                 let values = statement.values().into_iter().cloned().collect::<Vec<_>>();
                 for value in values {
                     let old_local = &self.old_locals[&value];
@@ -453,7 +443,6 @@ impl<'a> SsaConstructor<'a> {
             self.function
                 .block_mut(node)
                 .unwrap()
-                .ast
                 .retain(|statement| !matches!(statement, ast::Statement::Close(_)))
         }
     }
@@ -464,13 +453,12 @@ impl<'a> SsaConstructor<'a> {
         for i in 0..self.dfs.len() {
             let node = self.dfs[i];
             visited_nodes.push(node);
-            for stat_index in 0..self.function.block(node).unwrap().ast.len() {
+            for stat_index in 0..self.function.block(node).unwrap().len() {
                 // read
                 let statement = self
                     .function
                     .block_mut(node)
                     .unwrap()
-                    .ast
                     .get_mut(stat_index)
                     .unwrap();
                 let read = statement
@@ -494,7 +482,6 @@ impl<'a> SsaConstructor<'a> {
                         .function
                         .block_mut(node)
                         .unwrap()
-                        .ast
                         .get_mut(stat_index)
                         .unwrap();
                     *statement.values_read_mut()[local_index] = map[&local].clone();
@@ -504,7 +491,6 @@ impl<'a> SsaConstructor<'a> {
                     .function
                     .block_mut(node)
                     .unwrap()
-                    .ast
                     .get_mut(stat_index)
                     .unwrap();
                 if let Some(assign) = statement.as_assign()
@@ -524,7 +510,6 @@ impl<'a> SsaConstructor<'a> {
                         .function
                         .block_mut(node)
                         .unwrap()
-                        .ast
                         .get_mut(stat_index)
                         .unwrap();
                     let assign = statement.as_assign_mut().unwrap();
@@ -553,7 +538,6 @@ impl<'a> SsaConstructor<'a> {
                             .function
                             .block_mut(node)
                             .unwrap()
-                            .ast
                             .get_mut(stat_index)
                             .unwrap();
                         *statement.values_written_mut()[local_index] = new_local;
@@ -565,7 +549,6 @@ impl<'a> SsaConstructor<'a> {
                         .function
                         .block_mut(node)
                         .unwrap()
-                        .ast
                         .get_mut(stat_index)
                         .unwrap();
                     statement.traverse_rvalues(&mut |rvalue| {

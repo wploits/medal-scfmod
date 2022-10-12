@@ -77,16 +77,8 @@ impl GraphStructurer {
                 self.match_jump(node, Some(successors[0]), dominators)
             }
             2 => {
-                let (then_edge, else_edge) = self
-                    .function
-                    .block(node)
-                    .unwrap()
-                    .terminator
-                    .as_ref()
-                    .unwrap()
-                    .as_conditional()
-                    .unwrap();
-                self.match_conditional(node, then_edge.node, else_edge.node, dominators)
+                let (then_edge, else_edge) = self.function.conditional_edges(node).unwrap();
+                self.match_conditional(node, then_edge.target(), else_edge.target(), dominators)
             }
 
             _ => unreachable!(),
@@ -115,16 +107,16 @@ impl GraphStructurer {
             self.function.remove_block(node);
         }
 
-        // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+        cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         let mut changed = false;
         while let Some(node) = dfs_postorder.next(self.function.graph()) {
-            // println!("matching {:?}", node);
+            println!("matching {:?}", node);
             let matched = self.try_match_pattern(node, &dominators);
             changed |= matched;
-            // if matched {
-            //     cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
-            // }
+            if matched {
+                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+            }
         }
 
         changed
@@ -141,18 +133,11 @@ impl GraphStructurer {
             iter::once(
                 ast::Comment::new(format!("failed to collapse, total nodes: {}", nodes)).into(),
             )
-            .chain(
-                self.function
-                    .remove_block(self.root)
-                    .unwrap()
-                    .ast
-                    .0
-                    .into_iter(),
-            )
+            .chain(self.function.remove_block(self.root).unwrap().0.into_iter())
             .collect::<Vec<_>>()
             .into()
         } else {
-            self.function.remove_block(self.root).unwrap().ast
+            self.function.remove_block(self.root).unwrap()
         }
     }
 }

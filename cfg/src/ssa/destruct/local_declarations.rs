@@ -5,12 +5,13 @@ use indexmap::IndexSet;
 use itertools::{Either, Itertools};
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
-use crate::{block::BasicBlock, function::Function};
+use crate::function::Function;
 
-fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
+fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLocal) {
+    let block = function.block_mut(node).unwrap();
     let mut inline = true;
     let mut read_stat_index = None;
-    for (index, statement) in block.ast.iter_mut().enumerate() {
+    for (index, statement) in block.iter_mut().enumerate() {
         if statement.values_read().contains(&&local) {
             if read_stat_index.is_some() {
                 inline = false;
@@ -32,7 +33,7 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
     if let Some(index) = read_stat_index {
         let mut local_usages = 0usize;
         if inline {
-            for read in block.ast[index].values_read() {
+            for read in block[index].values_read() {
                 if read == &local {
                     local_usages += 1;
                     if local_usages > 1 {
@@ -44,24 +45,23 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
         }
 
         if inline {
-            if let Some(terminator) = block.terminator() {
-                'o: for edge in terminator.edges() {
-                    for (_, arg) in &edge.arguments {
-                        if arg == &local {
-                            local_usages += 1;
-                            if local_usages > 1 {
-                                inline = false;
-                                break 'o;
-                            }
+            'o: for edge in function.edges(node) {
+                for (_, arg) in &edge.weight().arguments {
+                    if arg == &local {
+                        local_usages += 1;
+                        if local_usages > 1 {
+                            inline = false;
+                            break 'o;
                         }
                     }
                 }
             }
         }
 
+        let block = function.block_mut(node).unwrap();
         if inline {
             // we can replace usage of this local with `nil` :)
-            let res = block.ast[index]
+            let res = block[index]
                 .post_traverse_values(&mut |v| {
                     if let Either::Right(rvalue) = v {
                         if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == local {
@@ -86,17 +86,17 @@ fn push_declaration(block: &mut BasicBlock, local: ast::RcLocal) {
 
         let mut assignment = ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
         assignment.prefix = true;
-        block.ast.insert(index, assignment.into());
+        block.insert(index, assignment.into());
         return;
     }
 
     let mut declaration = ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]);
     declaration.prefix = true;
-    if block.ast.last().unwrap().as_if().is_some() {
-        let index = block.ast.len() - 1;
-        block.ast.insert(index, declaration.into());
+    if block.last().unwrap().as_if().is_some() {
+        let index = block.len() - 1;
+        block.insert(index, declaration.into());
     } else {
-        block.ast.push(declaration.into());
+        block.push(declaration.into());
     };
 }
 
@@ -116,9 +116,7 @@ pub(crate) fn declare_locals(
         }
         if reference_nodes.len() == 1 {
             let reference_node = reference_nodes.into_iter().next().unwrap();
-            let block = function.block_mut(reference_node).unwrap();
-
-            push_declaration(block, local);
+            push_declaration(function, reference_node, local);
         } else {
             let mut node_dominators = reference_nodes
                 .into_iter()
@@ -128,7 +126,7 @@ pub(crate) fn declare_locals(
                 common_dominators = common_dominators.intersect(node_dominators);
             }
             let common_dominator = common_dominators[0];
-            push_declaration(function.block_mut(common_dominator).unwrap(), local);
+            push_declaration(function, common_dominator, local);
         }
     }
 }

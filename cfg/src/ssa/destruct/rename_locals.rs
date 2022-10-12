@@ -63,7 +63,7 @@ impl<'a> LocalRenamer<'a> {
         let mut dfs = Bfs::new(self.function.graph(), self.function.entry().unwrap());
         while let Some(node) = dfs.next(self.function.graph()) {
             let block = self.function.block_mut(node).unwrap();
-            for stat in block.ast.iter_mut() {
+            for stat in block.iter_mut() {
                 // TODO: values_mut or maybe LocalRw::apply_renaming_map (similar code in construction)
                 for (to, from) in stat
                     .values_written_mut()
@@ -100,7 +100,7 @@ impl<'a> LocalRenamer<'a> {
     // Remove assignments in the form of "x = x"
     fn remove_redundant_assigns(&mut self) {
         for block in self.function.graph_mut().node_weights_mut() {
-            block.ast.retain(|stat| {
+            block.retain(|stat| {
                 stat.as_assign()
                     .map(|a| {
                         let l = a.left[0].as_local();

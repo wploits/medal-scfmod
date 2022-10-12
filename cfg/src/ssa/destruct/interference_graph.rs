@@ -141,7 +141,7 @@ impl InterferenceGraph {
             this.create_interference_in_nodes(&live_in_nodes);
             this.create_interference(&block_liveness.live_out);
             let mut current_live_set = block_liveness.live_out.clone();
-            for statement in block.ast.iter().rev() {
+            for statement in block.iter().rev() {
                 this.update_live_set(statement, &mut current_live_set);
             }
             let dead_phis = block_liveness

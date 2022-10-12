@@ -1,8 +1,8 @@
 use fxhash::FxHashSet;
-use petgraph::stable_graph::NodeIndex;
+use petgraph::{stable_graph::NodeIndex, visit::EdgeRef, Direction};
 
 use crate::{
-    block::{BasicBlockEdge, Terminator},
+    block::{BlockEdge, BranchType},
     function::Function,
 };
 
@@ -38,23 +38,30 @@ impl<'a> ParamLifter<'a> {
     fn lift_params(&mut self, node: NodeIndex) {
         let mut preds = self.function.predecessor_blocks(node).detach();
         while let Some((_, pred)) = preds.next(self.function.graph()) {
-            let terminator = self
-                .function
-                .block_mut(pred)
-                .unwrap()
-                .terminator
-                .as_mut()
-                .unwrap();
-            let is_unconditional = matches!(terminator, Terminator::Jump(_));
-            let edge = terminator
-                .edges_mut()
-                .into_iter()
-                .find(|edge| edge.node == node)
-                .unwrap();
-            let args = std::mem::take(&mut edge.arguments)
-                .into_iter()
-                .filter(|(p, a)| p != a)
+            let edges = self.function.edges(pred).collect::<Vec<_>>();
+            let is_unconditional = edges.len() == 1;
+            if is_unconditional {
+                assert!(edges[0].weight().branch_type == BranchType::Unconditional);
+            }
+            let edges_to_node = edges
+                .iter()
+                .filter(|e| e.target() == node)
                 .collect::<Vec<_>>();
+            if edges_to_node.len() > 1 {
+                todo!();
+            }
+            let edge = edges_to_node[0].id();
+            let args = std::mem::take(
+                &mut self
+                    .function
+                    .graph_mut()
+                    .edge_weight_mut(edge)
+                    .unwrap()
+                    .arguments,
+            )
+            .into_iter()
+            .filter(|(p, a)| p != a)
+            .collect::<Vec<_>>();
 
             let mut assign_instrs = Vec::with_capacity(args.len());
             let mut defined_vars = FxHashSet::default();
@@ -90,20 +97,27 @@ impl<'a> ParamLifter<'a> {
                     pred
                 } else {
                     let new_block = self.function.new_block();
-                    self.function.set_block_terminator(
+                    self.function.set_edges(
                         new_block,
-                        Some(Terminator::Jump(BasicBlockEdge {
-                            node,
-                            arguments: Vec::new(),
-                        })),
+                        vec![(node, BlockEdge::new(BranchType::Unconditional))],
                     );
-                    self.function.replace_edge(pred, node, new_block);
+                    // TODO: replace_edge
+                    for edge in self
+                        .function
+                        .graph()
+                        .edges_directed(pred, Direction::Outgoing)
+                        .filter(|e| e.target() == node)
+                        .map(|e| e.id())
+                        .collect::<Vec<_>>()
+                    {
+                        let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+                        self.function.graph_mut().add_edge(pred, new_block, edge);
+                    }
                     new_block
                 };
                 self.function
                     .block_mut(assign_block)
                     .unwrap()
-                    .ast
                     .extend(assign_instrs);
             }
         }

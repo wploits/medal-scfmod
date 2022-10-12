@@ -55,7 +55,7 @@ impl Liveness {
         };
         for (node, block) in function.blocks() {
             let block_liveness = liveness.block_liveness.entry(node).or_default();
-            for instruction in block.ast.iter() {
+            for instruction in block.iter() {
                 block_liveness
                     .uses
                     .extend(instruction.values_read().into_iter().cloned());
@@ -66,7 +66,7 @@ impl Liveness {
             for (_, edge) in function.edges_to_block(node) {
                 liveness
                     .block_liveness
-                    .entry(edge.node)
+                    .entry(node)
                     .or_default()
                     .defs_phi
                     .extend(edge.arguments.iter().map(|(k, _)| k).cloned());

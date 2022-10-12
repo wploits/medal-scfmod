@@ -1,5 +1,7 @@
+use ast::SideEffects;
+use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
-use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::EdgeRef, Direction};
 
 impl super::GraphStructurer {
     pub(crate) fn match_jump(
@@ -12,28 +14,64 @@ impl super::GraphStructurer {
             if node == target {
                 return false;
             }
-            if Self::block_is_no_op(&self.function.block(node).unwrap().ast) {
-                for predecessor in self.function.predecessor_blocks(node).collect_vec() {
-                    self.function.replace_edge(predecessor, node, target);
+            if Self::block_is_no_op(self.function.block(node).unwrap()) {
+                for (source, edge) in self
+                    .function
+                    .graph()
+                    .edges_directed(node, Direction::Incoming)
+                    .map(|e| (e.source(), e.id()))
+                    .collect::<Vec<_>>()
+                {
+                    let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+                    self.function.graph_mut().add_edge(source, target, edge);
+                    let block = self.function.block(source).unwrap();
+                    if !block.is_empty()
+                        && block.last().unwrap().as_if().is_some()
+                        && let Some((then_edge, else_edge)) = self.function.conditional_edges(source)
+                        && then_edge.target() == else_edge.target()
+                    {
+                        // TODO: check if this works (+ cfg/src/ssa/structuring.rs)
+                        let cond = self
+                            .function
+                            .block_mut(node)
+                            .unwrap()
+                            .pop()
+                            .unwrap()
+                            .into_if()
+                            .unwrap()
+                            .condition;
+                        if cond.has_side_effects() {
+                            let temp_local = self.function.local_allocator.borrow_mut().allocate();
+                            self.function.block_mut(node).unwrap().push(
+                                ast::Assign {
+                                    left: vec![temp_local.into()],
+                                    right: vec![cond],
+                                    prefix: true,
+                                }
+                                .into(),
+                            )
+                        }
+
+                        self.function.set_edges(
+                            source,
+                            vec![(target, BlockEdge::new(BranchType::Unconditional))],
+                        );
+                    }
                 }
                 self.function.remove_block(node);
                 true
             } else if self.function.predecessor_blocks(target).count() == 1
                 && dominators.dominators(target).unwrap().contains(&node)
             {
+                let edges = self.function.remove_edges(target);
                 let block = self.function.remove_block(target).unwrap();
-                let terminator = block.terminator;
-                self.function
-                    .block_mut(node)
-                    .unwrap()
-                    .ast
-                    .extend(block.ast.0);
-                self.function.set_block_terminator(node, terminator);
+                self.function.block_mut(node).unwrap().extend(block.0);
+                self.function.set_edges(node, edges);
                 true
             } else {
                 false
             }
-        } else if Self::block_is_no_op(&self.function.block(node).unwrap().ast) {
+        } else if Self::block_is_no_op(self.function.block(node).unwrap()) {
             let preds = self.function.predecessor_blocks(node).collect_vec();
             let mut invalid = false;
             for &pred in &preds {
@@ -43,15 +81,21 @@ impl super::GraphStructurer {
                 }
             }
             if !invalid {
-                for pred in preds {
-                    assert!(!self
-                        .function
-                        .block(pred)
-                        .unwrap()
-                        .terminator
-                        .as_ref()
-                        .map_or(false, |t| t.as_jump().is_none()));
-                    self.function.set_block_terminator(pred, None);
+                for edge in self
+                    .function
+                    .graph()
+                    .edges_directed(node, Direction::Incoming)
+                    .map(|e| e.id())
+                    .collect::<Vec<_>>()
+                {
+                    assert_eq!(
+                        self.function
+                            .graph_mut()
+                            .remove_edge(edge)
+                            .unwrap()
+                            .branch_type,
+                        BranchType::Unconditional
+                    );
                 }
                 self.function.remove_block(node);
                 true

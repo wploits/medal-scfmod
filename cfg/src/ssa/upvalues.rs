@@ -26,7 +26,7 @@ impl UpvaluesOpen {
             visited.insert(node);
             let block = function.block(node).unwrap();
             let block_opened = this.open.entry(node).or_default();
-            for (stat_index, statement) in block.ast.iter().enumerate() {
+            for (stat_index, statement) in block.iter().enumerate() {
                 // TODO: use traverse rvalues instead
                 // this is because the lifter isnt guaranteed to be lifting bytecode
                 // it could be lifting lua source code for deobfuscation purposes
@@ -43,16 +43,16 @@ impl UpvaluesOpen {
                         if let Some((prev_range, prev_locations)) =
                             open_ranges.get_key_value(&stat_index)
                         {
-                            assert!(prev_range.contains(&(block.ast.len() - 1)));
+                            assert!(prev_range.contains(&(block.len() - 1)));
                             open_locations.extend(prev_locations);
                         }
                         open_locations.push((node, stat_index));
-                        open_ranges.insert(stat_index..=block.ast.len() - 1, open_locations);
+                        open_ranges.insert(stat_index..=block.len() - 1, open_locations);
                     }
                 } else if let ast::Statement::Close(close) = statement {
                     for closed in &close.locals {
                         if let Some(open_ranges) = block_opened.get_mut(closed) {
-                            open_ranges.remove(stat_index..=block.ast.len() - 1);
+                            open_ranges.remove(stat_index..=block.len() - 1);
                         }
                     }
                 }
@@ -66,17 +66,14 @@ impl UpvaluesOpen {
                     let open_at_end = this.open[&node]
                         .iter()
                         .filter_map(|(l, m)| {
-                            Some((
-                                l.clone(),
-                                m.get(&(block.ast.len().saturating_sub(1)))?.clone(),
-                            ))
+                            Some((l.clone(), m.get(&(block.len().saturating_sub(1)))?.clone()))
                         })
                         .collect::<Vec<_>>();
                     let successor_open = this.open.entry(successor).or_default();
                     for (open, mut locations) in open_at_end {
                         let open_ranges = successor_open.entry(open).or_default();
                         // TODO: sorta ugly doing a saturating subtraction, use uninclusive ranges instead?
-                        let range = 0..=successor_block.ast.len().saturating_sub(1);
+                        let range = 0..=successor_block.len().saturating_sub(1);
                         if let Some((prev_range, prev_locations)) = open_ranges.get_key_value(&0) {
                             assert_eq!(prev_range, &range);
                             locations.extend(prev_locations);

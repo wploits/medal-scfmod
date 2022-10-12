@@ -17,7 +17,12 @@ impl Namer {
             if Rc::strong_count(local) == 1 {
                 local.0 .0.borrow_mut().0 = Some("_".to_string());
             } else {
-                let prefix = prefix.to_string() + if self.upvalues.contains(local) { "_u_" } else { "" };
+                let prefix = prefix.to_string()
+                    + if self.upvalues.contains(local) {
+                        "_u_"
+                    } else {
+                        ""
+                    };
                 let counter = self.counter.entry(prefix.clone()).or_insert(1);
                 local.0 .0.borrow_mut().0 = Some(format!("{}{}", prefix, counter));
                 *counter += 1;

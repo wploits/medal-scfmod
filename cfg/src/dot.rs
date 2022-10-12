@@ -2,9 +2,9 @@ use std::{borrow::Cow, io::Write};
 
 use dot::{GraphWalk, LabelText, Labeller};
 
-use petgraph::stable_graph::NodeIndex;
+use petgraph::stable_graph::{EdgeIndex, NodeIndex};
 
-use crate::{block::Terminator, function::Function};
+use crate::function::Function;
 
 fn arguments(args: &Vec<(ast::RcLocal, ast::RcLocal)>) -> String {
     let mut s = String::new();
@@ -18,43 +18,39 @@ fn arguments(args: &Vec<(ast::RcLocal, ast::RcLocal)>) -> String {
     s
 }
 
-impl<'a> Labeller<'a, NodeIndex, (NodeIndex, NodeIndex)> for Function {
+impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for Function {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("cfg").unwrap()
     }
 
     fn node_label<'b>(&'b self, n: &NodeIndex) -> dot::LabelText<'b> {
         let block = self.block(*n).unwrap();
-        dot::LabelText::LabelStr(block.ast.to_string().into())
+        dot::LabelText::LabelStr(block.to_string().into())
             .prefix_line(dot::LabelText::LabelStr(n.index().to_string().into()))
     }
 
-    fn edge_label<'b>(&'b self, e: &(NodeIndex, NodeIndex)) -> dot::LabelText<'b> {
-        if let Some(terminator) = self.block(e.0).unwrap().terminator.as_ref() {
-            match terminator {
-                Terminator::Conditional(then_edge, else_edge) => {
-                    if e.1 == then_edge.node {
-                        let arguments = arguments(&then_edge.arguments);
-                        if !arguments.is_empty() {
-                            dot::LabelText::LabelStr(format!("t\n{}", arguments).into())
-                        } else {
-                            dot::LabelText::LabelStr("t".into())
-                        }
-                    } else {
-                        let arguments = arguments(&else_edge.arguments);
-                        if !arguments.is_empty() {
-                            dot::LabelText::LabelStr(format!("e\n{}", arguments).into())
-                        } else {
-                            dot::LabelText::LabelStr("e".into())
-                        }
-                    }
-                }
-                Terminator::Jump(edge) => {
-                    dot::LabelText::LabelStr(arguments(&edge.arguments).into())
+    fn edge_label<'b>(&'b self, e: &EdgeIndex) -> dot::LabelText<'b> {
+        let edge = self.graph().edge_weight(*e).unwrap();
+        match edge.branch_type {
+            crate::block::BranchType::Unconditional => {
+                dot::LabelText::LabelStr(arguments(&edge.arguments).into())
+            }
+            crate::block::BranchType::Then => {
+                let arguments = arguments(&edge.arguments);
+                if !arguments.is_empty() {
+                    dot::LabelText::LabelStr(format!("t\n{}", arguments).into())
+                } else {
+                    dot::LabelText::LabelStr("t".into())
                 }
             }
-        } else {
-            dot::LabelText::LabelStr("".into())
+            crate::block::BranchType::Else => {
+                let arguments = arguments(&edge.arguments);
+                if !arguments.is_empty() {
+                    dot::LabelText::LabelStr(format!("e\n{}", arguments).into())
+                } else {
+                    dot::LabelText::LabelStr("e".into())
+                }
+            }
         }
     }
 
@@ -67,26 +63,21 @@ impl<'a> Labeller<'a, NodeIndex, (NodeIndex, NodeIndex)> for Function {
     }
 }
 
-impl<'a> GraphWalk<'a, NodeIndex, (NodeIndex, NodeIndex)> for Function {
+impl<'a> GraphWalk<'a, NodeIndex, EdgeIndex> for Function {
     fn nodes(&'a self) -> dot::Nodes<'a, NodeIndex> {
         Cow::Owned(self.graph().node_indices().collect())
     }
 
-    fn edges(&'a self) -> dot::Edges<'a, (NodeIndex, NodeIndex)> {
-        Cow::Owned(
-            self.graph()
-                .edge_indices()
-                .map(|i| self.graph().edge_endpoints(i).unwrap())
-                .collect(),
-        )
+    fn edges(&'a self) -> dot::Edges<'a, EdgeIndex> {
+        Cow::Owned(self.graph().edge_indices().collect())
     }
 
-    fn source(&self, e: &(NodeIndex, NodeIndex)) -> NodeIndex {
-        e.0
+    fn source(&self, e: &EdgeIndex) -> NodeIndex {
+        self.graph().edge_endpoints(*e).unwrap().0
     }
 
-    fn target(&self, e: &(NodeIndex, NodeIndex)) -> NodeIndex {
-        e.1
+    fn target(&self, e: &EdgeIndex) -> NodeIndex {
+        self.graph().edge_endpoints(*e).unwrap().1
     }
 }
 

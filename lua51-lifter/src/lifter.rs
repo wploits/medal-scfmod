@@ -1,6 +1,6 @@
 use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
 
-use cfg::block::BasicBlockEdge;
+use cfg::block::{BlockEdge, BranchType};
 use either::Either;
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
@@ -8,7 +8,6 @@ use itertools::Itertools;
 
 use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
 use cfg::{
-    block::Terminator,
     function::Function,
     inline::inline,
     ssa::structuring::{
@@ -22,7 +21,7 @@ use lua51_deserializer::{
     Function as BytecodeFunction, Instruction, Value,
 };
 
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex, visit::EdgeRef, Direction};
 use restructure::post_dominators;
 
 pub struct LifterContext<'a> {
@@ -498,7 +497,6 @@ impl<'a> LifterContext<'a> {
                     self.function
                         .block_mut(self.nodes[&(end + 1)])
                         .unwrap()
-                        .ast
                         .push(assign.into());
                 }
                 &Instruction::PrepMethodCall {
@@ -820,9 +818,9 @@ impl<'a> LifterContext<'a> {
             // we need to do this in case that the body of a for loop is after the for loop instruction
             // see: IterateNumericForLoop
             let mut statements =
-                std::mem::take(&mut self.function.block_mut(self.nodes[&start]).unwrap().ast);
+                std::mem::take(self.function.block_mut(self.nodes[&start]).unwrap());
             self.lift_instruction(start, end, &mut statements);
-            self.function.block_mut(self.nodes[&start]).unwrap().ast = statements;
+            *self.function.block_mut(self.nodes[&start]).unwrap() = statements;
 
             match self.bytecode.code[end] {
                 Instruction::Equal { .. }
@@ -831,53 +829,59 @@ impl<'a> LifterContext<'a> {
                 | Instruction::Test { .. }
                 | Instruction::TestSet { .. }
                 | Instruction::IterateGenericForLoop { .. } => {
-                    self.function.set_block_terminator(
+                    self.function.set_edges(
                         self.nodes[&start],
-                        Some(Terminator::conditional(
-                            self.get_node(&(end + 1)),
-                            self.get_node(&(end + 2)),
-                        )),
+                        vec![
+                            (self.get_node(&(end + 1)), BlockEdge::new(BranchType::Then)),
+                            (self.get_node(&(end + 2)), BlockEdge::new(BranchType::Else)),
+                        ],
                     );
                 }
                 Instruction::IterateNumericForLoop { skip, .. } => {
-                    self.function.set_block_terminator(
+                    self.function.set_edges(
                         self.nodes[&start],
-                        Some(Terminator::conditional(
-                            self.get_node(
-                                &((end + 1)
-                                    .checked_add_signed(skip.try_into().unwrap())
-                                    .unwrap()),
+                        vec![
+                            (
+                                self.get_node(
+                                    &((end + 1)
+                                        .checked_add_signed(skip.try_into().unwrap())
+                                        .unwrap()),
+                                ),
+                                BlockEdge::new(BranchType::Then),
                             ),
-                            self.get_node(&(end + 1)),
-                        )),
+                            (self.get_node(&(end + 1)), BlockEdge::new(BranchType::Else)),
+                        ],
                     );
                 }
                 Instruction::Jump(skip) | Instruction::InitNumericForLoop { skip, .. } => {
-                    self.function.set_block_terminator(
+                    self.function.set_edges(
                         self.nodes[&start],
-                        Some(Terminator::jump(
+                        vec![(
                             self.get_node(
                                 &((end + 1)
                                     .checked_add_signed(skip.try_into().unwrap())
                                     .unwrap()),
                             ),
-                        )),
+                            BlockEdge::new(BranchType::Unconditional),
+                        )],
                     );
                 }
                 Instruction::Return { .. } => {}
                 Instruction::LoadBoolean { skip_next, .. } => {
                     let successor = self.get_node(&(end + 1 + skip_next as usize));
-
-                    self.function.set_block_terminator(
+                    self.function.set_edges(
                         self.nodes[&start],
-                        Some(Terminator::jump(successor)),
+                        vec![(successor, BlockEdge::new(BranchType::Unconditional))],
                     );
                 }
                 _ => {
                     if end + 1 != self.bytecode.code.len() {
-                        self.function.set_block_terminator(
+                        self.function.set_edges(
                             self.nodes[&start],
-                            Some(Terminator::jump(self.get_node(&(end + 1)))),
+                            vec![(
+                                self.get_node(&(end + 1)),
+                                BlockEdge::new(BranchType::Unconditional),
+                            )],
                         );
                     }
                 }
@@ -913,24 +917,29 @@ impl<'a> LifterContext<'a> {
                         .function
                         .block_mut(successor)
                         .unwrap()
-                        .ast
                         .insert(0, stat);
                 } else {
                     let between_node = context.function.new_block();
-                    context
-                        .function
-                        .block_mut(between_node)
-                        .unwrap()
-                        .ast
-                        .push(stat);
-                    context.function.set_block_terminator(
+                    context.function.block_mut(between_node).unwrap().push(stat);
+                    context.function.set_edges(
                         between_node,
-                        Some(Terminator::Jump(BasicBlockEdge {
-                            node: successor,
-                            arguments: Vec::new(),
-                        })),
+                        vec![(successor, BlockEdge::new(BranchType::Unconditional))],
                     );
-                    context.function.replace_edge(node, successor, between_node);
+                    // TODO: replace_edge
+                    for edge in context
+                        .function
+                        .graph()
+                        .edges_directed(node, Direction::Outgoing)
+                        .filter(|e| e.target() == successor)
+                        .map(|e| e.id())
+                        .collect::<Vec<_>>()
+                    {
+                        let edge = context.function.graph_mut().remove_edge(edge).unwrap();
+                        context
+                            .function
+                            .graph_mut()
+                            .add_edge(node, between_node, edge);
+                    }
                 }
             }
 
