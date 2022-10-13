@@ -19,6 +19,10 @@ mod lifter;
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
+#[cfg(not(feature = "dhat-heap"))]
+#[global_allocator]
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
+
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Args {

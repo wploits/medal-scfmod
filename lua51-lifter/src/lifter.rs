@@ -967,7 +967,7 @@ impl<'a> LifterContext<'a> {
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
                 .collect::<IndexMap<_, _>>();
 
-            /*let mut changed = true;
+            let mut changed = true;
             while changed {
                 changed = false;
 
@@ -992,25 +992,25 @@ impl<'a> LifterContext<'a> {
                 let mut local_map = FxHashMap::default();
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
                 cfg::ssa::construct::apply_local_map(&mut function, local_map);
-            }*/
+            }
 
-            let mut triangle_pattern_graph = PatternGraph::new();
-            let entry = triangle_pattern_graph.add_node(PatternNode::new(true));
-            let body = triangle_pattern_graph.add_node(PatternNode::new(false));
-            let exit = triangle_pattern_graph.add_node(PatternNode::new(true));
+            // let mut triangle_pattern_graph = PatternGraph::new();
+            // let entry = triangle_pattern_graph.add_node(PatternNode::new(true));
+            // let body = triangle_pattern_graph.add_node(PatternNode::new(false));
+            // let exit = triangle_pattern_graph.add_node(PatternNode::new(true));
 
-            triangle_pattern_graph.add_edge(entry, body, BlockEdge::new(BranchType::Then));
-            triangle_pattern_graph.add_edge(entry, exit, BlockEdge::new(BranchType::Else));
-            triangle_pattern_graph.add_edge(body, exit, BlockEdge::new(BranchType::Unconditional));
+            // triangle_pattern_graph.add_edge(entry, body, BlockEdge::new(BranchType::Then));
+            // triangle_pattern_graph.add_edge(entry, exit, BlockEdge::new(BranchType::Else));
+            // triangle_pattern_graph.add_edge(body, exit, BlockEdge::new(BranchType::Unconditional));
 
-            println!(
-                "triangle pattern: {}",
-                Dot::with_config(&triangle_pattern_graph, &[])
-            );
+            // println!(
+            //     "triangle pattern: {}",
+            //     Dot::with_config(&triangle_pattern_graph, &[])
+            // );
 
-            panic!();
+            // panic!();
 
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 

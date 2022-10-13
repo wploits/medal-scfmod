@@ -20,3 +20,4 @@ authors = [
 
 [profile.release]
 debug = true
+lto = true
