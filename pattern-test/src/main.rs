@@ -2,7 +2,6 @@ use pattern::pattern;
 
 fn main() {
     pattern!(
-        @entry
         @body
         @exit
         * $ -> entry
