@@ -11,6 +11,7 @@ impl super::GraphStructurer {
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
         if let Some(target) = target {
+            assert!(self.function.unconditional_edge(node).is_some());
             if node == target {
                 return false;
             }
@@ -61,6 +62,7 @@ impl super::GraphStructurer {
                 self.function.remove_block(node);
                 true
             } else if self.function.predecessor_blocks(target).count() == 1
+                // TODO: isnt this implied by their only being one predecessor, target?
                 && dominators.dominators(target).unwrap().contains(&node)
             {
                 let edges = self.function.remove_edges(target);

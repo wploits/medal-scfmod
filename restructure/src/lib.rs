@@ -2,13 +2,13 @@
 
 use std::iter;
 
-use cfg::function::Function;
-use fxhash::FxHashSet;
+use cfg::{function::Function, block::BranchType};
+use fxhash::{FxHashSet, FxHashMap};
 use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{NodeIndex, StableDiGraph},
+    stable_graph::{NodeIndex, StableDiGraph, EdgeIndex},
     visit::*,
 };
 
@@ -97,16 +97,6 @@ impl GraphStructurer {
         let mut dfs_postorder = DfsPostOrder::new(self.function.graph(), self.root);
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
 
-        for node in self
-            .function
-            .graph()
-            .node_indices()
-            .filter(|node| !dfs.contains(node))
-            .collect_vec()
-        {
-            self.function.remove_block(node);
-        }
-
         // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         let mut changed = false;
@@ -119,7 +109,51 @@ impl GraphStructurer {
             // }
         }
 
+        for node in self
+            .function
+            .graph()
+            .node_indices()
+            .filter(|node| !dfs.contains(node))
+            .collect_vec()
+        {
+            if self.function.block(node).unwrap().first().and_then(|s| s.as_label()).is_none() {
+                self.function.remove_block(node);
+            } else {
+                let matched = self.try_match_pattern(node, &dominators);
+                changed |= matched;
+            }
+        }
+
         changed
+    }
+
+    fn insert_goto_for_edge(&mut self, edge: EdgeIndex) {
+        let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
+        if self.function.graph().edge_weight(edge).unwrap().branch_type == BranchType::Unconditional
+            && self.function.predecessor_blocks(target).count() == 1
+        {
+            assert!(self.function.successor_blocks(source).count() == 1);
+            // TODO: this code is repeated in match_jump, move to a new function
+            let edges = self.function.remove_edges(target);
+            let block = self.function.remove_block(target).unwrap();
+            self.function.block_mut(source).unwrap().extend(block.0);
+            self.function.set_edges(source, edges);
+        } else {
+            // TODO: make label an Rc and have a global counter for block name
+            let label = ast::Label(format!("l{}", target.index()));
+            let target_block = self.function.block_mut(target).unwrap();
+            if target_block.first().and_then(|s| s.as_label()).is_none() {
+                target_block.insert(0, label.clone().into());
+            }
+            let goto_block = self.function.new_block();
+            self.function
+                .block_mut(goto_block)
+                .unwrap()
+                .push(ast::Goto::new(label).into());
+
+            let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+            self.function.graph_mut().add_edge(source, goto_block, edge);
+        }
     }
 
     fn collapse(&mut self) {
@@ -144,21 +178,7 @@ impl GraphStructurer {
                     continue;
                 }
 
-                // TODO: make label an Rc and have a global counter for block name
-                let label = ast::Label(format!("BLOCK_{}", target.index()));
-                let target_block = self.function.block_mut(target).unwrap();
-                if target_block.first().and_then(|s| s.as_label()).is_none() {
-                    target_block.insert(0, label.clone().into());
-                }
-                let goto_block = self.function.new_block();
-                self.function
-                    .block_mut(goto_block)
-                    .unwrap()
-                    .push(ast::Goto::new(label).into());
-
-                let edge = self.function.graph_mut().remove_edge(edge).unwrap();
-                self.function.graph_mut().add_edge(source, goto_block, edge);
-
+                self.insert_goto_for_edge(edge);
                 changed = self.match_blocks();
                 if changed {
                     break;
@@ -167,22 +187,7 @@ impl GraphStructurer {
 
             if !changed {
                 for edge in edges {
-                    let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
-                    // TODO: make label an Rc and have a global counter for block name
-                    let label = ast::Label(format!("BLOCK_{}", target.index()));
-                    let target_block = self.function.block_mut(target).unwrap();
-                    if target_block.first().and_then(|s| s.as_label()).is_none() {
-                        target_block.insert(0, label.clone().into());
-                    }
-                    let goto_block = self.function.new_block();
-                    self.function
-                        .block_mut(goto_block)
-                        .unwrap()
-                        .push(ast::Goto::new(label).into());
-
-                    let edge = self.function.graph_mut().remove_edge(edge).unwrap();
-                    self.function.graph_mut().add_edge(source, goto_block, edge);
-
+                    self.insert_goto_for_edge(edge);
                     changed = self.match_blocks();
                     if changed {
                         break;
@@ -197,10 +202,10 @@ impl GraphStructurer {
 
     fn structure(mut self) -> ast::Block {
         self.collapse();
-        let nodes = self.function.graph().node_count();
-        if self.function.graph().node_count() != 1 {
+        let node_count = self.function.graph().node_count();
+        if node_count != 1 {
             iter::once(
-                ast::Comment::new(format!("failed to collapse, total nodes: {}", nodes)).into(),
+                ast::Comment::new(format!("failed to collapse, total nodes: {}", node_count)).into(),
             )
             .chain(self.function.remove_block(self.root).unwrap().0.into_iter())
             .collect::<Vec<_>>()
