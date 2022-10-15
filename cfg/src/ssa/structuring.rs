@@ -99,7 +99,7 @@ fn match_conditional_sequence(
             let second_block = function.block(second_conditional).unwrap();
             if let Some(second_conditional_if) = second_block.last().and_then(|s| s.as_if()) {
                 if second_conditional_successors.len() == 2
-                    && second_conditional_successors.contains(&other)
+                    && second_conditional_successors.iter().filter(|&s| s == &other).count() == 1
                 {
                     if second_block.len() == 2 {
                         if let ast::Statement::Assign(assign) = &second_block[0] {
@@ -183,7 +183,7 @@ fn match_conditional_assignment(
             let test_pattern = |assigner, next| {
                 if function.successor_blocks(assigner).collect_vec() == [next]
                     && function.predecessor_blocks(assigner).collect_vec() == [node]
-                    && let Some(assign) = single_assign(&function.block(assigner).unwrap())
+                    && let Some(assign) = single_assign(function.block(assigner).unwrap())
                     && assign.left.len() == 1 && assign.right.len() == 1
                     && let ast::LValue::Local(assigned_local) = &assign.left[0]
                     && let Some(assign_edge) = function.unconditional_edge(assigner)
@@ -643,13 +643,16 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                 for pred in function.predecessor_blocks(node).collect_vec() {
                     replace_edge_with_parameters(function, pred, node, jump_target, &old_args);
                 }
-                    function.remove_block(node);
-                    if &Some(node) == function.entry() {
-                        function.set_entry(jump_target);
-                    }
-                    did_structure = true;
+                function.remove_block(node);
+                if &Some(node) == function.entry() {
+                    function.set_entry(jump_target);
+                }
+                did_structure = true;
             } else if function.predecessor_blocks(jump_target).count() == 1
-                && dominators.dominators(jump_target).map(|mut d| d.contains(&node)).unwrap_or(false)
+                && dominators
+                    .dominators(jump_target)
+                    .map(|mut d| d.contains(&node))
+                    .unwrap_or(false)
             {
                 assert!(jump.weight().arguments.is_empty());
                 let edges = function.remove_edges(jump_target);
