@@ -179,7 +179,6 @@ impl GraphStructurer {
         else_node: NodeIndex,
         header: NodeIndex,
         next: NodeIndex,
-        _dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let mut changed = false;
         let header_successors = self.function.successor_blocks(header).collect_vec();
