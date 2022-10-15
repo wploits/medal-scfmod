@@ -990,6 +990,9 @@ impl<'a> LifterContext<'a> {
 
                 let mut local_map = FxHashMap::default();
                 cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
+                if !local_map.is_empty() {
+                    changed = true;
+                }
                 cfg::ssa::construct::apply_local_map(&mut function, local_map);
             }
 

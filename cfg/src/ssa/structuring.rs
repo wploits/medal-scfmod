@@ -1,5 +1,6 @@
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 use fxhash::FxHashSet;
+use indexmap::IndexSet;
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,
@@ -99,7 +100,11 @@ fn match_conditional_sequence(
             let second_block = function.block(second_conditional).unwrap();
             if let Some(second_conditional_if) = second_block.last().and_then(|s| s.as_if()) {
                 if second_conditional_successors.len() == 2
-                    && second_conditional_successors.iter().filter(|&s| s == &other).count() == 1
+                    && second_conditional_successors
+                        .iter()
+                        .filter(|&s| s == &other)
+                        .count()
+                        == 1
                 {
                     if second_block.len() == 2 {
                         if let ast::Statement::Assign(assign) = &second_block[0] {
@@ -294,13 +299,13 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             };
             let other_edge_target = other_edge.target();
             let other_edge_args = other_edge.weight().arguments.clone();
-            replace_edge_with_parameters(
+            assert!(replace_edge_with_parameters(
                 function,
                 pattern.first_node,
                 pattern.second_node,
                 other_edge_target,
                 &other_edge_args,
-            );
+            ));
 
             let mut removed_block = function.remove_block(pattern.second_node).unwrap();
             let first_node = pattern.first_node;
@@ -579,7 +584,19 @@ fn replace_edge_with_parameters(
     old_target: NodeIndex,
     new_target: NodeIndex,
     parameters: &[(ast::RcLocal, ast::RcLocal)],
-) {
+) -> bool {
+    let mut did_structure = false;
+    let original_params = function
+        .graph()
+        .edges_directed(node, Direction::Outgoing)
+        .next()
+        .unwrap()
+        .weight()
+        .arguments
+        .iter()
+        .map(|(p, _)| p)
+        .cloned()
+        .collect::<Vec<_>>();
     for edge in function
         .graph()
         .edges_directed(node, Direction::Outgoing)
@@ -587,9 +604,30 @@ fn replace_edge_with_parameters(
         .map(|e| e.id())
         .collect::<Vec<_>>()
     {
+        let mut new_arguments = function
+            .graph()
+            .edge_weight(edge)
+            .unwrap()
+            .arguments
+            .iter()
+            .cloned()
+            .collect::<IndexSet<_>>();
+        new_arguments.extend(parameters.iter().cloned());
+
+        // all arguments in edges to a block must have the same parameters
+        // TODO: make arguments a map so order doesnt matter
+        if !new_arguments
+            .iter()
+            .map(|(p, _)| p)
+            .eq(original_params.iter())
+        {
+            continue;
+        }
+
         let mut edge = function.graph_mut().remove_edge(edge).unwrap();
-        edge.arguments.extend(parameters.iter().cloned());
+        edge.arguments = new_arguments.into_iter().collect();
         function.graph_mut().add_edge(node, new_target, edge);
+        did_structure = true;
     }
     let block = function.block(node).unwrap();
     if !block.is_empty()
@@ -624,6 +662,8 @@ fn replace_edge_with_parameters(
             vec![(new_target, BlockEdge::new(BranchType::Unconditional))],
         );
     }
+
+    did_structure
 }
 
 // TODO: this code is repeated in LifterContext::lift
@@ -640,14 +680,20 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             let block = function.block(node).unwrap();
             if block.is_empty() {
                 let old_args = jump.weight().arguments.clone();
+                let mut remove = true;
                 for pred in function.predecessor_blocks(node).collect_vec() {
-                    replace_edge_with_parameters(function, pred, node, jump_target, &old_args);
+                    let did = replace_edge_with_parameters(function, pred, node, jump_target, &old_args);
+                    if did {
+                        did_structure = true;
+                    }
+                    remove &= did;
                 }
-                function.remove_block(node);
+                if remove {
+                    function.remove_block(node);
                 if &Some(node) == function.entry() {
                     function.set_entry(jump_target);
                 }
-                did_structure = true;
+                }
             } else if function.predecessor_blocks(jump_target).count() == 1
                 && dominators
                     .dominators(jump_target)
