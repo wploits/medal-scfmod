@@ -7,9 +7,8 @@ use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 use crate::function::Function;
 
-fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLocal) {
+fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLocal, mut inline: bool) {
     let block = function.block_mut(node).unwrap();
-    let mut inline = true;
     let mut read_stat_index = None;
     for (index, statement) in block.iter_mut().enumerate() {
         if statement.values_read().contains(&&local) {
@@ -107,6 +106,7 @@ pub(crate) fn declare_locals(
     dominators: &Dominators<NodeIndex>,
 ) {
     for (local, reference_nodes) in local_nodes {
+        println!("{:?} {:?}", local, reference_nodes);
         // TODO: construct IndexSet from parameters?
         if reference_nodes.is_empty()
             || upvalues_in.contains(&local)
@@ -116,7 +116,7 @@ pub(crate) fn declare_locals(
         }
         if reference_nodes.len() == 1 {
             let reference_node = reference_nodes.into_iter().next().unwrap();
-            push_declaration(function, reference_node, local);
+            push_declaration(function, reference_node, local, true);
         } else {
             let mut node_dominators = reference_nodes
                 .into_iter()
@@ -126,7 +126,7 @@ pub(crate) fn declare_locals(
                 common_dominators = common_dominators.intersect(node_dominators);
             }
             let common_dominator = common_dominators[0];
-            push_declaration(function, common_dominator, local);
+            push_declaration(function, common_dominator, local, false);
         }
     }
 }
