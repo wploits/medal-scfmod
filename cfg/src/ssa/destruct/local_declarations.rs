@@ -106,7 +106,6 @@ pub(crate) fn declare_locals(
     dominators: &Dominators<NodeIndex>,
 ) {
     for (local, reference_nodes) in local_nodes {
-        println!("{:?} {:?}", local, reference_nodes);
         // TODO: construct IndexSet from parameters?
         if reference_nodes.is_empty()
             || upvalues_in.contains(&local)
