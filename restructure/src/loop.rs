@@ -150,6 +150,8 @@ impl GraphStructurer {
             let continues = self
                 .function
                 .predecessor_blocks(header)
+                // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
+                .filter(|&n| n != header)
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect_vec();
             //assert!(continues.len() <= 1);
@@ -169,7 +171,6 @@ impl GraphStructurer {
                         else_edge.target(),
                         header,
                         next,
-                        dominators,
                     );
                 } else if let Some(edge) = self.function.unconditional_edge(node) {
                     changed |= self.refine_virtual_edge_jump(node, edge.target(), header, next);
