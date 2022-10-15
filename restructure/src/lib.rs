@@ -265,7 +265,7 @@ impl GraphStructurer {
                 let mut goto_destinations = FxHashSet::default();
                 collect_gotos(&block, &mut goto_destinations);
                 for label in goto_destinations {
-                    // TODO: block might have been lifted into another, lift that block instead
+                    // TODO: block might have been merged/structured into another, output that block instead
                     // will require collecting label definitions in addition to references (gotos)
                     let target_node = self.label_to_node[&label];
                     if self.function.has_block(target_node) {
