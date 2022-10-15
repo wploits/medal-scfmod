@@ -2,13 +2,13 @@
 
 use std::iter;
 
-use cfg::{function::Function, block::BranchType};
-use fxhash::{FxHashSet, FxHashMap};
+use cfg::{block::BranchType, function::Function};
+use fxhash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    stable_graph::{NodeIndex, StableDiGraph, EdgeIndex},
+    stable_graph::{EdgeIndex, NodeIndex, StableDiGraph},
     visit::*,
 };
 
@@ -36,6 +36,7 @@ struct GraphStructurer {
     pub function: Function,
     root: NodeIndex,
     loop_headers: FxHashSet<NodeIndex>,
+    label_to_node: FxHashMap<ast::Label, NodeIndex>,
 }
 
 impl GraphStructurer {
@@ -52,6 +53,7 @@ impl GraphStructurer {
             function,
             root,
             loop_headers,
+            label_to_node: FxHashMap::default(),
         }
     }
 
@@ -116,11 +118,24 @@ impl GraphStructurer {
             .filter(|node| !dfs.contains(node))
             .collect_vec()
         {
-            if self.function.block(node).unwrap().first().and_then(|s| s.as_label()).is_none() {
-                self.function.remove_block(node);
-            } else {
-                let matched = self.try_match_pattern(node, &dominators);
-                changed |= matched;
+            // block may have been removed in a previous iteration
+            if self.function.has_block(node)
+                && self.function.predecessor_blocks(node).next().is_none()
+            {
+                if self
+                    .function
+                    .block(node)
+                    .unwrap()
+                    .first()
+                    .and_then(|s| s.as_label())
+                    .is_none()
+                {
+                    self.function.remove_block(node);
+                } else {
+                    let dominators = simple_fast(self.function.graph(), node);
+                    let matched = self.try_match_pattern(node, &dominators);
+                    changed |= matched;
+                }
             }
         }
 
@@ -143,6 +158,7 @@ impl GraphStructurer {
             let label = ast::Label(format!("l{}", target.index()));
             let target_block = self.function.block_mut(target).unwrap();
             if target_block.first().and_then(|s| s.as_label()).is_none() {
+                self.label_to_node.insert(label.clone(), target);
                 target_block.insert(0, label.clone().into());
             }
             let goto_block = self.function.new_block();
@@ -172,9 +188,15 @@ impl GraphStructurer {
             for &edge in &edges {
                 let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
                 let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
-                if dominators.dominators(target).unwrap().contains(&source)
-                    || dominators.dominators(source).unwrap().contains(&target)
-                {
+                let target_dominators = dominators.dominators(target);
+                let source_dominators = dominators.dominators(source);
+                // TODO: check if blocks in dfs instead
+                if target_dominators.is_none() || source_dominators.is_none() {
+                    continue;
+                }
+                let mut target_dominators = target_dominators.unwrap();
+                let mut source_dominators = source_dominators.unwrap();
+                if target_dominators.contains(&source) || source_dominators.contains(&target) {
                     continue;
                 }
 
@@ -202,14 +224,67 @@ impl GraphStructurer {
 
     fn structure(mut self) -> ast::Block {
         self.collapse();
-        let node_count = self.function.graph().node_count();
-        if node_count != 1 {
-            iter::once(
-                ast::Comment::new(format!("failed to collapse, total nodes: {}", node_count)).into(),
-            )
-            .chain(self.function.remove_block(self.root).unwrap().0.into_iter())
-            .collect::<Vec<_>>()
-            .into()
+        if self.function.graph().node_count() != 1 {
+            let mut res_block = ast::Block::default();
+            let entry = self.function.entry().unwrap();
+            let mut stack = vec![entry];
+            let mut visited = FxHashSet::default();
+            while let Some(node) = stack.pop() {
+                visited.insert(node);
+
+                fn collect_gotos(block: &ast::Block, gotos: &mut FxHashSet<ast::Label>) {
+                    for statement in &block.0 {
+                        match statement {
+                            ast::Statement::Goto(goto) => {
+                                gotos.insert(goto.0.clone());
+                            }
+                            ast::Statement::If(r#if) => {
+                                if let Some(b) = &r#if.then_block {
+                                    collect_gotos(b, gotos);
+                                }
+
+                                if let Some(b) = &r#if.else_block {
+                                    collect_gotos(b, gotos);
+                                }
+                            }
+                            ast::Statement::While(r#while) => {
+                                collect_gotos(&r#while.block, gotos);
+                            }
+                            ast::Statement::NumericFor(numeric_for) => {
+                                collect_gotos(&numeric_for.block, gotos);
+                            }
+                            ast::Statement::GenericFor(generic_for) => {
+                                collect_gotos(&generic_for.block, gotos);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                let block = self.function.remove_block(node).unwrap();
+                let mut goto_destinations = FxHashSet::default();
+                collect_gotos(&block, &mut goto_destinations);
+                for label in goto_destinations {
+                    // TODO: block might have been lifted into another, lift that block instead
+                    // will require collecting label definitions in addition to references (gotos)
+                    let target_node = self.label_to_node[&label];
+                    if self.function.has_block(target_node) {
+                        stack.push(target_node);
+                    }
+                }
+                // TODO: only add comment if first statement in block isnt ::LABEL::?
+                res_block.push(ast::Comment::new(format!("block {:?}", node)).into());
+                res_block.extend(block.0)
+            }
+            // TODO: these nodes are never executed (i think), comment them out or dont include them
+            for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+                let block = self.function.remove_block(node).unwrap();
+                // TODO: only add comment if first statement in block isnt ::LABEL::?
+                res_block.push(ast::Comment::new(format!("block {:?}", node)).into());
+                res_block.extend(block.0)
+            }
+
+            res_block
         } else {
             self.function.remove_block(self.root).unwrap()
         }
