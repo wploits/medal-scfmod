@@ -47,7 +47,11 @@ impl<'a> ParamLifter<'a> {
                 .iter()
                 .filter(|e| e.target() == node)
                 .collect::<Vec<_>>();
-            for edge in edges_to_node.into_iter().map(|e| e.id()).collect::<Vec<_>>() {
+            for edge in edges_to_node
+                .into_iter()
+                .map(|e| e.id())
+                .collect::<Vec<_>>()
+            {
                 let args = std::mem::take(
                     &mut self
                         .function
@@ -59,7 +63,7 @@ impl<'a> ParamLifter<'a> {
                 .into_iter()
                 .filter(|(p, a)| p != a)
                 .collect::<Vec<_>>();
-    
+
                 let mut assign_instrs = Vec::with_capacity(args.len());
                 let mut defined_vars = FxHashSet::default();
                 for (param, arg) in &args {
@@ -68,12 +72,13 @@ impl<'a> ParamLifter<'a> {
                         panic!("block parameter lifting: arguments in incorrect order");
                     }
                     defined_vars.insert(param);
-    
+
                     assign_instrs.push(
-                        ast::Assign::new(vec![(param.clone().into())], vec![arg.clone().into()]).into(),
+                        ast::Assign::new(vec![(param.clone().into())], vec![arg.clone().into()])
+                            .into(),
                     );
                 }
-    
+
                 // update interference graph
                 if let Some(interference_graph) = self.interference_graph.as_mut() {
                     for (param, _) in &args {
@@ -87,7 +92,7 @@ impl<'a> ParamLifter<'a> {
                         }
                     }
                 }
-    
+
                 // we dont want to end up creating a new block if there's nothing to add
                 if !assign_instrs.is_empty() {
                     let assign_block = if is_unconditional {
@@ -108,7 +113,6 @@ impl<'a> ParamLifter<'a> {
                         .extend(assign_instrs);
                 }
             }
-            
         }
     }
 }

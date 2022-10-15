@@ -143,15 +143,12 @@ fn pattern_internal(input: TokenStream) -> TokenStream {
     assert!(from_wildcard_edges.len() == 1);
 
     let from_wildcard_edge = &from_wildcard_edges[0];
-    
 
     quote!({
         use ::cfg::function::Function;
         use ::petgraph::stable_graph::NodeIndex;
         |function: &Function, root: NodeIndex| {
             let mut matches = Vec::new();
-
-            
 
             matches
         }
