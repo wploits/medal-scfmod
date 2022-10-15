@@ -186,6 +186,12 @@ impl GraphStructurer {
             // to get best output
             let mut changed = false;
             for &edge in &edges {
+                // edge might have been invalidated by a previous iteration due to insert_goto_for_edge
+                // calling remove_block(target)
+                if self.function.graph().edge_weight(edge).is_none() {
+                    continue;
+                }
+                
                 let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
                 let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
                 let target_dominators = dominators.dominators(target);
@@ -209,6 +215,11 @@ impl GraphStructurer {
 
             if !changed {
                 for edge in edges {
+                    // edge might have been invalidated by a previous iteration due to insert_goto_for_edge
+                    // calling remove_block(target)
+                    if self.function.graph().edge_weight(edge).is_none() {
+                        continue;
+                    }
                     self.insert_goto_for_edge(edge);
                     changed = self.match_blocks();
                     if changed {
