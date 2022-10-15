@@ -934,7 +934,6 @@ impl<'a> LifterContext<'a> {
                         between_node,
                         vec![(successor, BlockEdge::new(BranchType::Unconditional))],
                     );
-                    // TODO: replace_edge
                     for edge in context
                         .function
                         .graph()
