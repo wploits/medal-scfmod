@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::{has_side_effects, LocalRw, SideEffects, Traverse};
 
+// TODO: Rc
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Label(pub String);
 

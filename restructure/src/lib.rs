@@ -123,7 +123,76 @@ impl GraphStructurer {
     }
 
     fn collapse(&mut self) {
-        while self.match_blocks() {}
+        loop {
+            while self.match_blocks() {}
+            if self.function.graph().node_count() == 1 {
+                break;
+            }
+            // last resort refinement
+            let edges = self.function.graph().edge_indices().collect::<Vec<_>>();
+            // https://edmcman.github.io/papers/usenix13.pdf
+            // we prefer to remove edges whose source does not dominate its target, nor whose target dominates its source
+            // TODO: try all possible paths and return the one with the least gotos, i don't think there's any other way
+            // to get best output
+            let mut changed = false;
+            for &edge in &edges {
+                let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
+                let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
+                if dominators.dominators(target).unwrap().contains(&source)
+                    || dominators.dominators(source).unwrap().contains(&target)
+                {
+                    continue;
+                }
+
+                // TODO: make label an Rc and have a global counter for block name
+                let label = ast::Label(format!("BLOCK_{}", target.index()));
+                let target_block = self.function.block_mut(target).unwrap();
+                if target_block.first().and_then(|s| s.as_label()).is_none() {
+                    target_block.insert(0, label.clone().into());
+                }
+                let goto_block = self.function.new_block();
+                self.function
+                    .block_mut(goto_block)
+                    .unwrap()
+                    .push(ast::Goto::new(label).into());
+
+                let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+                self.function.graph_mut().add_edge(source, goto_block, edge);
+
+                changed = self.match_blocks();
+                if changed {
+                    break;
+                }
+            }
+
+            if !changed {
+                for edge in edges {
+                    let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
+                    // TODO: make label an Rc and have a global counter for block name
+                    let label = ast::Label(format!("BLOCK_{}", target.index()));
+                    let target_block = self.function.block_mut(target).unwrap();
+                    if target_block.first().and_then(|s| s.as_label()).is_none() {
+                        target_block.insert(0, label.clone().into());
+                    }
+                    let goto_block = self.function.new_block();
+                    self.function
+                        .block_mut(goto_block)
+                        .unwrap()
+                        .push(ast::Goto::new(label).into());
+
+                    let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+                    self.function.graph_mut().add_edge(source, goto_block, edge);
+
+                    changed = self.match_blocks();
+                    if changed {
+                        break;
+                    }
+                }
+                if !changed {
+                    break;
+                }
+            }
+        }
     }
 
     fn structure(mut self) -> ast::Block {
