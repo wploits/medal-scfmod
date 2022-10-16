@@ -570,6 +570,7 @@ impl<'a> SsaConstructor<'a> {
                 {
                     if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
                         for (local, param_local) in incomplete_params {
+                            // TODO: this is a bit weird, maybe we should have a upvalue rvalue
                             if !self.new_upvalues_in.contains_key(&local) {
                                 self.add_param_args(node, &local, param_local);
                             }
@@ -580,6 +581,7 @@ impl<'a> SsaConstructor<'a> {
             }
         }
 
+        // TODO: this is a bit meh, maybe we should have an argument rvalue
         if let Some(mut incomplete_params) = self.incomplete_params.remove(&entry) {
             for param in &mut self.function.parameters {
                 *param = incomplete_params

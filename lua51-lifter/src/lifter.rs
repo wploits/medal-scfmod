@@ -918,7 +918,16 @@ impl<'a> LifterContext<'a> {
             context.allocate_locals();
             context.lift_blocks();
 
-            context.function.set_entry(context.nodes[&0]);
+            // TODO: STYLE: instead of naming NodeIndex vars `{}_node`, we should name them
+            // `{}_index`, or if it's the corresponding var for `block`, `block_index`
+            let stack_init_node = context.function.new_block();
+            let stack_init_block = context.function.block_mut(stack_init_node).unwrap(); 
+            stack_init_block.reserve(context.locals.len());
+            for (_, local) in context.locals {
+                stack_init_block.push(ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]).into())
+            }
+            context.function.set_edges(stack_init_node, vec![(context.nodes[&0], BlockEdge::new(BranchType::Unconditional))]);
+            context.function.set_entry(stack_init_node);
 
             for (node, (successor, stat)) in context.insert_between {
                 if context.function.predecessor_blocks(successor).count() == 1 {
