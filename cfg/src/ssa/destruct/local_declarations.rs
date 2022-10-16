@@ -7,11 +7,7 @@ use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 use crate::function::Function;
 
-fn push_declaration(
-    function: &mut Function,
-    node: NodeIndex,
-    local: ast::RcLocal,
-) {
+fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLocal) {
     let block = function.block_mut(node).unwrap();
     let mut read_stat_index = None;
     for (index, statement) in block.iter_mut().enumerate() {

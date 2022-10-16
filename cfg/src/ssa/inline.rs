@@ -35,8 +35,7 @@ fn inline_expression(
 fn inline_expressions(
     function: &mut Function,
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
-    // we dont need to update local usages because we only inline locals with 1 original usage
-    local_usages: &FxHashMap<ast::RcLocal, usize>,
+    local_usages: &mut FxHashMap<ast::RcLocal, usize>,
 ) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
     for node in node_indices {
@@ -73,36 +72,56 @@ fn inline_expressions(
         'w: while index < block.len() {
             let mut allow_side_effects = true;
             for stat_index in (0..index).rev() {
-                let mut values_read = stat_to_values_read[index]
-                    .iter_mut()
-                    .filter(|l| l.is_some())
-                    .peekable();
-                if values_read.peek().is_none() {
-                    index += 1;
-                    continue 'w;
-                }
                 if let ast::Statement::Assign(assign) = &block[stat_index]
                     && assign.left.len() == 1
                     && assign.right.len() == 1
                     && let ast::LValue::Local(local) = &assign.left[0]
                 {
+                    // TODO: STYLE: rename to rvalue
                     let new_expression = &assign.right[0];
                     let new_expr_has_side_effects = new_expression.has_side_effects();
                     let local = local.clone();
-                    for read_opt in values_read {
+                    for read_opt in stat_to_values_read[index]
+                        .iter_mut()
+                        .filter(|l| l.is_some())
+                    {
+                        // TODO: filter?
                         let read = read_opt.as_ref().unwrap();
                         if read != &local {
                             continue;
                         };
                         if !new_expr_has_side_effects || allow_side_effects {
-                            let mut new_expression = Some(block[stat_index].as_assign_mut().unwrap().right.pop().unwrap());
-                            if inline_expression(&mut block[index], read, &mut new_expression, new_expr_has_side_effects) {
+                            let mut new_expression = Some(
+                                block[stat_index]
+                                    .as_assign_mut()
+                                    .unwrap()
+                                    .right
+                                    .pop()
+                                    .unwrap(),
+                            );
+                            if inline_expression(
+                                &mut block[index],
+                                read,
+                                &mut new_expression,
+                                new_expr_has_side_effects,
+                            ) {
                                 assert!(new_expression.is_none());
+                                // TODO: PERF: remove local_usages[l] == 1 in stat_to_values_read and use that
+                                for local in block[stat_index].values_read() {
+                                    let local_usage_count = local_usages.get_mut(local).unwrap();
+                                    *local_usage_count = local_usage_count.saturating_sub(1);
+                                }
+                                // we dont need to update local usages because tracking usages for a local
+                                // with no declarations serves no purpose
                                 block[stat_index] = ast::Empty {}.into();
                                 *read_opt = None;
                                 continue 'w;
                             } else {
-                                block[stat_index].as_assign_mut().unwrap().right.push(new_expression.unwrap());
+                                block[stat_index]
+                                    .as_assign_mut()
+                                    .unwrap()
+                                    .right
+                                    .push(new_expression.unwrap());
                             }
                         }
                     }
@@ -133,7 +152,44 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
     let mut changed = true;
     while changed {
         changed = false;
-        inline_expressions(function, upvalue_to_group, &local_usages);
+        inline_expressions(function, upvalue_to_group, &mut local_usages);
+
+        for (_, block) in function.blocks_mut() {
+            for stat_index in 0..block.len() {
+                if let ast::Statement::Assign(assign) = &block[stat_index]
+                    && assign.left.len() == 1
+                    && assign.right.len() == 1
+                    && let ast::LValue::Local(local) = &assign.left[0]
+                {
+                    let rvalue = &assign.right[0];
+                    let has_side_effects = rvalue.has_side_effects();
+                    if local_usages.get(local).map_or(true, |&u| u == 0) {
+                        if has_side_effects {
+                            // TODO: PERF: dont clone
+                            let new_stat = match rvalue {
+                                ast::RValue::Call(call)
+                                | ast::RValue::Select(ast::Select::Call(call)) => {
+                                    Some(call.clone().into())
+                                }
+                                ast::RValue::MethodCall(method_call)
+                                | ast::RValue::Select(ast::Select::MethodCall(method_call)) => {
+                                    Some(method_call.clone().into())
+                                }
+                                _ => None,
+                            };
+                            if let Some(new_stat) = new_stat {
+                                block[stat_index] = new_stat;
+                                changed = true;
+                            }
+                        } else {
+                            block[stat_index] = ast::Empty {}.into();
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+
         for (_, block) in function.blocks_mut() {
             // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
             // TODO: fix ^

@@ -171,7 +171,7 @@ impl fmt::Display for NumForNext {
     }
 }
 
-// TODO: RENAME this should probably be named "NumFor"
+// TODO: STYLE: this should probably be named "NumFor"
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumericFor {
     pub initial: RValue,

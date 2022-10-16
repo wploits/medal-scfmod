@@ -30,6 +30,7 @@ struct SsaConstructor<'a> {
     upvalues_passed: FxHashMap<RcLocal, FxHashMap<(NodeIndex, usize), FxHashSet<RcLocal>>>,
 }
 
+// TODO: REFACTOR: move out of construct module
 // https://github.com/fkie-cad/dewolf/blob/7afe5b46e79a7b56e9904e63f29d54bd8f7302d9/decompiler/pipeline/ssa/phi_cleaner.py
 pub fn remove_unnecessary_params(
     function: &mut Function,

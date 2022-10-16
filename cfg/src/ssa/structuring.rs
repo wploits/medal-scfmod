@@ -91,6 +91,7 @@ fn match_conditional_sequence(
     function: &Function,
     node: NodeIndex,
 ) -> Option<ConditionalSequencePattern> {
+    // TODO: check if len() == 1?
     let block = function.block(node).unwrap();
     if let Some(r#if) = block.last().and_then(|s| s.as_if()) {
         let first_condition = r#if.condition.clone();
@@ -646,6 +647,8 @@ fn replace_edge_with_parameters(
             .unwrap()
             .condition;
         if cond.has_side_effects() {
+            // TODO: assign not needed for calls (also see jump.rs)
+            // well inline.rs should take care of them in this case, but in the case of jump.rs, not so much
             let temp_local = function.local_allocator.borrow_mut().allocate();
             function.block_mut(node).unwrap().push(
                 ast::Assign {

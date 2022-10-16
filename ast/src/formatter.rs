@@ -296,7 +296,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             .all(|(i, &c)| (i != 0 && c.is_ascii_digit()) || c.is_ascii_alphabetic() || c == b'_');
     }
 
-    // TODO: OPTIMIZE: Cow like from_utf8_lossy
+    // TODO: PERF: Cow like from_utf8_lossy
     pub(crate) fn escape_string(string: &[u8]) -> Cow<str> {
         let mut owned: Option<String> = None;
         for (i, &c) in string.iter().enumerate() {
@@ -306,7 +306,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 }
             } else {
                 if owned.is_none() {
-                    // TODO: OPTIMIZE: unchecked?
+                    // TODO: PERF: unchecked?
                     owned = Some(std::str::from_utf8(&string[..i]).unwrap().to_string());
                     owned.as_mut().unwrap().reserve((string.len() - i) * 2);
                 }
@@ -324,7 +324,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         if let Some(owned) = owned {
             owned.into()
         } else {
-            // TODO: OPTIMIZE: unchecked?
+            // TODO: PERF: unchecked?
             std::str::from_utf8(string).unwrap().into()
         }
     }
