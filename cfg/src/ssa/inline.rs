@@ -4,21 +4,21 @@ use fxhash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::Either;
 
-fn inline_expression(
+fn inline_rvalue(
     statement: &mut ast::Statement,
     read: &ast::RcLocal,
-    new_expression: &mut Option<ast::RValue>,
-    new_expr_has_side_effects: bool,
+    new_rvalue: &mut Option<ast::RValue>,
+    new_rvalue_has_side_effects: bool,
 ) -> bool {
     statement
         .post_traverse_values(&mut |v| {
             if let Either::Right(rvalue) = v {
                 if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
-                    *rvalue = new_expression.take().unwrap();
+                    *rvalue = new_rvalue.take().unwrap();
                     // success!
                     return Some(true)
                 }
-                if new_expr_has_side_effects && rvalue.has_side_effects() {
+                if new_rvalue_has_side_effects && rvalue.has_side_effects() {
                     // failure :(
                     return Some(false);
                 }
@@ -30,9 +30,9 @@ fn inline_expression(
         .unwrap_or(false)
 }
 
-// TODO: dont clone expressions
+// TODO: dont clone rvalues
 // TODO: move to ssa module?
-fn inline_expressions(
+fn inline_rvalues(
     function: &mut Function,
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
     local_usages: &mut FxHashMap<ast::RcLocal, usize>,
@@ -77,9 +77,8 @@ fn inline_expressions(
                     && assign.right.len() == 1
                     && let ast::LValue::Local(local) = &assign.left[0]
                 {
-                    // TODO: STYLE: rename to rvalue
-                    let new_expression = &assign.right[0];
-                    let new_expr_has_side_effects = new_expression.has_side_effects();
+                    let new_rvalue = &assign.right[0];
+                    let new_rvalue_has_side_effects = new_rvalue.has_side_effects();
                     let local = local.clone();
                     for read_opt in stat_to_values_read[index]
                         .iter_mut()
@@ -90,8 +89,8 @@ fn inline_expressions(
                         if read != &local {
                             continue;
                         };
-                        if !new_expr_has_side_effects || allow_side_effects {
-                            let mut new_expression = Some(
+                        if !new_rvalue_has_side_effects || allow_side_effects {
+                            let mut new_rvalue = Some(
                                 block[stat_index]
                                     .as_assign_mut()
                                     .unwrap()
@@ -99,13 +98,13 @@ fn inline_expressions(
                                     .pop()
                                     .unwrap(),
                             );
-                            if inline_expression(
+                            if inline_rvalue(
                                 &mut block[index],
                                 read,
-                                &mut new_expression,
-                                new_expr_has_side_effects,
+                                &mut new_rvalue,
+                                new_rvalue_has_side_effects,
                             ) {
-                                assert!(new_expression.is_none());
+                                assert!(new_rvalue.is_none());
                                 // TODO: PERF: remove local_usages[l] == 1 in stat_to_values_read and use that
                                 for local in block[stat_index].values_read() {
                                     let local_usage_count = local_usages.get_mut(local).unwrap();
@@ -121,7 +120,7 @@ fn inline_expressions(
                                     .as_assign_mut()
                                     .unwrap()
                                     .right
-                                    .push(new_expression.unwrap());
+                                    .push(new_rvalue.unwrap());
                             }
                         }
                     }
@@ -152,8 +151,9 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
     let mut changed = true;
     while changed {
         changed = false;
-        inline_expressions(function, upvalue_to_group, &mut local_usages);
+        inline_rvalues(function, upvalue_to_group, &mut local_usages);
 
+        // remove unused locals
         for (_, block) in function.blocks_mut() {
             for stat_index in 0..block.len() {
                 if let ast::Statement::Assign(assign) = &block[stat_index]
