@@ -28,7 +28,6 @@ impl BlockEdge {
     }
 }
 
-
 impl fmt::Display for BlockEdge {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.branch_type {

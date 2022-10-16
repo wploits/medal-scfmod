@@ -163,7 +163,7 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
                 {
                     let rvalue = &assign.right[0];
                     let has_side_effects = rvalue.has_side_effects();
-                    if local_usages.get(local).map_or(true, |&u| u == 0) {
+                    if !upvalue_to_group.contains_key(local) && local_usages.get(local).map_or(true, |&u| u == 0) {
                         if has_side_effects {
                             // TODO: PERF: dont clone
                             let new_stat = match rvalue {
