@@ -1,6 +1,6 @@
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 use fxhash::FxHashSet;
-use indexmap::IndexSet;
+use indexmap::{IndexSet, IndexMap};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,
@@ -194,8 +194,8 @@ fn match_conditional_assignment(
                     && let ast::LValue::Local(assigned_local) = &assign.left[0]
                     && let Some(assign_edge) = function.unconditional_edge(assigner)
                     && let other_edge = if edges.0.target() == next { edges.0 } else { edges.1 }
-                    && let Some(assign_param) = assign_edge.weight().arguments.iter().find_map(|(k, v)| if v == assigned_local { Some(k) } else { None })
-                    && let Some(other_param) = other_edge.weight().arguments.iter().find_map(|(k, v)| if v == condition { Some(k) } else { None })
+                    && let Some(assign_param) = assign_edge.weight().arguments.iter().filter_map(|(p, a)| Some((p, a.as_local()?))).find_map(|(k, v)| if v == assigned_local { Some(k) } else { None })
+                    && let Some(other_param) = other_edge.weight().arguments.iter().filter_map(|(p, a)| Some((p, a.as_local()?))).find_map(|(k, v)| if v == condition { Some(k) } else { None })
                     && assign_param == other_param
                 {
                     Some((assigned_local.clone(), assign.right[0].clone(), assign_param.clone()))
@@ -266,7 +266,7 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             let mut arguments = function.graph_mut().edge_weight_mut(the_edge).unwrap().arguments.clone();
             for (parameter, argument) in arguments.iter_mut() {
                 if *parameter == pattern.parameter {
-                    *argument = pattern.assigned_local;
+                    *argument = pattern.assigned_local.into();
                     break;
                 }
             }
@@ -584,7 +584,7 @@ fn replace_edge_with_parameters(
     node: NodeIndex,
     old_target: NodeIndex,
     new_target: NodeIndex,
-    parameters: &[(ast::RcLocal, ast::RcLocal)],
+    parameters: &[(ast::RcLocal, ast::RValue)],
 ) -> bool {
     let mut did_structure = false;
     let original_params = function
@@ -610,10 +610,9 @@ fn replace_edge_with_parameters(
             .edge_weight(edge)
             .unwrap()
             .arguments
-            .iter()
-            .cloned()
-            .collect::<IndexSet<_>>();
+            .clone();
         new_arguments.extend(parameters.iter().cloned());
+        // TODO: eliminate duplicate arguments where possible
 
         // all arguments in edges to a block must have the same parameters
         // TODO: make arguments a map so order doesnt matter

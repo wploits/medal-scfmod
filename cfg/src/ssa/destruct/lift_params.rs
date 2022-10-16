@@ -1,3 +1,4 @@
+use ast::LocalRw;
 use fxhash::FxHashSet;
 use petgraph::{stable_graph::NodeIndex, visit::EdgeRef, Direction};
 
@@ -61,15 +62,18 @@ impl<'a> ParamLifter<'a> {
                         .arguments,
                 )
                 .into_iter()
-                .filter(|(p, a)| p != a)
+                .filter(|(p, a)| Some(p) != a.as_local())
                 .collect::<Vec<_>>();
 
                 let mut assign_instrs = Vec::with_capacity(args.len());
                 let mut defined_vars = FxHashSet::default();
                 for (param, arg) in &args {
                     // TODO: this check has performance implications, should we remove it?
-                    if defined_vars.contains(arg) {
-                        panic!("block parameter lifting: arguments in incorrect order");
+                    // or make it only compile in debug builds/non-production builds
+                    for value_read in arg.values_read() {
+                        if defined_vars.contains(value_read) {
+                            panic!("block parameter lifting: arguments in incorrect order");
+                        }
                     }
                     defined_vars.insert(param);
 
@@ -84,11 +88,13 @@ impl<'a> ParamLifter<'a> {
                     for (param, _) in &args {
                         let param_node = interference_graph.local_to_node[param];
                         for (_, arg) in &args {
-                            interference_graph.graph.update_edge(
-                                param_node,
-                                interference_graph.local_to_node[arg],
-                                (),
-                            );
+                            for value_read in arg.values_read() {
+                                interference_graph.graph.update_edge(
+                                    param_node,
+                                    interference_graph.local_to_node[value_read],
+                                    (),
+                                );
+                            }
                         }
                     }
                 }

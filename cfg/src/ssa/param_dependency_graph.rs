@@ -31,7 +31,9 @@ impl ParamDependencyGraph {
                     this.add_node(param.clone());
                 }
             }
+            // TODO: support non-local block arguments
             for (param, arg) in &edge.1.arguments {
+                let arg = arg.as_local().unwrap();
                 if let Some(&defining_param_node) = this.local_to_node.get(arg) {
                     let param_node = this.local_to_node[param];
                     if param_node != defining_param_node {

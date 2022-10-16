@@ -1,8 +1,6 @@
 use std::fmt;
 
-use ast::RcLocal;
-use enum_as_inner::EnumAsInner;
-use petgraph::stable_graph::NodeIndex;
+use ast::{RcLocal, RValue};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum BranchType {
@@ -16,7 +14,7 @@ pub enum BranchType {
 pub struct BlockEdge {
     pub branch_type: BranchType,
     // TODO: why is this not a hash map?
-    pub arguments: Vec<(RcLocal, RcLocal)>,
+    pub arguments: Vec<(RcLocal, RValue)>,
 }
 
 impl BlockEdge {

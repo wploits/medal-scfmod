@@ -31,7 +31,8 @@ fn inline_rvalue(
 }
 
 // TODO: dont clone rvalues
-// TODO: move to ssa module?
+// TODO: REFACTOR: move to ssa module?
+// TODO: inline into block arguments
 fn inline_rvalues(
     function: &mut Function,
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
@@ -44,7 +45,7 @@ fn inline_rvalues(
             function
                 .edges(node)
                 .into_iter()
-                .flat_map(|e| e.weight().arguments.iter().map(|(_, a)| a))
+                .flat_map(|e| e.weight().arguments.iter().map(|(_, a)| a.as_local().unwrap()))
                 .cloned(),
         );
         let block = function.block_mut(node).unwrap();
@@ -136,15 +137,8 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
     let mut local_usages = FxHashMap::default();
     for node in function.graph().node_indices() {
         let block = function.block(node).unwrap();
-        for stat in &block.0 {
-            for read in stat.values_read() {
-                *local_usages.entry(read.clone()).or_insert(0usize) += 1;
-            }
-        }
-        for edge in function.edges(node) {
-            for (_, arg) in &edge.weight().arguments {
-                *local_usages.entry(arg.clone()).or_insert(0usize) += 1;
-            }
+        for read in function.values_read(node) {
+            *local_usages.entry(read.clone()).or_insert(0usize) += 1;
         }
     }
 
