@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{has_side_effects, LocalRw, SideEffects, Traverse};
 
 // TODO: Rc
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Label(pub String);
 
 impl SideEffects for Label {}
