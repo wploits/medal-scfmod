@@ -81,6 +81,12 @@ fn inline_expressions(
                     index += 1;
                     continue 'w;
                 }
+                for value_written in block[stat_index].values_written() {
+                    if upvalue_to_group.contains_key(value_written) {
+                        index += 1;
+                        continue 'w;
+                    }
+                }
                 if let ast::Statement::Assign(assign) = &block[stat_index]
                     && assign.left.len() == 1
                     && assign.right.len() == 1
