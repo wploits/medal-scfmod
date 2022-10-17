@@ -1,8 +1,6 @@
 use std::fmt;
 
-use ast::RcLocal;
-use enum_as_inner::EnumAsInner;
-use petgraph::stable_graph::NodeIndex;
+use ast::{RcLocal, RValue};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum BranchType {
@@ -16,7 +14,7 @@ pub enum BranchType {
 pub struct BlockEdge {
     pub branch_type: BranchType,
     // TODO: why is this not a hash map?
-    pub arguments: Vec<(RcLocal, RcLocal)>,
+    pub arguments: Vec<(RcLocal, RValue)>,
 }
 
 impl BlockEdge {
@@ -34,6 +32,15 @@ impl fmt::Display for BlockEdge {
             BranchType::Unconditional => write!(f, "u"),
             BranchType::Then => write!(f, "t"),
             BranchType::Else => write!(f, "e"),
+        }?;
+        if !self.arguments.is_empty() {
+            for (i, (local, new_local)) in self.arguments.iter().enumerate() {
+                write!(f, "{} -> {}", local, new_local)?;
+                if i + 1 != self.arguments.len() {
+                    writeln!(f)?;
+                }
+            }
         }
+        Ok(())
     }
 }

@@ -72,7 +72,7 @@ impl fmt::Display for Call {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MethodCall {
-    // TODO: rename to object?
+    // TODO: STYLE: rename to object?
     pub value: Box<RValue>,
     pub method: String,
     pub arguments: Vec<RValue>,

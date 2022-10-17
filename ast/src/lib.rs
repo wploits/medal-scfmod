@@ -289,11 +289,11 @@ impl fmt::Display for Comment {
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            // TODO: order in same order as `Statement` enum
+            // TODO: STYLE: order in same order as `Statement` enum
             Statement::Call(call) => write!(f, "{}", call),
             Statement::MethodCall(method_call) => write!(f, "{}", method_call),
             Statement::Assign(assign) => write!(f, "{}", assign),
-            // TODO: replace all `if_` with `r#if`, etc
+            // TODO: STYLE: replace all `if_` with `r#if`, etc
             Statement::If(if_) => write!(f, "{}", if_),
             Statement::Goto(goto) => write!(f, "{}", goto),
             Statement::Label(label) => write!(f, "{}", label),

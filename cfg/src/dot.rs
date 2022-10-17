@@ -6,7 +6,7 @@ use petgraph::stable_graph::{EdgeIndex, NodeIndex};
 
 use crate::function::Function;
 
-fn arguments(args: &Vec<(ast::RcLocal, ast::RcLocal)>) -> String {
+fn arguments(args: &Vec<(ast::RcLocal, ast::RValue)>) -> String {
     let mut s = String::new();
     for (i, (local, new_local)) in args.iter().enumerate() {
         use std::fmt::Write;

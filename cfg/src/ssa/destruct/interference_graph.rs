@@ -145,7 +145,7 @@ impl InterferenceGraph {
                 this.update_live_set(statement, &mut current_live_set);
             }
             let dead_phis = block_liveness
-                .defs_phi
+                .params
                 .difference(live_in)
                 .cloned()
                 .collect::<Vec<_>>();

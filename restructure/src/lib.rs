@@ -191,7 +191,7 @@ impl GraphStructurer {
                 if self.function.graph().edge_weight(edge).is_none() {
                     continue;
                 }
-                
+
                 let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
                 let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
                 let target_dominators = dominators.dominators(target);
