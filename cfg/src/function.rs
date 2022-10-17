@@ -1,4 +1,4 @@
-use ast::{local_allocator::LocalAllocator, RcLocal};
+use ast::{local_allocator::LocalAllocator, LocalRw, RcLocal};
 use contracts::requires;
 use fxhash::FxHashMap;
 use itertools::Itertools;
@@ -223,6 +223,22 @@ impl Function {
         } else {
             None
         }
+    }
+
+    // TODO: disable_contracts for production builds
+    #[requires(self.has_block(node))]
+    pub fn values_read(&self, node: NodeIndex) -> impl Iterator<Item = &RcLocal> {
+        self.block(node)
+            .unwrap()
+            .0
+            .iter()
+            .flat_map(|s| s.values_read())
+            .chain(self.edges(node).flat_map(|e| {
+                e.weight()
+                    .arguments
+                    .iter()
+                    .flat_map(|(_, a)| a.values_read())
+            }))
     }
 
     // pub fn edges_to_block_mut(&mut self, node: NodeIndex) -> Vec<&mut BasicBlockEdge> {

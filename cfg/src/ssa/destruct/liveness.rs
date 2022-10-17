@@ -7,11 +7,17 @@ use crate::function::Function;
 
 #[derive(Debug, Default)]
 pub struct BlockLiveness {
+    // the locals that are used in this block
     pub uses: FxHashSet<RcLocal>,
+    // the locals that are defined in this block
     pub defs: FxHashSet<RcLocal>,
-    pub uses_phi: FxHashSet<RcLocal>,
-    pub defs_phi: FxHashSet<RcLocal>,
+    // the locals that are used by arguments passed from this block to its successor
+    pub arg_out_uses: FxHashSet<RcLocal>,
+    // the locals that are defined by the parameters passed to this block by its predecessor
+    pub params: FxHashSet<RcLocal>,
+    // the set LiveIn(B) = PhiDefs(B) ⋃ ( [Uses(B) ⋃ LiveOut(B)] ∖ Defs(B))
     pub live_in: FxHashSet<RcLocal>,
+    // the set LiveOut(B) = ( ⋃_{S ∊ Succ(B)} [LiveIn(S)∖PhiDefs(S)] ) ⋃ PhiUses(B)
     pub live_out: FxHashSet<RcLocal>,
 }
 
@@ -32,7 +38,7 @@ impl Liveness {
             return;
         }
         block_liveness.live_in.insert(variable.clone());
-        if block_liveness.defs_phi.contains(variable) {
+        if block_liveness.params.contains(variable) {
             return;
         }
         for predecessor in function.predecessor_blocks(node) {
@@ -63,22 +69,25 @@ impl Liveness {
                     .defs
                     .extend(instruction.values_written().into_iter().cloned());
             }
-            for (_, edge) in function.edges_to_block(node) {
+            for (pred, edge) in function.edges_to_block(node) {
                 liveness
                     .block_liveness
-                    .entry(node)
-                    .or_default()
-                    .defs_phi
+                    .get_mut(&node)
+                    .unwrap()
+                    .params
                     .extend(edge.arguments.iter().map(|(k, _)| k).cloned());
-                let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-                block_liveness
-                    .uses_phi
-                    .extend(edge.arguments.iter().map(|(_, v)| v).cloned());
+                let block_liveness = liveness.block_liveness.entry(pred).or_default();
+                block_liveness.arg_out_uses.extend(
+                    edge.arguments
+                        .iter()
+                        .flat_map(|(_, v)| v.values_read())
+                        .cloned(),
+                );
             }
         }
         for node in function.graph().node_indices() {
             let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-            for variable in block_liveness.uses_phi.clone() {
+            for variable in block_liveness.arg_out_uses.clone() {
                 let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
                 block_liveness.live_out.insert(variable.clone());
                 Self::explore_all_paths(&mut liveness, function, node, &variable);

@@ -3,6 +3,7 @@ use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
 use cfg::{
     block::{BlockEdge, BranchType},
     pattern::*,
+    ssa,
 };
 use either::Either;
 use fxhash::{FxHashMap, FxHashSet};
@@ -12,7 +13,6 @@ use itertools::Itertools;
 use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
 use cfg::{
     function::Function,
-    inline::inline,
     ssa::structuring::{
         structure_compound_conditionals, structure_for_loops, structure_jumps,
         structure_method_calls,
@@ -898,6 +898,7 @@ impl<'a> LifterContext<'a> {
         }
     }
 
+    // TODO: STYLE: REFACTOR: rename to decompile and move to decompile.rs
     pub fn lift(
         bytecode: &'a BytecodeFunction,
         local_allocator: Rc<RefCell<LocalAllocator>>,
@@ -918,7 +919,24 @@ impl<'a> LifterContext<'a> {
             context.allocate_locals();
             context.lift_blocks();
 
-            context.function.set_entry(context.nodes[&0]);
+            // TODO: STYLE: instead of naming NodeIndex vars `{}_node`, we should name them
+            // `{}_index`, or if it's the corresponding var for `block`, `block_index`
+            let stack_init_node = context.function.new_block();
+            let stack_init_block = context.function.block_mut(stack_init_node).unwrap();
+            stack_init_block.reserve(context.locals.len());
+            for (_, local) in context.locals {
+                if !context.function.parameters.contains(&local) {
+                    let stack_init_block = context.function.block_mut(stack_init_node).unwrap();
+                    stack_init_block.push(
+                        ast::Assign::new(vec![local.into()], vec![ast::Literal::Nil.into()]).into(),
+                    )
+                }
+            }
+            context.function.set_edges(
+                stack_init_node,
+                vec![(context.nodes[&0], BlockEdge::new(BranchType::Unconditional))],
+            );
+            context.function.set_entry(stack_init_node);
 
             for (node, (successor, stat)) in context.insert_between {
                 if context.function.predecessor_blocks(successor).count() == 1 {
@@ -966,6 +984,19 @@ impl<'a> LifterContext<'a> {
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
                 .collect::<IndexMap<_, _>>();
 
+            let local_to_group = local_groups
+                .iter()
+                .cloned()
+                .enumerate()
+                .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
+                .collect::<FxHashMap<_, _>>();
+            // TODO: REFACTOR: some way to write a macro that states
+            // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
+            // structure_for_loops and remove_unnecessary_params must run again.
+            // if structure_compound_conditionals results in change then dominators and post dominators
+            // must be recalculated.
+            // etc.
+            // the macro could also maybe generate an optimal ordering?
             let mut changed = true;
             while changed {
                 changed = false;
@@ -973,8 +1004,7 @@ impl<'a> LifterContext<'a> {
                 let dominators = simple_fast(function.graph(), function.entry().unwrap());
                 changed |= structure_jumps(&mut function, &dominators);
 
-                // TODO: remove unused variables without side effects
-                inline(&mut function, &upvalue_to_group);
+                ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
 
                 if structure_compound_conditionals(&mut function)
                     || {
@@ -989,11 +1019,11 @@ impl<'a> LifterContext<'a> {
                 // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
                 let mut local_map = FxHashMap::default();
-                cfg::ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
+                ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
                 if !local_map.is_empty() {
                     changed = true;
                 }
-                cfg::ssa::construct::apply_local_map(&mut function, local_map);
+                ssa::construct::apply_local_map(&mut function, local_map);
             }
 
             // let mut triangle_pattern_graph = PatternGraph::new();

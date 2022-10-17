@@ -112,6 +112,8 @@ impl<'a> LocalRenamer<'a> {
         }
     }
 
+    // TODO: REFACTOR: pass local_to_group to this function, we have it in lifter.rs due to inlining
+    // requiring it
     fn generate_renaming_map(&mut self, local_groups: &[FxHashSet<RcLocal>]) {
         let local_to_group = local_groups
             .iter()

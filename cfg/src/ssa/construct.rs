@@ -3,6 +3,7 @@ use std::iter;
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
+use itertools::Either;
 use petgraph::{
     stable_graph::NodeIndex,
     visit::{Dfs, EdgeRef, Walker},
@@ -30,6 +31,8 @@ struct SsaConstructor<'a> {
     upvalues_passed: FxHashMap<RcLocal, FxHashMap<(NodeIndex, usize), FxHashSet<RcLocal>>>,
 }
 
+// TODO: REFACTOR: move out of construct module
+// TODO: support RValues other than Local and use an local -> rvalue map
 // https://github.com/fkie-cad/dewolf/blob/7afe5b46e79a7b56e9904e63f29d54bd8f7302d9/decompiler/pipeline/ssa/phi_cleaner.py
 pub fn remove_unnecessary_params(
     function: &mut Function,
@@ -60,6 +63,7 @@ pub fn remove_unnecessary_params(
                 let arg_set = args_in_by_block
                     .iter()
                     .map(|a| a[index])
+                    .filter_map(|r| r.as_local())
                     .collect::<FxHashSet<_>>();
                 if arg_set.len() == 1 {
                     while let Some(param_to) = local_map.get(param) {
@@ -133,39 +137,48 @@ pub fn remove_unnecessary_params(
     }
 }
 
+// TODO: STYLE: rename function
+// TODO: STYLE: rename `uses_local`, we need a generic name for ast nodes, maybe `traversible`?
+fn apply_local_map_to_values_referenced<T: LocalRw + Traverse>(
+    uses_local: &mut T,
+    local_map: &FxHashMap<RcLocal, RcLocal>,
+) {
+    // TODO: figure out values_mut
+    for (from, mut to) in uses_local
+        .values_written_mut()
+        .into_iter()
+        .filter_map(|v| local_map.get(v).map(|t| (v, t)))
+    {
+        while let Some(to_to) = local_map.get(to) {
+            to = to_to;
+        }
+        *from = to.clone();
+    }
+    let mut map = FxHashMap::default();
+    for (from, mut to) in uses_local
+        .values_read_mut()
+        .into_iter()
+        .filter_map(|v| local_map.get(v).map(|t| (v, t)))
+    {
+        while let Some(to_to) = local_map.get(to) {
+            to = to_to;
+        }
+        map.insert(from.clone(), to.clone());
+        *from = to.clone();
+    }
+    uses_local.traverse_rvalues(&mut |rvalue| {
+        if let Some(closure) = rvalue.as_closure_mut() {
+            replace_locals(&mut closure.body, &map)
+        }
+    });
+}
+
 pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, RcLocal>) {
     // TODO: blocks_mut
     for node in function.graph().node_indices().collect::<Vec<_>>() {
         let block = function.block_mut(node).unwrap();
         for stat in block.iter_mut() {
-            // TODO: figure out values_mut
-            for (from, mut to) in stat
-                .values_written_mut()
-                .into_iter()
-                .filter_map(|v| local_map.get(v).map(|t| (v, t)))
-            {
-                while let Some(to_to) = local_map.get(to) {
-                    to = to_to;
-                }
-                *from = to.clone();
-            }
-            let mut map = FxHashMap::default();
-            for (from, mut to) in stat
-                .values_read_mut()
-                .into_iter()
-                .filter_map(|v| local_map.get(v).map(|t| (v, t)))
-            {
-                while let Some(to_to) = local_map.get(to) {
-                    to = to_to;
-                }
-                map.insert(from.clone(), to.clone());
-                *from = to.clone();
-            }
-            stat.traverse_rvalues(&mut |rvalue| {
-                if let Some(closure) = rvalue.as_closure_mut() {
-                    replace_locals(&mut closure.body, &map)
-                }
-            });
+            apply_local_map_to_values_referenced(stat, &local_map);
         }
         for edge in function.edges(node).map(|e| e.id()).collect::<Vec<_>>() {
             // TODO: rename Stat::values, Expr::values to locals() and refer to locals as locals everywhere
@@ -175,13 +188,20 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                 .unwrap()
                 .arguments
                 .iter_mut()
-                .flat_map(|(p, a)| iter::once(p).chain(iter::once(a)))
+                .flat_map(|(p, a)| iter::once(Either::Left(p)).chain(iter::once(Either::Right(a))))
             {
-                if let Some(mut new_local) = local_map.get(local) {
-                    while let Some(new_to) = local_map.get(new_local) {
-                        new_local = new_to;
+                match local {
+                    Either::Left(local) => {
+                        if let Some(mut new_local) = local_map.get(local) {
+                            while let Some(new_to) = local_map.get(new_local) {
+                                new_local = new_to;
+                            }
+                            *local = new_local.clone();
+                        }
                     }
-                    *local = new_local.clone();
+                    Either::Right(rvalue) => {
+                        apply_local_map_to_values_referenced(rvalue, &local_map);
+                    }
                 }
             }
         }
@@ -220,7 +240,7 @@ impl<'a> SsaConstructor<'a> {
                 .edge_weight_mut(edge)
                 .unwrap()
                 .arguments
-                .push((param_local.clone(), argument_local));
+                .push((param_local.clone(), argument_local.into()));
         }
 
         self.try_remove_trivial_param(node, param_local)
@@ -235,7 +255,8 @@ impl<'a> SsaConstructor<'a> {
                 .unwrap()
                 .1
         });
-        for mut arg in args_in {
+        for arg in args_in {
+            let mut arg = arg.as_local().unwrap();
             while let Some(arg_to) = self.local_map.get(arg) {
                 arg = arg_to;
             }
@@ -266,10 +287,11 @@ impl<'a> SsaConstructor<'a> {
                 .unwrap_or(false)
             {
                 let edges = edges.collect::<Vec<_>>();
-                if edges
-                    .iter()
-                    .any(|e| e.arguments.iter().any(|(_, a)| a == &param_local))
-                {
+                if edges.iter().any(|e| {
+                    e.arguments
+                        .iter()
+                        .any(|(_, a)| a.as_local().unwrap() == &param_local)
+                }) {
                     let args_in = edges
                         .into_iter()
                         .map(|e| e.arguments.clone())
@@ -365,6 +387,7 @@ impl<'a> SsaConstructor<'a> {
             }
             for edge in self.function.edges(node) {
                 for (_, arg) in &edge.weight().arguments {
+                    let arg = arg.as_local().unwrap();
                     local_usages
                         .entry(arg.clone())
                         .or_insert_with(FxHashSet::default)
@@ -570,6 +593,7 @@ impl<'a> SsaConstructor<'a> {
                 {
                     if let Some(incomplete_params) = self.incomplete_params.remove(&node) {
                         for (local, param_local) in incomplete_params {
+                            // TODO: this is a bit weird, maybe we should have a upvalue rvalue
                             if !self.new_upvalues_in.contains_key(&local) {
                                 self.add_param_args(node, &local, param_local);
                             }
@@ -580,6 +604,7 @@ impl<'a> SsaConstructor<'a> {
             }
         }
 
+        // TODO: this is a bit meh, maybe we should have an argument rvalue
         if let Some(mut incomplete_params) = self.incomplete_params.remove(&entry) {
             for param in &mut self.function.parameters {
                 *param = incomplete_params

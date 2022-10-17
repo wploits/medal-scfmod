@@ -21,3 +21,5 @@ authors = [
 [profile.release]
 debug = true
 lto = true
+# strip = true
+# panic = "abort"

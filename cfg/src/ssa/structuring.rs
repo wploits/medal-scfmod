@@ -1,10 +1,11 @@
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
+use contracts::requires;
 use fxhash::FxHashSet;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,
-    stable_graph::NodeIndex,
+    stable_graph::{EdgeIndex, NodeIndex},
     visit::{DfsPostOrder, EdgeRef},
     Direction,
 };
@@ -91,6 +92,7 @@ fn match_conditional_sequence(
     function: &Function,
     node: NodeIndex,
 ) -> Option<ConditionalSequencePattern> {
+    // TODO: check if len() == 1?
     let block = function.block(node).unwrap();
     if let Some(r#if) = block.last().and_then(|s| s.as_if()) {
         let first_condition = r#if.condition.clone();
@@ -193,8 +195,8 @@ fn match_conditional_assignment(
                     && let ast::LValue::Local(assigned_local) = &assign.left[0]
                     && let Some(assign_edge) = function.unconditional_edge(assigner)
                     && let other_edge = if edges.0.target() == next { edges.0 } else { edges.1 }
-                    && let Some(assign_param) = assign_edge.weight().arguments.iter().find_map(|(k, v)| if v == assigned_local { Some(k) } else { None })
-                    && let Some(other_param) = other_edge.weight().arguments.iter().find_map(|(k, v)| if v == condition { Some(k) } else { None })
+                    && let Some(assign_param) = assign_edge.weight().arguments.iter().filter_map(|(p, a)| Some((p, a.as_local()?))).find_map(|(k, v)| if v == assigned_local { Some(k) } else { None })
+                    && let Some(other_param) = other_edge.weight().arguments.iter().filter_map(|(p, a)| Some((p, a.as_local()?))).find_map(|(k, v)| if v == condition { Some(k) } else { None })
                     && assign_param == other_param
                 {
                     Some((assigned_local.clone(), assign.right[0].clone(), assign_param.clone()))
@@ -265,7 +267,7 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             let mut arguments = function.graph_mut().edge_weight_mut(the_edge).unwrap().arguments.clone();
             for (parameter, argument) in arguments.iter_mut() {
                 if *parameter == pattern.parameter {
-                    *argument = pattern.assigned_local;
+                    *argument = pattern.assigned_local.into();
                     break;
                 }
             }
@@ -297,14 +299,11 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             } else {
                 second_terminator.0
             };
-            let other_edge_target = other_edge.target();
-            let other_edge_args = other_edge.weight().arguments.clone();
-            assert!(replace_edge_with_parameters(
+            let other_edge = other_edge.id();
+            assert!(skip_over_node(
                 function,
                 pattern.first_node,
-                pattern.second_node,
-                other_edge_target,
-                &other_edge_args,
+                other_edge
             ));
 
             let mut removed_block = function.remove_block(pattern.second_node).unwrap();
@@ -578,29 +577,31 @@ pub fn structure_method_calls(function: &mut Function) -> bool {
     did_structure
 }
 
-fn replace_edge_with_parameters(
+// TODO: STYLE: better argument names
+// `before -> skip -> after` to `before -> after`.
+// multiple `before -> skip` edges can exist.
+// multiple `skip -> after` edges can exist, but we decide which to use based on
+// the edge index
+// updates edges
+fn skip_over_node(
     function: &mut Function,
-    node: NodeIndex,
-    old_target: NodeIndex,
-    new_target: NodeIndex,
-    parameters: &[(ast::RcLocal, ast::RcLocal)],
+    before_node: NodeIndex,
+    skip_to_after: EdgeIndex,
+    // params from (skip_node, after_node)
+    // parameters: &[(ast::RcLocal, ast::RValue)],
 ) -> bool {
+    let (skip_node, after_node) = function.graph().edge_endpoints(skip_to_after).unwrap();
     let mut did_structure = false;
-    let original_params = function
+    let skip_to_after_args = function
         .graph()
-        .edges_directed(node, Direction::Outgoing)
-        .next()
+        .edge_weight(skip_to_after)
         .unwrap()
-        .weight()
         .arguments
-        .iter()
-        .map(|(p, _)| p)
-        .cloned()
-        .collect::<Vec<_>>();
+        .clone();
     for edge in function
         .graph()
-        .edges_directed(node, Direction::Outgoing)
-        .filter(|e| e.target() == old_target)
+        .edges_directed(before_node, Direction::Outgoing)
+        .filter(|e| e.target() == skip_node)
         .map(|e| e.id())
         .collect::<Vec<_>>()
     {
@@ -609,36 +610,35 @@ fn replace_edge_with_parameters(
             .edge_weight(edge)
             .unwrap()
             .arguments
-            .iter()
-            .cloned()
-            .collect::<IndexSet<_>>();
-        new_arguments.extend(parameters.iter().cloned());
+            .clone();
+        new_arguments.extend(skip_to_after_args.iter().cloned());
+        // TODO: eliminate duplicate arguments where possible
 
         // all arguments in edges to a block must have the same parameters
         // TODO: make arguments a map so order doesnt matter
         if !new_arguments
             .iter()
             .map(|(p, _)| p)
-            .eq(original_params.iter())
+            .eq(skip_to_after_args.iter().map(|(p, _)| p))
         {
             continue;
         }
 
         let mut edge = function.graph_mut().remove_edge(edge).unwrap();
         edge.arguments = new_arguments.into_iter().collect();
-        function.graph_mut().add_edge(node, new_target, edge);
+        function.graph_mut().add_edge(before_node, after_node, edge);
         did_structure = true;
     }
-    let block = function.block(node).unwrap();
+    let block = function.block(before_node).unwrap();
     if !block.is_empty()
         && block.last().unwrap().as_if().is_some()
-        && let Some((then_edge, else_edge)) = function.conditional_edges(node)
+        && let Some((then_edge, else_edge)) = function.conditional_edges(skip_node)
         && then_edge.target() == else_edge.target()
         && then_edge.weight().arguments == else_edge.weight().arguments
     {
         // TODO: check if this works (+ restructuring/src/jump.rs)
         let cond = function
-            .block_mut(node)
+            .block_mut(before_node)
             .unwrap()
             .pop()
             .unwrap()
@@ -646,8 +646,10 @@ fn replace_edge_with_parameters(
             .unwrap()
             .condition;
         if cond.has_side_effects() {
+            // TODO: assign not needed for calls (also see jump.rs)
+            // well inline.rs should take care of them in this case, but in the case of jump.rs, not so much
             let temp_local = function.local_allocator.borrow_mut().allocate();
-            function.block_mut(node).unwrap().push(
+            function.block_mut(before_node).unwrap().push(
                 ast::Assign {
                     left: vec![temp_local.into()],
                     right: vec![cond],
@@ -658,8 +660,8 @@ fn replace_edge_with_parameters(
         }
 
         function.set_edges(
-            node,
-            vec![(new_target, BlockEdge::new(BranchType::Unconditional))],
+            before_node,
+            vec![(after_node, BlockEdge::new(BranchType::Unconditional))],
         );
     }
 
@@ -677,12 +679,12 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             && jump.target() != node
         {
             let jump_target = jump.target();
+            let jump_edge = jump.id();
             let block = function.block(node).unwrap();
             if block.is_empty() {
-                let old_args = jump.weight().arguments.clone();
                 let mut remove = true;
                 for pred in function.predecessor_blocks(node).collect_vec() {
-                    let did = replace_edge_with_parameters(function, pred, node, jump_target, &old_args);
+                    let did = skip_over_node(function, pred, jump_edge);
                     if did {
                         did_structure = true;
                     }
