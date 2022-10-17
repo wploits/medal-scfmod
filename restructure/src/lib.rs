@@ -172,6 +172,16 @@ impl GraphStructurer {
         }
     }
 
+    fn remove_last_return(block: ast::Block) -> ast::Block {
+        if let Some(ast::Statement::Return(last_statement)) = block.last() {
+            if last_statement.values.is_empty() {
+                let take = block.len() - 1;
+                return block.0.into_iter().take(take).collect_vec().into();
+            }
+        }
+        block
+    }
+
     fn collapse(&mut self) {
         loop {
             while self.match_blocks() {}
@@ -191,7 +201,7 @@ impl GraphStructurer {
                 if self.function.graph().edge_weight(edge).is_none() {
                     continue;
                 }
-                
+
                 let (source, target) = self.function.graph().edge_endpoints(edge).unwrap();
                 let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
                 let target_dominators = dominators.dominators(target);
@@ -297,7 +307,7 @@ impl GraphStructurer {
 
             res_block
         } else {
-            self.function.remove_block(self.root).unwrap()
+            Self::remove_last_return(self.function.remove_block(self.root).unwrap())
         }
     }
 }
