@@ -984,6 +984,12 @@ impl<'a> LifterContext<'a> {
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
                 .collect::<IndexMap<_, _>>();
 
+            let local_to_group = local_groups
+                .iter()
+                .cloned()
+                .enumerate()
+                .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
+                .collect::<FxHashMap<_, _>>();
             // TODO: REFACTOR: some way to write a macro that states
             // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
             // structure_for_loops and remove_unnecessary_params must run again.
@@ -998,7 +1004,7 @@ impl<'a> LifterContext<'a> {
                 let dominators = simple_fast(function.graph(), function.entry().unwrap());
                 changed |= structure_jumps(&mut function, &dominators);
 
-                ssa::inline::inline(&mut function, &upvalue_to_group);
+                ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
 
                 if structure_compound_conditionals(&mut function)
                     || {

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use ast::{RcLocal, RValue};
+use ast::{RValue, RcLocal};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum BranchType {

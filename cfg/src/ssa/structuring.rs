@@ -1,6 +1,6 @@
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 use fxhash::FxHashSet;
-use indexmap::{IndexSet, IndexMap};
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,

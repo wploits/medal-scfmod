@@ -35,6 +35,7 @@ fn inline_rvalue(
 // TODO: inline into block arguments
 fn inline_rvalues(
     function: &mut Function,
+    local_to_group: &FxHashMap<ast::RcLocal, usize>,
     upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
     local_usages: &mut FxHashMap<ast::RcLocal, usize>,
 ) {
@@ -45,7 +46,12 @@ fn inline_rvalues(
             function
                 .edges(node)
                 .into_iter()
-                .flat_map(|e| e.weight().arguments.iter().map(|(_, a)| a.as_local().unwrap()))
+                .flat_map(|e| {
+                    e.weight()
+                        .arguments
+                        .iter()
+                        .map(|(_, a)| a.as_local().unwrap())
+                })
                 .cloned(),
         );
         let block = function.block_mut(node).unwrap();
@@ -69,8 +75,14 @@ fn inline_rvalues(
             );
         }
 
+        // visit all statements that read at least one local with only one usage,
+        // this is the statement we will inline into
+        // then seek backwards from the previous statement to the start of the block
+        // until we find a statement that assigns to a single-use local that
+        // is used in the statement we are inlining into.
         let mut index = 0;
         'w: while index < block.len() {
+            let mut groups_written = FxHashSet::default();
             let mut allow_side_effects = true;
             for stat_index in (0..index).rev() {
                 let mut values_read = stat_to_values_read[index]
@@ -81,29 +93,54 @@ fn inline_rvalues(
                     index += 1;
                     continue 'w;
                 }
+                // we cant inline across upvalue writes because an inlining candidate with side effects,
+                // for ex. a non-local function call, might access the upvalue
                 for value_written in block[stat_index].values_written() {
                     if upvalue_to_group.contains_key(value_written) {
+                        // TODO: set allow_side_effects to false instead
                         index += 1;
                         continue 'w;
                     }
                 }
+
+                /*
+                -- we dont want to inline `tostring(a)` into `print(b)`
+                local print = print
+                local a = 1
+                while true do
+                    local b = tostring(a)
+                    a = 1
+                    print(b)
+                end
+                */
+                if block[stat_index]
+                    .values_read()
+                    .into_iter()
+                    .filter_map(|l| local_to_group.get(l))
+                    .any(|g| groups_written.contains(g))
+                {
+                    continue;
+                }
+
                 if let ast::Statement::Assign(assign) = &block[stat_index]
                     && assign.left.len() == 1
                     && assign.right.len() == 1
                     && let ast::LValue::Local(local) = &assign.left[0]
                 {
                     let new_rvalue = &assign.right[0];
+
                     let new_rvalue_has_side_effects = new_rvalue.has_side_effects();
                     let local = local.clone();
                     for read_opt in stat_to_values_read[index]
                         .iter_mut()
                         .filter(|l| l.is_some())
                     {
-                        // TODO: filter?
+                        // TODO: REFACTOR: filter?
                         let read = read_opt.as_ref().unwrap();
                         if read != &local {
                             continue;
                         };
+
                         if !new_rvalue_has_side_effects || allow_side_effects {
                             let mut new_rvalue = Some(
                                 block[stat_index]
@@ -140,6 +177,13 @@ fn inline_rvalues(
                         }
                     }
                 }
+                groups_written.extend(
+                    block[stat_index]
+                        .values_written()
+                        .into_iter()
+                        .filter_map(|l| local_to_group.get(l))
+                        .cloned(),
+                );
                 allow_side_effects &= !block[stat_index].has_side_effects();
             }
             index += 1;
@@ -147,7 +191,11 @@ fn inline_rvalues(
     }
 }
 
-pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal, usize>) {
+pub fn inline(
+    function: &mut Function,
+    local_to_group: &FxHashMap<ast::RcLocal, usize>,
+    upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
+) {
     let mut local_usages = FxHashMap::default();
     for node in function.graph().node_indices() {
         let block = function.block(node).unwrap();
@@ -159,7 +207,12 @@ pub fn inline(function: &mut Function, upvalue_to_group: &IndexMap<ast::RcLocal,
     let mut changed = true;
     while changed {
         changed = false;
-        inline_rvalues(function, upvalue_to_group, &mut local_usages);
+        inline_rvalues(
+            function,
+            local_to_group,
+            upvalue_to_group,
+            &mut local_usages,
+        );
 
         // remove unused locals
         for (_, block) in function.blocks_mut() {

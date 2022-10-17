@@ -139,35 +139,38 @@ pub fn remove_unnecessary_params(
 
 // TODO: STYLE: rename function
 // TODO: STYLE: rename `uses_local`, we need a generic name for ast nodes, maybe `traversible`?
-fn apply_local_map_to_values_referenced<T: LocalRw + Traverse>(uses_local: &mut T, local_map: &FxHashMap<RcLocal, RcLocal>) {
-            // TODO: figure out values_mut
-            for (from, mut to) in uses_local
-                .values_written_mut()
-                .into_iter()
-                .filter_map(|v| local_map.get(v).map(|t| (v, t)))
-            {
-                while let Some(to_to) = local_map.get(to) {
-                    to = to_to;
-                }
-                *from = to.clone();
-            }
-            let mut map = FxHashMap::default();
-            for (from, mut to) in uses_local
-                .values_read_mut()
-                .into_iter()
-                .filter_map(|v| local_map.get(v).map(|t| (v, t)))
-            {
-                while let Some(to_to) = local_map.get(to) {
-                    to = to_to;
-                }
-                map.insert(from.clone(), to.clone());
-                *from = to.clone();
-            }
-            uses_local.traverse_rvalues(&mut |rvalue| {
-                if let Some(closure) = rvalue.as_closure_mut() {
-                    replace_locals(&mut closure.body, &map)
-                }
-            });
+fn apply_local_map_to_values_referenced<T: LocalRw + Traverse>(
+    uses_local: &mut T,
+    local_map: &FxHashMap<RcLocal, RcLocal>,
+) {
+    // TODO: figure out values_mut
+    for (from, mut to) in uses_local
+        .values_written_mut()
+        .into_iter()
+        .filter_map(|v| local_map.get(v).map(|t| (v, t)))
+    {
+        while let Some(to_to) = local_map.get(to) {
+            to = to_to;
+        }
+        *from = to.clone();
+    }
+    let mut map = FxHashMap::default();
+    for (from, mut to) in uses_local
+        .values_read_mut()
+        .into_iter()
+        .filter_map(|v| local_map.get(v).map(|t| (v, t)))
+    {
+        while let Some(to_to) = local_map.get(to) {
+            to = to_to;
+        }
+        map.insert(from.clone(), to.clone());
+        *from = to.clone();
+    }
+    uses_local.traverse_rvalues(&mut |rvalue| {
+        if let Some(closure) = rvalue.as_closure_mut() {
+            replace_locals(&mut closure.body, &map)
+        }
+    });
 }
 
 pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, RcLocal>) {
@@ -195,7 +198,7 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                             }
                             *local = new_local.clone();
                         }
-                    },
+                    }
                     Either::Right(rvalue) => {
                         apply_local_map_to_values_referenced(rvalue, &local_map);
                     }
@@ -284,10 +287,11 @@ impl<'a> SsaConstructor<'a> {
                 .unwrap_or(false)
             {
                 let edges = edges.collect::<Vec<_>>();
-                if edges
-                    .iter()
-                    .any(|e| e.arguments.iter().any(|(_, a)| a.as_local().unwrap() == &param_local))
-                {
+                if edges.iter().any(|e| {
+                    e.arguments
+                        .iter()
+                        .any(|(_, a)| a.as_local().unwrap() == &param_local)
+                }) {
                     let args_in = edges
                         .into_iter()
                         .map(|e| e.arguments.clone())

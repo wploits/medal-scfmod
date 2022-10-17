@@ -77,9 +77,12 @@ impl Liveness {
                     .params
                     .extend(edge.arguments.iter().map(|(k, _)| k).cloned());
                 let block_liveness = liveness.block_liveness.entry(pred).or_default();
-                block_liveness
-                    .arg_out_uses
-                    .extend(edge.arguments.iter().flat_map(|(_, v)| v.values_read()).cloned());
+                block_liveness.arg_out_uses.extend(
+                    edge.arguments
+                        .iter()
+                        .flat_map(|(_, v)| v.values_read())
+                        .cloned(),
+                );
             }
         }
         for node in function.graph().node_indices() {
