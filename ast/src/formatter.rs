@@ -227,31 +227,47 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         parentheses(self, &binary.right)
     }
 
-    pub(crate) fn format_closure(&mut self, closure: &Closure) -> fmt::Result {
-        if closure.is_variadic {
-            write!(
-                self.output,
-                "function({})",
+    fn format_closure_parameters(&mut self, closure: &Closure) -> fmt::Result {
+        write!(
+            self.output,
+            "{}",
+            if closure.is_variadic {
                 closure
                     .parameters
                     .iter()
                     .map(|x| x.to_string())
                     .chain(std::iter::once("...".into()))
                     .join(", ")
-            )?;
-        } else {
-            write!(
-                self.output,
-                "function({})",
+            } else {
                 closure.parameters.iter().join(", ")
-            )?;
-        }
+            }
+        )
+    }
+
+    fn format_closure_body(&mut self, closure: &Closure) -> fmt::Result {
         if !closure.body.is_empty() {
             writeln!(self.output)?;
             self.format_block(&closure.body)?;
             writeln!(self.output)?;
-            self.indent()?;
+            self.indent()
+        } else {
+            write!(self.output, " ")
         }
+    }
+
+    pub(crate) fn format_closure(&mut self, closure: &Closure) -> fmt::Result {
+        write!(self.output, "function(")?;
+        self.format_closure_parameters(closure)?;
+        write!(self.output, ")")?;
+        self.format_closure_body(closure)?;
+        write!(self.output, "end")
+    }
+
+    fn format_named_closure(&mut self, name: &LValue, closure: &Closure) -> fmt::Result {
+        write!(self.output, "function {}(", name)?;
+        self.format_closure_parameters(closure)?;
+        write!(self.output, ")")?;
+        self.format_closure_body(closure)?;
         write!(self.output, "end")
     }
 
@@ -416,6 +432,15 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     pub(crate) fn format_assign(&mut self, assign: &Assign) -> fmt::Result {
         if assign.prefix {
             write!(self.output, "local ")?;
+        }
+
+        if assign.left.len() == 1 && assign.right.len() == 1
+            && let RValue::Closure(closure) = &assign.right[0]
+        {
+            let left = &assign.left[0];
+            if assign.prefix || left.as_global().is_some() {
+                return self.format_named_closure(left, closure);
+            }
         }
 
         for (i, lvalue) in assign.left.iter().enumerate() {
