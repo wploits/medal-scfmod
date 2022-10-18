@@ -28,6 +28,7 @@ pub struct LocalRenamer<'a> {
 }
 
 impl<'a> LocalRenamer<'a> {
+    // TODO: STYLE: rename local_groups to local_relations or related_locals
     pub fn new(
         function: &'a mut Function,
         local_groups: &[FxHashSet<RcLocal>],

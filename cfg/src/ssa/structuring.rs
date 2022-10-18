@@ -9,6 +9,7 @@ use petgraph::{
     visit::{DfsPostOrder, EdgeRef},
     Direction,
 };
+use tuple::Map;
 
 use crate::{
     block::{BlockEdge, BranchType},
@@ -69,8 +70,7 @@ fn simplify_condition(function: &mut Function, node: NodeIndex) -> bool {
     if let Some(if_stat) = block.last_mut().and_then(|s| s.as_if_mut())
         && let Some(unary) = if_stat.condition.as_unary() {
         if_stat.condition = *unary.value.clone();
-        let (then_edge, else_edge) = function.conditional_edges(node).unwrap();
-        let (then_edge, else_edge) = (then_edge.id(), else_edge.id());
+        let (then_edge, else_edge) = function.conditional_edges(node).unwrap().map(|e| e.id());
         let (then_edge, else_edge) = function.graph_mut().index_twice_mut(then_edge, else_edge);
         then_edge.branch_type = BranchType::Else;
         else_edge.branch_type = BranchType::Then;

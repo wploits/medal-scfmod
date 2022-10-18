@@ -256,6 +256,7 @@ pub fn inline(
             // TODO: fix ^
             block.retain(|s| s.as_empty().is_none());
 
+            // `t = {} t.a = 1` -> `t = { a = 1 }`
             let mut i = 0;
             while i < block.len() {
                 if let ast::Statement::Assign(assign) = &block[i]

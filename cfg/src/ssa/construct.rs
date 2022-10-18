@@ -619,6 +619,10 @@ impl<'a> SsaConstructor<'a> {
         // TODO: irreducible control flow (see the paper this algorithm is from)
         // TODO: apply_local_map unnecessary number of calls
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
+
+        // println!("before copy propagation");
+        // crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+
         self.mark_upvalues();
         self.propagate_copies();
         apply_local_map(self.function, std::mem::take(&mut self.local_map));

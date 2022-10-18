@@ -79,8 +79,8 @@ impl GraphStructurer {
                 self.match_jump(node, Some(successors[0]), dominators)
             }
             2 => {
-                let (then_edge, else_edge) = self.function.conditional_edges(node).unwrap();
-                self.match_conditional(node, then_edge.target(), else_edge.target(), dominators)
+                let (then_target, else_target) = self.function.conditional_edges(node).unwrap().map(|e| e.target());
+                self.match_conditional(node, then_target, else_target, dominators)
             }
 
             _ => unreachable!(),
