@@ -11,6 +11,7 @@ use petgraph::{
     stable_graph::{EdgeIndex, NodeIndex, StableDiGraph},
     visit::*,
 };
+use tuple::Map;
 
 mod conditional;
 mod jump;
