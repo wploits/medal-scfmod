@@ -438,7 +438,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             && let RValue::Closure(closure) = &assign.right[0]
         {
             let left = &assign.left[0];
-            if assign.prefix || left.as_global().is_some() {
+            if assign.prefix || left.as_global().is_some() || left.as_index().is_some() {
                 return self.format_named_closure(left, closure);
             }
         }
