@@ -80,6 +80,7 @@ fn inline_rvalues(
         // then seek backwards from the previous statement to the start of the block
         // until we find a statement that assigns to a single-use local that
         // is used in the statement we are inlining into.
+        // TODO: push multiple use local assignments forward to their first use
         let mut index = 0;
         'w: while index < block.len() {
             let mut groups_written = FxHashSet::default();
@@ -263,10 +264,10 @@ pub fn inline(
                     && assign.left.len() == 1
                     && assign.right.len() == 1
                     && assign.right[0].as_table().is_some()
-                    && let ast::LValue::Local(table_local) = &assign.left[0]
+                    && let ast::LValue::Local(object_local) = &assign.left[0]
                 {
                     let table_index = i;
-                    let table_local = table_local.clone();
+                    let object_local = object_local.clone();
                     i += 1;
                     while i < block.len()
                         && let ast::Statement::Assign(field_assign) = &block[i]
@@ -276,7 +277,7 @@ pub fn inline(
                             left: box ast::RValue::Local(local),
                             ..
                         }) = &field_assign.left[0]
-                        && local == &table_local
+                        && local == &object_local
                     {
                         let field_assign = std::mem::replace(&mut block[i], ast::Empty {}.into()).into_assign().unwrap();
                         block[table_index].as_assign_mut().unwrap().right[0].as_table_mut().unwrap().0.push((Some(Box::into_inner(field_assign.left.into_iter().next().unwrap().into_index().unwrap().right)), field_assign.right.into_iter().next().unwrap()));
@@ -288,25 +289,25 @@ pub fn inline(
                 }
             }
 
-            // if the first statement is a setlist, we cant inline it anyway
+            // if the first statement is a set_list, we cant inline it anyway
             for i in 1..block.len() {
-                if let ast::Statement::SetList(setlist) = &block[i] {
-                    let table_local = setlist.table.clone();
+                if let ast::Statement::SetList(set_list) = &block[i] {
+                    let object_local = set_list.object_local.clone();
                     if let Some(assign) = block[i - 1].as_assign_mut()
-                        && assign.left == [table_local.into()]
+                        && assign.left == [object_local.into()]
                     {
-                        let setlist =
+                        let set_list =
                             std::mem::replace(block.get_mut(i).unwrap(), ast::Empty {}.into())
                                 .into_set_list()
                                 .unwrap();
-                        *local_usages.get_mut(&setlist.table).unwrap() -= 1;
+                        *local_usages.get_mut(&set_list.object_local).unwrap() -= 1;
                         let assign = block.get_mut(i - 1).unwrap().as_assign_mut().unwrap();
                         let table = assign.right[0].as_table_mut().unwrap();
                         assert!(
                             table.0.iter().filter(|(k, _)| k.is_none()).count()
-                                == setlist.index - 1
+                                == set_list.index - 1
                         );
-                        for value in setlist.values {
+                        for value in set_list.values {
                             table.0.push((None, value));
                         }
                         // table already has tail?
@@ -317,7 +318,7 @@ pub fn inline(
                                     | ast::RValue::Call(_)
                                     | ast::RValue::MethodCall(_)
                             )));
-                        if let Some(tail) = setlist.tail {
+                        if let Some(tail) = set_list.tail {
                             table.0.push((None, tail));
                         }
                         changed = true;

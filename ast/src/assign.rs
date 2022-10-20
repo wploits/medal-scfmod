@@ -9,6 +9,7 @@ pub struct Assign {
     pub left: Vec<LValue>,
     pub right: Vec<RValue>,
     pub prefix: bool,
+    pub parallel: bool,
 }
 
 impl Assign {
@@ -17,6 +18,7 @@ impl Assign {
             left,
             right,
             prefix: false,
+            parallel: false,
         }
     }
 }

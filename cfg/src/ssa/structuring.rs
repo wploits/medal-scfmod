@@ -654,6 +654,7 @@ fn skip_over_node(
                     left: vec![temp_local.into()],
                     right: vec![cond],
                     prefix: true,
+                    parallel: false,
                 }
                 .into(),
             )

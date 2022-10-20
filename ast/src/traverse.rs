@@ -64,6 +64,7 @@ pub trait Traverse {
 
     fn post_traverse_values<F, R>(&mut self, callback: &mut F) -> Option<R>
     where
+        // TODO: REFACTOR: use an enum called Value instead of Either
         F: FnMut(Either<&mut LValue, &mut RValue>) -> Option<R>,
     {
         for lvalue in self.lvalues_mut() {

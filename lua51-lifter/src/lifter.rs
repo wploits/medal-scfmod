@@ -971,7 +971,7 @@ impl<'a> LifterContext<'a> {
 
             let mut function = context.function;
             let upvalues_in = context.upvalues;
-            
+
             // println!("before ssa construction");
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
@@ -1050,15 +1050,12 @@ impl<'a> LifterContext<'a> {
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
-            let upvalues_in = cfg::ssa::destruct(
+            let upvalues_in = cfg::ssa::Destructor::new(
                 &mut function,
-                local_count,
-                &local_groups,
-                &upvalue_to_group,
-                upvalues_in.len(),
-            )
+                local_count
+            ).destruct()
             .into_iter()
             .collect::<Vec<_>>();
 

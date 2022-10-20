@@ -2,16 +2,21 @@ use crate::{formatter, LocalRw, RValue, RcLocal, SideEffects, Traverse};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SetList {
-    pub table: RcLocal,
+    pub object_local: RcLocal,
     pub index: usize,
     pub values: Vec<RValue>,
     pub tail: Option<RValue>,
 }
 
 impl SetList {
-    pub fn new(table: RcLocal, index: usize, values: Vec<RValue>, tail: Option<RValue>) -> Self {
+    pub fn new(
+        object_local: RcLocal,
+        index: usize,
+        values: Vec<RValue>,
+        tail: Option<RValue>,
+    ) -> Self {
         Self {
-            table,
+            object_local,
             index,
             values,
             tail,
@@ -26,7 +31,7 @@ impl LocalRw for SetList {
             .as_ref()
             .map(|t| t.values_read())
             .unwrap_or_default();
-        std::iter::once(&self.table)
+        std::iter::once(&self.object_local)
             .chain(self.values.iter().flat_map(|rvalue| rvalue.values_read()))
             .chain(tail_locals)
             .collect()
@@ -38,7 +43,7 @@ impl LocalRw for SetList {
             .as_mut()
             .map(|t| t.values_read_mut())
             .unwrap_or_default();
-        std::iter::once(&mut self.table)
+        std::iter::once(&mut self.object_local)
             .chain(
                 self.values
                     .iter_mut()
@@ -73,7 +78,7 @@ impl std::fmt::Display for SetList {
         write!(
             f,
             "__set_list({}, {}, {{{}}})",
-            self.table,
+            self.object_local,
             self.index,
             // TODO: bad
             formatter::format_arg_list(

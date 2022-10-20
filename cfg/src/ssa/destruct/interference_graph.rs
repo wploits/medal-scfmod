@@ -23,7 +23,7 @@ impl InterferenceGraph {
         let len = variables.len();
         for a in 0..len {
             let va = variables[a];
-            for &vb in variables.iter().take(len).skip(a + 1) {
+            for &vb in variables.iter().skip(a + 1) {
                 self.graph.update_edge(va, vb, ());
             }
         }
@@ -55,8 +55,12 @@ impl InterferenceGraph {
                 .cloned()
                 .unwrap_or_else(|| self.add_node(new_var.clone()));
             for current_var in current_variables {
+                let (mut n0, mut n1) = (new_var_node, self.local_to_node[current_var]);
+                if n0 > n1 {
+                    std::mem::swap(&mut n0, &mut n1);
+                }
                 self.graph
-                    .update_edge(self.local_to_node[current_var], new_var_node, ());
+                    .update_edge(n0, n1, ());
             }
             nodes.push(new_var_node);
         }
@@ -77,7 +81,12 @@ impl InterferenceGraph {
                 .cloned()
                 .unwrap_or_else(|| self.add_node(new_var.clone()));
             for &current_var in current_variables {
-                self.graph.update_edge(current_var, new_var_node, ());
+                let (mut n0, mut n1) = (current_var, new_var_node);
+                if n0 > n1 {
+                    std::mem::swap(&mut n0, &mut n1);
+                }
+                self.graph
+                    .update_edge(n0, n1, ());
             }
             nodes.push(new_var_node);
         }

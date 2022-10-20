@@ -8,4 +8,4 @@ pub mod upvalues;
 //pub mod dataflow;
 
 pub use construct::construct;
-pub use destruct::destruct;
+pub use destruct::Destructor;
