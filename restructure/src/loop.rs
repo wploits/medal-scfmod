@@ -132,10 +132,9 @@ impl GraphStructurer {
                     unreachable!();
                 }
             }
-
-            let mut body_successors = self.function.successor_blocks(body);
+            
             if body == header
-                || body_successors.next() == Some(header) && body_successors.next().is_none()
+                || self.function.successor_blocks(body).exactly_one().ok() == Some(header)
             {
                 let statement = self.function.block_mut(header).unwrap().pop().unwrap();
                 if let ast::Statement::If(if_stat) = statement {

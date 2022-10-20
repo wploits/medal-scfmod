@@ -1,10 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, collections::{BTreeSet, BTreeMap}};
 
 use ast::{RcLocal, LocalRw};
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex, visit::{EdgeRef, DfsPostOrder}};
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex, visit::{EdgeRef, DfsPostOrder, Dfs}, Direction};
 
 use crate::{function::Function, block::{BranchType, BlockEdge}};
 
@@ -18,6 +18,12 @@ use self::{
     rename_locals::LocalRenamer,
 };
 
+#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+enum ParamOrStatIndex {
+    Param(usize),
+    Stat(usize),
+}
+
 // Benoit Boissinot, Alain Darte, Fabrice Rastello, Benoît Dupont de Dinechin, Christophe Guillon.
 // Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Eﬀiciency. [Research Report]
 // 2008, pp.14. inria-00349925v3
@@ -28,6 +34,10 @@ pub struct Destructor<'a> {
     function: &'a mut Function,
     local_count: usize,
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
+    // map( local -> rc_map( local -> (pre-order block index, param index) ) )
+    // TODO: hash map?
+    congruence_classes: FxHashMap<RcLocal, Rc<RefCell<BTreeMap<(usize, ParamOrStatIndex), RcLocal>>>>, 
+    local_defs: FxHashMap<RcLocal, (usize, ParamOrStatIndex)>,
 }
 
 impl<'a> Destructor<'a> {
@@ -36,20 +46,27 @@ impl<'a> Destructor<'a> {
             function,
             local_count,
             values: FxHashMap::default(),
+            congruence_classes: FxHashMap::default(),
+            local_defs: FxHashMap::default(),
         }
     }
     pub fn destruct(mut self) -> IndexSet<RcLocal> {
+        // TODO: remove detached blocks
         self.lift_params();
+        self.sort_params();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
-        let liveness = Liveness::new(self.function);
-        let mut interference_graph = InterferenceGraph::new(self.function, &liveness, self.local_count);
+        self.build_def_use();
 
         self.compute_value_interference();
+
         self.coalesce_params();
+        self.coalesce_copies();
 
         todo!()
-
+        
+        // let liveness = Liveness::new(self.function);
+        // let mut interference_graph = InterferenceGraph::new(self.function, &liveness, self.local_count);
         // ParamLifter::new(function, Some(&mut interference_graph)).lift();
         // let mut local_nodes = FxHashMap::default();
         // // interference graph is no longer chordal, coloring is not optimal
@@ -69,8 +86,58 @@ impl<'a> Destructor<'a> {
         // upvalues_in
     }
 
+    // TODO: combine with compute value interference
+    fn build_def_use(&mut self) {
+        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
+        let mut dfs_index = 0;
+        while let Some(node) = dfs.next(self.function.graph()) {
+            if let Some((_, edge)) = self.function.edges_to_block(node).next() {
+                for (param_index, (param, _)) in edge.arguments.iter().enumerate().collect::<Vec<_>>() {
+                   assert!(self.local_defs.insert(param.clone(), (dfs_index, ParamOrStatIndex::Param(param_index))).is_none());
+                }
+            }
+            for (stat_index, stat) in self.function.block(node).unwrap().0.iter().enumerate() {
+                for local in stat.values_written() {
+                    assert!(self.local_defs.insert(local.clone(), (dfs_index, ParamOrStatIndex::Stat(stat_index))).is_none());
+                }
+            }
+            dfs_index += 1;
+        }
+    }
+
+    // initialize congruence classes based on block params and remove block params
     fn coalesce_params(&mut self) {
-        todo!();
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+            for edge in self.function.graph().edges_directed(node, Direction::Incoming).map(|e| e.id()).collect::<Vec<_>>() {
+                let args = std::mem::take(&mut self.function.graph_mut().edge_weight_mut(edge).unwrap().arguments);
+
+                for (param, arg) in args {
+                    let arg = arg.into_local().unwrap();
+                    let congruence_class = self.congruence_classes.entry(param.clone()).or_insert_with(|| {
+                        let mut congruence_class = BTreeMap::default();
+                        congruence_class.insert(self.local_defs[&param], param);
+                        Rc::new(RefCell::new(congruence_class))
+                    }).clone();
+
+                    congruence_class.borrow_mut().insert(self.local_defs[&arg], arg.clone());
+                    self.congruence_classes.insert(arg, congruence_class);
+                }
+            }
+        }
+    }
+
+    fn coalesce_copies(&mut self) {
+        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
+        while let Some(node) = dfs.next(self.function.graph()) {
+            self.function.block_mut(node).unwrap().retain(|stat| {
+                if let ast::Statement::Assign(assign) = stat {
+                    for (i, dst) in assign.left.iter().enumerate().filter_map(|(i, l)| Some((i, l.as_local()?))) {
+                        todo!();
+                    }
+                }
+                true
+            })
+        }
     }
 
     fn compute_value_interference(&mut self) {
@@ -107,6 +174,11 @@ impl<'a> Destructor<'a> {
         }
     }
 
+    fn sort_params(&mut self) {
+        for edge in self.function.graph_mut().edge_weights_mut() {
+            edge.arguments.sort_by(|(p0, _), (p1, _)| p0.cmp(p1));
+        }
+    }
 
     fn lift_params(&mut self) {
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
