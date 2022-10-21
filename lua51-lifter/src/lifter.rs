@@ -1054,7 +1054,8 @@ impl<'a> LifterContext<'a> {
 
             let upvalues_in = cfg::ssa::Destructor::new(
                 &mut function,
-                local_count
+                &upvalue_to_group,
+                local_count,
             ).destruct()
             .into_iter()
             .collect::<Vec<_>>();

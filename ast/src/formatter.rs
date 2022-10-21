@@ -430,13 +430,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     pub(crate) fn format_assign(&mut self, assign: &Assign) -> fmt::Result {
-        let close_paren = if assign.parallel {
-            write!(self.output, "__PARALLEL(")?;
-            true
-        } else {
-            false
-        };
-
         if assign.prefix {
             write!(self.output, "local ")?;
         }
@@ -467,8 +460,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(rvalue)?;
         }
 
-        if close_paren {
-            write!(self.output, ")")?;
+        if assign.parallel {
+            write!(self.output, " -- parallel")?;
         }
 
         Ok(())

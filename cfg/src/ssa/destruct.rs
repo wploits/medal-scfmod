@@ -1,12 +1,24 @@
-use std::{cell::RefCell, rc::Rc, collections::{BTreeSet, BTreeMap}};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
-use ast::{RcLocal, LocalRw};
+use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex, visit::{EdgeRef, DfsPostOrder, Dfs}, Direction};
+use petgraph::{
+    algo::dominators::{simple_fast, Dominators},
+    stable_graph::NodeIndex,
+    visit::{Dfs, DfsPostOrder, EdgeRef},
+    Direction, prelude::{DiGraph, DiGraphMap},
+};
 
-use crate::{function::Function, block::{BranchType, BlockEdge}};
+use crate::{
+    block::{BlockEdge, BranchType},
+    function::Function,
+};
 
 mod interference_graph;
 mod liveness;
@@ -14,15 +26,22 @@ mod local_declarations;
 mod rename_locals;
 
 use self::{
-    interference_graph::InterferenceGraph, liveness::Liveness,
-    rename_locals::LocalRenamer,
+    interference_graph::InterferenceGraph, liveness::Liveness, rename_locals::LocalRenamer,
 };
 
-#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy)]
+#[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug)]
 enum ParamOrStatIndex {
     Param(usize),
     Stat(usize),
 }
+
+#[derive(PartialEq, Eq)]
+enum RedOrBlue {
+    Red,
+    Blue,
+}
+
+type CongruenceClass = BTreeMap<(usize, ParamOrStatIndex), RcLocal>;
 
 // Benoit Boissinot, Alain Darte, Fabrice Rastello, Benoît Dupont de Dinechin, Christophe Guillon.
 // Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Eﬀiciency. [Research Report]
@@ -32,22 +51,38 @@ enum ParamOrStatIndex {
 // https://github.com/LLVM-but-worse/maple-ir/blob/f8711230b7c63ce5fd916f86563912ec36f1217e/org.mapleir.ir/src/main/java/org/mapleir/ir/algorithms/BoissinotDestructor.java
 pub struct Destructor<'a> {
     function: &'a mut Function,
+    upvalue_to_group: &'a IndexMap<RcLocal, usize>,
     local_count: usize,
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
     // map( local -> rc_map( local -> (pre-order block index, param index) ) )
     // TODO: hash map?
-    congruence_classes: FxHashMap<RcLocal, Rc<RefCell<BTreeMap<(usize, ParamOrStatIndex), RcLocal>>>>, 
-    local_defs: FxHashMap<RcLocal, (usize, ParamOrStatIndex)>,
+    congruence_classes:
+        FxHashMap<RcLocal, Rc<RefCell<CongruenceClass>>>,
+    equal_ancestor_in: FxHashMap<RcLocal, RcLocal>,
+    equal_ancestor_out: FxHashMap<RcLocal, RcLocal>,
+    local_defs: FxHashMap<RcLocal, (usize, NodeIndex, ParamOrStatIndex)>,
+    local_last_use: FxHashMap<RcLocal, FxHashMap<NodeIndex, (usize, ParamOrStatIndex)>>,
+    dominator_tree: DiGraphMap<NodeIndex, ()>,
+    dominated_by: FxHashMap<NodeIndex, Vec<NodeIndex>>,
+    liveness: Liveness,
 }
 
 impl<'a> Destructor<'a> {
-    pub fn new(function: &'a mut Function, local_count: usize) -> Self {
+    pub fn new(function: &'a mut Function, upvalue_to_group: &'a IndexMap<RcLocal, usize>, local_count: usize) -> Self {
+        let liveness = Liveness::new(function);
         Self {
             function,
+            upvalue_to_group,
             local_count,
             values: FxHashMap::default(),
             congruence_classes: FxHashMap::default(),
+            equal_ancestor_in: FxHashMap::default(),
+            equal_ancestor_out: FxHashMap::default(),
             local_defs: FxHashMap::default(),
+            local_last_use: FxHashMap::default(),
+            dominator_tree: DiGraphMap::new(),
+            dominated_by: FxHashMap::default(),
+            liveness,
         }
     }
     pub fn destruct(mut self) -> IndexSet<RcLocal> {
@@ -63,8 +98,32 @@ impl<'a> Destructor<'a> {
         self.coalesce_params();
         self.coalesce_copies();
 
-        todo!()
-        
+        super::construct::apply_local_map(self.function, self.build_local_map());
+
+        self.sequentialize();
+
+        crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+
+        let upvalues_in = IndexSet::new();
+
+        let liveness = Liveness::new(self.function);
+
+        let mut local_nodes = FxHashMap::<_, FxHashSet<_>>::default();
+        for (node, liveness) in liveness.block_liveness {
+            for local in liveness.uses {
+                local_nodes.entry(local).or_default().insert(node);
+            }
+
+            for local in liveness.defs {
+                local_nodes.entry(local).or_default().insert(node);
+            }
+        }
+
+        let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
+        local_declarations::declare_locals(self.function, &upvalues_in, local_nodes, &dominators);
+
+        upvalues_in
+
         // let liveness = Liveness::new(self.function);
         // let mut interference_graph = InterferenceGraph::new(self.function, &liveness, self.local_count);
         // ParamLifter::new(function, Some(&mut interference_graph)).lift();
@@ -86,62 +145,351 @@ impl<'a> Destructor<'a> {
         // upvalues_in
     }
 
+    fn sequentialize(&mut self) {
+        
+    }
+
+    fn build_local_map(&self) -> FxHashMap<RcLocal, RcLocal> {
+        let mut map = FxHashMap::default();
+        for (local, con_class) in &self.congruence_classes {
+            let con_class = con_class.borrow();
+            let new_local = con_class.iter().next().unwrap().1;
+            // TODO: see apply_local_map TODO,
+            // we dont want to handle this here
+            if local != new_local {
+                map.insert(local.clone(), new_local.clone());
+            }
+        }
+        map
+    }
+
     // TODO: combine with compute value interference
     fn build_def_use(&mut self) {
-        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
-        let mut dfs_index = 0;
+        let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+            if let Some(dominator) = dominators.immediate_dominator(node) {
+                self.dominator_tree.add_edge(dominator, node, ());
+            }
+            if let Some(dominators) = dominators.dominators(node) {
+                self.dominated_by.insert(node, dominators.collect::<Vec<_>>());
+            }
+        }
+
+        let mut dominator_index = 0;
+        let mut dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
         while let Some(node) = dfs.next(self.function.graph()) {
+            if node == self.function.entry().unwrap() {
+                assert!(!self.function.edges_to_block(node).any(|(_, e)| !e.arguments.is_empty()));
+                for param in &self.function.parameters {
+                    self.local_defs.insert(param.clone(), (dominator_index, node, ParamOrStatIndex::Param(0)));
+                }
+                for upvalue in self.upvalue_to_group.keys() {
+                    self.local_defs.insert(upvalue.clone(), (dominator_index, node, ParamOrStatIndex::Param(0)));
+                }
+            }
+
             if let Some((_, edge)) = self.function.edges_to_block(node).next() {
-                for (param_index, (param, _)) in edge.arguments.iter().enumerate().collect::<Vec<_>>() {
-                   assert!(self.local_defs.insert(param.clone(), (dfs_index, ParamOrStatIndex::Param(param_index))).is_none());
+                for (param_index, (param, _)) in
+                    edge.arguments.iter().enumerate().collect::<Vec<_>>()
+                {
+                    self
+                        .local_defs
+                        .insert(
+                            param.clone(),
+                            (dominator_index, node, ParamOrStatIndex::Param(param_index))
+                        );
                 }
             }
             for (stat_index, stat) in self.function.block(node).unwrap().0.iter().enumerate() {
                 for local in stat.values_written() {
-                    assert!(self.local_defs.insert(local.clone(), (dfs_index, ParamOrStatIndex::Stat(stat_index))).is_none());
+                    self
+                        .local_defs
+                        .insert(
+                            local.clone(),
+                            (dominator_index, node, ParamOrStatIndex::Stat(stat_index))
+                        );
+                }
+
+                for local in stat.values_read() {
+                    self
+                        .local_last_use
+                        .entry(local.clone())
+                        .or_default()
+                        .insert(
+                            node,
+                            (dominator_index, ParamOrStatIndex::Stat(stat_index))
+                        );
                 }
             }
-            dfs_index += 1;
+            dominator_index += 1;
         }
+    }
+
+    // a dominates b?
+    fn check_pre_dom_order(&self, a: &RcLocal, b: &RcLocal) -> bool {
+        self.local_defs[a] < self.local_defs[b]
     }
 
     // initialize congruence classes based on block params and remove block params
     fn coalesce_params(&mut self) {
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
-            for edge in self.function.graph().edges_directed(node, Direction::Incoming).map(|e| e.id()).collect::<Vec<_>>() {
-                let args = std::mem::take(&mut self.function.graph_mut().edge_weight_mut(edge).unwrap().arguments);
+            for edge in self
+                .function
+                .graph()
+                .edges_directed(node, Direction::Incoming)
+                .map(|e| e.id())
+                .collect::<Vec<_>>()
+            {
+                let args = std::mem::take(
+                    &mut self
+                        .function
+                        .graph_mut()
+                        .edge_weight_mut(edge)
+                        .unwrap()
+                        .arguments,
+                );
 
                 for (param, arg) in args {
                     let arg = arg.into_local().unwrap();
-                    let congruence_class = self.congruence_classes.entry(param.clone()).or_insert_with(|| {
-                        let mut congruence_class = BTreeMap::default();
-                        congruence_class.insert(self.local_defs[&param], param);
-                        Rc::new(RefCell::new(congruence_class))
-                    }).clone();
+                    let congruence_class = self.get_congruence_class(param).clone();
 
-                    congruence_class.borrow_mut().insert(self.local_defs[&arg], arg.clone());
+                    let (dominator_index, _, stat_index) = self.local_defs[&arg];
+                    congruence_class
+                        .borrow_mut()
+                        .insert((dominator_index, stat_index), arg.clone());
                     self.congruence_classes.insert(arg, congruence_class);
                 }
             }
         }
+
+
+    }
+
+    fn get_congruence_class(&mut self, local: RcLocal) -> &Rc<RefCell<CongruenceClass>> {
+        self
+                        .congruence_classes
+                        .entry(local.clone())
+                        .or_insert_with(|| {
+                            let mut congruence_class = BTreeMap::default();
+                            let (dominator_index, _, stat_index) = self.local_defs[&local];
+                            congruence_class.insert((dominator_index, stat_index), local);
+                            Rc::new(RefCell::new(congruence_class))
+                        })
     }
 
     fn coalesce_copies(&mut self) {
         let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
         while let Some(node) = dfs.next(self.function.graph()) {
-            self.function.block_mut(node).unwrap().retain(|stat| {
-                if let ast::Statement::Assign(assign) = stat {
-                    for (i, dst) in assign.left.iter().enumerate().filter_map(|(i, l)| Some((i, l.as_local()?))) {
-                        todo!();
+            let mut to_remove = Vec::new();
+            for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
+                let should_remove = if let ast::Statement::Assign(assign) = &self.function.block(node).unwrap()[stat_index] {
+                    let mut to_remove = Vec::new();
+                    let left = assign
+                    .left
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
+                    .collect::<Vec<_>>();
+                    for (i, left, right) in 
+                        left.into_iter()
+                        .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
+                        .collect::<Vec<_>>()
+                    {
+                        if self.try_coalesce_copy_by_value(left.clone(), right.clone()) || self.try_coalesce_copy_by_sharing(&left, &right) {
+                            to_remove.push(i);
+                        }
                     }
+                    let assign = self.function.block_mut(node).unwrap()[stat_index].as_assign_mut().unwrap();
+                    for i in to_remove.into_iter().rev() {
+                        assign.left.remove(i);
+                        assign.right.remove(i);
+                    }
+                    assign.left.is_empty()
+                } else {
+                    false
+                };
+
+                if should_remove {
+                    to_remove.push(stat_index)
                 }
-                true
-            })
+            }
+
+            let block = self.function.block_mut(node).unwrap();
+            for i in to_remove.into_iter().rev() {
+                block.remove(i);
+            }
+        }
+    }
+
+    fn try_coalesce_copy_by_value(&mut self, left: RcLocal, right: RcLocal) -> bool {
+        let left_con_class = self.get_congruence_class(left).clone();
+        let right_con_class = self.get_congruence_class(right).clone();
+
+        if *left_con_class.borrow() == *right_con_class.borrow() {
+            true
+        } else if left_con_class.borrow().len() == 1 && right_con_class.borrow().len() == 1 {
+            self.check_interfere_single(&left_con_class, &right_con_class)
+        } else if !self.check_interfere(&left_con_class, &right_con_class) {
+            self.merge_congruence_classes(&left_con_class, &right_con_class);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn try_coalesce_copy_by_sharing(&mut self, left: &RcLocal, right: &RcLocal) -> bool {
+        // TODO: sharing is caring
+        false
+    }
+
+    fn check_interfere_single(&mut self, red: &Rc<RefCell<CongruenceClass>>, blue: &Rc<RefCell<CongruenceClass>>) -> bool {
+        let mut local_a = red.borrow().values().next().unwrap().clone();
+        let mut local_b = blue.borrow().values().next().unwrap().clone();
+        // assumes one of the blocks dominates the other
+        // as check_pre_dom_order depends on this
+        if self.check_pre_dom_order(&local_a, &local_b) {
+            std::mem::swap(&mut local_a, &mut local_b);
+        }
+        if self.intersect(&local_a, &local_b) && self.values.get(&local_a) != self.values.get(&local_b) {
+            true
+        } else {
+            todo!()
+        }
+    }
+
+    fn intersect(&self, local_a: &RcLocal, local_b: &RcLocal) -> bool {
+        assert!(local_a != local_b);
+        assert!(self.dominates(local_b, local_a));
+
+        let (_, block_a, _) = self.local_defs[local_a];
+        let (_, block_b, _) = self.local_defs[local_b];
+        if self.liveness.block_liveness[&block_a].live_out.contains(local_b) {
+            true
+        } else if !self.liveness.block_liveness[&block_a].live_in.contains(local_b) && block_a != block_b {
+            false
+        } else if let Some(dom_use_index) = self.local_last_use.get(local_b).and_then(|m| m.get(&block_a)) {
+            let (def_dom_index, _, def_stat_index) = self.local_defs[local_a];
+            dom_use_index > &(def_dom_index, def_stat_index)
+        } else {
+            false
+        }
+    }
+
+    fn dominates(&self, local_a: &RcLocal, local_b: &RcLocal) -> bool {
+        let (_, block_a, _) = self.local_defs[local_a];
+        let (_, block_b, _) = self.local_defs[local_b];
+        if block_a == block_b {
+            self.check_pre_dom_order(local_a, local_b)
+        } else {
+            self.dominated_by[&block_b].contains(&block_a)
+        }
+    }
+
+    fn check_interfere(&mut self, red: &Rc<RefCell<CongruenceClass>>, blue: &Rc<RefCell<CongruenceClass>>) -> bool {
+        let mut dom = Vec::<(&RcLocal, RedOrBlue)>::new();
+
+        let red = red.borrow();
+        let blue = blue.borrow();
+        let mut red_iter = red.iter().peekable();
+        let mut blue_iter = blue.iter().peekable();
+        let mut red_count = 0;
+        let mut blue_count = 0;
+
+        loop {
+
+            let (curr, curr_class) = if blue_iter.peek().is_none() || (red_iter.peek().is_some() && self.check_pre_dom_order(red_iter.peek().unwrap().1, blue_iter.peek().unwrap().1)) {
+                red_count += 1;
+                (red_iter.next().unwrap().1, RedOrBlue::Red)
+            } else {
+                blue_count += 1;
+                (blue_iter.next().unwrap().1, RedOrBlue::Blue)
+            };
+
+            while !dom.is_empty() && !self.dominates(dom.last().unwrap().0, curr) {
+                match dom.last().unwrap().1 {
+                    RedOrBlue::Red => red_count -= 1,
+                    RedOrBlue::Blue => blue_count -= 1,
+                }
+                dom.pop();
+            }
+
+            if !dom.is_empty() && self.interference(curr, dom.last().unwrap().0, curr_class == dom.last().unwrap().1) {
+                return true;
+            }
+
+            dom.push((curr, curr_class));
+
+            if (red_iter.peek().is_some() && blue_count > 0)
+                || (blue_iter.peek().is_some() && red_count > 0) 
+                || (red_iter.peek().is_some() && blue_iter.peek().is_some())
+            {
+                continue;
+            }
+
+            break;
+        }
+
+        false
+    }
+
+    fn interference(&mut self, local_a: &RcLocal, local_b: &RcLocal, same_con_class: bool) -> bool {
+        let local_b = if same_con_class {
+            self.equal_ancestor_out.get(local_b)
+        } else {
+            Some(local_b)
+        };
+
+        if let Some(local_b) = local_b {
+            assert!(self.dominates(local_b, local_a));
+
+            let mut tmp = Some(local_b);
+            while let Some(curr_tmp) = tmp
+                && !self.intersect(local_a, curr_tmp) 
+            {
+                tmp = self.equal_ancestor_in.get(curr_tmp);
+            }
+
+            if self.values.get(local_a) != self.values.get(local_b) {
+                tmp.is_some()
+            } else {
+                if let Some(tmp) = tmp {
+                    self.equal_ancestor_out.insert(local_a.clone(), tmp.clone());
+                } else {
+                    self.equal_ancestor_out.remove(local_a);
+                }
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    fn merge_congruence_classes(&mut self, con_class_a: &Rc<RefCell<CongruenceClass>>, con_class_b: &Rc<RefCell<CongruenceClass>>) {
+        let con_class_b = std::mem::take(&mut *con_class_b.borrow_mut());
+        for local in con_class_b.values() {
+            self.congruence_classes.insert(local.clone(), con_class_a.clone());
+        }
+        con_class_a.borrow_mut().extend(con_class_b);
+
+
+        for local in con_class_a.borrow().values() {
+            let local_in = self.equal_ancestor_in.get(local);
+            let local_out = self.equal_ancestor_out.get(local);
+            let new_local_in = match (local_in, local_out) {
+                (None, Some(local)) |
+                (Some(local), None) => Some(local),
+                (Some(local_in), Some(local_out)) => Some(if self.check_pre_dom_order(local_in, local_out) { local_out } else { local_in }),
+                _ => None
+            };
+            if let Some(new_local_in) = new_local_in {
+                self.equal_ancestor_in.insert(local.clone(), new_local_in.clone());
+            }
         }
     }
 
     fn compute_value_interference(&mut self) {
-        let mut dfs_post_order = DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
+        let mut dfs_post_order =
+            DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
         while let Some(node) = dfs_post_order.next(self.function.graph()) {
             if let Some((_, edge)) = self.function.edges_to_block(node).next() {
                 for (p, _) in &edge.arguments {
@@ -150,22 +498,31 @@ impl<'a> Destructor<'a> {
             }
             for stat in &self.function.block(node).unwrap().0 {
                 if let ast::Statement::Assign(assign) = stat {
+                    // TODO: if statement isnt needed, else will work in all cases :)
                     if assign.parallel {
                         for i in 0..assign.left.len() {
                             let dst = assign.left[i].clone().into_local().unwrap();
                             let src = assign.right[i].clone().into_local().unwrap();
                             let value_class = self.values.entry(src).or_default().clone();
                             value_class.borrow_mut().insert(dst.clone());
-                            assert!(self.values.insert(dst, value_class).is_none());
+                            self.values.insert(dst, value_class);
                         }
                     } else {
-                        for (i, dst) in assign.left.iter().enumerate().filter_map(|(i, l)| Some((i, l.as_local()?))) {
+                        for (i, dst) in assign
+                            .left
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, l)| Some((i, l.as_local()?)))
+                        {
                             if let Some(ast::RValue::Local(src)) = assign.right.get(i) {
-                                let value_class = self.values.entry(src.clone()).or_default().clone();
+                                let value_class =
+                                    self.values.entry(src.clone()).or_default().clone();
                                 value_class.borrow_mut().insert(dst.clone());
-                                assert!(self.values.insert(dst.clone(), value_class).is_none());  
+                                self.values.insert(dst.clone(), value_class);
                             } else {
-                                assert!(self.values.insert(dst.clone(), Default::default()).is_none());
+                                self
+                                .values
+                                .insert(dst.clone(), Default::default());
                             }
                         }
                     }
@@ -190,7 +547,7 @@ impl<'a> Destructor<'a> {
     // i.e., no variable that is defined by a Phi-function is used in a 'later' phi-function.
     fn lift_block_params(&mut self, node: NodeIndex) {
         let local_allocator = self.function.local_allocator.clone();
-        
+
         let mut param_map = FxHashMap::default();
         if let Some((_, BlockEdge { arguments, .. })) = self.function.edges_to_block(node).next() {
             for param in arguments.iter().map(|(p, _)| p) {
@@ -199,12 +556,16 @@ impl<'a> Destructor<'a> {
         }
 
         if !param_map.is_empty() {
-            self.function.block_mut(node).unwrap().insert(0, ast::Assign {
-                left: param_map.keys().map(|k| k.clone().into()).collect(),
-                right: param_map.values().map(|v| v.clone().into()).collect(),
-                prefix: false,
-                parallel: true,
-            }.into());
+            self.function.block_mut(node).unwrap().insert(
+                0,
+                ast::Assign {
+                    left: param_map.keys().map(|k| k.clone().into()).collect(),
+                    right: param_map.values().map(|v| v.clone().into()).collect(),
+                    prefix: false,
+                    parallel: true,
+                }
+                .into(),
+            );
         }
 
         // let mut new_nodes = FxHashSet::default();
@@ -224,18 +585,21 @@ impl<'a> Destructor<'a> {
                 .filter(|e| e.target() == node)
                 .map(|e| e.id())
                 .collect::<Vec<_>>();
-            for &edge in &edges_to_node
-            {
-                let args = 
-                    self
-                        .function
-                        .graph_mut()
-                        .edge_weight_mut(edge)
-                        .unwrap()
-                        .arguments
-                .iter_mut();
+            for &edge in &edges_to_node {
+                let args = self
+                    .function
+                    .graph_mut()
+                    .edge_weight_mut(edge)
+                    .unwrap()
+                    .arguments
+                    .iter_mut();
 
-                let mut parallel_assign = ast::Assign { left: Vec::with_capacity(args.len()), right: Vec::with_capacity(args.len()), prefix: false, parallel: true, };
+                let mut parallel_assign = ast::Assign {
+                    left: Vec::with_capacity(args.len()),
+                    right: Vec::with_capacity(args.len()),
+                    prefix: false,
+                    parallel: true,
+                };
                 for (param, arg) in args {
                     let temp_local = local_allocator.borrow_mut().allocate();
 
@@ -257,7 +621,14 @@ impl<'a> Destructor<'a> {
 
                     // TODO: check values_written in the if statement
                     if !is_unconditional {
-                        assert!(self.function.block(pred).unwrap().last().unwrap().values_written().is_empty());
+                        assert!(self
+                            .function
+                            .block(pred)
+                            .unwrap()
+                            .last()
+                            .unwrap()
+                            .values_written()
+                            .is_empty());
                     }
                     // if !is_unconditional &&  {
                     //     assign_block = self.function.new_block();
@@ -266,20 +637,18 @@ impl<'a> Destructor<'a> {
                     //         assign_block,
                     //         vec![(node, BlockEdge { branch_type: BranchType::Unconditional, arguments: edge.arguments })],
                     //     );
-                        
+
                     //     self.function.graph_mut().add_edge(pred, assign_block, BlockEdge::new(edge.branch_type));
                     //     new_nodes.insert(assign_block);
                     // }
 
                     if is_unconditional {
                         self.function
-                        .block_mut(assign_block)
-                        .unwrap()
-                        .push(parallel_assign.into());
+                            .block_mut(assign_block)
+                            .unwrap()
+                            .push(parallel_assign.into());
                     } else {
-                        let assign_block = self.function
-                        .block_mut(assign_block)
-                        .unwrap();
+                        let assign_block = self.function.block_mut(assign_block).unwrap();
                         let len = assign_block.len();
                         assign_block.insert(len - 1, parallel_assign.into());
                     }

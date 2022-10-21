@@ -182,6 +182,7 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
         }
         for edge in function.edges(node).map(|e| e.id()).collect::<Vec<_>>() {
             // TODO: rename Stat::values, Expr::values to locals() and refer to locals as locals everywhere
+            // also see TODO in destruct.rs
             for local in function
                 .graph_mut()
                 .edge_weight_mut(edge)
@@ -193,6 +194,7 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                 match local {
                     Either::Left(local) => {
                         if let Some(mut new_local) = local_map.get(local) {
+                            // TODO: make sure this doesnt cycle if theres a li -> li entry
                             while let Some(new_to) = local_map.get(new_local) {
                                 new_local = new_to;
                             }

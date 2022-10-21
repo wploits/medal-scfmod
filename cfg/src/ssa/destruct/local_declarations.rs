@@ -20,6 +20,7 @@ fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLoca
             if read_stat_index.is_some() {
                 break;
             }
+            // TODO: multiple, assigns = sad, lol
             if let Some(assign) = statement.as_assign_mut() {
                 assign.prefix = true;
             }
