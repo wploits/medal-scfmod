@@ -88,7 +88,7 @@ impl<'a> Destructor<'a> {
         self.lift_params();
         self.sort_params();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
-
+        self.liveness = Liveness::new(self.function);
         self.build_def_use();
 
         self.compute_value_interference();
@@ -100,7 +100,7 @@ impl<'a> Destructor<'a> {
 
         self.sequentialize();
 
-        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+        // crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
         let upvalues_in = IndexSet::new();
 
@@ -168,7 +168,7 @@ impl<'a> Destructor<'a> {
 
                             for i in 0..assign.left.len() {
                                 let dst = assign.left[i].as_local().unwrap();
-                                assert!(loc.contains_key(dst));
+                                // assert!(loc.contains_key(dst));
                                 if loc.get(dst).is_none() {
                                     ready.push(dst.clone());
                                 }
@@ -626,23 +626,27 @@ impl<'a> Destructor<'a> {
             );
         }
 
-        // let mut new_nodes = FxHashSet::default();
+        let mut visited = FxHashSet::default();
         let mut preds = self.function.predecessor_blocks(node).detach();
         while let Some((_, pred)) = preds.next(self.function.graph()) {
-            // if new_nodes.contains(&pred) {
-            //     continue;
-            // }
+            // if there are multiple edges from b0 -> b1, b0 will occur more than once.
+            if visited.contains(&pred) {
+                continue;
+            }
+            visited.insert(pred);
 
             let edges = self.function.edges(pred).collect::<Vec<_>>();
             let is_unconditional = edges.len() == 1;
             if is_unconditional {
                 assert!(edges[0].weight().branch_type == BranchType::Unconditional);
             }
+
             let edges_to_node = edges
                 .iter()
                 .filter(|e| e.target() == node)
                 .map(|e| e.id())
                 .collect::<Vec<_>>();
+
             for &edge in &edges_to_node {
                 let args = self
                     .function
@@ -669,47 +673,42 @@ impl<'a> Destructor<'a> {
 
                 if !parallel_assign.left.is_empty() {
                     let mut assign_block = pred;
-                    // Benoit Boissinot, Alain Darte, Fabrice Rastello, Benoît Dupont de Dinechin, Christophe Guillon.
-                    // Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Eﬀiciency. [Research Report]
-                    // 2008, pp.14. inria-00349925v3
-                    // https://hal.inria.fr/inria-00349925/file/RR.pdf (p. 5)
-                    // the condition of an if statement might write to an argument, resulting in interference
-                    // we dont need to worry about instructions corresponding to other blocks being executed as we use
-                    // temporary locals, so they will be discarded anyway.
-
-                    // TODO: check values_written in the if statement
+                    // always insert a new block if the pred is conditional
+                    // this is because it generates output that makes more sense
+                    /*
+                    local a, b = 1, 2
+                    while p do
+                        local t = a
+                        a = b
+                        b = t
+                    end
+                    return a, b 
+                    -- if we insert into the conditional block, we get weird output
+                    local v1 = 1
+                    local v2 = 2
+                    repeat
+                        local v3 = v1
+                        v1 = v2
+                        v2 = v3
+                    until not p
+                    return v2, v1
+                    */
                     if !is_unconditional {
-                        assert!(self
-                            .function
-                            .block(pred)
-                            .unwrap()
-                            .last()
-                            .unwrap()
-                            .values_written()
-                            .is_empty());
-                    }
-                    // if !is_unconditional &&  {
-                    //     assign_block = self.function.new_block();
-                    //     let edge = self.function.graph_mut().remove_edge(edge).unwrap();
-                    //     self.function.set_edges(
-                    //         assign_block,
-                    //         vec![(node, BlockEdge { branch_type: BranchType::Unconditional, arguments: edge.arguments })],
-                    //     );
+                        assign_block = self.function.new_block();
+                        let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+                        self.function.set_edges(
+                            assign_block,
+                            vec![(node, BlockEdge { branch_type: BranchType::Unconditional, arguments: edge.arguments })],
+                        );
 
-                    //     self.function.graph_mut().add_edge(pred, assign_block, BlockEdge::new(edge.branch_type));
-                    //     new_nodes.insert(assign_block);
-                    // }
-
-                    if is_unconditional {
-                        self.function
-                            .block_mut(assign_block)
-                            .unwrap()
-                            .push(parallel_assign.into());
-                    } else {
-                        let assign_block = self.function.block_mut(assign_block).unwrap();
-                        let len = assign_block.len();
-                        assign_block.insert(len - 1, parallel_assign.into());
+                        self.function.graph_mut().add_edge(pred, assign_block, BlockEdge::new(edge.branch_type));
+                        visited.insert(assign_block);
                     }
+
+                    self.function
+                        .block_mut(assign_block)
+                        .unwrap()
+                        .push(parallel_assign.into());
                 }
             }
         }
