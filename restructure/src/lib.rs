@@ -276,6 +276,9 @@ impl GraphStructurer {
                             ast::Statement::While(r#while) => {
                                 collect_gotos(&r#while.block, gotos);
                             }
+                            ast::Statement::Repeat(repeat) => {
+                                collect_gotos(&repeat.block, gotos);
+                            }
                             ast::Statement::NumericFor(numeric_for) => {
                                 collect_gotos(&numeric_for.block, gotos);
                             }

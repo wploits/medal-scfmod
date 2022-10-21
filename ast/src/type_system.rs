@@ -179,6 +179,7 @@ impl<'a> TypeSystem<'a> {
                         self.analyze_block(b);
                     }
                 }
+                // TODO: repeat and for loops
                 Statement::While(r#while) => {
                     self.analyze_block(&mut r#while.block);
                 }

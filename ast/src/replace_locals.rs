@@ -35,6 +35,9 @@ pub fn replace_locals<H: std::hash::BuildHasher>(
             Statement::While(r#while) => {
                 replace_locals(&mut r#while.block, map);
             }
+            Statement::Repeat(repeat) => {
+                replace_locals(&mut repeat.block, map);
+            }
             Statement::NumericFor(numeric_for) => {
                 replace_locals(&mut numeric_for.block, map);
             }

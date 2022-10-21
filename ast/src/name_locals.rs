@@ -60,6 +60,9 @@ impl Namer {
                 Statement::While(r#while) => {
                     self.name_locals(&mut r#while.block);
                 }
+                Statement::Repeat(repeat) => {
+                    self.name_locals(&mut repeat.block);
+                }
                 Statement::NumericFor(numeric_for) => {
                     self.name_local("v", &numeric_for.counter);
                     self.name_locals(&mut numeric_for.block);
@@ -97,6 +100,9 @@ impl Namer {
                 }
                 Statement::While(r#while) => {
                     self.find_upvalues(&mut r#while.block);
+                }
+                Statement::Repeat(repeat) => {
+                    self.find_upvalues(&mut repeat.block);
                 }
                 Statement::NumericFor(numeric_for) => {
                     self.find_upvalues(&mut numeric_for.block);
