@@ -20,13 +20,11 @@ use crate::{
     function::Function,
 };
 
-mod interference_graph;
 mod liveness;
 mod local_declarations;
-mod rename_locals;
 
 use self::{
-    interference_graph::InterferenceGraph, liveness::Liveness, rename_locals::LocalRenamer,
+    liveness::Liveness,
 };
 
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug)]
