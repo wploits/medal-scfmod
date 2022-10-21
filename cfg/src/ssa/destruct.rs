@@ -102,7 +102,7 @@ impl<'a> Destructor<'a> {
 
         self.sequentialize();
 
-        crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
         let upvalues_in = IndexSet::new();
 
@@ -146,7 +146,68 @@ impl<'a> Destructor<'a> {
     }
 
     fn sequentialize(&mut self) {
-        
+        let local_allocator = self.function.local_allocator.clone();
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+            let mut replace_map = Vec::new();
+            for (stat_index, stat) in self.function.block_mut(node).unwrap().0.iter_mut().enumerate() {
+                if let ast::Statement::Assign(assign) = stat {
+                    if assign.parallel {
+                        if assign.left.len() == 1 {
+                            assign.parallel = false;
+                        } else {
+                            let mut ready = Vec::new();
+                            let mut to_do = Vec::new();
+                            let mut loc = FxHashMap::default();
+                            let mut pred = FxHashMap::default();
+                            
+                            for i in 0..assign.left.len() {
+                                let dst = assign.left[i].as_local().unwrap();
+                                let src = assign.right[i].as_local().unwrap();
+                                loc.insert(src.clone(), src.clone());
+                                pred.insert(dst.clone(), src.clone());
+                                to_do.push(dst.clone());
+                            }
+
+                            for i in 0..assign.left.len() {
+                                let dst = assign.left[i].as_local().unwrap();
+                                assert!(loc.contains_key(dst));
+                                if loc.get(dst).is_none() {
+                                    ready.push(dst.clone());
+                                }
+                            }
+
+                            let mut spill = None;
+                            let mut result = Vec::new();
+                            while let Some(local_b) = to_do.pop() {
+                                while let Some(local_b) = ready.pop() {
+                                    let local_a = pred[&local_b].clone();
+                                    let local_c = loc[&local_a].clone();
+                                    result.push(ast::Assign::new(vec![local_b.clone().into()], vec![local_c.clone().into()]));
+                                    if local_a == local_c && pred.get(&local_a).is_some() {
+                                        ready.push(local_a.clone());
+                                    }
+                                    loc.insert(local_a, local_b);
+                                }
+
+                                if local_b != loc[&pred[&local_b]] {
+                                    let spill = spill.get_or_insert_with(|| local_allocator.borrow_mut().allocate());
+                                    result.push(ast::Assign::new(vec![spill.clone().into()], vec![local_b.clone().into()]));
+                                    loc.insert(local_b.clone(), spill.clone());
+                                    ready.push(local_b);
+                                }
+                            }
+                            println!("{:?}", result);
+                            replace_map.push((stat_index, result))
+                        }
+                    }
+                }
+            }
+
+            let block = self.function.block_mut(node).unwrap();
+            for (stat_index, assigns) in replace_map.into_iter().rev() {
+                block.splice(stat_index..stat_index+1, assigns.into_iter().map(|a| a.into()));
+            }
+        }
     }
 
     fn build_local_map(&self) -> FxHashMap<RcLocal, RcLocal> {
