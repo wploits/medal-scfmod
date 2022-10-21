@@ -21,10 +21,12 @@ fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLoca
                 break;
             }
             // TODO: multiple, assigns = sad, lol
-            if let Some(assign) = statement.as_assign_mut() {
+            if let Some(assign) = statement.as_assign_mut() && assign.left.len() == 1 {
                 assign.prefix = true;
+                return;
             }
-            return;
+
+            read_stat_index = Some(index);
         }
     }
 
