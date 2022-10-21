@@ -194,7 +194,6 @@ impl<'a> Destructor<'a> {
                                     ready.push(local_b);
                                 }
                             }
-                            println!("{:?}", result);
                             replace_map.push((stat_index, result))
                         }
                     }
