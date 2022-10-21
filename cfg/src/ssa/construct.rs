@@ -385,8 +385,11 @@ impl<'a> SsaConstructor<'a> {
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    self.local_map.insert(from.clone(), to.clone());
-                    indices_to_remove.push(index)
+                    let to_old = &self.old_locals[to];
+                    if !self.new_upvalues_in.contains_key(to_old) && !self.upvalues_passed.contains_key(to_old) {
+                        self.local_map.insert(from.clone(), to.clone());
+                        indices_to_remove.push(index)
+                    }
                 }
             }
             let block = self.function.block_mut(node).unwrap();
@@ -431,7 +434,7 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-    fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<FxHashSet<RcLocal>>) {
+    fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<(RcLocal, FxHashSet<RcLocal>)>, Vec<FxHashSet<RcLocal>>) {
         let entry = self.function.entry().unwrap();
         let mut visited_nodes = Vec::with_capacity(self.function.graph().node_count());
         for i in 0..self.dfs.len() {
@@ -598,13 +601,11 @@ impl<'a> SsaConstructor<'a> {
             self.local_count,
             self.all_definitions.into_values().collect(),
             self.new_upvalues_in
-                .into_values()
-                .chain(
-                    self.upvalues_passed
-                        .into_values()
-                        .flat_map(|m| m.into_values()),
-                )
+                .into_iter()
                 .collect(),
+            self.upvalues_passed
+                .into_values()
+                .flat_map(|m| m.into_values()).collect(),
         )
     }
 }
@@ -612,7 +613,7 @@ impl<'a> SsaConstructor<'a> {
 pub fn construct(
     function: &mut Function,
     upvalues_in: &Vec<RcLocal>,
-) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<FxHashSet<RcLocal>>) {
+) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<(RcLocal, FxHashSet<RcLocal>)>, Vec<FxHashSet<RcLocal>>) {
     let mut new_upvalues_in = IndexMap::with_capacity(upvalues_in.len());
     for upvalue in upvalues_in {
         new_upvalues_in.insert(upvalue.clone(), FxHashSet::default());

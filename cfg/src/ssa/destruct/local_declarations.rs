@@ -50,7 +50,7 @@ fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLoca
 
 pub(crate) fn declare_locals(
     function: &mut Function,
-    upvalues_in: &IndexSet<ast::RcLocal>,
+    upvalues_in: &FxHashSet<ast::RcLocal>,
     local_nodes: FxHashMap<ast::RcLocal, FxHashSet<NodeIndex>>,
     dominators: &Dominators<NodeIndex>,
 ) {

@@ -7,7 +7,7 @@ use cfg::{
 };
 use either::Either;
 use fxhash::{FxHashMap, FxHashSet};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 
 use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
@@ -641,7 +641,7 @@ impl<'a> LifterContext<'a> {
                     let mut local_map =
                         FxHashMap::with_capacity_and_hasher(upvalues_in.len(), Default::default());
                     for (old, new) in upvalues_in.into_iter().zip(&upvalues_passed) {
-                        //println!("{} -> {}", old, new);
+                        // println!("{} -> {}", old, new);
                         local_map.insert(old, new.clone());
                     }
                     replace_locals(&mut body, &local_map);
@@ -975,17 +975,16 @@ impl<'a> LifterContext<'a> {
             // println!("before ssa construction");
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
-            let (local_count, local_groups, upvalue_groups) =
+            let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
             // println!("after ssa construction");
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
-            let upvalue_to_group = upvalue_groups
-                .iter()
-                .cloned()
-                .enumerate()
-                .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i)))
+            let upvalue_to_group = upvalue_in_groups
+                .into_iter()
+                .chain(upvalue_passed_groups.into_iter().map(|m| (function.local_allocator.borrow_mut().allocate(), m)))
+                .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
                 .collect::<IndexMap<_, _>>();
 
             let local_to_group = local_groups
@@ -1052,14 +1051,12 @@ impl<'a> LifterContext<'a> {
 
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
-            let upvalues_in = cfg::ssa::Destructor::new(
+            cfg::ssa::Destructor::new(
                 &mut function,
                 &upvalue_to_group,
-                upvalues_in.len(),
+                upvalues_in.iter().cloned().collect(),
                 local_count,
-            ).destruct()
-            .into_iter()
-            .collect::<Vec<_>>();
+            ).destruct();
 
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             let params = std::mem::take(&mut function.parameters);

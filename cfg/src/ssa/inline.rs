@@ -36,7 +36,7 @@ fn inline_rvalue(
 fn inline_rvalues(
     function: &mut Function,
     local_to_group: &FxHashMap<ast::RcLocal, usize>,
-    upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
+    upvalue_to_group: &IndexMap<ast::RcLocal, ast::RcLocal>,
     local_usages: &mut FxHashMap<ast::RcLocal, usize>,
 ) {
     let node_indices = function.graph().node_indices().collect::<Vec<_>>();
@@ -195,7 +195,7 @@ fn inline_rvalues(
 pub fn inline(
     function: &mut Function,
     local_to_group: &FxHashMap<ast::RcLocal, usize>,
-    upvalue_to_group: &IndexMap<ast::RcLocal, usize>,
+    upvalue_to_group: &IndexMap<ast::RcLocal, ast::RcLocal>,
 ) {
     let mut local_usages = FxHashMap::default();
     for node in function.graph().node_indices() {
