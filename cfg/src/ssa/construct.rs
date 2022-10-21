@@ -361,45 +361,10 @@ impl<'a> SsaConstructor<'a> {
         res
     }
 
-    // block-local copy propagation
-    // TODO: do in local inlining instead since blocks are merged
-    // we can also propagate copies where we can guarantee there is no overlap of locals that correspond to the same
-    // original local
-    // for example:
-    /*
-    local a = a
-    local b
-    if g then b = "hi" else b = a end
-    return b
-    */
     fn propagate_copies(&mut self) {
-        // TODO: repeated in inline.rs, move to separate function
-        let node_indices = self.function.graph().node_indices().collect::<Vec<_>>();
-        let mut local_usages =
-            FxHashMap::with_capacity_and_hasher(self.local_count, Default::default());
-        for &node in &node_indices {
-            let block = self.function.block(node).unwrap();
-            for stat in &block.0 {
-                for read in stat.values_read() {
-                    local_usages
-                        .entry(read.clone())
-                        .or_insert_with(FxHashSet::default)
-                        .insert(node);
-                }
-            }
-            for edge in self.function.edges(node) {
-                for (_, arg) in &edge.weight().arguments {
-                    let arg = arg.as_local().unwrap();
-                    local_usages
-                        .entry(arg.clone())
-                        .or_insert_with(FxHashSet::default)
-                        .insert(node);
-                }
-            }
-        }
-        for node in node_indices {
+        // TODO: blocks_mut
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();
-            let mut assigned_locals = FxHashSet::default();
             let mut indices_to_remove = Vec::new();
             for index in block
                 .iter()
@@ -416,19 +381,12 @@ impl<'a> SsaConstructor<'a> {
                     && !self.upvalues_passed.contains_key(from_old)
                     && let Some(mut to) = assign.right[0].as_local()
                 {
-                    // TODO: wtf is this name lol
+                    // TODO: STYLE: this name lol
                     while let Some(to_to) = self.local_map.get(to) {
                         to = to_to;
                     }
-                    if local_usages.entry(from.clone()).or_default().len() <= 1 || assigned_locals.contains(to) {
-                        self.local_map.insert(from.clone(), to.clone());
-                        indices_to_remove.push(index);
-                    }
-                }
-                for lvalue in &assign.left {
-                    if let Some(assigned) = lvalue.as_local() {
-                        assigned_locals.insert(assigned.clone());
-                    }
+                    self.local_map.insert(from.clone(), to.clone());
+                    indices_to_remove.push(index)
                 }
             }
             let block = self.function.block_mut(node).unwrap();
@@ -437,6 +395,7 @@ impl<'a> SsaConstructor<'a> {
             }
         }
     }
+
 
     fn mark_upvalues(&mut self) {
         let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
