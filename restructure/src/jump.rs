@@ -34,7 +34,7 @@ impl super::GraphStructurer {
                         // TODO: check if this works (+ cfg/src/ssa/structuring.rs)
                         let cond = self
                             .function
-                            .block_mut(node)
+                            .block_mut(source)
                             .unwrap()
                             .pop()
                             .unwrap()
