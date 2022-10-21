@@ -1055,6 +1055,7 @@ impl<'a> LifterContext<'a> {
             let upvalues_in = cfg::ssa::Destructor::new(
                 &mut function,
                 &upvalue_to_group,
+                upvalues_in.len(),
                 local_count,
             ).destruct()
             .into_iter()

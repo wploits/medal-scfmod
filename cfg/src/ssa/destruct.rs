@@ -51,6 +51,9 @@ pub struct Destructor<'a> {
     function: &'a mut Function,
     upvalue_to_group: &'a IndexMap<RcLocal, usize>,
     local_count: usize,
+    new_upvalues: IndexSet<RcLocal>,
+    reserved: FxHashSet<RcLocal>,
+    upvalues_in_count: usize,
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
     // map( local -> rc_map( local -> (pre-order block index, param index) ) )
     // TODO: hash map?
@@ -66,12 +69,15 @@ pub struct Destructor<'a> {
 }
 
 impl<'a> Destructor<'a> {
-    pub fn new(function: &'a mut Function, upvalue_to_group: &'a IndexMap<RcLocal, usize>, local_count: usize) -> Self {
+    pub fn new(function: &'a mut Function, upvalue_to_group: &'a IndexMap<RcLocal, usize>, upvalues_in_count: usize, local_count: usize) -> Self {
         let liveness = Liveness::new(function);
         Self {
             function,
             upvalue_to_group,
+            upvalues_in_count,
             local_count,
+            new_upvalues: IndexSet::new(),
+            reserved: FxHashSet::default(),
             values: FxHashMap::default(),
             congruence_classes: FxHashMap::default(),
             equal_ancestor_in: FxHashMap::default(),
@@ -94,6 +100,7 @@ impl<'a> Destructor<'a> {
         self.compute_value_interference();
 
         self.coalesce_params();
+        self.coalesce_upvalues();
         self.coalesce_copies();
 
         super::construct::apply_local_map(self.function, self.build_local_map());
@@ -101,8 +108,6 @@ impl<'a> Destructor<'a> {
         self.sequentialize();
 
         // crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
-
-        let upvalues_in = IndexSet::new();
 
         let liveness = Liveness::new(self.function);
 
@@ -116,6 +121,9 @@ impl<'a> Destructor<'a> {
                 local_nodes.entry(local).or_default().insert(node);
             }
         }
+
+        let mut upvalues_in = self.new_upvalues;
+        upvalues_in.truncate(self.upvalues_in_count);
 
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
         local_declarations::declare_locals(self.function, &upvalues_in, local_nodes, &dominators);
@@ -141,6 +149,22 @@ impl<'a> Destructor<'a> {
         // let dominators = simple_fast(function.graph(), function.entry().unwrap());
         // local_declarations::declare_locals(function, &upvalues_in, local_nodes, &dominators);
         // upvalues_in
+    }
+
+    fn coalesce_upvalues(&mut self) {
+        let mut upvalue_locals = FxHashMap::default();
+        for (upvalue, &group) in self.upvalue_to_group {
+            let group_local = upvalue_locals
+                .entry(group)
+                .or_insert_with(|| upvalue.clone())
+                .clone();
+            let con_class = self.get_congruence_class(group_local.clone()).clone();
+            let (upval_dom_index, _, upval_stat_index) = self.local_defs[upvalue];
+            con_class.borrow_mut().insert((upval_dom_index, upval_stat_index), upvalue.clone());
+            self.congruence_classes.insert(upvalue.clone(), con_class);
+            self.new_upvalues.insert(group_local);
+            self.reserved.insert(upvalue.clone());
+        }
     }
 
     fn sequentialize(&mut self) {
@@ -238,11 +262,8 @@ impl<'a> Destructor<'a> {
         while let Some(node) = dfs.next(self.function.graph()) {
             if node == self.function.entry().unwrap() {
                 assert!(!self.function.edges_to_block(node).any(|(_, e)| !e.arguments.is_empty()));
-                for param in &self.function.parameters {
-                    self.local_defs.insert(param.clone(), (dominator_index, node, ParamOrStatIndex::Param(0)));
-                }
-                for upvalue in self.upvalue_to_group.keys() {
-                    self.local_defs.insert(upvalue.clone(), (dominator_index, node, ParamOrStatIndex::Param(0)));
+                for (i, local) in self.function.parameters.iter().chain(self.upvalue_to_group.keys()).enumerate() {
+                    self.local_defs.insert(local.clone(), (dominator_index, node, ParamOrStatIndex::Param(i)));
                 }
             }
 
@@ -353,7 +374,10 @@ impl<'a> Destructor<'a> {
                         .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
                         .collect::<Vec<_>>()
                     {
-                        if self.try_coalesce_copy_by_value(left.clone(), right.clone()) || self.try_coalesce_copy_by_sharing(&left, &right) {
+                        if !self.reserved.contains(&right)
+                            && (self.try_coalesce_copy_by_value(left.clone(), right.clone())
+                                || self.try_coalesce_copy_by_sharing(&left, &right))
+                        {
                             to_remove.push(i);
                         }
                     }
@@ -411,7 +435,11 @@ impl<'a> Destructor<'a> {
         if self.intersect(&local_a, &local_b) && self.values.get(&local_a) != self.values.get(&local_b) {
             true
         } else {
-            todo!()
+            self.equal_ancestor_in.insert(local_a, local_b.clone());
+            let (dom_index_b, _, stat_index_b) = self.local_defs[&local_b];
+            red.borrow_mut().insert((dom_index_b, stat_index_b), local_b.clone());
+            self.congruence_classes.insert(local_b, red.clone());
+            false
         }
     }
 
