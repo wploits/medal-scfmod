@@ -278,6 +278,11 @@ pub fn inline(
                         }) = &field_assign.left[0]
                         && local == &object_local
                     {
+                        let right = &field_assign.right[0];
+                        if right.as_closure().is_none() && right.values_read().contains(&&object_local) {
+                            break;
+                        }
+
                         let field_assign = std::mem::replace(&mut block[i], ast::Empty {}.into()).into_assign().unwrap();
                         block[table_index].as_assign_mut().unwrap().right[0].as_table_mut().unwrap().0.push((Some(Box::into_inner(field_assign.left.into_iter().next().unwrap().into_index().unwrap().right)), field_assign.right.into_iter().next().unwrap()));
                         changed = true;
