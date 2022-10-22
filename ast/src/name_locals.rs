@@ -6,7 +6,7 @@ use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
 struct Namer {
     rename: bool,
-    counter: FxHashMap<String, usize>,
+    counter: usize,
     upvalues: FxHashSet<RcLocal>,
 }
 
@@ -17,15 +17,13 @@ impl Namer {
             if Rc::strong_count(local) == 1 {
                 local.0 .0.borrow_mut().0 = Some("_".to_string());
             } else {
-                let prefix = prefix.to_string()
-                    + if self.upvalues.contains(local) {
-                        "_u_"
-                    } else {
-                        ""
-                    };
-                let counter = self.counter.entry(prefix.clone()).or_insert(1);
-                local.0 .0.borrow_mut().0 = Some(format!("{}{}", prefix, counter));
-                *counter += 1;
+                let prefix = prefix.to_string() + if self.upvalues.contains(local) {
+                    "_u_"
+                } else {
+                    ""
+                };
+                local.0 .0.borrow_mut().0 = Some(format!("{}{}", prefix, self.counter));
+                self.counter += 1;
             }
         }
     }
@@ -119,7 +117,7 @@ impl Namer {
 pub fn name_locals(block: &mut Block, rename: bool) {
     let mut namer = Namer {
         rename,
-        counter: FxHashMap::default(),
+        counter: 1,
         upvalues: FxHashSet::default(),
     };
     namer.find_upvalues(block);
