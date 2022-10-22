@@ -13,7 +13,6 @@ use tuple::Map;
 
 use crate::{
     block::{BlockEdge, BranchType},
-    dot::render_to,
     function::Function,
 };
 
@@ -51,6 +50,7 @@ pub struct ConditionalSequencePattern {
     second_node: NodeIndex,
     short_circuit: NodeIndex,
     assign: bool,
+    inverted: bool,
     final_condition: ast::RValue,
 }
 
@@ -139,7 +139,8 @@ fn match_conditional_sequence(
                     second_node: then_edge.target(),
                     short_circuit: else_edge.target(),
                     assign,
-                    final_condition: ast::Binary::new(first_condition, ast::Unary::new(second_condition, ast::UnaryOperation::Not).into(), ast::BinaryOperation::And).into()
+                    inverted: true,
+                    final_condition: ast::Binary::new(ast::Unary::new(first_condition, ast::UnaryOperation::Not).into(), second_condition, ast::BinaryOperation::Or).into()
                 })
             } else {
                 Some(ConditionalSequencePattern {
@@ -147,6 +148,7 @@ fn match_conditional_sequence(
                     second_node: then_edge.target(),
                     short_circuit: else_edge.target(),
                     assign,
+                    inverted: false,
                     final_condition: ast::Binary::new(first_condition, second_condition, ast::BinaryOperation::And).into()
                 })
             }
@@ -160,6 +162,7 @@ fn match_conditional_sequence(
                     second_node: else_edge.target(),
                     short_circuit: then_edge.target(),
                     assign,
+                    inverted: false,
                     final_condition: ast::Binary::new(first_condition, second_condition, ast::BinaryOperation::Or).into()
                 })
             } else {
@@ -168,7 +171,8 @@ fn match_conditional_sequence(
                     second_node: else_edge.target(),
                     short_circuit: then_edge.target(),
                     assign,
-                    final_condition: ast::Binary::new(first_condition, ast::Unary::new(second_condition, ast::UnaryOperation::Not).into(), ast::BinaryOperation::Or).into()
+                    inverted: true,
+                    final_condition: ast::Binary::new(ast::Unary::new(first_condition, ast::UnaryOperation::Not).into(), second_condition, ast::BinaryOperation::And).into()
                 })
             }
         } else {
@@ -318,6 +322,11 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
             } else {
                 let removed_if = removed_block.last_mut().unwrap().as_if_mut().unwrap();
                 removed_if.condition = pattern.final_condition;
+            }
+            if pattern.inverted {
+                let removed_if = removed_block.last_mut().unwrap().as_if_mut().unwrap();
+                // TODO: unnecessary clone?
+                removed_if.condition = ast::Unary::new(removed_if.condition.clone(), UnaryOperation::Not).reduce();
             }
             let first_block = function.block_mut(first_node).unwrap();
             first_block.pop();
