@@ -569,6 +569,8 @@ impl<'a> Destructor<'a> {
         let mut red_count = 0;
         let mut blue_count = 0;
 
+        self.equal_ancestor_out.remove(red_iter.peek().unwrap().1);
+        self.equal_ancestor_out.remove(blue_iter.peek().unwrap().1);
         loop {
             let (curr, curr_class) = if blue_iter.peek().is_none()
                 || (red_iter.peek().is_some()
@@ -616,6 +618,7 @@ impl<'a> Destructor<'a> {
     }
 
     fn interference(&mut self, local_a: &RcLocal, local_b: &RcLocal, same_con_class: bool) -> bool {
+        self.equal_ancestor_out.remove(local_a);
         let local_b = if same_con_class {
             self.equal_ancestor_out.get(local_b)
         } else {
@@ -623,7 +626,7 @@ impl<'a> Destructor<'a> {
         };
 
         if let Some(local_b) = local_b {
-            assert!(self.dominates(local_b, local_a));
+            assert!(!self.dominates(local_a, local_b));
 
             let mut tmp = Some(local_b);
             while let Some(curr_tmp) = tmp
