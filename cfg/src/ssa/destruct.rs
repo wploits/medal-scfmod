@@ -79,7 +79,10 @@ impl<'a> Destructor<'a> {
             local_count,
             reserved: FxHashSet::default(),
             values: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
-            congruence_classes: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
+            congruence_classes: FxHashMap::with_capacity_and_hasher(
+                local_count,
+                Default::default(),
+            ),
             equal_ancestor_in: FxHashMap::default(),
             equal_ancestor_out: FxHashMap::default(),
             local_defs: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
@@ -451,8 +454,36 @@ impl<'a> Destructor<'a> {
         }
     }
 
-    fn try_coalesce_copy_by_sharing(&mut self, left: &RcLocal, right: &RcLocal) -> bool {
-        // TODO: sharing is caring
+    // TODO: find a test for this
+    fn try_coalesce_copy_by_sharing(&mut self, local_a: &RcLocal, local_b: &RcLocal) -> bool {
+        let con_class_x = self.get_congruence_class(local_a.clone()).clone();
+        let con_class_y = self.get_congruence_class(local_b.clone()).clone();
+
+        let values = self.values[local_a].borrow().iter().cloned().collect_vec();
+        for local_c in values {
+            if &local_c == local_b
+                || &local_c == local_a
+                || !self.check_pre_dom_order(&local_c, local_a)
+                || !self.intersect(local_a, &local_c)
+            {
+                continue;
+            }
+
+            let con_class_z = self.get_congruence_class(local_c.clone()).clone();
+            if con_class_x == con_class_z && con_class_x != con_class_y {
+                println!("WOAH COPY SHARING");
+                return true;
+            }
+            if con_class_y != con_class_x
+                && con_class_y != con_class_z
+                && con_class_x != con_class_z
+                && self.try_coalesce_copy_by_value(local_a.clone(), local_c)
+            {
+                println!("WOAH COPY SHARING");
+                return true;
+            }
+        }
+
         false
     }
 
@@ -482,7 +513,7 @@ impl<'a> Destructor<'a> {
 
     fn intersect(&self, local_a: &RcLocal, local_b: &RcLocal) -> bool {
         assert!(local_a != local_b);
-        assert!(self.dominates(local_b, local_a));
+        assert!(!self.dominates(local_a, local_b));
 
         let (_, block_a, _) = self.local_defs[local_a];
         let (_, block_b, _) = self.local_defs[local_b];
@@ -515,7 +546,12 @@ impl<'a> Destructor<'a> {
         if block_a == block_b {
             self.check_pre_dom_order(local_a, local_b)
         } else {
-            self.dominators.as_ref().unwrap().dominators(block_b).unwrap().contains(&block_a)
+            self.dominators
+                .as_ref()
+                .unwrap()
+                .dominators(block_b)
+                .unwrap()
+                .contains(&block_a)
         }
     }
 
