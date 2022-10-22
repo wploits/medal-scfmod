@@ -87,7 +87,7 @@ impl fmt::Display for NumForInit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "-- NumForInit\n{}, {}, {} = {}, {}, {}\n-- end NumForInit",
+            "-- NumForInit\nlocal {}, {}, {} = {}, {}, {}\n-- end NumForInit",
             self.counter.0, self.limit.0, self.step.0, self.counter.1, self.limit.1, self.step.1
         )
     }

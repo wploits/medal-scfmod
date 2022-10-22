@@ -61,8 +61,8 @@ pub struct Destructor<'a> {
     local_defs: FxHashMap<RcLocal, (usize, NodeIndex, ParamOrStatIndex)>,
     local_last_use: FxHashMap<RcLocal, FxHashMap<NodeIndex, (usize, ParamOrStatIndex)>>,
     dominator_tree: DiGraphMap<NodeIndex, ()>,
-    dominated_by: FxHashMap<NodeIndex, Vec<NodeIndex>>,
-    liveness: Liveness,
+    dominators: Option<Dominators<NodeIndex>>,
+    liveness: Option<Liveness>,
 }
 
 impl<'a> Destructor<'a> {
@@ -72,22 +72,21 @@ impl<'a> Destructor<'a> {
         upvalues_in: FxHashSet<RcLocal>,
         local_count: usize,
     ) -> Self {
-        let liveness = Liveness::new(function);
         Self {
             function,
             upvalue_to_group,
             upvalues_in,
             local_count,
             reserved: FxHashSet::default(),
-            values: FxHashMap::default(),
-            congruence_classes: FxHashMap::default(),
+            values: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
+            congruence_classes: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
             equal_ancestor_in: FxHashMap::default(),
             equal_ancestor_out: FxHashMap::default(),
-            local_defs: FxHashMap::default(),
+            local_defs: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
             local_last_use: FxHashMap::default(),
             dominator_tree: DiGraphMap::new(),
-            dominated_by: FxHashMap::default(),
-            liveness,
+            dominators: None,
+            liveness: None,
         }
     }
     pub fn destruct(mut self) {
@@ -96,7 +95,7 @@ impl<'a> Destructor<'a> {
         self.sort_params();
 
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
-        self.liveness = Liveness::new(self.function);
+        self.liveness = Some(Liveness::new(self.function, true));
         self.build_def_use();
 
         self.compute_value_interference();
@@ -111,7 +110,7 @@ impl<'a> Destructor<'a> {
 
         // crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
-        let liveness = Liveness::new(self.function);
+        let liveness = Liveness::new(self.function, false);
 
         let mut local_nodes = FxHashMap::<_, FxHashSet<_>>::default();
         for (node, liveness) in liveness.block_liveness {
@@ -124,12 +123,11 @@ impl<'a> Destructor<'a> {
             }
         }
 
-        let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
         local_declarations::declare_locals(
             self.function,
             &self.upvalues_in,
             local_nodes,
-            &dominators,
+            &self.dominators.unwrap(),
         );
 
         // let liveness = Liveness::new(self.function);
@@ -269,11 +267,8 @@ impl<'a> Destructor<'a> {
             if let Some(dominator) = dominators.immediate_dominator(node) {
                 self.dominator_tree.add_edge(dominator, node, ());
             }
-            if let Some(dominators) = dominators.dominators(node) {
-                self.dominated_by
-                    .insert(node, dominators.collect::<Vec<_>>());
-            }
         }
+        self.dominators = Some(dominators);
 
         let mut dominator_index = 0;
         let mut dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
@@ -491,12 +486,12 @@ impl<'a> Destructor<'a> {
 
         let (_, block_a, _) = self.local_defs[local_a];
         let (_, block_b, _) = self.local_defs[local_b];
-        if self.liveness.block_liveness[&block_a]
+        if self.liveness.as_ref().unwrap().block_liveness[&block_a]
             .live_out
             .contains(local_b)
         {
             true
-        } else if !self.liveness.block_liveness[&block_a]
+        } else if !self.liveness.as_ref().unwrap().block_liveness[&block_a]
             .live_in
             .contains(local_b)
             && block_a != block_b
@@ -520,7 +515,7 @@ impl<'a> Destructor<'a> {
         if block_a == block_b {
             self.check_pre_dom_order(local_a, local_b)
         } else {
-            self.dominated_by[&block_b].contains(&block_a)
+            self.dominators.as_ref().unwrap().dominators(block_b).unwrap().contains(&block_a)
         }
     }
 

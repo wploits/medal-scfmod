@@ -52,7 +52,7 @@ impl Liveness {
         }
     }
 
-    pub fn new(function: &Function) -> Self {
+    pub fn new(function: &Function, calc_live_sets: bool) -> Self {
         let mut liveness = Liveness {
             block_liveness: FxHashMap::with_capacity_and_hasher(
                 function.graph().node_count(),
@@ -85,16 +85,18 @@ impl Liveness {
                 );
             }
         }
-        for node in function.graph().node_indices() {
-            let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-            for variable in block_liveness.arg_out_uses.clone() {
+        if calc_live_sets {
+            for node in function.graph().node_indices() {
                 let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-                block_liveness.live_out.insert(variable.clone());
-                Self::explore_all_paths(&mut liveness, function, node, &variable);
-            }
-            let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-            for variable in block_liveness.uses.clone() {
-                Self::explore_all_paths(&mut liveness, function, node, &variable);
+                for variable in block_liveness.arg_out_uses.clone() {
+                    let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
+                    block_liveness.live_out.insert(variable.clone());
+                    Self::explore_all_paths(&mut liveness, function, node, &variable);
+                }
+                let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
+                for variable in block_liveness.uses.clone() {
+                    Self::explore_all_paths(&mut liveness, function, node, &variable);
+                }
             }
         }
         liveness
