@@ -174,6 +174,15 @@ fn apply_local_map_to_values_referenced<T: LocalRw + Traverse>(
 }
 
 pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, RcLocal>) {
+    for param in &mut function.parameters {
+        if let Some(mut new_param) = local_map.get(param) {
+            // TODO: make sure this doesnt cycle if theres a li -> li entry
+            while let Some(new_to) = local_map.get(new_param) {
+                new_param = new_to;
+            }
+            *param = new_param.clone();
+        }
+    }
     // TODO: blocks_mut
     for node in function.graph().node_indices().collect::<Vec<_>>() {
         let block = function.block_mut(node).unwrap();

@@ -91,6 +91,7 @@ impl<'a> Destructor<'a> {
         // TODO: remove detached blocks
         self.lift_params();
         self.sort_params();
+        
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
         self.liveness = Liveness::new(self.function);
         self.build_def_use();
@@ -153,7 +154,6 @@ impl<'a> Destructor<'a> {
             self.reserved.insert(upvalue.clone());
             // TODO: is this line needed?
             self.reserved.insert(group.clone());
-
         }
     }
 
@@ -182,7 +182,6 @@ impl<'a> Destructor<'a> {
 
                             for i in 0..assign.left.len() {
                                 let dst = assign.left[i].as_local().unwrap();
-                                // assert!(loc.contains_key(dst));
                                 if loc.get(dst).is_none() {
                                     ready.push(dst.clone());
                                 }
@@ -251,8 +250,9 @@ impl<'a> Destructor<'a> {
         let mut dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
         while let Some(node) = dfs.next(self.function.graph()) {
             if node == self.function.entry().unwrap() {
+                assert!(dominator_index == 0);
                 assert!(!self.function.edges_to_block(node).any(|(_, e)| !e.arguments.is_empty()));
-                for (i, local) in self.function.parameters.iter().chain(self.upvalues_in.iter()).chain(self.upvalue_to_group.iter().flat_map(|(u, g)| [u, g])).enumerate() {
+                for (i, local) in self.upvalues_in.iter().chain(self.upvalue_to_group.iter().flat_map(|(u, g)| [u, g])).chain(self.function.parameters.iter()).enumerate() {
                     if !self.local_defs.contains_key(local) {
                         self.local_defs.insert(local.clone(), (dominator_index, node, ParamOrStatIndex::Param(i)));
                     }
@@ -366,6 +366,10 @@ impl<'a> Destructor<'a> {
                         .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
                         .collect::<Vec<_>>()
                     {
+                        // upvalues in and parameters cannot be coalesced
+                        debug_assert!(!(self.function.parameters.contains(&left) && self.upvalues_in.contains(&right))
+                            || self.function.parameters.contains(&right) && self.upvalues_in.contains(&left));
+
                         if self.reserved.contains(&right) {
                             continue;
                         }
@@ -401,7 +405,7 @@ impl<'a> Destructor<'a> {
     fn try_coalesce_copy_by_value(&mut self, left: RcLocal, right: RcLocal) -> bool {
         let left_con_class = self.get_congruence_class(left).clone();
         let right_con_class = self.get_congruence_class(right).clone();
-
+        
         if *left_con_class.borrow() == *right_con_class.borrow() {
             true
         } else if left_con_class.borrow().len() == 1 && right_con_class.borrow().len() == 1 {
@@ -427,7 +431,7 @@ impl<'a> Destructor<'a> {
         if self.check_pre_dom_order(&local_a, &local_b) {
             std::mem::swap(&mut local_a, &mut local_b);
         }
-        if self.intersect(&local_a, &local_b) && self.values.get(&local_a) != self.values.get(&local_b) {
+        if self.intersect(&local_a, &local_b) && self.values[&local_a] != self.values[&local_b] {
             true
         } else {
             self.equal_ancestor_in.insert(local_a, local_b.clone());
@@ -477,7 +481,6 @@ impl<'a> Destructor<'a> {
         let mut blue_count = 0;
 
         loop {
-
             let (curr, curr_class) = if blue_iter.peek().is_none() || (red_iter.peek().is_some() && self.check_pre_dom_order(red_iter.peek().unwrap().1, blue_iter.peek().unwrap().1)) {
                 red_count += 1;
                 (red_iter.next().unwrap().1, RedOrBlue::Red)
@@ -487,11 +490,10 @@ impl<'a> Destructor<'a> {
             };
 
             while !dom.is_empty() && !self.dominates(dom.last().unwrap().0, curr) {
-                match dom.last().unwrap().1 {
+                match dom.pop().unwrap().1 {
                     RedOrBlue::Red => red_count -= 1,
                     RedOrBlue::Blue => blue_count -= 1,
                 }
-                dom.pop();
             }
 
             if !dom.is_empty() && self.interference(curr, dom.last().unwrap().0, curr_class == dom.last().unwrap().1) {
@@ -530,7 +532,8 @@ impl<'a> Destructor<'a> {
                 tmp = self.equal_ancestor_in.get(curr_tmp);
             }
 
-            if self.values.get(local_a) != self.values.get(local_b) {
+            self.values.entry(local_b.clone()).or_default();
+            if *self.values.entry(local_a.clone()).or_default().clone().borrow() != *self.values[local_b].borrow() {
                 tmp.is_some()
             } else {
                 if let Some(tmp) = tmp {
