@@ -22,6 +22,7 @@ struct SsaConstructor<'a> {
     incomplete_params: FxHashMap<NodeIndex, FxHashMap<RcLocal, RcLocal>>,
     filled_blocks: FxHashSet<NodeIndex>,
     sealed_blocks: FxHashSet<NodeIndex>,
+    // TODO: combine current/all/old into one map
     current_definition: FxHashMap<RcLocal, FxHashMap<NodeIndex, RcLocal>>,
     all_definitions: FxHashMap<RcLocal, FxHashSet<RcLocal>>,
     old_locals: FxHashMap<RcLocal, RcLocal>,
@@ -191,7 +192,6 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
         }
         for edge in function.edges(node).map(|e| e.id()).collect::<Vec<_>>() {
             // TODO: rename Stat::values, Expr::values to locals() and refer to locals as locals everywhere
-            // also see TODO in destruct.rs
             for local in function
                 .graph_mut()
                 .edge_weight_mut(edge)
@@ -204,6 +204,7 @@ pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, Rc
                     Either::Left(local) => {
                         if let Some(mut new_local) = local_map.get(local) {
                             // TODO: make sure this doesnt cycle if theres a li -> li entry
+                            // also see TODO in destruct.rs
                             while let Some(new_to) = local_map.get(new_local) {
                                 new_local = new_to;
                             }
@@ -303,17 +304,17 @@ impl<'a> SsaConstructor<'a> {
                         .iter()
                         .any(|(_, a)| a.as_local().unwrap() == &param_local)
                 }) {
-                    let args_in = edges
+                    let params_in = edges
                         .into_iter()
-                        .map(|e| e.arguments.clone())
+                        .map(|e| e.arguments.iter().map(|(p, _)| p).cloned().collect::<Vec<_>>())
                         .collect::<Vec<_>>();
-                    for mut param in args_in[0].iter().map(|(p, _)| p) {
+                    for mut param in params_in[0].iter() {
                         while let Some(param_to) = self.local_map.get(param) {
                             param = param_to;
                         }
 
                         if param == &param_local
-                            || args_in.iter().any(|e| e.iter().any(|(p, _)| p == param))
+                            || params_in.iter().any(|e| e.iter().any(|p| p == param))
                         {
                             self.try_remove_trivial_param(node, param.clone());
                         }

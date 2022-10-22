@@ -199,7 +199,6 @@ pub fn inline(
 ) {
     let mut local_usages = FxHashMap::default();
     for node in function.graph().node_indices() {
-        let block = function.block(node).unwrap();
         for read in function.values_read(node) {
             *local_usages.entry(read.clone()).or_insert(0usize) += 1;
         }
