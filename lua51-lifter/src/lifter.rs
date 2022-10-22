@@ -983,7 +983,11 @@ impl<'a> LifterContext<'a> {
 
             let upvalue_to_group = upvalue_in_groups
                 .into_iter()
-                .chain(upvalue_passed_groups.into_iter().map(|m| (function.local_allocator.borrow_mut().allocate(), m)))
+                .chain(
+                    upvalue_passed_groups
+                        .into_iter()
+                        .map(|m| (function.local_allocator.borrow_mut().allocate(), m)),
+                )
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
                 .collect::<IndexMap<_, _>>();
 
@@ -1056,7 +1060,8 @@ impl<'a> LifterContext<'a> {
                 &upvalue_to_group,
                 upvalues_in.iter().cloned().collect(),
                 local_count,
-            ).destruct();
+            )
+            .destruct();
 
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             let params = std::mem::take(&mut function.parameters);

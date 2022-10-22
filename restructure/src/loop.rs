@@ -132,7 +132,7 @@ impl GraphStructurer {
                     unreachable!();
                 }
             }
-            
+
             if body == header
                 || self.function.successor_blocks(body).exactly_one().ok() == Some(header)
             {

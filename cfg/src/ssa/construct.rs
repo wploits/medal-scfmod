@@ -408,7 +408,6 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-
     fn mark_upvalues(&mut self) {
         let upvalues_open = UpvaluesOpen::new(self.function, self.old_locals.clone());
         for &node in &self.dfs {
@@ -443,7 +442,14 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-    fn construct(mut self) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<(RcLocal, FxHashSet<RcLocal>)>, Vec<FxHashSet<RcLocal>>) {
+    fn construct(
+        mut self,
+    ) -> (
+        usize,
+        Vec<FxHashSet<RcLocal>>,
+        Vec<(RcLocal, FxHashSet<RcLocal>)>,
+        Vec<FxHashSet<RcLocal>>,
+    ) {
         let entry = self.function.entry().unwrap();
         let mut visited_nodes = Vec::with_capacity(self.function.graph().node_count());
         for i in 0..self.dfs.len() {
@@ -609,12 +615,11 @@ impl<'a> SsaConstructor<'a> {
         (
             self.local_count,
             self.all_definitions.into_values().collect(),
-            self.new_upvalues_in
-                .into_iter()
-                .collect(),
+            self.new_upvalues_in.into_iter().collect(),
             self.upvalues_passed
                 .into_values()
-                .flat_map(|m| m.into_values()).collect(),
+                .flat_map(|m| m.into_values())
+                .collect(),
         )
     }
 }
@@ -622,7 +627,12 @@ impl<'a> SsaConstructor<'a> {
 pub fn construct(
     function: &mut Function,
     upvalues_in: &Vec<RcLocal>,
-) -> (usize, Vec<FxHashSet<RcLocal>>, Vec<(RcLocal, FxHashSet<RcLocal>)>, Vec<FxHashSet<RcLocal>>) {
+) -> (
+    usize,
+    Vec<FxHashSet<RcLocal>>,
+    Vec<(RcLocal, FxHashSet<RcLocal>)>,
+    Vec<FxHashSet<RcLocal>>,
+) {
     let mut new_upvalues_in = IndexMap::with_capacity(upvalues_in.len());
     for upvalue in upvalues_in {
         new_upvalues_in.insert(upvalue.clone(), FxHashSet::default());

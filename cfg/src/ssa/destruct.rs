@@ -10,9 +10,10 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
+    prelude::{DiGraph, DiGraphMap},
     stable_graph::NodeIndex,
     visit::{Dfs, DfsPostOrder, EdgeRef},
-    Direction, prelude::{DiGraph, DiGraphMap},
+    Direction,
 };
 
 use crate::{
@@ -23,9 +24,7 @@ use crate::{
 mod liveness;
 mod local_declarations;
 
-use self::{
-    liveness::Liveness,
-};
+use self::liveness::Liveness;
 
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug)]
 enum ParamOrStatIndex {
@@ -56,8 +55,7 @@ pub struct Destructor<'a> {
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
     // map( local -> rc_map( local -> (pre-order block index, param index) ) )
     // TODO: hash map?
-    congruence_classes:
-        FxHashMap<RcLocal, Rc<RefCell<CongruenceClass>>>,
+    congruence_classes: FxHashMap<RcLocal, Rc<RefCell<CongruenceClass>>>,
     equal_ancestor_in: FxHashMap<RcLocal, RcLocal>,
     equal_ancestor_out: FxHashMap<RcLocal, RcLocal>,
     local_defs: FxHashMap<RcLocal, (usize, NodeIndex, ParamOrStatIndex)>,
@@ -68,7 +66,12 @@ pub struct Destructor<'a> {
 }
 
 impl<'a> Destructor<'a> {
-    pub fn new(function: &'a mut Function, upvalue_to_group: &'a IndexMap<RcLocal, RcLocal>, upvalues_in: FxHashSet<RcLocal>, local_count: usize) -> Self {
+    pub fn new(
+        function: &'a mut Function,
+        upvalue_to_group: &'a IndexMap<RcLocal, RcLocal>,
+        upvalues_in: FxHashSet<RcLocal>,
+        local_count: usize,
+    ) -> Self {
         let liveness = Liveness::new(function);
         Self {
             function,
@@ -91,7 +94,7 @@ impl<'a> Destructor<'a> {
         // TODO: remove detached blocks
         self.lift_params();
         self.sort_params();
-        
+
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
         self.liveness = Liveness::new(self.function);
         self.build_def_use();
@@ -122,7 +125,12 @@ impl<'a> Destructor<'a> {
         }
 
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
-        local_declarations::declare_locals(self.function, &self.upvalues_in, local_nodes, &dominators);
+        local_declarations::declare_locals(
+            self.function,
+            &self.upvalues_in,
+            local_nodes,
+            &dominators,
+        );
 
         // let liveness = Liveness::new(self.function);
         // let mut interference_graph = InterferenceGraph::new(self.function, &liveness, self.local_count);
@@ -149,7 +157,9 @@ impl<'a> Destructor<'a> {
         for (upvalue, group) in self.upvalue_to_group {
             let con_class = self.get_congruence_class(group.clone()).clone();
             let (upval_dom_index, _, upval_stat_index) = self.local_defs[upvalue];
-            con_class.borrow_mut().insert((upval_dom_index, upval_stat_index), upvalue.clone());
+            con_class
+                .borrow_mut()
+                .insert((upval_dom_index, upval_stat_index), upvalue.clone());
             self.congruence_classes.insert(upvalue.clone(), con_class);
             self.reserved.insert(upvalue.clone());
             // TODO: is this line needed?
@@ -161,7 +171,14 @@ impl<'a> Destructor<'a> {
         let local_allocator = self.function.local_allocator.clone();
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let mut replace_map = Vec::new();
-            for (stat_index, stat) in self.function.block_mut(node).unwrap().0.iter_mut().enumerate() {
+            for (stat_index, stat) in self
+                .function
+                .block_mut(node)
+                .unwrap()
+                .0
+                .iter_mut()
+                .enumerate()
+            {
                 if let ast::Statement::Assign(assign) = stat {
                     if assign.parallel {
                         if assign.left.len() == 1 {
@@ -171,7 +188,7 @@ impl<'a> Destructor<'a> {
                             let mut to_do = Vec::new();
                             let mut loc = FxHashMap::default();
                             let mut pred = FxHashMap::default();
-                            
+
                             for i in 0..assign.left.len() {
                                 let dst = assign.left[i].as_local().unwrap();
                                 let src = assign.right[i].as_local().unwrap();
@@ -193,7 +210,10 @@ impl<'a> Destructor<'a> {
                                 while let Some(local_b) = ready.pop() {
                                     let local_a = pred[&local_b].clone();
                                     let local_c = loc[&local_a].clone();
-                                    result.push(ast::Assign::new(vec![local_b.clone().into()], vec![local_c.clone().into()]));
+                                    result.push(ast::Assign::new(
+                                        vec![local_b.clone().into()],
+                                        vec![local_c.clone().into()],
+                                    ));
                                     if local_a == local_c && pred.get(&local_a).is_some() {
                                         ready.push(local_a.clone());
                                     }
@@ -201,8 +221,13 @@ impl<'a> Destructor<'a> {
                                 }
 
                                 if local_b != loc[&pred[&local_b]] {
-                                    let spill = spill.get_or_insert_with(|| local_allocator.borrow_mut().allocate());
-                                    result.push(ast::Assign::new(vec![spill.clone().into()], vec![local_b.clone().into()]));
+                                    let spill = spill.get_or_insert_with(|| {
+                                        local_allocator.borrow_mut().allocate()
+                                    });
+                                    result.push(ast::Assign::new(
+                                        vec![spill.clone().into()],
+                                        vec![local_b.clone().into()],
+                                    ));
                                     loc.insert(local_b.clone(), spill.clone());
                                     ready.push(local_b);
                                 }
@@ -215,7 +240,10 @@ impl<'a> Destructor<'a> {
 
             let block = self.function.block_mut(node).unwrap();
             for (stat_index, assigns) in replace_map.into_iter().rev() {
-                block.splice(stat_index..stat_index+1, assigns.into_iter().map(|a| a.into()));
+                block.splice(
+                    stat_index..stat_index + 1,
+                    assigns.into_iter().map(|a| a.into()),
+                );
             }
         }
     }
@@ -242,7 +270,8 @@ impl<'a> Destructor<'a> {
                 self.dominator_tree.add_edge(dominator, node, ());
             }
             if let Some(dominators) = dominators.dominators(node) {
-                self.dominated_by.insert(node, dominators.collect::<Vec<_>>());
+                self.dominated_by
+                    .insert(node, dominators.collect::<Vec<_>>());
             }
         }
 
@@ -251,10 +280,22 @@ impl<'a> Destructor<'a> {
         while let Some(node) = dfs.next(self.function.graph()) {
             if node == self.function.entry().unwrap() {
                 assert!(dominator_index == 0);
-                assert!(!self.function.edges_to_block(node).any(|(_, e)| !e.arguments.is_empty()));
-                for (i, local) in self.upvalues_in.iter().chain(self.upvalue_to_group.iter().flat_map(|(u, g)| [u, g])).chain(self.function.parameters.iter()).enumerate() {
+                assert!(!self
+                    .function
+                    .edges_to_block(node)
+                    .any(|(_, e)| !e.arguments.is_empty()));
+                for (i, local) in self
+                    .upvalues_in
+                    .iter()
+                    .chain(self.upvalue_to_group.iter().flat_map(|(u, g)| [u, g]))
+                    .chain(self.function.parameters.iter())
+                    .enumerate()
+                {
                     if !self.local_defs.contains_key(local) {
-                        self.local_defs.insert(local.clone(), (dominator_index, node, ParamOrStatIndex::Param(i)));
+                        self.local_defs.insert(
+                            local.clone(),
+                            (dominator_index, node, ParamOrStatIndex::Param(i)),
+                        );
                     }
                 }
             }
@@ -263,33 +304,25 @@ impl<'a> Destructor<'a> {
                 for (param_index, (param, _)) in
                     edge.arguments.iter().enumerate().collect::<Vec<_>>()
                 {
-                    self
-                        .local_defs
-                        .insert(
-                            param.clone(),
-                            (dominator_index, node, ParamOrStatIndex::Param(param_index))
-                        );
+                    self.local_defs.insert(
+                        param.clone(),
+                        (dominator_index, node, ParamOrStatIndex::Param(param_index)),
+                    );
                 }
             }
             for (stat_index, stat) in self.function.block(node).unwrap().0.iter().enumerate() {
                 for local in stat.values_written() {
-                    self
-                        .local_defs
-                        .insert(
-                            local.clone(),
-                            (dominator_index, node, ParamOrStatIndex::Stat(stat_index))
-                        );
+                    self.local_defs.insert(
+                        local.clone(),
+                        (dominator_index, node, ParamOrStatIndex::Stat(stat_index)),
+                    );
                 }
 
                 for local in stat.values_read() {
-                    self
-                        .local_last_use
+                    self.local_last_use
                         .entry(local.clone())
                         .or_default()
-                        .insert(
-                            node,
-                            (dominator_index, ParamOrStatIndex::Stat(stat_index))
-                        );
+                        .insert(node, (dominator_index, ParamOrStatIndex::Stat(stat_index)));
                 }
             }
             dominator_index += 1;
@@ -332,20 +365,17 @@ impl<'a> Destructor<'a> {
                 }
             }
         }
-
-
     }
 
     fn get_congruence_class(&mut self, local: RcLocal) -> &Rc<RefCell<CongruenceClass>> {
-        self
-                        .congruence_classes
-                        .entry(local.clone())
-                        .or_insert_with(|| {
-                            let mut congruence_class = BTreeMap::default();
-                            let (dominator_index, _, stat_index) = self.local_defs[&local];
-                            congruence_class.insert((dominator_index, stat_index), local);
-                            Rc::new(RefCell::new(congruence_class))
-                        })
+        self.congruence_classes
+            .entry(local.clone())
+            .or_insert_with(|| {
+                let mut congruence_class = BTreeMap::default();
+                let (dominator_index, _, stat_index) = self.local_defs[&local];
+                congruence_class.insert((dominator_index, stat_index), local);
+                Rc::new(RefCell::new(congruence_class))
+            })
     }
 
     fn coalesce_copies(&mut self) {
@@ -353,22 +383,28 @@ impl<'a> Destructor<'a> {
         while let Some(node) = dfs.next(self.function.graph()) {
             let mut to_remove = Vec::new();
             for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
-                let should_remove = if let ast::Statement::Assign(assign) = &self.function.block(node).unwrap()[stat_index] {
+                let should_remove = if let ast::Statement::Assign(assign) =
+                    &self.function.block(node).unwrap()[stat_index]
+                {
                     let mut to_remove = Vec::new();
                     let left = assign
-                    .left
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
-                    .collect::<Vec<_>>();
-                    for (i, left, right) in 
-                        left.into_iter()
+                        .left
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
+                        .collect::<Vec<_>>();
+                    for (i, left, right) in left
+                        .into_iter()
                         .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
                         .collect::<Vec<_>>()
                     {
                         // upvalues in and parameters cannot be coalesced
-                        debug_assert!(!(self.function.parameters.contains(&left) && self.upvalues_in.contains(&right))
-                            || self.function.parameters.contains(&right) && self.upvalues_in.contains(&left));
+                        debug_assert!(
+                            !(self.function.parameters.contains(&left)
+                                && self.upvalues_in.contains(&right))
+                                || self.function.parameters.contains(&right)
+                                    && self.upvalues_in.contains(&left)
+                        );
 
                         if self.reserved.contains(&right) {
                             continue;
@@ -380,7 +416,9 @@ impl<'a> Destructor<'a> {
                             to_remove.push(i);
                         }
                     }
-                    let assign = self.function.block_mut(node).unwrap()[stat_index].as_assign_mut().unwrap();
+                    let assign = self.function.block_mut(node).unwrap()[stat_index]
+                        .as_assign_mut()
+                        .unwrap();
                     for i in to_remove.into_iter().rev() {
                         assign.left.remove(i);
                         assign.right.remove(i);
@@ -405,7 +443,7 @@ impl<'a> Destructor<'a> {
     fn try_coalesce_copy_by_value(&mut self, left: RcLocal, right: RcLocal) -> bool {
         let left_con_class = self.get_congruence_class(left).clone();
         let right_con_class = self.get_congruence_class(right).clone();
-        
+
         if *left_con_class.borrow() == *right_con_class.borrow() {
             true
         } else if left_con_class.borrow().len() == 1 && right_con_class.borrow().len() == 1 {
@@ -423,7 +461,11 @@ impl<'a> Destructor<'a> {
         false
     }
 
-    fn check_interfere_single(&mut self, red: &Rc<RefCell<CongruenceClass>>, blue: &Rc<RefCell<CongruenceClass>>) -> bool {
+    fn check_interfere_single(
+        &mut self,
+        red: &Rc<RefCell<CongruenceClass>>,
+        blue: &Rc<RefCell<CongruenceClass>>,
+    ) -> bool {
         let mut local_a = red.borrow().values().next().unwrap().clone();
         let mut local_b = blue.borrow().values().next().unwrap().clone();
         // assumes one of the blocks dominates the other
@@ -436,7 +478,8 @@ impl<'a> Destructor<'a> {
         } else {
             self.equal_ancestor_in.insert(local_a, local_b.clone());
             let (dom_index_b, _, stat_index_b) = self.local_defs[&local_b];
-            red.borrow_mut().insert((dom_index_b, stat_index_b), local_b.clone());
+            red.borrow_mut()
+                .insert((dom_index_b, stat_index_b), local_b.clone());
             self.congruence_classes.insert(local_b, red.clone());
             false
         }
@@ -448,11 +491,22 @@ impl<'a> Destructor<'a> {
 
         let (_, block_a, _) = self.local_defs[local_a];
         let (_, block_b, _) = self.local_defs[local_b];
-        if self.liveness.block_liveness[&block_a].live_out.contains(local_b) {
+        if self.liveness.block_liveness[&block_a]
+            .live_out
+            .contains(local_b)
+        {
             true
-        } else if !self.liveness.block_liveness[&block_a].live_in.contains(local_b) && block_a != block_b {
+        } else if !self.liveness.block_liveness[&block_a]
+            .live_in
+            .contains(local_b)
+            && block_a != block_b
+        {
             false
-        } else if let Some(dom_use_index) = self.local_last_use.get(local_b).and_then(|m| m.get(&block_a)) {
+        } else if let Some(dom_use_index) = self
+            .local_last_use
+            .get(local_b)
+            .and_then(|m| m.get(&block_a))
+        {
             let (def_dom_index, _, def_stat_index) = self.local_defs[local_a];
             dom_use_index > &(def_dom_index, def_stat_index)
         } else {
@@ -470,7 +524,11 @@ impl<'a> Destructor<'a> {
         }
     }
 
-    fn check_interfere(&mut self, red: &Rc<RefCell<CongruenceClass>>, blue: &Rc<RefCell<CongruenceClass>>) -> bool {
+    fn check_interfere(
+        &mut self,
+        red: &Rc<RefCell<CongruenceClass>>,
+        blue: &Rc<RefCell<CongruenceClass>>,
+    ) -> bool {
         let mut dom = Vec::<(&RcLocal, RedOrBlue)>::new();
 
         let red = red.borrow();
@@ -481,7 +539,12 @@ impl<'a> Destructor<'a> {
         let mut blue_count = 0;
 
         loop {
-            let (curr, curr_class) = if blue_iter.peek().is_none() || (red_iter.peek().is_some() && self.check_pre_dom_order(red_iter.peek().unwrap().1, blue_iter.peek().unwrap().1)) {
+            let (curr, curr_class) = if blue_iter.peek().is_none()
+                || (red_iter.peek().is_some()
+                    && self.check_pre_dom_order(
+                        red_iter.peek().unwrap().1,
+                        blue_iter.peek().unwrap().1,
+                    )) {
                 red_count += 1;
                 (red_iter.next().unwrap().1, RedOrBlue::Red)
             } else {
@@ -496,14 +559,20 @@ impl<'a> Destructor<'a> {
                 }
             }
 
-            if !dom.is_empty() && self.interference(curr, dom.last().unwrap().0, curr_class == dom.last().unwrap().1) {
+            if !dom.is_empty()
+                && self.interference(
+                    curr,
+                    dom.last().unwrap().0,
+                    curr_class == dom.last().unwrap().1,
+                )
+            {
                 return true;
             }
 
             dom.push((curr, curr_class));
 
             if (red_iter.peek().is_some() && blue_count > 0)
-                || (blue_iter.peek().is_some() && red_count > 0) 
+                || (blue_iter.peek().is_some() && red_count > 0)
                 || (red_iter.peek().is_some() && blue_iter.peek().is_some())
             {
                 continue;
@@ -533,7 +602,14 @@ impl<'a> Destructor<'a> {
             }
 
             self.values.entry(local_b.clone()).or_default();
-            if *self.values.entry(local_a.clone()).or_default().clone().borrow() != *self.values[local_b].borrow() {
+            if *self
+                .values
+                .entry(local_a.clone())
+                .or_default()
+                .clone()
+                .borrow()
+                != *self.values[local_b].borrow()
+            {
                 tmp.is_some()
             } else {
                 if let Some(tmp) = tmp {
@@ -548,25 +624,35 @@ impl<'a> Destructor<'a> {
         }
     }
 
-    fn merge_congruence_classes(&mut self, con_class_a: &Rc<RefCell<CongruenceClass>>, con_class_b: &Rc<RefCell<CongruenceClass>>) {
+    fn merge_congruence_classes(
+        &mut self,
+        con_class_a: &Rc<RefCell<CongruenceClass>>,
+        con_class_b: &Rc<RefCell<CongruenceClass>>,
+    ) {
         let con_class_b = std::mem::take(&mut *con_class_b.borrow_mut());
         for local in con_class_b.values() {
-            self.congruence_classes.insert(local.clone(), con_class_a.clone());
+            self.congruence_classes
+                .insert(local.clone(), con_class_a.clone());
         }
         con_class_a.borrow_mut().extend(con_class_b);
-
 
         for local in con_class_a.borrow().values() {
             let local_in = self.equal_ancestor_in.get(local);
             let local_out = self.equal_ancestor_out.get(local);
             let new_local_in = match (local_in, local_out) {
-                (None, Some(local)) |
-                (Some(local), None) => Some(local),
-                (Some(local_in), Some(local_out)) => Some(if self.check_pre_dom_order(local_in, local_out) { local_out } else { local_in }),
-                _ => None
+                (None, Some(local)) | (Some(local), None) => Some(local),
+                (Some(local_in), Some(local_out)) => {
+                    Some(if self.check_pre_dom_order(local_in, local_out) {
+                        local_out
+                    } else {
+                        local_in
+                    })
+                }
+                _ => None,
             };
             if let Some(new_local_in) = new_local_in {
-                self.equal_ancestor_in.insert(local.clone(), new_local_in.clone());
+                self.equal_ancestor_in
+                    .insert(local.clone(), new_local_in.clone());
             }
         }
     }
@@ -604,9 +690,7 @@ impl<'a> Destructor<'a> {
                                 value_class.borrow_mut().insert(dst.clone());
                                 self.values.insert(dst.clone(), value_class);
                             } else {
-                                self
-                                .values
-                                .insert(dst.clone(), Default::default());
+                                self.values.insert(dst.clone(), Default::default());
                             }
                         }
                     }
@@ -708,7 +792,7 @@ impl<'a> Destructor<'a> {
                         a = b
                         b = t
                     end
-                    return a, b 
+                    return a, b
                     -- if we insert into the conditional block, we get weird output
                     local v1 = 1
                     local v2 = 2
@@ -724,10 +808,20 @@ impl<'a> Destructor<'a> {
                         let edge = self.function.graph_mut().remove_edge(edge).unwrap();
                         self.function.set_edges(
                             assign_block,
-                            vec![(node, BlockEdge { branch_type: BranchType::Unconditional, arguments: edge.arguments })],
+                            vec![(
+                                node,
+                                BlockEdge {
+                                    branch_type: BranchType::Unconditional,
+                                    arguments: edge.arguments,
+                                },
+                            )],
                         );
 
-                        self.function.graph_mut().add_edge(pred, assign_block, BlockEdge::new(edge.branch_type));
+                        self.function.graph_mut().add_edge(
+                            pred,
+                            assign_block,
+                            BlockEdge::new(edge.branch_type),
+                        );
                         visited.insert(assign_block);
                     }
 

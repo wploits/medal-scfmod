@@ -27,7 +27,10 @@ fn push_declaration(function: &mut Function, node: NodeIndex, local: ast::RcLoca
             }
 
             // for loops declare their own things
-            if matches!(statement, ast::Statement::NumForInit(_) | ast::Statement::GenericForInit(_)) {
+            if matches!(
+                statement,
+                ast::Statement::NumForInit(_) | ast::Statement::GenericForInit(_)
+            ) {
                 return;
             }
 
