@@ -655,8 +655,8 @@ fn skip_over_node(
             .unwrap()
             .condition;
         if cond.has_side_effects() {
-            // TODO: assign not needed for calls (also see jump.rs)
-            // well inline.rs should take care of them in this case, but in the case of jump.rs, not so much
+            // we don't need to handle not creating a local for calls because inline.rs
+            // should optimize the temp local out, but in the case of jump.rs, not so much
             let temp_local = function.local_allocator.borrow_mut().allocate();
             function.block_mut(before_node).unwrap().push(
                 ast::Assign {

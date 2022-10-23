@@ -73,6 +73,10 @@ impl GraphStructurer {
             return true;
         }
 
+        if self.try_remove_unnecessary_condition(node) {
+            return true;
+        }
+
         let changed = match successors.len() {
             0 => false,
             1 => {

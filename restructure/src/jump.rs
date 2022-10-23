@@ -4,6 +4,54 @@ use itertools::Itertools;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::EdgeRef, Direction};
 
 impl super::GraphStructurer {
+    // TODO: STYLE: better name
+    // TODO: this is the same as in structuring.rs but w/o block params
+    // maybe we can use the same function?
+    pub(crate) fn try_remove_unnecessary_condition(&mut self, node: NodeIndex) -> bool {
+        let block = self.function.block(node).unwrap();
+        if !block.is_empty()
+            && block.last().unwrap().as_if().is_some()
+            && let Some((then_edge, else_edge)) = self.function.conditional_edges(node)
+            && then_edge.target() == else_edge.target()
+        {
+            let target = then_edge.target();
+            let cond = self
+                .function
+                .block_mut(node)
+                .unwrap()
+                .pop()
+                .unwrap()
+                .into_if()
+                .unwrap()
+                .condition;
+
+            let new_stat = match cond {
+                ast::RValue::Call(call) => Some(call.into()),
+                ast::RValue::MethodCall(method_call) => Some(method_call.into()),
+                cond if cond.has_side_effects() => {
+                    let temp_local = self.function.local_allocator.borrow_mut().allocate();
+                    Some(ast::Assign {
+                            left: vec![temp_local.into()],
+                            right: vec![cond],
+                            prefix: true,
+                            parallel: false,
+                        }
+                        .into(),
+                    )
+                },
+                _ => None,
+            };
+            self.function.block_mut(node).unwrap().extend(new_stat);
+            self.function.set_edges(
+                node,
+                vec![(target, BlockEdge::new(BranchType::Unconditional))],
+            );
+            true
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn match_jump(
         &mut self,
         node: NodeIndex,
@@ -25,40 +73,7 @@ impl super::GraphStructurer {
                 {
                     let edge = self.function.graph_mut().remove_edge(edge).unwrap();
                     self.function.graph_mut().add_edge(source, target, edge);
-                    let block = self.function.block(source).unwrap();
-                    if !block.is_empty()
-                        && block.last().unwrap().as_if().is_some()
-                        && let Some((then_edge, else_edge)) = self.function.conditional_edges(source)
-                        && then_edge.target() == else_edge.target()
-                    {
-                        // TODO: check if this works (+ cfg/src/ssa/structuring.rs)
-                        let cond = self
-                            .function
-                            .block_mut(source)
-                            .unwrap()
-                            .pop()
-                            .unwrap()
-                            .into_if()
-                            .unwrap()
-                            .condition;
-                        if cond.has_side_effects() {
-                            let temp_local = self.function.local_allocator.borrow_mut().allocate();
-                            self.function.block_mut(node).unwrap().push(
-                                ast::Assign {
-                                    left: vec![temp_local.into()],
-                                    right: vec![cond],
-                                    prefix: true,
-                                    parallel: false,
-                                }
-                                .into(),
-                            )
-                        }
-
-                        self.function.set_edges(
-                            source,
-                            vec![(target, BlockEdge::new(BranchType::Unconditional))],
-                        );
-                    }
+                    self.try_remove_unnecessary_condition(source);
                 }
                 self.function.remove_block(node);
                 true
