@@ -404,7 +404,9 @@ impl<'a> Destructor<'a> {
                                     && self.upvalues_in.contains(&left)
                         );
 
-                        if self.reserved.contains(&right) {
+                        // TODO: we should be able to coalesce passed upvalues
+                        // but not with other upvalues
+                        if self.reserved.contains(&left) || self.reserved.contains(&right) {
                             continue;
                         }
 
