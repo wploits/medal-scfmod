@@ -1026,8 +1026,9 @@ impl<'a> LifterContext<'a> {
                 // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
                 let mut local_map = FxHashMap::default();
-                ssa::construct::remove_unnecessary_params(&mut function, &mut local_map);
-                if !local_map.is_empty() {
+
+                // TODO: loop until returns false?
+                if ssa::construct::remove_unnecessary_params(&mut function, &mut local_map) {
                     changed = true;
                 }
                 ssa::construct::apply_local_map(&mut function, local_map);

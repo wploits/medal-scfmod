@@ -38,7 +38,8 @@ struct SsaConstructor<'a> {
 pub fn remove_unnecessary_params(
     function: &mut Function,
     local_map: &mut FxHashMap<RcLocal, RcLocal>,
-) {
+) -> bool {
+    let mut changed = false;
     for node in function.blocks().map(|(i, _)| i).collect::<Vec<_>>() {
         let mut dependency_graph = ParamDependencyGraph::new(function, node);
         let mut removable_params = FxHashMap::default();
@@ -66,6 +67,8 @@ pub fn remove_unnecessary_params(
                     .map(|a| a[index])
                     .filter_map(|r| r.as_local())
                     .collect::<FxHashSet<_>>();
+                // TODO: we should include non-local arguments in the count
+                // we should actually just run this check by doing edges.len
                 if arg_set.len() == 1 {
                     while let Some(param_to) = local_map.get(param) {
                         param = param_to;
@@ -89,13 +92,22 @@ pub fn remove_unnecessary_params(
                     params_to_remove.insert(param.clone());
                 }
             }
-            for edge in edges.into_iter().map(|e| e.id()).collect::<Vec<_>>() {
-                function
-                    .graph_mut()
-                    .edge_weight_mut(edge)
-                    .unwrap()
-                    .arguments
-                    .retain(|(p, _)| !params_to_remove.contains(p))
+            if !params_to_remove.is_empty() {
+                for edge in edges.into_iter().map(|e| e.id()).collect::<Vec<_>>() {
+                    function
+                        .graph_mut()
+                        .edge_weight_mut(edge)
+                        .unwrap()
+                        .arguments
+                        .retain(|(p, _)| {
+                            let mut p = p;
+                            while let Some(p_to) = local_map.get(p) {
+                                p = p_to;
+                            }
+                            !params_to_remove.contains(p)
+                        });
+                }
+                changed = true;
             }
         }
 
@@ -134,8 +146,10 @@ pub fn remove_unnecessary_params(
                 arg = arg_to;
             }
             local_map.insert(param, arg.clone());
+            changed = true;
         }
     }
+    changed
 }
 
 // TODO: STYLE: rename function
@@ -306,7 +320,13 @@ impl<'a> SsaConstructor<'a> {
                 }) {
                     let params_in = edges
                         .into_iter()
-                        .map(|e| e.arguments.iter().map(|(p, _)| p).cloned().collect::<Vec<_>>())
+                        .map(|e| {
+                            e.arguments
+                                .iter()
+                                .map(|(p, _)| p)
+                                .cloned()
+                                .collect::<Vec<_>>()
+                        })
                         .collect::<Vec<_>>();
                     for mut param in params_in[0].iter() {
                         while let Some(param_to) = self.local_map.get(param) {
@@ -609,6 +629,7 @@ impl<'a> SsaConstructor<'a> {
 
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
+        // TODO: loop until returns false?
         remove_unnecessary_params(self.function, &mut self.local_map);
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
         //println!("{:#?}", self.old_locals);
