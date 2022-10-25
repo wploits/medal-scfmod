@@ -79,6 +79,8 @@ impl super::GraphStructurer {
                 true
             } else if self.function.predecessor_blocks(target).count() == 1
                 // TODO: isnt this implied by their only being one predecessor, target?
+                // there might be a back edge, but we should still be able to merge
+                // as long as the back edge isnt from target -> node?
                 && dominators.dominators(target).unwrap().contains(&node)
             {
                 let edges = self.function.remove_edges(target);

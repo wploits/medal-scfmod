@@ -275,6 +275,7 @@ impl GraphStructurer {
                         return true;
                     }
                 }
+                self.function.block_mut(header).unwrap().push(statement);
             }
             changed
         } else {
