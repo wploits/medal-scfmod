@@ -2,7 +2,7 @@ use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 
-use crate::{GraphStructurer};
+use crate::GraphStructurer;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 impl GraphStructurer {
@@ -16,12 +16,38 @@ impl GraphStructurer {
     }
 
     fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
-        if let Some(then_block) = &if_stat.then_block {
-            if let Some(last) = then_block.last() && last.as_return().is_some() {
-                return if_stat.else_block.take();
+        let then_return = if_stat
+            .then_block
+            .as_ref()
+            .and_then(|x| x.last().and_then(|x| x.as_return()));
+        let else_return = if_stat
+            .else_block
+            .as_ref()
+            .and_then(|x| x.last().and_then(|x| x.as_return()));
+
+        assert!(then_return.is_some() == else_return.is_some());
+
+        if let Some(then_return) = then_return {
+            let else_return = else_return.unwrap();
+            if then_return.values.is_empty() && else_return.values.is_empty() {
+                if_stat.then_block.as_mut().unwrap().pop();
+                if_stat.else_block.as_mut().unwrap().pop();
+                None
+            } else if !then_return.values.is_empty() && else_return.values.is_empty() {
+                if_stat.else_block.take()
+            } else if then_return.values.is_empty() && !else_return.values.is_empty() {
+                let else_block = if_stat.else_block.take();
+                let then_block = if_stat.then_block.take();
+                if_stat.then_block = else_block;
+                if_stat.condition =
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
+                then_block
+            } else {
+                None
             }
+        } else {
+            None
         }
-        None
     }
 
     // a -> b -> d + a -> c -> d
