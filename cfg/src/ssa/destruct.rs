@@ -632,7 +632,7 @@ impl<'a> Destructor<'a> {
 
             let mut tmp = Some(local_b);
             while let Some(curr_tmp) = tmp
-                && !self.intersect(local_a, curr_tmp) 
+                && !self.intersect(local_a, curr_tmp)
             {
                 tmp = self.equal_ancestor_in.get(curr_tmp);
             }

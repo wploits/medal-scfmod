@@ -15,6 +15,15 @@ impl GraphStructurer {
         }
     }
 
+    fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
+        if let Some(then_block) = &if_stat.then_block {
+            if let Some(last) = then_block.last() && last.as_return().is_some() {
+                return if_stat.else_block.take();
+            }
+        }
+        None
+    }
+
     // a -> b -> d + a -> c -> d
     // results in a -> d
     fn match_diamond_conditional(
@@ -45,6 +54,10 @@ impl GraphStructurer {
         if_stat.then_block = Some(then_block);
         if_stat.else_block = Some(else_block);
         Self::simplify_if(if_stat);
+
+        if let Some(after) = Self::expand_if(if_stat) {
+            block.extend(after.0);
+        }
 
         let exit = then_successors.get(0).cloned();
         if let Some(exit) = exit {
@@ -109,49 +122,6 @@ impl GraphStructurer {
 
         _match_triangle_conditional(then_node, else_node, false)
             || _match_triangle_conditional(else_node, then_node, true)
-    }
-
-    fn match_early_exit_triangle_conditional(
-        &mut self,
-        entry: NodeIndex,
-        then_node: NodeIndex,
-        else_node: NodeIndex,
-        dominators: &Dominators<NodeIndex>,
-    ) -> bool {
-        let mut _match_early_exit_triangle_conditional = |then_node, else_node, inverted| {
-            let then_successors = self.function.successor_blocks(then_node).collect_vec();
-
-            if !then_successors.is_empty() {
-                return false;
-            }
-
-            if self.function.predecessor_blocks(then_node).count() != 1 {
-                return false;
-            }
-
-            let then_block = self.function.remove_block(then_node).unwrap();
-
-            let block = self.function.block_mut(entry).unwrap();
-            let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-            if_stat.then_block = Some(then_block);
-
-            if inverted {
-                if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce()
-            }
-
-            self.function.set_edges(
-                entry,
-                vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
-            );
-
-            self.match_jump(entry, Some(else_node), dominators);
-
-            true
-        };
-
-        _match_early_exit_triangle_conditional(then_node, else_node, false)
-            || _match_early_exit_triangle_conditional(else_node, then_node, true)
     }
 
     // a -> b a -> c
@@ -240,6 +210,5 @@ impl GraphStructurer {
 
         self.match_diamond_conditional(entry, then_node, else_node, dominators)
             || self.match_triangle_conditional(entry, then_node, else_node, dominators)
-            || self.match_early_exit_triangle_conditional(entry, then_node, else_node, dominators)
     }
 }
