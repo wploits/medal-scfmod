@@ -2,12 +2,11 @@ use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
 
 use cfg::{
     block::{BlockEdge, BranchType},
-    pattern::*,
     ssa,
 };
 use either::Either;
-use fxhash::{FxHashMap, FxHashSet};
-use indexmap::{IndexMap, IndexSet};
+use fxhash::FxHashMap;
+use indexmap::IndexMap;
 use itertools::Itertools;
 
 use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
@@ -24,13 +23,7 @@ use lua51_deserializer::{
     Function as BytecodeFunction, Instruction, Value,
 };
 
-use petgraph::{
-    algo::dominators::simple_fast,
-    dot::Dot,
-    stable_graph::{NodeIndex, StableDiGraph},
-    visit::EdgeRef,
-    Direction,
-};
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex, visit::EdgeRef, Direction};
 use restructure::post_dominators;
 
 pub struct LifterContext<'a> {
@@ -813,7 +806,7 @@ impl<'a> LifterContext<'a> {
         }
     }
 
-    fn get_node(&'a self, mut index: &'a usize) -> NodeIndex {
+    fn get_node(&'a self, index: &'a usize) -> NodeIndex {
         // while let Some(index_to) = self.blocks_to_skip.get(index) {
         //     index = index_to;
         // }

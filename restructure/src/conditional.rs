@@ -2,7 +2,7 @@ use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 
-use crate::{post_dominators, GraphStructurer};
+use crate::{GraphStructurer};
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 impl GraphStructurer {

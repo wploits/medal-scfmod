@@ -7,7 +7,6 @@ members = [
     #"luau-lifter",
     "restructure",
     "pattern",
-    "pattern-test"
 ]
 
 [workspace.package]

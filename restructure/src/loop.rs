@@ -1,4 +1,4 @@
-use ast::{Reduce, SideEffects, Traverse};
+use ast::{Reduce, SideEffects};
 use cfg::block::{BlockEdge, BranchType};
 use fxhash::FxHashSet;
 use itertools::Itertools;
