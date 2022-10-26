@@ -281,7 +281,10 @@ impl<'a> LifterContext<'a> {
                     } else {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
                     };
-                    statements.push(ast::If::new(condition, None, None).into())
+                    statements.push(
+                        ast::If::new(condition, ast::Block::default(), ast::Block::default())
+                            .into(),
+                    )
                 }
                 Instruction::Not {
                     destination,
@@ -435,7 +438,10 @@ impl<'a> LifterContext<'a> {
                     } else {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
                     };
-                    statements.push(ast::If::new(condition, None, None).into())
+                    statements.push(
+                        ast::If::new(condition, ast::Block::default(), ast::Block::default())
+                            .into(),
+                    )
                 }
                 &Instruction::LessThanOrEqual {
                     lhs,
@@ -451,7 +457,10 @@ impl<'a> LifterContext<'a> {
                     } else {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
                     };
-                    statements.push(ast::If::new(condition, None, None).into())
+                    statements.push(
+                        ast::If::new(condition, ast::Block::default(), ast::Block::default())
+                            .into(),
+                    )
                 }
                 &Instruction::Equal {
                     lhs,
@@ -466,7 +475,10 @@ impl<'a> LifterContext<'a> {
                     } else {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
                     };
-                    statements.push(ast::If::new(condition, None, None).into())
+                    statements.push(
+                        ast::If::new(condition, ast::Block::default(), ast::Block::default())
+                            .into(),
+                    )
                 }
                 Instruction::TestSet {
                     destination,
@@ -485,8 +497,8 @@ impl<'a> LifterContext<'a> {
                             } else {
                                 value.clone()
                             },
-                            then_block: None,
-                            else_block: None,
+                            then_block: ast::Block::default(),
+                            else_block: ast::Block::default(),
                         }
                         .into(),
                     );
@@ -779,7 +791,14 @@ impl<'a> LifterContext<'a> {
                         )
                         .into(),
                     );
-                    statements.push(ast::If::new(control.clone().into(), None, None).into());
+                    statements.push(
+                        ast::If::new(
+                            control.clone().into(),
+                            ast::Block::default(),
+                            ast::Block::default(),
+                        )
+                        .into(),
+                    );
 
                     // TODO: this wont be accurate if the body has multiple predecessors
                     let body_node = self.get_node(&(end + 1));

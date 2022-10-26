@@ -1,5 +1,3 @@
-
-
 use crate::{Local, RcLocal};
 #[derive(Debug, Default, Clone)]
 pub struct LocalAllocator {

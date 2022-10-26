@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use fxhash::{FxHashSet};
+use fxhash::FxHashSet;
 
 use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
@@ -48,12 +48,12 @@ impl Namer {
                     }
                 }
                 Statement::If(r#if) => {
-                    if let Some(b) = &mut r#if.then_block {
-                        self.name_locals(b);
+                    if !r#if.then_block.is_empty() {
+                        self.name_locals(&mut r#if.then_block);
                     }
 
-                    if let Some(b) = &mut r#if.else_block {
-                        self.name_locals(b);
+                    if !r#if.else_block.is_empty() {
+                        self.name_locals(&mut r#if.else_block);
                     }
                 }
                 Statement::While(r#while) => {
@@ -89,12 +89,12 @@ impl Namer {
             });
             match statement {
                 Statement::If(r#if) => {
-                    if let Some(b) = &mut r#if.then_block {
-                        self.find_upvalues(b);
+                    if !r#if.then_block.is_empty() {
+                        self.find_upvalues(&mut r#if.then_block);
                     }
 
-                    if let Some(b) = &mut r#if.else_block {
-                        self.find_upvalues(b);
+                    if !r#if.else_block.is_empty() {
+                        self.find_upvalues(&mut r#if.else_block);
                     }
                 }
                 Statement::While(r#while) => {

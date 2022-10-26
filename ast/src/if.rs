@@ -7,12 +7,12 @@ use std::fmt;
 #[derive(Debug, PartialEq, Clone)]
 pub struct If {
     pub condition: RValue,
-    pub then_block: Option<Block>,
-    pub else_block: Option<Block>,
+    pub then_block: Block,
+    pub else_block: Block,
 }
 
 impl If {
-    pub fn new(condition: RValue, then_block: Option<Block>, else_block: Option<Block>) -> Self {
+    pub fn new(condition: RValue, then_block: Block, else_block: Block) -> Self {
         Self {
             condition,
             then_block,

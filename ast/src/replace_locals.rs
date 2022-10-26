@@ -24,12 +24,12 @@ pub fn replace_locals<H: std::hash::BuildHasher>(
         });
         match statement {
             Statement::If(r#if) => {
-                if let Some(b) = &mut r#if.then_block {
-                    replace_locals(b, map);
+                if !r#if.then_block.is_empty() {
+                    replace_locals(&mut r#if.then_block, map);
                 }
 
-                if let Some(b) = &mut r#if.else_block {
-                    replace_locals(b, map);
+                if !r#if.else_block.is_empty() {
+                    replace_locals(&mut r#if.else_block, map);
                 }
             }
             Statement::While(r#while) => {

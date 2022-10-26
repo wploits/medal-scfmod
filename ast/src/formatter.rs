@@ -406,22 +406,22 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " then")?;
 
-        if let Some(b) = &r#if.then_block {
-            self.format_block(b)?;
+        if !r#if.then_block.is_empty() {
+            self.format_block(&r#if.then_block)?;
             writeln!(self.output)?;
         }
 
-        if let Some(b) = &r#if.else_block {
-            assert!(r#if.then_block.is_some());
+        if !r#if.else_block.is_empty() {
+            assert!(!r#if.then_block.is_empty());
             self.indent()?;
-            if b.len() == 1
-                && let Some(else_if) = b[0].as_if()
+            if r#if.else_block.len() == 1
+                && let Some(else_if) = r#if.else_block[0].as_if()
             {
                 write!(self.output, "else")?;
                 return self.format_if(else_if);
             }
             writeln!(self.output, "else")?;
-            self.format_block(b)?;
+            self.format_block(&r#if.else_block)?;
             writeln!(self.output)?;
         }
 

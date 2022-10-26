@@ -16,32 +16,24 @@ impl GraphStructurer {
     }
 
     fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
-        let then_return = if_stat
-            .then_block
-            .as_ref()
-            .and_then(|x| x.last().and_then(|x| x.as_return()));
-        let else_return = if_stat
-            .else_block
-            .as_ref()
-            .and_then(|x| x.last().and_then(|x| x.as_return()));
+        let then_return = if_stat.then_block.last().and_then(|x| x.as_return());
+        let else_return = if_stat.else_block.last().and_then(|x| x.as_return());
 
         assert!(then_return.is_some() == else_return.is_some());
 
         if let Some(then_return) = then_return {
             let else_return = else_return.unwrap();
             if then_return.values.is_empty() && else_return.values.is_empty() {
-                if_stat.then_block.as_mut().unwrap().pop();
-                if_stat.else_block.as_mut().unwrap().pop();
+                if_stat.then_block.pop();
+                if_stat.else_block.pop();
                 None
             } else if !then_return.values.is_empty() && else_return.values.is_empty() {
-                if_stat.else_block.take()
+                Some(std::mem::take(&mut if_stat.else_block))
             } else if then_return.values.is_empty() && !else_return.values.is_empty() {
-                let else_block = if_stat.else_block.take();
-                let then_block = if_stat.then_block.take();
-                if_stat.then_block = else_block;
+                if_stat.then_block = std::mem::take(&mut if_stat.else_block);
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
-                then_block
+                Some(std::mem::take(&mut if_stat.then_block))
             } else {
                 None
             }
@@ -77,8 +69,8 @@ impl GraphStructurer {
 
         let block = self.function.block_mut(entry).unwrap();
         let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-        if_stat.then_block = Some(then_block);
-        if_stat.else_block = Some(else_block);
+        if_stat.then_block = then_block;
+        if_stat.else_block = else_block;
         Self::simplify_if(if_stat);
 
         if let Some(after) = Self::expand_if(if_stat) {
@@ -127,7 +119,7 @@ impl GraphStructurer {
 
             let block = self.function.block_mut(entry).unwrap();
             let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-            if_stat.then_block = Some(then_block);
+            if_stat.then_block = then_block;
 
             if inverted {
                 if_stat.condition =
@@ -181,26 +173,26 @@ impl GraphStructurer {
         let block = self.function.block_mut(entry).unwrap();
         if let Some(if_stat) = block.last_mut().unwrap().as_if_mut() {
             if then_node == header && !header_successors.contains(&entry) {
-                if_stat.then_block = Some(vec![ast::Continue {}.into()].into());
+                if_stat.then_block = vec![ast::Continue {}.into()].into();
                 changed = true;
             } else if then_node == next {
-                if_stat.then_block = Some(vec![ast::Break {}.into()].into());
+                if_stat.then_block = vec![ast::Break {}.into()].into();
                 changed = true;
             }
             if else_node == header && !header_successors.contains(&entry) {
-                if_stat.else_block = Some(vec![ast::Continue {}.into()].into());
+                if_stat.else_block = vec![ast::Continue {}.into()].into();
                 changed = true;
             } else if else_node == next {
-                if_stat.else_block = Some(vec![ast::Break {}.into()].into());
+                if_stat.else_block = vec![ast::Break {}.into()].into();
                 changed = true;
             }
-            if if_stat.then_block.is_some() && if_stat.else_block.is_none() {
+            if !if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
                 self.function.set_edges(
                     entry,
                     vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if if_stat.then_block.is_none() && if_stat.else_block.is_some() {
+            } else if !if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
                 std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
@@ -209,7 +201,7 @@ impl GraphStructurer {
                     vec![(then_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if if_stat.then_block.is_some() && if_stat.else_block.is_some() {
+            } else if !if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
                 self.function.remove_edges(entry);
                 changed = true;
             }

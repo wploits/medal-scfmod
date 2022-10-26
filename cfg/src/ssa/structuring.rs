@@ -1,7 +1,5 @@
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 
-
-
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,

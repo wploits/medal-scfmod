@@ -1,7 +1,5 @@
 #![feature(let_chains)]
 
-
-
 use cfg::{block::BranchType, function::Function};
 use fxhash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
@@ -270,12 +268,12 @@ impl GraphStructurer {
                                 gotos.insert(goto.0.clone());
                             }
                             ast::Statement::If(r#if) => {
-                                if let Some(b) = &r#if.then_block {
-                                    collect_gotos(b, gotos);
+                                if !r#if.then_block.is_empty() {
+                                    collect_gotos(&r#if.then_block, gotos);
                                 }
 
-                                if let Some(b) = &r#if.else_block {
-                                    collect_gotos(b, gotos);
+                                if !r#if.else_block.is_empty() {
+                                    collect_gotos(&r#if.else_block, gotos);
                                 }
                             }
                             ast::Statement::While(r#while) => {

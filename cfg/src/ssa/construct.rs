@@ -10,9 +10,7 @@ use petgraph::{
     Direction,
 };
 
-use crate::{
-    function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
-};
+use crate::{function::Function, ssa::param_dependency_graph::ParamDependencyGraph};
 
 use super::upvalues::UpvaluesOpen;
 

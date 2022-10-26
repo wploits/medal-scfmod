@@ -158,8 +158,8 @@ impl GraphStructurer {
                         body_block.push(
                             ast::If::new(
                                 if_condition,
-                                Some(vec![ast::Break {}.into()].into()),
-                                None,
+                                vec![ast::Break {}.into()].into(),
+                                ast::Block::default(),
                             )
                             .into(),
                         );

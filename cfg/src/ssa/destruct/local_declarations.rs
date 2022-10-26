@@ -1,8 +1,8 @@
 use array_tool::vec::Intersect;
-use ast::{LocalRw};
+use ast::LocalRw;
 use fxhash::{FxHashMap, FxHashSet};
 
-use itertools::{Itertools};
+use itertools::Itertools;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
 
 use crate::function::Function;
