@@ -186,13 +186,13 @@ impl GraphStructurer {
                 if_stat.else_block = vec![ast::Break {}.into()].into();
                 changed = true;
             }
-            if !if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
+            if !if_stat.then_block.is_empty() && if_stat.else_block.is_empty() {
                 self.function.set_edges(
                     entry,
                     vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if !if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
+            } else if if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
                 std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
