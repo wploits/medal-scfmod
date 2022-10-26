@@ -1,16 +1,16 @@
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap},
     rc::Rc,
 };
 
 use ast::{LocalRw, RcLocal};
 use fxhash::{FxHashMap, FxHashSet};
-use indexmap::{IndexMap, IndexSet};
+use indexmap::{IndexMap};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
-    prelude::{DiGraph, DiGraphMap},
+    prelude::{DiGraphMap},
     stable_graph::NodeIndex,
     visit::{Dfs, DfsPostOrder, EdgeRef},
     Direction,

@@ -1,7 +1,7 @@
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
-use contracts::requires;
-use fxhash::FxHashSet;
-use indexmap::{IndexMap, IndexSet};
+
+
+
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::Dominators,
@@ -446,9 +446,9 @@ function getLongestEntry(tab)
 end
 */
 pub fn structure_for_loops(
-    function: &mut Function,
-    dominators: &Dominators<NodeIndex>,
-    post_dominators: &Dominators<NodeIndex>,
+    _function: &mut Function,
+    _dominators: &Dominators<NodeIndex>,
+    _post_dominators: &Dominators<NodeIndex>,
 ) -> bool {
     false
 

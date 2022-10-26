@@ -27,7 +27,7 @@ impl PatternNode {
 }
 
 impl fmt::Display for PatternNode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Ok(())
     }
 }
@@ -58,15 +58,15 @@ pub struct PatternChecker<'a> {
 }
 
 impl<'a> PatternChecker<'a> {
-    fn check_successors(&self, node: NodeIndex) {}
+    fn check_successors(&self, _node: NodeIndex) {}
 
     fn check_pattern_rec(&self, pattern_node: NodeIndex, function_node: NodeIndex) -> bool {
-        let function_successors = self
+        let _function_successors = self
             .function
             .successor_blocks(function_node)
             .collect::<Vec<_>>();
 
-        let pattern_successors = self
+        let _pattern_successors = self
             .pattern
             .graph
             .neighbors_directed(pattern_node, Direction::Outgoing)
@@ -75,7 +75,7 @@ impl<'a> PatternChecker<'a> {
         for function_edge in self.function.edges(pattern_node) {
             let function_node = function_edge.target();
             if let Some(&pattern_successor_node) = self.mapping.get(&function_node) {
-                if let Some(pattern_edge) = self
+                if let Some(_pattern_edge) = self
                     .pattern
                     .graph
                     .find_edge(pattern_node, pattern_successor_node)
@@ -99,13 +99,13 @@ impl<'a> PatternChecker<'a> {
 }
 
 impl Pattern {
-    fn node_matches(&self, function: &Function, node: NodeIndex) -> bool {
-        let mut mapping = FxHashMap::<NodeIndex, NodeIndex>::default();
+    fn node_matches(&self, _function: &Function, _node: NodeIndex) -> bool {
+        let _mapping = FxHashMap::<NodeIndex, NodeIndex>::default();
 
         false
     }
 
-    pub fn match_on(&self, function: &Function, node: NodeIndex) -> Option<Match> {
+    pub fn match_on(&self, _function: &Function, _node: NodeIndex) -> Option<Match> {
         None
     }
 }

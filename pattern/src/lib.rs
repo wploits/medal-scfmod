@@ -142,7 +142,7 @@ fn pattern_internal(input: TokenStream) -> TokenStream {
     // TODO: support len == 0 and len > 1
     assert!(from_wildcard_edges.len() == 1);
 
-    let from_wildcard_edge = &from_wildcard_edges[0];
+    let _from_wildcard_edge = &from_wildcard_edges[0];
 
     quote!({
         use ::cfg::function::Function;

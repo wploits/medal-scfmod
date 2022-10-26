@@ -11,7 +11,7 @@ use petgraph::{
 };
 
 use crate::{
-    block::BlockEdge, function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
+    function::Function, ssa::param_dependency_graph::ParamDependencyGraph,
 };
 
 use super::upvalues::UpvaluesOpen;

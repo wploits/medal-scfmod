@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use fxhash::{FxHashMap, FxHashSet};
+use fxhash::{FxHashSet};
 
 use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
