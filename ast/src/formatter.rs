@@ -412,7 +412,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         }
 
         if !r#if.else_block.is_empty() {
-            assert!(!r#if.then_block.is_empty());
             self.indent()?;
             if r#if.else_block.len() == 1
                 && let Some(else_if) = r#if.else_block[0].as_if()
