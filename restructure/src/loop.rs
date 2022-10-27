@@ -195,7 +195,7 @@ impl GraphStructurer {
                         .predecessor_blocks(header)
                         .filter(|&p| p != header)
                         .collect_vec();
-                    let mut init_blocks = predecessors.into_iter().filter_map(|p| {
+                    let init_blocks = predecessors.into_iter().filter_map(|p| {
                         self.function
                             .block_mut(p)
                             .unwrap()
@@ -205,8 +205,7 @@ impl GraphStructurer {
                             .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some())
                             .and_then(|(i, s)| s.as_num_for_init_mut().map(|_| (p, i)))
                     });
-                    let (init_block, init_index) = init_blocks.next().unwrap();
-                    assert!(init_blocks.next().is_none());
+                    let (init_block, init_index) = init_blocks.exactly_one().unwrap();
                     let mut body_ast = if body == header {
                         ast::Block::default()
                     } else {

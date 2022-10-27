@@ -3,7 +3,7 @@ use std::iter;
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use fxhash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
-use itertools::Either;
+use itertools::{Either, Itertools};
 use petgraph::{
     stable_graph::NodeIndex,
     visit::{Dfs, EdgeRef, Walker},
@@ -367,22 +367,18 @@ impl<'a> SsaConstructor<'a> {
                     .or_default()
                     .insert(local.clone(), param_local.clone());
                 param_local
+            } else if let Ok(pred) = self.function.predecessor_blocks(node).exactly_one() {
+                self.find_local(pred, local)
             } else {
-                let mut preds = self.function.predecessor_blocks(node);
-                let first_pred = preds.next().unwrap();
-                if preds.next().is_none() {
-                    self.find_local(first_pred, local)
-                } else {
-                    let param_local = self.function.local_allocator.borrow_mut().allocate();
-                    self.old_locals.insert(param_local.clone(), local.clone());
-                    if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
-                        upvalues.insert(param_local.clone());
-                    }
-                    self.local_count += 1;
-                    self.write_local(node, local, &param_local);
-
-                    self.add_param_args(node, local, param_local)
+                let param_local = self.function.local_allocator.borrow_mut().allocate();
+                self.old_locals.insert(param_local.clone(), local.clone());
+                if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
+                    upvalues.insert(param_local.clone());
                 }
+                self.local_count += 1;
+                self.write_local(node, local, &param_local);
+
+                self.add_param_args(node, local, param_local)
             }
         };
         self.write_local(node, local, &res);
