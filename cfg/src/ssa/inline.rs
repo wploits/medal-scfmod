@@ -11,18 +11,53 @@ fn inline_rvalue(
     new_rvalue_has_side_effects: bool,
 ) -> bool {
     statement
-        .post_traverse_values(&mut |v| {
-            if let Either::Right(rvalue) = v {
-                if let ast::RValue::Local(rvalue_local) = rvalue && *rvalue_local == *read {
-                    *rvalue = new_rvalue.take().unwrap();
-                    // success!
-                    return Some(true)
-                }
-                if new_rvalue_has_side_effects && rvalue.has_side_effects() {
-                    // failure :(
-                    return Some(false);
-                }
+        .traverse_values(&mut |p, v| {
+            match p {
+                ast::PreOrPost::Pre => {
+                    if let Either::Right(rvalue) = v {
+                        match rvalue {
+                            ast::RValue::Binary(ast::Binary {
+                                left,
+                                right,
+                                operation,
+                            }) if operation.is_comparator() && left.has_side_effects()
+                                && let box ast::RValue::Local(ref local) = right && local == read
+                            => {
+                                *right = std::mem::replace(left, Box::new(new_rvalue.take().unwrap()));
+                                *operation = match *operation {
+                                    // TODO: __eq metamethod?
+                                    ast::BinaryOperation::Equal => ast::BinaryOperation::Equal,
+                                    ast::BinaryOperation::NotEqual => ast::BinaryOperation::NotEqual,
+                                    ast::BinaryOperation::LessThanOrEqual => ast::BinaryOperation::GreaterThanOrEqual,
+                                    ast::BinaryOperation::GreaterThanOrEqual => ast::BinaryOperation::LessThanOrEqual,
+                                    ast::BinaryOperation::LessThan => ast::BinaryOperation::GreaterThan,
+                                    ast::BinaryOperation::GreaterThan => ast::BinaryOperation::LessThan,
+                                    _ => unreachable!(),
+                                };
+                                return Some(true);
+                            }
+                            _ => {}
+                        }
+                    }
+                },
+                ast::PreOrPost::Post => {
+                    if let Either::Right(rvalue) = v {
+                        match rvalue {
+                            ast::RValue::Local(local) if local == read => {
+                                *rvalue = new_rvalue.take().unwrap();
+                                // success!
+                                return Some(true);
+                            }
+                            _ => {}
+                        }
+                        if new_rvalue_has_side_effects && rvalue.has_side_effects() {
+                            // failure :(
+                            return Some(false);
+                        }
+                    }
+                },
             }
+            
 
             // keep searching
             None

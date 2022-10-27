@@ -23,6 +23,20 @@ pub enum BinaryOperation {
     Or,
 }
 
+impl BinaryOperation {
+    pub fn is_comparator(&self) -> bool {
+        matches!(
+            self,
+            BinaryOperation::Equal
+                | BinaryOperation::NotEqual
+                | BinaryOperation::LessThanOrEqual
+                | BinaryOperation::GreaterThanOrEqual
+                | BinaryOperation::LessThan
+                | BinaryOperation::GreaterThan
+        )
+    }
+}
+
 impl fmt::Display for BinaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
