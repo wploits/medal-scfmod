@@ -705,30 +705,58 @@ impl<'a> Destructor<'a> {
             DfsPostOrder::new(&self.dominator_tree, self.function.entry().unwrap());
 
         while let Some(node) = dominator_dfs_post_order.next(self.function.graph()) {
-            if let Some((_, edge)) = self.function.edges_to_block(node).next() {
-                for (p, _) in &edge.arguments {
-                    assert!(self.values.insert(p.clone(), Default::default()).is_none());
-                }
+            let params = if let Some((_, edge)) = self.function.edges_to_block(node).next() {
+                edge.arguments
+                    .iter()
+                    .map(|(p, _)| p.clone())
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            for param in params {
+                self.get_value_class(param);
             }
-            for stat in &self.function.block(node).unwrap().0 {
-                if let ast::Statement::Assign(assign) = stat {
-                    for (i, left) in assign
+            for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
+                if let ast::Statement::Assign(assign) =
+                    &self.function.block(node).unwrap()[stat_index]
+                {
+                    let left = assign
                         .left
                         .iter()
                         .enumerate()
-                        .filter_map(|(i, l)| Some((i, l.as_local()?)))
+                        .filter_map(|(i, l)| Some((i, l.as_local()?.clone())));
+                    for (left, right) in left
+                        .into_iter()
+                        .map(|(i, l)| (l, assign.right.get(i).and_then(|r| r.as_local().cloned())))
+                        .collect::<Vec<_>>()
                     {
-                        if let Some(ast::RValue::Local(right)) = assign.right.get(i) {
-                            let value_class = self.values.entry(right.clone()).or_default().clone();
+                        if let Some(right) = right {
+                            let value_class = self.get_value_class(right.clone()).clone();
                             value_class.borrow_mut().insert(left.clone());
-                            assert!(self.values.insert(left.clone(), value_class).is_none());
-                        } else {
-                            self.values.entry(left.clone()).or_default();
+                            let prev_val_class =
+                                self.values.insert(left.clone(), value_class.clone());
+                            if let Some(prev_val_class) = prev_val_class {
+                                // merge value classes
+                                let prev_val_class = prev_val_class.take();
+                                for local in &prev_val_class {
+                                    self.values.insert(local.clone(), value_class.clone());
+                                }
+                                value_class.borrow_mut().extend(prev_val_class);
+                            }
+                            //assert!(prev_val_class.is_none() || prev_val_class.unwrap().borrow().is_empty(), "function not in ssa form");
                         }
                     }
                 }
             }
         }
+    }
+
+    fn get_value_class(&mut self, local: RcLocal) -> &Rc<RefCell<FxHashSet<RcLocal>>> {
+        self.values.entry(local.clone()).or_insert_with(|| {
+            let mut value_class = FxHashSet::default();
+            value_class.insert(local);
+            Rc::new(RefCell::new(value_class))
+        })
     }
 
     fn sort_params(&mut self) {
