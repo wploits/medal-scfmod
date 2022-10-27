@@ -131,26 +131,26 @@ pub enum Instruction {
     Equal {
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
-        comparison_value: bool,
+        invert: bool,
     },
     LessThan {
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
-        comparison_value: bool,
+        invert: bool,
     },
     LessThanOrEqual {
         lhs: RegisterOrConstant,
         rhs: RegisterOrConstant,
-        comparison_value: bool,
+        invert: bool,
     },
     Test {
         value: Register,
-        comparison_value: bool,
+        invert: bool,
     },
     TestSet {
         destination: Register,
         value: Register,
-        comparison_value: bool,
+        invert: bool,
     },
     Call {
         function: Register,
@@ -319,28 +319,28 @@ impl Instruction {
             RawInstruction(OperationCode::Equal, Layout::BC { a, b, c }) => Self::Equal {
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
-                comparison_value: a == 1,
+                invert: a != 1,
             },
             RawInstruction(OperationCode::LessThan, Layout::BC { a, b, c }) => Self::LessThan {
                 lhs: RegisterOrConstant::from(b as u32),
                 rhs: RegisterOrConstant::from(c as u32),
-                comparison_value: a == 1,
+                invert: a != 1,
             },
             RawInstruction(OperationCode::LessThanOrEqual, Layout::BC { a, b, c }) => {
                 Self::LessThanOrEqual {
                     lhs: RegisterOrConstant::from(b as u32),
                     rhs: RegisterOrConstant::from(c as u32),
-                    comparison_value: a == 1,
+                    invert: a != 1,
                 }
             }
             RawInstruction(OperationCode::Test, Layout::BC { a, c, .. }) => Self::Test {
                 value: Register(a),
-                comparison_value: c == 1,
+                invert: c == 1,
             },
             RawInstruction(OperationCode::TestSet, Layout::BC { a, b, c }) => Self::TestSet {
                 destination: Register(a),
                 value: Register(b as u8),
-                comparison_value: c == 1,
+                invert: c == 1,
             },
             RawInstruction(OperationCode::Call, Layout::BC { a, b, c }) => Self::Call {
                 function: Register(a),

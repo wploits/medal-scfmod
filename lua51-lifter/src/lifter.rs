@@ -273,10 +273,10 @@ impl<'a> LifterContext<'a> {
                 }
                 &Instruction::Test {
                     value,
-                    comparison_value,
+                    invert,
                 } => {
                     let value = self.locals[&value].clone().into();
-                    let condition = if comparison_value {
+                    let condition = if invert {
                         value
                     } else {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
@@ -428,15 +428,15 @@ impl<'a> LifterContext<'a> {
                 &Instruction::LessThan {
                     lhs,
                     rhs,
-                    comparison_value,
+                    invert,
                 } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThan).into();
-                    let condition = if comparison_value {
-                        value
-                    } else {
+                    let condition = if invert {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    } else {
+                        value
                     };
                     statements.push(
                         ast::If::new(condition, ast::Block::default(), ast::Block::default())
@@ -446,16 +446,16 @@ impl<'a> LifterContext<'a> {
                 &Instruction::LessThanOrEqual {
                     lhs,
                     rhs,
-                    comparison_value,
+                    invert,
                 } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value =
                         ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThanOrEqual).into();
-                    let condition = if comparison_value {
-                        value
-                    } else {
+                    let condition = if invert {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    } else {
+                        value
                     };
                     statements.push(
                         ast::If::new(condition, ast::Block::default(), ast::Block::default())
@@ -465,15 +465,15 @@ impl<'a> LifterContext<'a> {
                 &Instruction::Equal {
                     lhs,
                     rhs,
-                    comparison_value,
+                    invert,
                 } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::Equal).into();
-                    let condition = if comparison_value {
-                        value
-                    } else {
+                    let condition = if invert {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    } else {
+                        value
                     };
                     statements.push(
                         ast::If::new(condition, ast::Block::default(), ast::Block::default())
@@ -483,12 +483,12 @@ impl<'a> LifterContext<'a> {
                 Instruction::TestSet {
                     destination,
                     value,
-                    comparison_value,
+                    invert,
                 } => {
                     let value: ast::RValue = self.locals[value].clone().into();
                     statements.push(
                         ast::If {
-                            condition: if *comparison_value {
+                            condition: if *invert {
                                 ast::Unary {
                                     value: Box::new(value.clone()),
                                     operation: ast::UnaryOperation::Not,
@@ -985,7 +985,7 @@ impl<'a> LifterContext<'a> {
             let upvalues_in = context.upvalues;
 
             // println!("before ssa construction");
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
