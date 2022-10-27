@@ -110,7 +110,7 @@ impl GraphStructurer {
         let mut _match_triangle_conditional = |then_node, else_node, inverted| {
             let then_successors = self.function.successor_blocks(then_node).collect_vec();
 
-            if then_successors.len() != 1 {
+            if then_successors.len() > 1 {
                 return false;
             }
 
@@ -118,7 +118,7 @@ impl GraphStructurer {
                 return false;
             }
 
-            if then_successors[0] != else_node {
+            if !then_successors.is_empty() && then_successors[0] != else_node {
                 return false;
             }
 
