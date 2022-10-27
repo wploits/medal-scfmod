@@ -88,13 +88,17 @@ impl<'a> Destructor<'a> {
             liveness: None,
         }
     }
+
     pub fn destruct(mut self) {
-        // TODO: remove detached blocks
+        // TODO: remove detached blocks first
         self.lift_params();
         self.sort_params();
 
-        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
         self.liveness = Some(Liveness::new(self.function, true));
+        // this is for debugging :)
+        //self.add_liveness_comments();
+        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+
         self.build_def_use();
 
         self.compute_value_interference();
@@ -105,9 +109,9 @@ impl<'a> Destructor<'a> {
 
         super::construct::apply_local_map(self.function, self.build_local_map());
 
-        self.sequentialize();
+        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
-        // crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
+        self.sequentialize();
 
         let liveness = Liveness::new(self.function, false);
 
@@ -148,6 +152,18 @@ impl<'a> Destructor<'a> {
         // let dominators = simple_fast(function.graph(), function.entry().unwrap());
         // local_declarations::declare_locals(function, &upvalues_in, local_nodes, &dominators);
         // upvalues_in
+    }
+
+    fn add_liveness_comments(&mut self) {
+        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+            let liveness = &self.liveness.as_ref().unwrap().block_liveness[&node];
+            let block = self.function.block_mut(node).unwrap();
+            block.insert(
+                0,
+                ast::Comment::new(liveness.live_in.iter().join(", ")).into(),
+            );
+            block.push(ast::Comment::new(liveness.live_out.iter().join(", ")).into());
+        }
     }
 
     fn coalesce_upvalues(&mut self) {
@@ -270,8 +286,8 @@ impl<'a> Destructor<'a> {
         self.dominators = Some(dominators);
 
         let mut dominator_index = 0;
-        let mut dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
-        while let Some(node) = dfs.next(self.function.graph()) {
+        let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
+        while let Some(node) = dominator_dfs.next(self.function.graph()) {
             if node == self.function.entry().unwrap() {
                 assert!(dominator_index == 0);
                 assert!(!self
@@ -325,7 +341,9 @@ impl<'a> Destructor<'a> {
 
     // a dominates b?
     fn check_pre_dom_order(&self, a: &RcLocal, b: &RcLocal) -> bool {
-        self.local_defs[a] < self.local_defs[b]
+        let (a_dom_index, _, a_stat_index) = self.local_defs[a];
+        let (b_dom_index, _, b_stat_index) = self.local_defs[b];
+        (a_dom_index, a_stat_index) < (b_dom_index, b_stat_index)
     }
 
     // initialize congruence classes based on block params and remove block params
@@ -373,8 +391,8 @@ impl<'a> Destructor<'a> {
     }
 
     fn coalesce_copies(&mut self) {
-        let mut dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap());
-        while let Some(node) = dfs.next(self.function.graph()) {
+        let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
+        while let Some(node) = dominator_dfs.next(self.function.graph()) {
             let mut to_remove = Vec::new();
             for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
                 let should_remove = if let ast::Statement::Assign(assign) =
@@ -633,15 +651,7 @@ impl<'a> Destructor<'a> {
                 tmp = self.equal_ancestor_in.get(curr_tmp);
             }
 
-            self.values.entry(local_b.clone()).or_default();
-            if *self
-                .values
-                .entry(local_a.clone())
-                .or_default()
-                .clone()
-                .borrow()
-                != *self.values[local_b].borrow()
-            {
+            if self.values[local_a] != self.values[local_b] {
                 tmp.is_some()
             } else {
                 if let Some(tmp) = tmp {
@@ -690,9 +700,11 @@ impl<'a> Destructor<'a> {
     }
 
     fn compute_value_interference(&mut self) {
-        let mut dfs_post_order =
-            DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
-        while let Some(node) = dfs_post_order.next(self.function.graph()) {
+        // TODO: STYLE: rename to dom_dfs_post_order, along with other dominator_dfs
+        let mut dominator_dfs_post_order =
+            DfsPostOrder::new(&self.dominator_tree, self.function.entry().unwrap());
+
+        while let Some(node) = dominator_dfs_post_order.next(self.function.graph()) {
             if let Some((_, edge)) = self.function.edges_to_block(node).next() {
                 for (p, _) in &edge.arguments {
                     assert!(self.values.insert(p.clone(), Default::default()).is_none());
@@ -700,30 +712,18 @@ impl<'a> Destructor<'a> {
             }
             for stat in &self.function.block(node).unwrap().0 {
                 if let ast::Statement::Assign(assign) = stat {
-                    // TODO: if statement isnt needed, else will work in all cases :)
-                    if assign.parallel {
-                        for i in 0..assign.left.len() {
-                            let dst = assign.left[i].clone().into_local().unwrap();
-                            let src = assign.right[i].clone().into_local().unwrap();
-                            let value_class = self.values.entry(src).or_default().clone();
-                            value_class.borrow_mut().insert(dst.clone());
-                            self.values.insert(dst, value_class);
-                        }
-                    } else {
-                        for (i, dst) in assign
-                            .left
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(i, l)| Some((i, l.as_local()?)))
-                        {
-                            if let Some(ast::RValue::Local(src)) = assign.right.get(i) {
-                                let value_class =
-                                    self.values.entry(src.clone()).or_default().clone();
-                                value_class.borrow_mut().insert(dst.clone());
-                                self.values.insert(dst.clone(), value_class);
-                            } else {
-                                self.values.insert(dst.clone(), Default::default());
-                            }
+                    for (i, left) in assign
+                        .left
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, l)| Some((i, l.as_local()?)))
+                    {
+                        if let Some(ast::RValue::Local(right)) = assign.right.get(i) {
+                            let value_class = self.values.entry(right.clone()).or_default().clone();
+                            value_class.borrow_mut().insert(left.clone());
+                            assert!(self.values.insert(left.clone(), value_class).is_none());
+                        } else {
+                            self.values.entry(left.clone()).or_default();
                         }
                     }
                 }
