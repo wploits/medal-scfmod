@@ -18,11 +18,7 @@ impl GraphStructurer {
     fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
         let then_return = if_stat.then_block.last().and_then(|x| x.as_return());
         let else_return = if_stat.else_block.last().and_then(|x| x.as_return());
-
-        assert!(then_return.is_some() == else_return.is_some());
-
-        if let Some(then_return) = then_return {
-            let else_return = else_return.unwrap();
+        if let Some(then_return) = then_return && let Some(else_return) = else_return {
             if then_return.values.is_empty() && else_return.values.is_empty() {
                 if_stat.then_block.pop();
                 if_stat.else_block.pop();
@@ -35,7 +31,18 @@ impl GraphStructurer {
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
                 Some(std::mem::take(&mut if_stat.then_block))
             } else {
-                None
+                match if_stat.then_block.len().cmp(&if_stat.else_block.len()) {
+                    std::cmp::Ordering::Less => Some(std::mem::take(&mut if_stat.else_block)),
+                    std::cmp::Ordering::Greater => {
+                        let then_block = std::mem::take(&mut if_stat.then_block);
+                        if_stat.then_block = std::mem::take(&mut if_stat.else_block);
+                        if_stat.condition =
+                            ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
+                                .reduce();
+                        Some(then_block)
+                    }
+                    std::cmp::Ordering::Equal => None,
+                }
             }
         } else {
             None
