@@ -271,10 +271,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                &Instruction::Test {
-                    value,
-                    invert,
-                } => {
+                &Instruction::Test { value, invert } => {
                     let value = self.locals[&value].clone().into();
                     let condition = if invert {
                         value
@@ -425,11 +422,7 @@ impl<'a> LifterContext<'a> {
                         .into(),
                     );
                 }
-                &Instruction::LessThan {
-                    lhs,
-                    rhs,
-                    invert,
-                } => {
+                &Instruction::LessThan { lhs, rhs, invert } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::LessThan).into();
@@ -443,11 +436,7 @@ impl<'a> LifterContext<'a> {
                             .into(),
                     )
                 }
-                &Instruction::LessThanOrEqual {
-                    lhs,
-                    rhs,
-                    invert,
-                } => {
+                &Instruction::LessThanOrEqual { lhs, rhs, invert } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value =
@@ -462,11 +451,7 @@ impl<'a> LifterContext<'a> {
                             .into(),
                     )
                 }
-                &Instruction::Equal {
-                    lhs,
-                    rhs,
-                    invert,
-                } => {
+                &Instruction::Equal { lhs, rhs, invert } => {
                     let lhs = self.register_or_constant(lhs);
                     let rhs = self.register_or_constant(rhs);
                     let value = ast::Binary::new(lhs, rhs, ast::BinaryOperation::Equal).into();
@@ -985,7 +970,7 @@ impl<'a> LifterContext<'a> {
             let upvalues_in = context.upvalues;
 
             // println!("before ssa construction");
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
