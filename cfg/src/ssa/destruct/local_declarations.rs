@@ -1,6 +1,6 @@
 use array_tool::vec::Intersect;
 use ast::LocalRw;
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use itertools::Itertools;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};

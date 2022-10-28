@@ -14,5 +14,5 @@ cfg = { path = "../cfg" }
 graph = { path = "../graph", features = ["dot"] }
 ast = { path = "../ast" }
 mlua = { version = "0.8.0-beta.3", features = ["luau"] }
-fxhash = "0.2.1"
+rustc_hash = "0.2.1"
 either = "1.6.1"

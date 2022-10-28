@@ -4,7 +4,7 @@ use std::collections::{HashMap, VecDeque};
 
 use anyhow::Result;
 use either::Either;
-use fxhash::FxHashMap;
+use rustc_hash::FxHashMap;
 
 use ast;
 use cfg::{block::Terminator, function::Function};

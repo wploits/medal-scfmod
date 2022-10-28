@@ -1,6 +1,6 @@
 use ast::{Reduce, SideEffects};
 use cfg::block::{BlockEdge, BranchType};
-use fxhash::FxHashSet;
+use rustc_hash::FxHashSet;
 use itertools::Itertools;
 
 use crate::{post_dominators, GraphStructurer};
@@ -206,6 +206,12 @@ impl GraphStructurer {
                             .and_then(|(i, s)| s.as_num_for_init_mut().map(|_| (p, i)))
                     });
                     let (init_block, init_index) = init_blocks.exactly_one().unwrap();
+
+                    // if !statements.is_empty() {
+                    //     println!("{}", self.function.block(init_block).unwrap());
+                    //     println!("--");
+                    // }
+
                     let mut body_ast = if body == header {
                         ast::Block::default()
                     } else {

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use ast::{LocalRw, RcLocal};
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{

@@ -1,5 +1,5 @@
 use ast::RcLocal;
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 use petgraph::{
     prelude::DiGraph,

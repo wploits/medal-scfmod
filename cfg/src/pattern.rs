@@ -1,6 +1,6 @@
 use std::fmt;
 
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use petgraph::{
     stable_graph::{NodeIndex, StableDiGraph},
     visit::{Dfs, EdgeRef, Walker},

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use fxhash::FxHashSet;
+use rustc_hash::FxHashSet;
 
 use crate::{Block, RValue, RcLocal, Statement, Traverse};
 
@@ -14,7 +14,7 @@ impl Namer {
     fn name_local(&mut self, prefix: &str, local: &RcLocal) {
         if self.rename || local.0 .0.borrow().0.is_none() {
             // TODO: hacky and slow
-            if Rc::strong_count(local) == 1 {
+            if Rc::strong_count(&local.0.0) == 1 {
                 local.0 .0.borrow_mut().0 = Some("_".to_string());
             } else {
                 let prefix = prefix.to_string()

@@ -1,6 +1,6 @@
 use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::Either;
 

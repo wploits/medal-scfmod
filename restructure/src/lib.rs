@@ -1,7 +1,7 @@
 #![feature(let_chains)]
 
 use cfg::{block::BranchType, function::Function};
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
 
 use petgraph::{

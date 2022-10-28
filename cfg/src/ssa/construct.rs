@@ -1,7 +1,7 @@
 use std::iter;
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
-use fxhash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use itertools::{Either, Itertools};
 use petgraph::{

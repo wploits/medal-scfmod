@@ -5,7 +5,7 @@ use cfg::{
     ssa,
 };
 use either::Either;
-use fxhash::FxHashMap;
+use rustc_hash::FxHashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
 

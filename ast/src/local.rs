@@ -28,7 +28,7 @@ impl fmt::Display for Local {
     }
 }
 
-#[derive(Debug, Clone, Deref, PartialEq, Eq, PartialOrd, Ord, DerefMut, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RcLocal(pub ByAddress<Rc<RefCell<Local>>>);
 
 impl Infer for RcLocal {

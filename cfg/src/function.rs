@@ -1,6 +1,6 @@
 use ast::{local_allocator::LocalAllocator, LocalRw, RcLocal};
 use contracts::requires;
-use fxhash::FxHashMap;
+use rustc_hash::FxHashMap;
 use itertools::Itertools;
 use petgraph::{
     stable_graph::{EdgeReference, Neighbors, NodeIndex, StableDiGraph},
