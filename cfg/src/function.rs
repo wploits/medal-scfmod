@@ -15,11 +15,7 @@ use crate::block::{BlockEdge, BranchType};
 pub struct Function {
     pub local_allocator: Rc<RefCell<LocalAllocator>>,
     pub parameters: Vec<RcLocal>,
-    pub upvalues_captured: Vec<RcLocal>,
-    // TODO: edge data in graph instead of terminator (arguments)
     graph: StableDiGraph<ast::Block, BlockEdge>,
-    /*pub upvalue_open_ranges:
-    FxHashMap<ValueId, FxHashMap<InstructionLocation, Vec<InstructionLocation>>>,*/
     entry: Option<NodeIndex>,
 }
 
@@ -28,7 +24,6 @@ impl Function {
         Self {
             local_allocator,
             parameters: Vec::new(),
-            upvalues_captured: Vec::new(),
             graph: StableDiGraph::new(),
             entry: None,
         }
