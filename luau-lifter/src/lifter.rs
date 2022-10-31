@@ -238,6 +238,18 @@ impl<'a> Lifter<'a> {
                             .into(),
                         )
                     }
+                    OpCode::LOP_SETGLOBAL => {
+                        let value = self.register(a as _);
+                        let global_name = self.constant(aux as _).into_string().unwrap();
+                        statements.push(
+                            ast::Assign::new(
+                                vec![ast::Global::new(global_name).into()],
+                                vec![value.into()],
+                            )
+                            .into(),
+                        );
+                        iter.next();
+                    }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
