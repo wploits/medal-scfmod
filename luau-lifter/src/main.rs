@@ -40,7 +40,9 @@ fn main() -> anyhow::Result<()> {
             let main = lifter.lift_function()?;
             let lifted = now.elapsed();
             println!("lifting: {:?}", lifted);
-            println!("{}", main.block(main.entry().unwrap()).unwrap());
+
+            let result = restructure::lift(main);
+            println!("{}", result);
 
             /*process_function(&mut main)?;
             for function in descendants.into_iter() {

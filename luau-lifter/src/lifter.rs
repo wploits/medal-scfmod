@@ -198,7 +198,7 @@ impl<'a> Lifter<'a> {
         block_end: usize,
     ) -> (Vec<ast::Statement>, Vec<(NodeIndex, BlockEdge)>) {
         let mut statements = Vec::new();
-        let edges = Vec::new();
+        let mut edges = Vec::new();
 
         let mut top: Option<(ast::RValue, u8)> = None;
 
@@ -252,6 +252,25 @@ impl<'a> Lifter<'a> {
                         let assign = ast::Assign::new(vec![target.into()], vec![global.into()]);
                         statements.push(assign.into());
                         iter.next();
+                    }
+                    OpCode::LOP_JUMPIFNOT => {
+                        let condition = self.register(a as _);
+                        let statement = ast::If::new(
+                            condition.into(),
+                            ast::Block::default(),
+                            ast::Block::default(),
+                        );
+                        edges.push((
+                            self.block_to_node(block_start + index + 1),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        statements.push(statement.into());
                     }
                     _ => unimplemented!("{:?}", instruction),
                 },
