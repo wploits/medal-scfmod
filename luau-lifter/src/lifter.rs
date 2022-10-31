@@ -216,6 +216,11 @@ impl<'a> Lifter<'a> {
                     aux,
                 } => match op_code {
                     OpCode::LOP_PREPVARARGS => {}
+                    OpCode::LOP_MOVE => {
+                        let a = self.register(a as _);
+                        let b = self.register(b as _);
+                        statements.push(ast::Assign::new(vec![a.into()], vec![b.into()]).into());
+                    }
                     OpCode::LOP_LOADNIL => {
                         let target = self.register(a as _);
                         statements.push(
