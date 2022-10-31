@@ -223,7 +223,16 @@ impl<'a> Lifter<'a> {
                                 .into(),
                         )
                     }
-
+                    OpCode::LOP_LOADB => {
+                        let target = self.register(a as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![target.into()],
+                                vec![ast::Literal::Boolean(b != 0).into()],
+                            )
+                            .into(),
+                        )
+                    }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
