@@ -216,6 +216,13 @@ impl<'a> Lifter<'a> {
                     aux,
                 } => match op_code {
                     OpCode::LOP_PREPVARARGS => {}
+                    OpCode::LOP_LOADNIL => {
+                        let target = self.register(a as _);
+                        statements.push(
+                            ast::Assign::new(vec![target.into()], vec![ast::Literal::Nil.into()])
+                                .into(),
+                        )
+                    }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
