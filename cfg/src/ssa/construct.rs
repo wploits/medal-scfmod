@@ -1,7 +1,6 @@
 use std::iter;
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
-use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::{IndexMap, IndexSet};
 use itertools::{Either, Itertools};
 use petgraph::{
@@ -9,6 +8,7 @@ use petgraph::{
     visit::{Dfs, EdgeRef, Walker},
     Direction,
 };
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{function::Function, ssa::param_dependency_graph::ParamDependencyGraph};
 

@@ -1,13 +1,13 @@
-use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
+use std::{cell::RefCell, panic, rc::Rc};
 
 use cfg::{
     block::{BlockEdge, BranchType},
     ssa,
 };
 use either::Either;
-use rustc_hash::FxHashMap;
 use indexmap::IndexMap;
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
 use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
 use cfg::{
