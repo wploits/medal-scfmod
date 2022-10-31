@@ -202,13 +202,13 @@ impl<'a> Lifter<'a> {
 
         let mut top: Option<(ast::RValue, u8)> = None;
 
-        for (_index, instruction) in self.function_list[self.function].instructions
-            [block_start..=block_end]
+        let mut iter = self.function_list[self.function].instructions[block_start..=block_end]
             .iter()
-            .enumerate()
-        {
-            match instruction {
-                &Instruction::BC {
+            .enumerate();
+
+        while let Some((index, instruction)) = iter.next() {
+            match *instruction {
+                Instruction::BC {
                     op_code,
                     a,
                     b,
@@ -234,11 +234,24 @@ impl<'a> Lifter<'a> {
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
                     OpCode::LOP_LOADK => {
-                        let constant = self.constant(*d as _);
-                        let target = self.register(*a as _);
+                        let constant = self.constant(d as _);
+                        let target = self.register(a as _);
                         let statement =
                             ast::Assign::new(vec![target.into()], vec![constant.into()]);
                         statements.push(statement.into());
+                    }
+                    OpCode::LOP_GETIMPORT => {
+                        let target = self.register(a as _);
+                        let import_len = (aux >> 30) & 3;
+                        assert!(import_len == 1);
+                        let import_name = self
+                            .constant(((aux >> 20) & 1023) as usize)
+                            .into_string()
+                            .unwrap();
+                        let global = ast::Global::new(import_name);
+                        let assign = ast::Assign::new(vec![target.into()], vec![global.into()]);
+                        statements.push(assign.into());
+                        iter.next();
                     }
                     _ => unimplemented!("{:?}", instruction),
                 },
