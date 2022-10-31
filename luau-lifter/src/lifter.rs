@@ -263,6 +263,18 @@ impl<'a> Lifter<'a> {
                         );
                         iter.next();
                     }
+                    OpCode::LOP_GETTABLEN => {
+                        let value = self.register(a as _);
+                        let table = self.register(b as _);
+                        let key = ast::Literal::Number((c as usize + 1) as f64);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![value.into()],
+                                vec![ast::Index::new(table.into(), key.into()).into()],
+                            )
+                            .into(),
+                        );
+                    }
                     OpCode::LOP_SETTABLEKS => {
                         let value = self.register(a as _);
                         let table = self.register(b as _);
@@ -275,6 +287,18 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                         iter.next();
+                    }
+                    OpCode::LOP_SETTABLEN => {
+                        let value = self.register(a as _);
+                        let table = self.register(b as _);
+                        let key = ast::Literal::Number((c as usize + 1) as f64);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![ast::Index::new(table.into(), key.into()).into()],
+                                vec![value.into()],
+                            )
+                            .into(),
+                        );
                     }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
