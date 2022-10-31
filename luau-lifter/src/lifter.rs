@@ -352,6 +352,23 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                     }
+                    OpCode::LOP_NOT | OpCode::LOP_MINUS | OpCode::LOP_LENGTH => {
+                        let op = match op_code {
+                            OpCode::LOP_NOT => ast::UnaryOperation::Not,
+                            OpCode::LOP_MINUS => ast::UnaryOperation::Negate,
+                            OpCode::LOP_LENGTH => ast::UnaryOperation::Length,
+                            _ => unreachable!(),
+                        };
+                        let target = self.register(a as _);
+                        let value = self.register(b as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![target.into()],
+                                vec![ast::Unary::new(value.into(), op).into()],
+                            )
+                            .into(),
+                        );
+                    }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
