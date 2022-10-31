@@ -1,7 +1,5 @@
 use std::convert::TryFrom;
 
-
-
 use crate::op_code::OpCode;
 
 /*
@@ -113,7 +111,6 @@ pub enum Instruction {
 impl Instruction {
     pub fn parse(insn: u32) -> Result<Instruction, nom::error::ErrorKind> {
         let op_code = (insn & 0xFF) as u8;
-
         match op_code {
             0
             | 1
@@ -140,7 +137,7 @@ impl Instruction {
                     aux: 0,
                 })
             }
-            4 | 5 | 12 | 19 | 23..=32 | 54 | 56..=62 | 64 | 71 | 72 | 76 => {
+            4 | 5 | 12 | 19 | 23..=32 | 54 | 56..=62 | 64 | 71 | 72 | 76..=80 => {
                 let (a, d) = Self::parse_ad(insn);
 
                 Ok(Self::AD {
@@ -178,8 +175,6 @@ impl Instruction {
     }
 
     fn parse_e(insn: u32) -> i32 {
-        let d = ((insn >> 8) & 0xFFFFFF) as i32;
-
-        d
+        ((insn >> 8) & 0xFFFFFF) as i32
     }
 }

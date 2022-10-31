@@ -147,8 +147,10 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_JUMPIFNOTEQ
                     | OpCode::LOP_JUMPIFNOTLE
                     | OpCode::LOP_JUMPIFNOTLT
-                    | OpCode::LOP_JUMPIFEQK
-                    | OpCode::LOP_JUMPIFNOTEQK => {
+                    | OpCode::LOP_JUMPXEQKNIL
+                    | OpCode::LOP_JUMPXEQKB
+                    | OpCode::LOP_JUMPXEQKN
+                    | OpCode::LOP_JUMPXEQKS => {
                         self.blocks
                             .entry(insn_index + 2)
                             .or_insert_with(|| self.lifted_function.new_block());
@@ -242,7 +244,13 @@ impl<'a> Lifter<'a> {
                                 vec![ast::Literal::Boolean(b != 0).into()],
                             )
                             .into(),
-                        )
+                        );
+                        if c != 0 {
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Unconditional),
+                            ));
+                        }
                     }
                     OpCode::LOP_SETGLOBAL => {
                         let value = self.register(a as _);
@@ -626,6 +634,132 @@ impl<'a> Lifter<'a> {
                             BlockEdge::new(BranchType::Unconditional),
                         ));
                     }
+                    OpCode::LOP_JUMPXEQKNIL => {
+                        let a = self.register(a as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    ast::Literal::Nil.into(),
+                                    ast::BinaryOperation::Equal,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        if aux & (1 << 31) != 0 {
+                            edges.push((
+                                self.block_to_node(
+                                    ((block_start + index + 1) as isize + d as isize) as usize,
+                                ),
+                                BlockEdge::new(BranchType::Else),
+                            ));
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Then),
+                            ));
+                        } else {
+                            edges.push((
+                                self.block_to_node(
+                                    ((block_start + index + 1) as isize + d as isize) as usize,
+                                ),
+                                BlockEdge::new(BranchType::Then),
+                            ));
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Else),
+                            ));
+                        }
+                        iter.next();
+                    }
+                    OpCode::LOP_JUMPXEQKB => {
+                        let a = self.register(a as _);
+                        let literal = if aux & 1 != 0 {
+                            ast::Literal::Boolean(true)
+                        } else {
+                            ast::Literal::Boolean(false)
+                        };
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    literal.into(),
+                                    ast::BinaryOperation::Equal,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        if aux & (1 << 31) != 0 {
+                            edges.push((
+                                self.block_to_node(
+                                    ((block_start + index + 1) as isize + d as isize) as usize,
+                                ),
+                                BlockEdge::new(BranchType::Else),
+                            ));
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Then),
+                            ));
+                        } else {
+                            edges.push((
+                                self.block_to_node(
+                                    ((block_start + index + 1) as isize + d as isize) as usize,
+                                ),
+                                BlockEdge::new(BranchType::Then),
+                            ));
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Else),
+                            ));
+                        }
+                        iter.next();
+                    }
+                    OpCode::LOP_JUMPXEQKN | OpCode::LOP_JUMPXEQKS => {
+                        let a = self.register(a as _);
+                        let literal = self.constant((aux & ((1 << 24) - 1)) as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    literal.into(),
+                                    ast::BinaryOperation::Equal,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        if aux & (1 << 31) != 0 {
+                            edges.push((
+                                self.block_to_node(
+                                    ((block_start + index + 1) as isize + d as isize) as usize,
+                                ),
+                                BlockEdge::new(BranchType::Else),
+                            ));
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Then),
+                            ));
+                        } else {
+                            edges.push((
+                                self.block_to_node(
+                                    ((block_start + index + 1) as isize + d as isize) as usize,
+                                ),
+                                BlockEdge::new(BranchType::Then),
+                            ));
+                            edges.push((
+                                self.block_to_node(block_start + index + 2),
+                                BlockEdge::new(BranchType::Else),
+                            ));
+                        }
+                        iter.next();
+                    }
                     _ => unimplemented!("{:?}", instruction),
                 },
                 _ => unimplemented!("{:?}", instruction),
@@ -682,29 +816,33 @@ impl<'a> Lifter<'a> {
                 OpCode::LOP_LOADB if c != 0 => true,
                 _ => false,
             },
-            Instruction::AD { op_code, .. } => match op_code {
+            Instruction::AD { op_code, .. } => matches!(
+                op_code,
                 OpCode::LOP_JUMP
-                | OpCode::LOP_JUMPBACK
-                | OpCode::LOP_JUMPIF
-                | OpCode::LOP_JUMPIFNOT
-                | OpCode::LOP_JUMPIFEQ
-                | OpCode::LOP_JUMPIFLE
-                | OpCode::LOP_JUMPIFLT
-                | OpCode::LOP_JUMPIFNOTEQ
-                | OpCode::LOP_JUMPIFNOTLE
-                | OpCode::LOP_JUMPIFNOTLT
-                | OpCode::LOP_JUMPIFEQK
-                | OpCode::LOP_JUMPIFNOTEQK => true,
-                OpCode::LOP_FORNPREP
-                | OpCode::LOP_FORNLOOP
-                | OpCode::LOP_FORGPREP
-                | OpCode::LOP_FORGLOOP
-                | OpCode::LOP_FORGPREP_INEXT
-                | OpCode::LOP_FORGLOOP_INEXT
-                | OpCode::LOP_FORGPREP_NEXT
-                | OpCode::LOP_FORGLOOP_NEXT => true,
-                _ => false,
-            },
+                    | OpCode::LOP_JUMPBACK
+                    | OpCode::LOP_JUMPIF
+                    | OpCode::LOP_JUMPIFNOT
+                    | OpCode::LOP_JUMPIFEQ
+                    | OpCode::LOP_JUMPIFLE
+                    | OpCode::LOP_JUMPIFLT
+                    | OpCode::LOP_JUMPIFNOTEQ
+                    | OpCode::LOP_JUMPIFNOTLE
+                    | OpCode::LOP_JUMPIFNOTLT
+                    | OpCode::LOP_JUMPIFEQK
+                    | OpCode::LOP_JUMPIFNOTEQK
+                    | OpCode::LOP_JUMPXEQKNIL
+                    | OpCode::LOP_JUMPXEQKB
+                    | OpCode::LOP_JUMPXEQKN
+                    | OpCode::LOP_JUMPXEQKS
+                    | OpCode::LOP_FORNPREP
+                    | OpCode::LOP_FORNLOOP
+                    | OpCode::LOP_FORGPREP
+                    | OpCode::LOP_FORGLOOP
+                    | OpCode::LOP_FORGPREP_INEXT
+                    | OpCode::LOP_FORGLOOP_INEXT
+                    | OpCode::LOP_FORGPREP_NEXT
+                    | OpCode::LOP_FORGLOOP_NEXT
+            ),
             Instruction::E { op_code, .. } => matches!(op_code, OpCode::LOP_JUMPX),
         }
     }
