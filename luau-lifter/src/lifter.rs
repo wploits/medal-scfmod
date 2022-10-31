@@ -263,6 +263,19 @@ impl<'a> Lifter<'a> {
                         );
                         iter.next();
                     }
+                    OpCode::LOP_SETTABLEKS => {
+                        let value = self.register(a as _);
+                        let table = self.register(b as _);
+                        let key = self.constant(aux as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![ast::Index::new(table.into(), key.into()).into()],
+                                vec![value.into()],
+                            )
+                            .into(),
+                        );
+                        iter.next();
+                    }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
