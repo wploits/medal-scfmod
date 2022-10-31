@@ -300,6 +300,32 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                     }
+                    OpCode::LOP_ADD
+                    | OpCode::LOP_SUB
+                    | OpCode::LOP_MUL
+                    | OpCode::LOP_DIV
+                    | OpCode::LOP_MOD
+                    | OpCode::LOP_POW => {
+                        let op = match op_code {
+                            OpCode::LOP_ADD => ast::BinaryOperation::Add,
+                            OpCode::LOP_SUB => ast::BinaryOperation::Sub,
+                            OpCode::LOP_MUL => ast::BinaryOperation::Mul,
+                            OpCode::LOP_DIV => ast::BinaryOperation::Div,
+                            OpCode::LOP_MOD => ast::BinaryOperation::Mod,
+                            OpCode::LOP_POW => ast::BinaryOperation::Pow,
+                            _ => unreachable!(),
+                        };
+                        let target = self.register(a as _);
+                        let left = self.register(b as _);
+                        let right = self.register(c as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![target.into()],
+                                vec![ast::Binary::new(left.into(), right.into(), op).into()],
+                            )
+                            .into(),
+                        );
+                    }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
