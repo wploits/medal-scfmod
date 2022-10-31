@@ -364,6 +364,25 @@ impl<'a> Lifter<'a> {
                         ));
                         statements.push(statement.into());
                     }
+                    OpCode::LOP_JUMPIF => {
+                        let condition = self.register(a as _);
+                        let statement = ast::If::new(
+                            condition.into(),
+                            ast::Block::default(),
+                            ast::Block::default(),
+                        );
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(block_start + index + 1),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        statements.push(statement.into());
+                    }
                     _ => unimplemented!("{:?}", instruction),
                 },
                 _ => unimplemented!("{:?}", instruction),
