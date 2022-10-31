@@ -257,6 +257,14 @@ impl<'a> Lifter<'a> {
                             ast::Assign::new(vec![target.into()], vec![constant.into()]);
                         statements.push(statement.into());
                     }
+                    OpCode::LOP_LOADN => {
+                        let target = self.register(a as _);
+                        let statement = ast::Assign::new(
+                            vec![target.into()],
+                            vec![ast::Literal::Number(d as _).into()],
+                        );
+                        statements.push(statement.into());
+                    }
                     OpCode::LOP_GETIMPORT => {
                         let target = self.register(a as _);
                         let import_len = (aux >> 30) & 3;
