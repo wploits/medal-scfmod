@@ -452,6 +452,14 @@ impl<'a> Lifter<'a> {
                         ));
                         statements.push(statement.into());
                     }
+                    OpCode::LOP_JUMPBACK => {
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Unconditional),
+                        ));
+                    }
                     _ => unimplemented!("{:?}", instruction),
                 },
                 _ => unimplemented!("{:?}", instruction),
