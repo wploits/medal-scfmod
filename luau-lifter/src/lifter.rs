@@ -389,6 +389,15 @@ impl<'a> Lifter<'a> {
             }
         }
 
+        if edges.is_empty()
+            && !Self::is_terminator(self.function_list[self.function].instructions[block_end])
+        {
+            edges.push((
+                self.block_to_node(block_end + 1),
+                BlockEdge::new(BranchType::Unconditional),
+            ));
+        }
+
         (statements, edges)
     }
 
