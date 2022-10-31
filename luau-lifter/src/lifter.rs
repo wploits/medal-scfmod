@@ -482,6 +482,142 @@ impl<'a> Lifter<'a> {
                         ));
                         iter.next();
                     }
+                    OpCode::LOP_JUMPIFNOTLE => {
+                        let a = self.register(a as _);
+                        let aux = self.register(aux as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    aux.into(),
+                                    ast::BinaryOperation::LessThanOrEqual,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        edges.push((
+                            self.block_to_node(block_start + index + 2),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        iter.next();
+                    }
+                    OpCode::LOP_JUMPIFNOTLT => {
+                        let a = self.register(a as _);
+                        let aux = self.register(aux as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    aux.into(),
+                                    ast::BinaryOperation::LessThan,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        edges.push((
+                            self.block_to_node(block_start + index + 2),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        iter.next();
+                    }
+                    OpCode::LOP_JUMPIFEQ => {
+                        let a = self.register(a as _);
+                        let aux = self.register(aux as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(a.into(), aux.into(), ast::BinaryOperation::Equal)
+                                    .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(block_start + index + 2),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        iter.next();
+                    }
+                    OpCode::LOP_JUMPIFLE => {
+                        let a = self.register(a as _);
+                        let aux = self.register(aux as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    aux.into(),
+                                    ast::BinaryOperation::LessThanOrEqual,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(block_start + index + 2),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        iter.next();
+                    }
+                    OpCode::LOP_JUMPIFLT => {
+                        let a = self.register(a as _);
+                        let aux = self.register(aux as _);
+                        statements.push(
+                            ast::If::new(
+                                ast::Binary::new(
+                                    a.into(),
+                                    aux.into(),
+                                    ast::BinaryOperation::LessThan,
+                                )
+                                .into(),
+                                ast::Block::default(),
+                                ast::Block::default(),
+                            )
+                            .into(),
+                        );
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(block_start + index + 2),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        iter.next();
+                    }
                     OpCode::LOP_JUMPBACK => {
                         edges.push((
                             self.block_to_node(
