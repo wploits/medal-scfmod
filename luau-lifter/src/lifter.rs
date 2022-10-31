@@ -223,6 +223,7 @@ impl<'a> Lifter<'a> {
                                 .into(),
                         )
                     }
+
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
                             (a..a + (b - 1) as u8)
