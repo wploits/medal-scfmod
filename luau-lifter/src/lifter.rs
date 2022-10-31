@@ -96,6 +96,8 @@ impl<'a> Lifter<'a> {
                 .block_mut(self.current_node.unwrap())
                 .unwrap();
             block.0.extend(statements);
+            self.lifted_function
+                .set_edges(self.current_node.unwrap(), edges);
         }
 
         self.lifted_function.set_entry(self.block_to_node(0));
