@@ -1,7 +1,4 @@
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 
@@ -16,7 +13,10 @@ use super::{
     op_code::OpCode,
 };
 use ast;
-use cfg::function::Function;
+use cfg::{
+    block::{BlockEdge, BranchType},
+    function::Function,
+};
 
 pub struct Lifter<'a> {
     function: usize,
@@ -90,7 +90,7 @@ impl<'a> Lifter<'a> {
 
         for (start_pc, end_pc) in block_ranges {
             self.current_node = Some(self.block_to_node(start_pc));
-            let statements = self.lift_block(start_pc, end_pc);
+            let (statements, edges) = self.lift_block(start_pc, end_pc);
             let block = self
                 .lifted_function
                 .block_mut(self.current_node.unwrap())
@@ -120,7 +120,12 @@ impl<'a> Lifter<'a> {
                     _ => {}
                 },
 
-                Instruction::AD { op_code, a: _, d, aux: _ } => match op_code {
+                Instruction::AD {
+                    op_code,
+                    a: _,
+                    d,
+                    aux: _,
+                } => match op_code {
                     OpCode::LOP_JUMP | OpCode::LOP_JUMPBACK => {
                         self.blocks
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
@@ -185,16 +190,61 @@ impl<'a> Lifter<'a> {
         Ok(())
     }
 
-    fn lift_block(&mut self, block_start: usize, block_end: usize) -> Vec<ast::Statement> {
-        let statements = Vec::new();
+    fn lift_block(
+        &mut self,
+        block_start: usize,
+        block_end: usize,
+    ) -> (Vec<ast::Statement>, Vec<(NodeIndex, BlockEdge)>) {
+        let mut statements = Vec::new();
+        let edges = Vec::new();
 
-        for (_index, _instruction) in self.function_list[self.function].instructions
+        let mut top: Option<(ast::RValue, u8)> = None;
+
+        for (_index, instruction) in self.function_list[self.function].instructions
             [block_start..=block_end]
             .iter()
             .enumerate()
-        {}
+        {
+            match instruction {
+                &Instruction::BC {
+                    op_code,
+                    a,
+                    b,
+                    c,
+                    aux,
+                } => match op_code {
+                    OpCode::LOP_PREPVARARGS => {}
+                    OpCode::LOP_RETURN => {
+                        let values = if b != 0 {
+                            (a..a + (b - 1) as u8)
+                                .map(|r| self.register(r as _).into())
+                                .collect()
+                        } else {
+                            let (tail, end) = top.take().unwrap();
+                            (a..end)
+                                .map(|r| self.register(r as _).into())
+                                .chain(std::iter::once(tail))
+                                .collect()
+                        };
+                        statements.push(ast::Return::new(values).into());
+                    }
+                    _ => unimplemented!("{:?}", instruction),
+                },
+                Instruction::AD { op_code, a, d, aux } => match op_code {
+                    OpCode::LOP_LOADK => {
+                        let constant = self.constant(*d as _);
+                        let target = self.register(*a as _);
+                        let statement =
+                            ast::Assign::new(vec![target.into()], vec![constant.into()]);
+                        statements.push(statement.into());
+                    }
+                    _ => unimplemented!("{:?}", instruction),
+                },
+                _ => unimplemented!("{:?}", instruction),
+            }
+        }
 
-        statements
+        (statements, edges)
     }
 
     fn register(&mut self, index: usize) -> ast::RcLocal {
