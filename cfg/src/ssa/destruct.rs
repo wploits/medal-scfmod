@@ -1,7 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use ast::{LocalRw, RcLocal};
-use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{
@@ -11,6 +10,7 @@ use petgraph::{
     visit::{Dfs, DfsPostOrder, EdgeRef},
     Direction,
 };
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     block::{BlockEdge, BranchType},

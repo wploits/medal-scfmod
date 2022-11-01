@@ -1,12 +1,12 @@
 use ast::{local_allocator::LocalAllocator, LocalRw, RcLocal};
 use contracts::requires;
-use rustc_hash::FxHashMap;
 use itertools::Itertools;
 use petgraph::{
     stable_graph::{EdgeReference, Neighbors, NodeIndex, StableDiGraph},
     visit::{EdgeRef, IntoEdgesDirected},
     Direction,
 };
+use rustc_hash::FxHashMap;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::block::{BlockEdge, BranchType};
@@ -64,7 +64,7 @@ impl Function {
     //                 et source_block = &mut self.block_mut(block).unwrap().ast;
     //                 let condition = source_block.pop().unwrap().into_if().unwrap().condition;
     //                 if condition.has_side_effects() {
-    //                     let local = self.local_allocator.borrow_mut().allocate();
+    //                     let local = self.local_allocator.borrow_mut().borrow_mut().allocate();
     //                     self.block_mut(block)
     //                         .unwrap()
     //                         .ast

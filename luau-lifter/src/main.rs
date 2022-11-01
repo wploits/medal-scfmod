@@ -7,7 +7,7 @@ use lifter::Lifter;
 
 //use cfg_ir::{dot, function::Function, ssa};
 use clap::Parser;
-use std::{fs::File, io::Read, rc::Rc, time};
+use std::{fs::File, io::Read, time};
 
 use deserializer::bytecode::Bytecode;
 
@@ -31,21 +31,19 @@ fn main() -> anyhow::Result<()> {
     println!("parsing: {:?}", parsed);
 
     match chunk {
-        Bytecode::Error(msg) => {
+        Bytecode::Error(_msg) => {
             println!("code did not compile");
         }
         Bytecode::Chunk(chunk) => {
             let now = time::Instant::now();
-            let mut lifter = Lifter::new(
-                &chunk.functions,
-                &chunk.string_table,
-                chunk.main
-            );
+            let lifter = Lifter::new(&chunk.functions, &chunk.string_table, chunk.main);
             let main = lifter.lift_function()?;
             let lifted = now.elapsed();
             println!("lifting: {:?}", lifted);
-            println!("{}", main.block(main.entry().unwrap()).unwrap().block);
-            
+
+            let result = restructure::lift(main);
+            println!("{}", result);
+
             /*process_function(&mut main)?;
             for function in descendants.into_iter() {
                 process_function(&mut function.borrow_mut())?;

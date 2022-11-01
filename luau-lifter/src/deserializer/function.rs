@@ -77,7 +77,11 @@ impl Function {
                 | OpCode::LOP_JUMPIFEQK
                 | OpCode::LOP_JUMPIFNOTEQK
                 | OpCode::LOP_FASTCALL2
-                | OpCode::LOP_FASTCALL2K => {
+                | OpCode::LOP_FASTCALL2K
+                | OpCode::LOP_JUMPXEQKNIL
+                | OpCode::LOP_JUMPXEQKB
+                | OpCode::LOP_JUMPXEQKN
+                | OpCode::LOP_JUMPXEQKS => {
                     let aux = vec[pc + 1];
                     pc += 2;
                     match ins {

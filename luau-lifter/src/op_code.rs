@@ -330,4 +330,18 @@ pub enum OpCode {
     // A: target register; generic for loops assume a register layout [generator, state, index, variables...]
     // D: jump offset (-32768..32767)
     LOP_FORGPREP,
+
+    // JUMPXEQKNIL, JUMPXEQKB: jumps to target offset if the comparison with constant is true (or false, see AUX)
+    // A: source register 1
+    // D: jump offset (-32768..32767; 0 means "next instruction" aka "don't jump")
+    // AUX: constant value (for boolean) in low bit, NOT flag (that flips comparison result) in high bit
+    LOP_JUMPXEQKNIL,
+    LOP_JUMPXEQKB,
+
+    // JUMPXEQKN, JUMPXEQKS: jumps to target offset if the comparison with constant is true (or false, see AUX)
+    // A: source register 1
+    // D: jump offset (-32768..32767; 0 means "next instruction" aka "don't jump")
+    // AUX: constant table index in low 24 bits, NOT flag (that flips comparison result) in high bit
+    LOP_JUMPXEQKN,
+    LOP_JUMPXEQKS,
 }

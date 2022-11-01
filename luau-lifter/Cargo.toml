@@ -1,6 +1,7 @@
 [package]
 name = "luau-lifter"
 version = "0.1.0"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,8 +12,9 @@ nom-leb128 = "0.2.0"
 clap = { version = "3.1.0", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
 cfg = { path = "../cfg" }
-graph = { path = "../graph", features = ["dot"] }
 ast = { path = "../ast" }
-mlua = { version = "0.8.0-beta.3", features = ["luau"] }
-rustc_hash = "0.2.1"
+mlua = { version = "0.8.5", features = ["luau"] }
+rustc-hash = "1.1.0"
 either = "1.6.1"
+petgraph = { git = "https://github.com/jujhar16/petgraph.git", branch = "ensure_len_resize_with" }
+restructure = { path = "../restructure" }

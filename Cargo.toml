@@ -4,7 +4,7 @@ members = [
     "ast",
     "lua51-lifter",
     "lua51-deserializer",
-    #"luau-lifter",
+    "luau-lifter",
     "restructure",
     "pattern",
 ]
