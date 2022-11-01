@@ -202,8 +202,10 @@ impl GraphStructurer {
                             .iter_mut()
                             .enumerate()
                             .rev()
-                            .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some())
-                            .and_then(|(i, s)| s.as_num_for_init_mut().map(|_| (p, i)))
+                            // TODO: REFACTOR: this is confusing
+                            .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some() || s.as_generic_for_init().is_some())
+                            .and_then(|(i, s)| 
+                                if s.as_num_for_init().is_some() || s.as_generic_for_init().is_some() { Some((p, i)) } else {None})
                     });
                     let (init_block, init_index) = init_blocks.exactly_one().unwrap();
 
