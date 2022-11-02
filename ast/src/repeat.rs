@@ -1,6 +1,7 @@
 use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
 use std::fmt;
 
+// TODO: move condition after block
 #[derive(Debug, PartialEq, Clone)]
 pub struct Repeat {
     pub condition: RValue,

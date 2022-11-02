@@ -11,6 +11,8 @@ itertools = "0.10.5"
 enum_dispatch = "0.3.8"
 by_address = "2.1.0"
 rustc-hash = "1.1.0"
+indexmap = "1.9.1"
+
 
 [features]
 no_local_debug = []

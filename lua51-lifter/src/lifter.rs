@@ -10,7 +10,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
-use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement};
+use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement, local_declarations::declare_locals};
 use cfg::{
     function::Function,
     ssa::structuring::{
@@ -1072,7 +1072,9 @@ impl<'a> LifterContext<'a> {
             .destruct();
 
             let params = std::mem::take(&mut function.parameters);
-            (restructure::lift(function), params, upvalues_in)
+            let mut block = restructure::lift(function);
+            declare_locals(&mut block, &upvalues_in.iter().chain(params.iter()).cloned().collect());
+            (block, params, upvalues_in)
         };
 
         match () {

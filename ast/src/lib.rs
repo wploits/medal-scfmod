@@ -41,6 +41,7 @@ pub mod type_system;
 mod unary;
 mod vararg;
 mod r#while;
+pub mod local_declarations;
 
 pub use assign::*;
 pub use binary::*;

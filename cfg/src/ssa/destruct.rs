@@ -113,25 +113,25 @@ impl<'a> Destructor<'a> {
 
         self.sequentialize();
 
-        let liveness = Liveness::new(self.function, false);
+        // let liveness = Liveness::new(self.function, false);
 
-        let mut local_nodes = FxHashMap::<_, FxHashSet<_>>::default();
-        for (node, liveness) in liveness.block_liveness {
-            for local in liveness.uses {
-                local_nodes.entry(local).or_default().insert(node);
-            }
+        // let mut local_nodes = FxHashMap::<_, FxHashSet<_>>::default();
+        // for (node, liveness) in liveness.block_liveness {
+        //     for local in liveness.uses {
+        //         local_nodes.entry(local).or_default().insert(node);
+        //     }
 
-            for local in liveness.defs {
-                local_nodes.entry(local).or_default().insert(node);
-            }
-        }
+        //     for local in liveness.defs {
+        //         local_nodes.entry(local).or_default().insert(node);
+        //     }
+        // }
 
-        local_declarations::declare_locals(
-            self.function,
-            &self.upvalues_in,
-            local_nodes,
-            &self.dominators.unwrap(),
-        );
+        // local_declarations::declare_locals(
+        //     self.function,
+        //     &self.upvalues_in,
+        //     local_nodes,
+        //     &self.dominators.unwrap(),
+        // );
 
         // let liveness = Liveness::new(self.function);
         // let mut interference_graph = InterferenceGraph::new(self.function, &liveness, self.local_count);

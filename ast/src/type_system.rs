@@ -171,13 +171,8 @@ impl<'a> TypeSystem<'a> {
                     }
                 }*/
                 Statement::If(r#if) => {
-                    if !r#if.then_block.is_empty() {
-                        self.analyze_block(&mut r#if.then_block);
-                    }
-
-                    if !r#if.else_block.is_empty() {
-                        self.analyze_block(&mut r#if.else_block);
-                    }
+                    self.analyze_block(&mut r#if.then_block);
+                    self.analyze_block(&mut r#if.else_block);
                 }
                 // TODO: repeat and for loops
                 Statement::While(r#while) => {

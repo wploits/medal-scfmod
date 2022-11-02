@@ -268,13 +268,8 @@ impl GraphStructurer {
                                 gotos.insert(goto.0.clone());
                             }
                             ast::Statement::If(r#if) => {
-                                if !r#if.then_block.is_empty() {
-                                    collect_gotos(&r#if.then_block, gotos);
-                                }
-
-                                if !r#if.else_block.is_empty() {
-                                    collect_gotos(&r#if.else_block, gotos);
-                                }
+                                collect_gotos(&r#if.then_block, gotos);
+                                collect_gotos(&r#if.else_block, gotos);
                             }
                             ast::Statement::While(r#while) => {
                                 collect_gotos(&r#while.block, gotos);

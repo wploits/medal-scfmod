@@ -48,13 +48,8 @@ impl Namer {
                     }
                 }
                 Statement::If(r#if) => {
-                    if !r#if.then_block.is_empty() {
-                        self.name_locals(&mut r#if.then_block);
-                    }
-
-                    if !r#if.else_block.is_empty() {
-                        self.name_locals(&mut r#if.else_block);
-                    }
+                    self.name_locals(&mut r#if.then_block);
+                    self.name_locals(&mut r#if.else_block);
                 }
                 Statement::While(r#while) => {
                     self.name_locals(&mut r#while.block);
@@ -89,13 +84,8 @@ impl Namer {
             });
             match statement {
                 Statement::If(r#if) => {
-                    if !r#if.then_block.is_empty() {
-                        self.find_upvalues(&mut r#if.then_block);
-                    }
-
-                    if !r#if.else_block.is_empty() {
-                        self.find_upvalues(&mut r#if.else_block);
-                    }
+                    self.find_upvalues(&mut r#if.then_block);
+                    self.find_upvalues(&mut r#if.else_block);
                 }
                 Statement::While(r#while) => {
                     self.find_upvalues(&mut r#while.block);
