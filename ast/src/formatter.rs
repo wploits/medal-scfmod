@@ -449,7 +449,11 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_lvalue(lvalue)?;
         }
 
-        write!(self.output, " = ")?;
+        if !assign.right.is_empty() {
+            write!(self.output, " = ")?;
+        } else {
+            assert!(assign.prefix);
+        }
 
         // TODO: REFACTOR: move to format_rvalue_list function
         for (i, rvalue) in assign.right.iter().enumerate() {
