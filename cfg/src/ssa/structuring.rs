@@ -416,98 +416,84 @@ fn match_for_next(
     }
 }
 
-/*
-TODO: fix
-
-function getLongestEntry(tab)
-    local longest = 0
-    for i,v in pairs(tab) do
-        if string.len(v) > longest then
-            longest = string.len(v)
-        end
-    end
-    return longest
-end
-*/
 pub fn structure_for_loops(
     function: &mut Function,
     dominators: &Dominators<NodeIndex>,
     post_dominators: &Dominators<NodeIndex>,
 ) -> bool {
-    false
-    // let mut did_structure = false;
-    // for node in function.graph().node_indices().collect_vec() {
-    //     if let Some(pattern) = match_for_next(function, post_dominators, node) {
-    //         let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
-    //             !dominators
-    //                 .dominators(n)
-    //                 .unwrap()
-    //                 .contains(&pattern.body_node)
-    //         });
-    //         let init_node = init_blocks.next().unwrap();
-    //         assert!(init_blocks.next().is_none());
-    //         assert!(function.successor_blocks(init_node).count() == 1);
+    let mut did_structure = false;
+    for node in function.graph().node_indices().collect_vec() {
+        if let Some(pattern) = match_for_next(function, post_dominators, node) {
+            let mut init_blocks = function.predecessor_blocks(node).filter(|&n| {
+                !dominators
+                    .dominators(n)
+                    .unwrap()
+                    .contains(&pattern.body_node)
+            });
+            let init_node = init_blocks.next().unwrap();
+            assert!(init_blocks.next().is_none());
+            assert!(function.successor_blocks(init_node).count() == 1);
 
-    //         let edges = function
-    //             .graph()
-    //             .edges_directed(node, Direction::Incoming)
-    //             .collect::<Vec<_>>();
-    //         let params = edges[0]
-    //             .weight()
-    //             .arguments
-    //             .iter()
-    //             .map(|(p, _)| p.clone())
-    //             .collect::<Vec<_>>();
+            let edges = function
+                .graph()
+                .edges_directed(node, Direction::Incoming)
+                .collect::<Vec<_>>();
+            let params = edges[0]
+                .weight()
+                .arguments
+                .iter()
+                .map(|(p, _)| p.clone())
+                .collect::<Vec<_>>();
 
-    //         // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
-    //         let mut generator_locals = pattern
-    //             .generator
-    //             .values_read()
-    //             .into_iter()
-    //             .filter(|l| !params.contains(l));
-    //         if let Some(generator_local) = generator_locals.next()
-    //             && generator_locals.next().is_none()
-    //         {
-    //             let generator_local = generator_local.clone();
+            // TODO: this is a weird way to do it, should have stuff specifically for Luau and Lua 5.1 maybe?
+            let mut generator_locals = pattern
+                .generator
+                .values_read()
+                .into_iter()
+                .filter(|l| !params.contains(l));
+            if let Some(generator_local) = generator_locals.next()
+                && generator_locals.next().is_none()
+            {
+                let generator_local = generator_local.clone();
 
-    //             if params.contains(&pattern.internal_control) {
-    //                 let mut invalid_for = false;
-    //                 for edge in edges.iter().filter(|p| p.source() != init_node) {
-    //                     if edge.weight().arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.as_local().unwrap()
-    //                         != &pattern.res_locals[0] {
-    //                             invalid_for = true;
-    //                             break;
-    //                         }
-    //                 }
-    //                 if !invalid_for {
-    //                     let initial_control = function.unconditional_edge(init_node).unwrap().weight().arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.as_local().unwrap().clone();
-    //                     let edges = edges.into_iter().map(|e| e.id()).collect::<Vec<_>>();
-    //                     for edge in edges {
-    //                         function.graph_mut().edge_weight_mut(edge).unwrap().arguments.clear();
-    //                     }
+                if params.contains(&pattern.internal_control) {
+                    let mut invalid_for = false;
+                    for edge in edges.iter().filter(|p| p.source() != init_node) {
+                        if edge.weight().arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.as_local().unwrap()
+                            != &pattern.res_locals[0] {
+                                invalid_for = true;
+                                break;
+                            }
+                    }
+                    if !invalid_for {
+                        let initial_control = function.unconditional_edge(init_node).unwrap().weight().arguments.iter().find(|(p, _)| p == &pattern.internal_control).unwrap().1.as_local().unwrap().clone();
+                        let edges = edges.into_iter().map(|e| e.id()).collect::<Vec<_>>();
+                        for edge in edges {
+                            function.graph_mut().edge_weight_mut(edge).unwrap().arguments.retain(|(p, _)| p != &pattern.internal_control);
+                        }
 
-    //                     let block = function.block_mut(node).unwrap();
-    //                     let len = block.len();
-    //                     block.truncate(len - 2);
-    //                     block.push(
-    //                         ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
-    //                     );
+                        let block = function.block_mut(node).unwrap();
+                        let len = block.len();
+                        block.truncate(len - 2);
+                        block.push(
+                            ast::GenericForNext::new(pattern.res_locals, pattern.generator, pattern.state.clone()).into()
+                        );
 
-    //                     function.block_mut(init_node).unwrap().push(
-    //                         ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
-    //                             .into(),
-    //                     );
-    //                     did_structure = true;
-    //                 }
-    //             } else {
-    //                 // TODO: initial_control is nil,
-    //                 // there is only a single control variable
-    //                 todo!();
-    //             }
-    //         }
-    //     }
-    // }
-    // did_structure
+                        function.block_mut(init_node).unwrap().push(
+                            ast::GenericForInit::new(generator_local.clone(), pattern.state, initial_control)
+                                .into(),
+                        );
+                        did_structure = true;
+                    }
+                } else {
+                    // TODO: initial_control is nil,
+                    // there is only a single control variable
+                    todo!();
+                }
+            }
+        }
+    }
+    did_structure
 }
 
 fn match_method_call(call: &ast::Call) -> Option<(&ast::RValue, &str)> {
