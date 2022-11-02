@@ -2,7 +2,7 @@ use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
 use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
-use itertools::Either;
+use itertools::{Either, Itertools};
 
 fn inline_rvalue(
     statement: &mut ast::Statement,
@@ -159,56 +159,55 @@ fn inline_rvalues(
                 }
 
                 if let ast::Statement::Assign(assign) = &block[stat_index]
-                    && assign.left.len() == 1
-                    && assign.right.len() == 1
-                    && let ast::LValue::Local(local) = &assign.left[0]
+                    && let Ok(new_rvalue) = assign.right.iter().exactly_one()
                 {
-                    let new_rvalue = &assign.right[0];
-
                     let new_rvalue_has_side_effects = new_rvalue.has_side_effects();
-                    let local = local.clone();
-                    for read_opt in stat_to_values_read[index]
-                        .iter_mut()
-                        .filter(|l| l.is_some())
-                    {
-                        // TODO: REFACTOR: filter?
-                        let read = read_opt.as_ref().unwrap();
-                        if read != &local {
-                            continue;
-                        };
-
-                        if !new_rvalue_has_side_effects || allow_side_effects {
-                            let mut new_rvalue = Some(
-                                block[stat_index]
-                                    .as_assign_mut()
-                                    .unwrap()
-                                    .right
-                                    .pop()
-                                    .unwrap(),
-                            );
-                            if inline_rvalue(
-                                &mut block[index],
-                                read,
-                                &mut new_rvalue,
-                                new_rvalue_has_side_effects,
-                            ) {
-                                assert!(new_rvalue.is_none());
-                                // TODO: PERF: remove local_usages[l] == 1 in stat_to_values_read and use that
-                                for local in block[stat_index].values_read() {
-                                    let local_usage_count = local_usages.get_mut(local).unwrap();
-                                    *local_usage_count = local_usage_count.saturating_sub(1);
+                    if !new_rvalue_has_side_effects || allow_side_effects {
+                        if let Ok(ast::LValue::Local(local)) = &assign.left.iter().exactly_one()
+                        {
+                            let local = local.clone();
+                            for read_opt in stat_to_values_read[index]
+                                .iter_mut()
+                                .filter(|l| l.is_some())
+                            {
+                                // TODO: REFACTOR: filter or find?
+                                let read = read_opt.as_ref().unwrap();
+                                if read != &local {
+                                    continue;
+                                };
+        
+                                let mut new_rvalue = Some(
+                                    block[stat_index]
+                                        .as_assign_mut()
+                                        .unwrap()
+                                        .right
+                                        .pop()
+                                        .unwrap(),
+                                );
+                                if inline_rvalue(
+                                    &mut block[index],
+                                    read,
+                                    &mut new_rvalue,
+                                    new_rvalue_has_side_effects,
+                                ) {
+                                    assert!(new_rvalue.is_none());
+                                    // TODO: PERF: remove local_usages[l] == 1 in stat_to_values_read and use that
+                                    for local in block[stat_index].values_read() {
+                                        let local_usage_count = local_usages.get_mut(local).unwrap();
+                                        *local_usage_count = local_usage_count.saturating_sub(1);
+                                    }
+                                    // we dont need to update local usages because tracking usages for a local
+                                    // with no declarations serves no purpose
+                                    block[stat_index] = ast::Empty {}.into();
+                                    *read_opt = None;
+                                    continue 'w;
+                                } else {
+                                    block[stat_index]
+                                        .as_assign_mut()
+                                        .unwrap()
+                                        .right
+                                        .push(new_rvalue.unwrap());
                                 }
-                                // we dont need to update local usages because tracking usages for a local
-                                // with no declarations serves no purpose
-                                block[stat_index] = ast::Empty {}.into();
-                                *read_opt = None;
-                                continue 'w;
-                            } else {
-                                block[stat_index]
-                                    .as_assign_mut()
-                                    .unwrap()
-                                    .right
-                                    .push(new_rvalue.unwrap());
                             }
                         }
                     }
