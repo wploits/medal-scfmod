@@ -8,7 +8,7 @@ use cfg::{
 use either::Either;
 use indexmap::IndexMap;
 use itertools::Itertools;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement, local_declarations::declare_locals};
 use cfg::{
