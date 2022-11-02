@@ -259,6 +259,7 @@ pub fn inline(
                 {
                     let rvalue = &assign.right[0];
                     let has_side_effects = rvalue.has_side_effects();
+                    // TODO: REFACTOR: is_some_and
                     if !upvalue_to_group.contains_key(local) && local_usages.get(local).map_or(true, |&u| u == 0) {
                         if has_side_effects {
                             // TODO: PERF: dont clone
@@ -350,6 +351,7 @@ pub fn inline(
                             table.0.push((None, value));
                         }
                         // table already has tail?
+                        // TODO: REFACTOR: is_some_and
                         assert!(!table.0.last().map_or(false, |(k, v)| k.is_none()
                             && matches!(
                                 v,

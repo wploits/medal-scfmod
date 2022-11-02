@@ -1,5 +1,6 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
+#![feature(is_some_and)]
 
 use derive_more::From;
 use enum_as_inner::EnumAsInner;

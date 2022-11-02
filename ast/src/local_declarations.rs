@@ -110,11 +110,20 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
             _ => {
                 if first_stat_index > 0 && let Statement::Assign(assign) = &mut block[first_stat_index - 1] && assign.prefix && assign.right.is_empty() {
                     assign.left.push(local.clone().into());
+                    // TODO: unnecessary clone, use iter_mut or smthn to take mut ref to two
+                    let declared = assign.left.iter().map(|l| l.as_local().unwrap()).cloned().collect::<FxHashSet<_>>();
+
+                    if let Statement::Assign(assign) = &mut block[first_stat_index] {
+                        if assign.left.iter().all(|l| l.as_local().is_some_and(|l| declared.contains(l))) {
+                            assign.prefix = true;
+                            block.remove(first_stat_index - 1);
+                        }
+                    }
                 } else {
                     let mut declaration = Assign::new(vec![local.clone().into()], vec![]);
                     declaration.prefix = true;
-                    block.insert(first_stat_index, declaration.into()); 
-                }
+                    block.insert(first_stat_index, declaration.into());
+                };
             }
         }
     }
