@@ -2,6 +2,7 @@ mod deserializer;
 mod instruction;
 mod lifter;
 mod op_code;
+mod builtin_function;
 
 use lifter::Lifter;
 

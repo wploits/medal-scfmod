@@ -397,6 +397,7 @@ impl<'a> Lifter<'a> {
                         };
                         statements.push(ast::Return::new(values).into());
                     }
+                    OpCode::LOP_FASTCALL1 => {}
                     _ => unimplemented!("{:?}", instruction),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
@@ -418,13 +419,28 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_GETIMPORT => {
                         let target = self.register(a as _);
                         let import_len = (aux >> 30) & 3;
-                        assert!(import_len == 1);
-                        let import_name = self
-                            .constant(((aux >> 20) & 1023) as usize)
-                            .into_string()
-                            .unwrap();
-                        let global = ast::Global::new(import_name);
-                        let assign = ast::Assign::new(vec![target.into()], vec![global.into()]);
+                        assert!(import_len <= 3);
+                        let mut import_expression: ast::RValue = ast::Global::new(
+                            self.constant(((aux >> 20) & 1023) as usize)
+                                .into_string()
+                                .unwrap(),
+                        )
+                        .into();
+                        if import_len > 1 {
+                            import_expression = ast::Index::new(
+                                import_expression,
+                                self.constant(((aux >> 10) & 1023) as usize).into(),
+                            )
+                            .into();
+                        }
+                        if import_len > 2 {
+                            import_expression = ast::Index::new(
+                                import_expression,
+                                self.constant((aux & 1023) as usize).into(),
+                            )
+                            .into();
+                        }
+                        let assign = ast::Assign::new(vec![target.into()], vec![import_expression]);
                         statements.push(assign.into());
                         iter.next();
                     }
