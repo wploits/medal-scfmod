@@ -1,4 +1,5 @@
-use std::{cell::RefCell, panic, rc::Rc};
+use std::{cell::RefCell, panic, rc::Rc, backtrace::Backtrace, fmt::Write};
+
 
 use cfg::{
     block::{BlockEdge, BranchType},
@@ -731,8 +732,18 @@ impl<'a> LifterContext<'a> {
                         ast::NumForNext::new(internal_counter.clone(), limit.into(), step.into())
                             .into(),
                     );
+                    // statements.push(
+                    //     ast::Assign::new(vec![internal_counter.clone().into()], vec![ast::Binary::new(internal_counter.clone().into(), step.into(), ast::BinaryOperation::Add).into()]).into()
+                    // );
+                    // statements.push(
+                    //     ast::If::new(
+                    //         ast::Binary::new(internal_counter.clone().into(), limit.into(), ast::BinaryOperation::LessThanOrEqual).into(),
+                    //         ast::Block::default(),
+                    //         ast::Block::default(),
+                    //     )
+                    //     .into(),
+                    // );
 
-                    // TODO: this wont be accurate if the body has multiple predecessors
                     let body_node = self.get_node(
                         &((end + 1)
                             .checked_add_signed(skip.try_into().unwrap())
@@ -780,14 +791,13 @@ impl<'a> LifterContext<'a> {
                     );
                     statements.push(
                         ast::If::new(
-                            control.clone().into(),
+                            ast::Binary::new(control.clone().into(), ast::Literal::Nil.into(), ast::BinaryOperation::NotEqual).into(),
                             ast::Block::default(),
                             ast::Block::default(),
                         )
                         .into(),
                     );
 
-                    // TODO: this wont be accurate if the body has multiple predecessors
                     let body_node = self.get_node(&(end + 1));
                     assert!(self
                         .insert_between
@@ -1053,7 +1063,7 @@ impl<'a> LifterContext<'a> {
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             cfg::ssa::Destructor::new(
                 &mut function,
@@ -1063,7 +1073,6 @@ impl<'a> LifterContext<'a> {
             )
             .destruct();
 
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             let params = std::mem::take(&mut function.parameters);
             (restructure::lift(function), params, upvalues_in)
         };
