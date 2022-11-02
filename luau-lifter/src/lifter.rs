@@ -397,7 +397,43 @@ impl<'a> Lifter<'a> {
                         };
                         statements.push(ast::Return::new(values).into());
                     }
-                    OpCode::LOP_FASTCALL1 => {}
+                    OpCode::LOP_FASTCALL | OpCode::LOP_FASTCALL1 => {}
+                    OpCode::LOP_FASTCALL2 | OpCode::LOP_FASTCALL2K => {
+                        iter.next();
+                    }
+                    OpCode::LOP_CALL => {
+                        let arguments = if b != 0 {
+                            (a + 1..a + b)
+                                .map(|r| self.register(r as _).into())
+                                .collect()
+                        } else {
+                            let top = top.take().unwrap();
+                            (a + 1..top.1)
+                                .map(|r| self.register(r as _).into())
+                                .chain(std::iter::once(top.0))
+                                .collect()
+                        };
+
+                        let call = ast::Call::new(self.register(a as _).into(), arguments);
+
+                        if c != 0 {
+                            if c == 1 {
+                                statements.push(call.into());
+                            } else {
+                                statements.push(
+                                    ast::Assign::new(
+                                        (a..a + c - 1)
+                                            .map(|r| self.register(r as _).into())
+                                            .collect(),
+                                        vec![ast::RValue::Select(call.into())],
+                                    )
+                                    .into(),
+                                );
+                            }
+                        } else {
+                            top = Some((call.into(), a));
+                        }
+                    }
                     _ => unimplemented!("{:?}", instruction),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
