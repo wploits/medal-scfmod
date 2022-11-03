@@ -82,7 +82,9 @@ impl Traverse for Binary {
 
 impl SideEffects for Binary {
     fn has_side_effects(&self) -> bool {
-        self.left.has_side_effects() || self.right.has_side_effects()
+        // TODO: __eq and concat
+        // self.left.has_side_effects() || self.right.has_side_effects()
+        true
     }
 }
 
