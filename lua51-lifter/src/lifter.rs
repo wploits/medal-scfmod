@@ -275,9 +275,9 @@ impl<'a> LifterContext<'a> {
                 &Instruction::Test { value, invert } => {
                     let value = self.locals[&value].clone().into();
                     let condition = if invert {
-                        value
-                    } else {
                         ast::Unary::new(value, ast::UnaryOperation::Not).into()
+                    } else {
+                        value
                     };
                     statements.push(
                         ast::If::new(condition, ast::Block::default(), ast::Block::default())

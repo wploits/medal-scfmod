@@ -335,12 +335,12 @@ impl Instruction {
             }
             RawInstruction(OperationCode::Test, Layout::BC { a, c, .. }) => Self::Test {
                 value: Register(a),
-                invert: c == 1,
+                invert: c != 1,
             },
             RawInstruction(OperationCode::TestSet, Layout::BC { a, b, c }) => Self::TestSet {
                 destination: Register(a),
                 value: Register(b as u8),
-                invert: c == 1,
+                invert: c != 1,
             },
             RawInstruction(OperationCode::Call, Layout::BC { a, b, c }) => Self::Call {
                 function: Register(a),
