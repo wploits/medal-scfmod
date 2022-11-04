@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(is_some_and)]
 
 use cfg::{block::BranchType, function::Function};
 use rustc_hash::{FxHashMap, FxHashSet};
