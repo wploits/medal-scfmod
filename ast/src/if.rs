@@ -32,6 +32,7 @@ impl Traverse for If {
 }
 
 impl SideEffects for If {
+    // TODO: side effects for blocks
     fn has_side_effects(&self) -> bool {
         true
     }

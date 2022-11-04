@@ -19,13 +19,15 @@ impl Call {
     }
 }
 
-impl SideEffects for Call {
-    fn has_side_effects(&self) -> bool {
-        matches!(self.value, box RValue::Local(_))
-            || self.value.has_side_effects()
-            || self.arguments.iter().any(|arg| arg.has_side_effects())
-    }
-}
+// call can error
+has_side_effects!(Call);
+// impl SideEffects for Call {
+//     fn has_side_effects(&self) -> bool {
+//         matches!(self.value, box RValue::Local(_))
+//             || self.value.has_side_effects()
+//             || self.arguments.iter().any(|arg| arg.has_side_effects())
+//     }
+// }
 
 impl Traverse for Call {
     fn rvalues_mut(&mut self) -> Vec<&mut RValue> {
