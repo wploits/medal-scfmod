@@ -23,8 +23,8 @@ impl NumForInit {
     }
 }
 
-// TODO: true if any LValues/RValues have side effects
-// same problem exists in other places, just search for "has_side_effects!"
+// NumForInit checks if counter, limit and step are numbers
+// this can result in an error, so it has side effects.
 has_side_effects!(NumForInit);
 
 impl Traverse for NumForInit {
@@ -103,8 +103,7 @@ pub struct NumForNext {
     pub step: RValue,
 }
 
-// TODO: true if any LValues/RValues have side effects
-// same problem exists in other places, just search for "has_side_effects!"
+// NumForNext can error if the types of counter, limit and step are wrong
 has_side_effects!(NumForNext);
 
 impl NumForNext {
@@ -343,8 +342,7 @@ impl GenericForNext {
     }
 }
 
-// TODO: true if any LValues/RValues have side effects
-// same problem exists in other places, just search for "has_side_effects!"
+// GenericForNext can error
 has_side_effects!(GenericForNext);
 
 impl Traverse for GenericForNext {
