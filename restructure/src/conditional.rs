@@ -152,19 +152,20 @@ impl GraphStructurer {
     // a -> b a -> c
     pub(crate) fn refine_virtual_edge_jump(
         &mut self,
-        _entry: NodeIndex,
-        _node: NodeIndex,
-        _header: NodeIndex,
-        _next: NodeIndex,
+        entry: NodeIndex,
+        node: NodeIndex,
+        header: NodeIndex,
+        next: NodeIndex,
     ) -> bool {
-        /* let block = &mut self.function.block_mut(entry).unwrap().ast;
+        let block = &mut self.function.block_mut(entry).unwrap();
         if node == header {
-            block.push(ast::Continue {}.into());
+           // block.push(ast::Continue {}.into());
+           return false;
         } else if node == next {
             block.push(ast::Break {}.into());
         }
-        self.function.set_block_terminator(entry, None); */
-        false
+        self.function.set_edges(entry, vec![]); 
+        true
     }
 
     pub(crate) fn refine_virtual_edge_conditional(

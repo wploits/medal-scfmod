@@ -1,7 +1,7 @@
 use ast::{Reduce, SideEffects};
 use cfg::block::{BlockEdge, BranchType};
-use rustc_hash::FxHashSet;
 use itertools::Itertools;
+use rustc_hash::FxHashSet;
 
 use crate::{post_dominators, GraphStructurer};
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::EdgeRef};
@@ -100,6 +100,7 @@ impl GraphStructurer {
                 .filter(|&n| n != header)
                 .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
                 .collect_vec();
+            //println!("breaks: {:?}", breaks);
 
             let continues = self
                 .function
@@ -132,6 +133,7 @@ impl GraphStructurer {
                     unreachable!();
                 }
             }
+            //println!("changed: {:?}", changed);
 
             if body == header
                 || self.function.successor_blocks(body).exactly_one().ok() == Some(header)
@@ -175,6 +177,7 @@ impl GraphStructurer {
                         ast::While::new(if_condition, block)
                     };
 
+                    self.loop_headers.remove(&header);
                     self.function
                         .block_mut(header)
                         .unwrap()
@@ -184,7 +187,6 @@ impl GraphStructurer {
                         vec![(next, BlockEdge::new(BranchType::Unconditional))],
                     );
                     self.match_jump(header, Some(next), dominators);
-
                     return true;
                 } else {
                     let statements =
@@ -203,9 +205,20 @@ impl GraphStructurer {
                             .enumerate()
                             .rev()
                             // TODO: REFACTOR: this is confusing
-                            .find(|(_, s)| s.has_side_effects() || s.as_num_for_init().is_some() || s.as_generic_for_init().is_some())
-                            .and_then(|(i, s)| 
-                                if s.as_num_for_init().is_some() || s.as_generic_for_init().is_some() { Some((p, i)) } else {None})
+                            .find(|(_, s)| {
+                                s.has_side_effects()
+                                    || s.as_num_for_init().is_some()
+                                    || s.as_generic_for_init().is_some()
+                            })
+                            .and_then(|(i, s)| {
+                                if s.as_num_for_init().is_some()
+                                    || s.as_generic_for_init().is_some()
+                                {
+                                    Some((p, i))
+                                } else {
+                                    None
+                                }
+                            })
                     });
                     let (init_block, init_index) = init_blocks.exactly_one().unwrap();
 
