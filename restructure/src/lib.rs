@@ -2,8 +2,8 @@
 #![feature(is_some_and)]
 
 use cfg::{block::BranchType, function::Function};
-use rustc_hash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
@@ -102,7 +102,8 @@ impl GraphStructurer {
         let dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap())
             .iter(self.function.graph())
             .collect::<FxHashSet<_>>();
-        let mut dfs_postorder = DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
+        let mut dfs_postorder =
+            DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
 
         // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
@@ -311,7 +312,11 @@ impl GraphStructurer {
 
             res_block
         } else {
-            Self::remove_last_return(self.function.remove_block(self.function.entry().unwrap()).unwrap())
+            Self::remove_last_return(
+                self.function
+                    .remove_block(self.function.entry().unwrap())
+                    .unwrap(),
+            )
         }
     }
 }

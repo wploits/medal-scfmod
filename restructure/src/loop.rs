@@ -111,7 +111,12 @@ impl GraphStructurer {
                     .predecessor_blocks(header)
                     // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
                     .filter(|&n| n != header)
-                    .filter(|&n| dominators.dominators(n).unwrap().contains(&body))
+                    .filter(|&n| {
+                        dominators
+                            .dominators(n)
+                            .map(|mut x| x.contains(&body))
+                            .unwrap_or(false)
+                    })
                     .collect_vec();
                 //assert!(continues.len() <= 1);
                 //println!("continues: {:?}", continues);
@@ -130,7 +135,13 @@ impl GraphStructurer {
                             next,
                         );
                     } else if let Some(edge) = self.function.unconditional_edge(node) {
-                        changed |= self.refine_virtual_edge_jump(&post_dom, node, edge.target(), header, next);
+                        changed |= self.refine_virtual_edge_jump(
+                            &post_dom,
+                            node,
+                            edge.target(),
+                            header,
+                            next,
+                        );
                     } else {
                         unreachable!();
                     }
