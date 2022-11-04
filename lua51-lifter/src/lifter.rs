@@ -1,5 +1,4 @@
-use std::{cell::RefCell, panic, rc::Rc, backtrace::Backtrace, fmt::Write};
-
+use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
 
 use cfg::{
     block::{BlockEdge, BranchType},
@@ -10,7 +9,10 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use ast::{local_allocator::LocalAllocator, replace_locals::replace_locals, RcLocal, Statement, local_declarations::declare_locals};
+use ast::{
+    local_allocator::LocalAllocator, local_declarations::declare_locals,
+    replace_locals::replace_locals, RcLocal, Statement,
+};
 use cfg::{
     function::Function,
     ssa::structuring::{
@@ -789,7 +791,12 @@ impl<'a> LifterContext<'a> {
                     );
                     statements.push(
                         ast::If::new(
-                            ast::Binary::new(control.clone().into(), ast::Literal::Nil.into(), ast::BinaryOperation::NotEqual).into(),
+                            ast::Binary::new(
+                                control.clone().into(),
+                                ast::Literal::Nil.into(),
+                                ast::BinaryOperation::NotEqual,
+                            )
+                            .into(),
                             ast::Block::default(),
                             ast::Block::default(),
                         )
@@ -1073,7 +1080,10 @@ impl<'a> LifterContext<'a> {
 
             let params = std::mem::take(&mut function.parameters);
             let mut block = restructure::lift(function);
-            declare_locals(&mut block, &upvalues_in.iter().chain(params.iter()).cloned().collect());
+            declare_locals(
+                &mut block,
+                &upvalues_in.iter().chain(params.iter()).cloned().collect(),
+            );
             (block, params, upvalues_in)
         };
 
@@ -1117,7 +1127,14 @@ impl<'a> LifterContext<'a> {
                             .map(|s| ast::Comment::new(s.to_string()).into())
                             .collect::<Vec<_>>()
                             .into();
-                        (block, Vec::new(), Vec::new())
+                        let mut local_allocator = LocalAllocator::default();
+                        (
+                            block,
+                            (0..bytecode.number_of_parameters)
+                                .map(|_| local_allocator.allocate())
+                                .collect(),
+                            Vec::new(),
+                        )
                     }
                 }
             }
