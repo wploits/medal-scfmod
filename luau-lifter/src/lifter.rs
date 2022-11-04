@@ -58,6 +58,7 @@ impl<'a> Lifter<'a> {
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();
 
         blocks.sort_unstable();
+        println!("{:#?}", blocks);
 
         let block_ranges = blocks
             .iter()
@@ -88,6 +89,7 @@ impl<'a> Lifter<'a> {
             self.register_map.insert(i as usize, parameter);
         }
 
+        println!("{:#?}", block_ranges);
         for (start_pc, end_pc) in block_ranges {
             self.current_node = Some(self.block_to_node(start_pc));
             let (statements, edges) = self.lift_block(start_pc, end_pc);
@@ -128,12 +130,7 @@ impl<'a> Lifter<'a> {
                     d,
                     aux: _,
                 } => match op_code {
-                    OpCode::LOP_JUMP | OpCode::LOP_JUMPBACK => {
-                        self.blocks
-                            .entry(insn_index.wrapping_add(*d as usize) + 1)
-                            .or_insert_with(|| self.lifted_function.new_block());
-                    }
-                    OpCode::LOP_JUMPIF | OpCode::LOP_JUMPIFNOT => {
+                    OpCode::LOP_JUMP | OpCode::LOP_JUMPBACK | OpCode::LOP_JUMPIF | OpCode::LOP_JUMPIFNOT => {
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
@@ -678,7 +675,7 @@ impl<'a> Lifter<'a> {
                         ));
                         iter.next();
                     }
-                    OpCode::LOP_JUMPBACK => {
+                    OpCode::LOP_JUMPBACK | OpCode::LOP_JUMP => {
                         edges.push((
                             self.block_to_node(
                                 ((block_start + index + 1) as isize + d as isize) as usize,
