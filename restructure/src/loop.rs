@@ -94,43 +94,46 @@ impl GraphStructurer {
             println!("latches: {:#?}", latches);
             println!("breaks: {:#?}", breaks);*/
 
-            let breaks = self
-                .function
-                .predecessor_blocks(next)
-                .filter(|&n| n != header)
-                .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
-                .collect_vec();
-            //println!("breaks: {:?}", breaks);
-
-            let continues = self
-                .function
-                .predecessor_blocks(header)
-                // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
-                .filter(|&n| n != header)
-                .filter(|&n| dominators.dominators(n).unwrap().contains(&header))
-                .collect_vec();
-            //assert!(continues.len() <= 1);
-            //println!("continues: {:?}", continues);
-
             let mut changed = false;
+            // if body == header then body dominates next, which results in breaks being inserted
+            // outside the loop
+            if body != header {
+                let breaks = self
+                    .function
+                    .predecessor_blocks(next)
+                    .filter(|&n| n != header)
+                    .filter(|&n| dominators.dominators(n).unwrap().contains(&body))
+                    .collect_vec();
+                //println!("breaks: {:?}", breaks);
 
-            for node in breaks
-                .into_iter()
-                .chain(continues)
-                .collect::<FxHashSet<_>>()
-            {
-                if let Some((then_edge, else_edge)) = self.function.conditional_edges(node) {
-                    changed |= self.refine_virtual_edge_conditional(
-                        node,
-                        then_edge.target(),
-                        else_edge.target(),
-                        header,
-                        next,
-                    );
-                } else if let Some(edge) = self.function.unconditional_edge(node) {
-                    changed |= self.refine_virtual_edge_jump(&post_dom, node, edge.target(), header, next);
-                } else {
-                    unreachable!();
+                let continues = self
+                    .function
+                    .predecessor_blocks(header)
+                    // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
+                    .filter(|&n| n != header)
+                    .filter(|&n| dominators.dominators(n).unwrap().contains(&body))
+                    .collect_vec();
+                //assert!(continues.len() <= 1);
+                //println!("continues: {:?}", continues);
+
+                for node in breaks
+                    .into_iter()
+                    .chain(continues)
+                    .collect::<FxHashSet<_>>()
+                {
+                    if let Some((then_edge, else_edge)) = self.function.conditional_edges(node) {
+                        changed |= self.refine_virtual_edge_conditional(
+                            node,
+                            then_edge.target(),
+                            else_edge.target(),
+                            header,
+                            next,
+                        );
+                    } else if let Some(edge) = self.function.unconditional_edge(node) {
+                        changed |= self.refine_virtual_edge_jump(&post_dom, node, edge.target(), header, next);
+                    } else {
+                        unreachable!();
+                    }
                 }
             }
             //println!("changed: {:?}", changed);
