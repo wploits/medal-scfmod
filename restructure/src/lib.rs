@@ -258,6 +258,9 @@ impl GraphStructurer {
             let mut stack = vec![entry];
             let mut visited = FxHashSet::default();
             while let Some(node) = stack.pop() {
+                if visited.contains(&node) {
+                    continue;
+                }
                 visited.insert(node);
 
                 fn collect_gotos(block: &ast::Block, gotos: &mut FxHashSet<ast::Label>) {
