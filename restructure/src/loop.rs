@@ -128,7 +128,7 @@ impl GraphStructurer {
                         next,
                     );
                 } else if let Some(edge) = self.function.unconditional_edge(node) {
-                    changed |= self.refine_virtual_edge_jump(node, edge.target(), header, next);
+                    changed |= self.refine_virtual_edge_jump(&post_dom, node, edge.target(), header, next);
                 } else {
                     unreachable!();
                 }
@@ -177,7 +177,6 @@ impl GraphStructurer {
                         ast::While::new(if_condition, block)
                     };
 
-                    self.loop_headers.remove(&header);
                     self.function
                         .block_mut(header)
                         .unwrap()

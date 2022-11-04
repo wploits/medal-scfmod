@@ -152,16 +152,21 @@ impl GraphStructurer {
     // a -> b a -> c
     pub(crate) fn refine_virtual_edge_jump(
         &mut self,
+        post_dom: &Dominators<NodeIndex>,
         entry: NodeIndex,
         node: NodeIndex,
         header: NodeIndex,
         next: NodeIndex,
     ) -> bool {
-        let block = &mut self.function.block_mut(entry).unwrap();
         if node == header {
-           // block.push(ast::Continue {}.into());
-           return false;
+            // TODO: only check back edges?
+            if !self.function.predecessor_blocks(header).filter(|&n| n != entry).any(|n| post_dom.dominators(entry).is_some_and(|mut p| p.contains(&n))) {
+                return false;
+            }
+            let block = &mut self.function.block_mut(entry).unwrap();
+            block.push(ast::Continue {}.into());
         } else if node == next {
+            let block = &mut self.function.block_mut(entry).unwrap();
             block.push(ast::Break {}.into());
         }
         self.function.set_edges(entry, vec![]); 

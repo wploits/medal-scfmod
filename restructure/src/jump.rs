@@ -60,7 +60,6 @@ impl super::GraphStructurer {
     ) -> bool {
         if let Some(target) = target {
             assert!(self.function.unconditional_edge(node).is_some());
-            assert!(!self.is_loop_header(target));
             if node == target {
                 return false;
             }
