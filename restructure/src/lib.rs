@@ -35,16 +35,14 @@ pub fn post_dominators<N: Default, E: Default>(
 
 struct GraphStructurer {
     pub function: Function,
-    root: NodeIndex,
     loop_headers: FxHashSet<NodeIndex>,
     label_to_node: FxHashMap<ast::Label, NodeIndex>,
 }
 
 impl GraphStructurer {
     fn new(function: Function) -> Self {
-        let root = function.entry().unwrap();
         let mut loop_headers = FxHashSet::default();
-        depth_first_search(function.graph(), Some(root), |event| {
+        depth_first_search(function.graph(), Some(function.entry().unwrap()), |event| {
             if let DfsEvent::BackEdge(_, header) = event {
                 loop_headers.insert(header);
             }
@@ -52,7 +50,6 @@ impl GraphStructurer {
 
         Self {
             function,
-            root,
             loop_headers,
             label_to_node: FxHashMap::default(),
         }
@@ -102,10 +99,10 @@ impl GraphStructurer {
     }
 
     fn match_blocks(&mut self) -> bool {
-        let dfs = Dfs::new(self.function.graph(), self.root)
+        let dfs = Dfs::new(self.function.graph(), self.function.entry().unwrap())
             .iter(self.function.graph())
             .collect::<FxHashSet<_>>();
-        let mut dfs_postorder = DfsPostOrder::new(self.function.graph(), self.root);
+        let mut dfs_postorder = DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
 
         // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
@@ -314,7 +311,7 @@ impl GraphStructurer {
 
             res_block
         } else {
-            Self::remove_last_return(self.function.remove_block(self.root).unwrap())
+            Self::remove_last_return(self.function.remove_block(self.function.entry().unwrap()).unwrap())
         }
     }
 }

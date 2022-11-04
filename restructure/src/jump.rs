@@ -76,6 +76,9 @@ impl super::GraphStructurer {
                     self.try_remove_unnecessary_condition(source);
                 }
                 self.function.remove_block(node);
+                if self.function.entry() == &Some(node) {
+                    self.function.set_entry(target);
+                }
                 true
             } else if self.function.predecessor_blocks(target).count() == 1
                 // TODO: isnt this implied by their only being one predecessor, target?
@@ -91,7 +94,7 @@ impl super::GraphStructurer {
             } else {
                 false
             }
-        } else if Self::block_is_no_op(self.function.block(node).unwrap()) {
+        } else if Self::block_is_no_op(self.function.block(node).unwrap()) && self.function.entry() != &Some(node) {
             let preds = self.function.predecessor_blocks(node).collect_vec();
             let mut invalid = false;
             for &pred in &preds {
