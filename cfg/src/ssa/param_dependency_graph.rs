@@ -1,11 +1,11 @@
 use ast::RcLocal;
-use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexSet;
 use petgraph::{
     prelude::DiGraph,
     stable_graph::NodeIndex,
     visit::{DfsPostOrder, Walker},
 };
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::function::Function;
 

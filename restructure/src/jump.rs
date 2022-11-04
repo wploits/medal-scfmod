@@ -94,7 +94,9 @@ impl super::GraphStructurer {
             } else {
                 false
             }
-        } else if Self::block_is_no_op(self.function.block(node).unwrap()) && self.function.entry() != &Some(node) {
+        } else if Self::block_is_no_op(self.function.block(node).unwrap())
+            && self.function.entry() != &Some(node)
+        {
             let preds = self.function.predecessor_blocks(node).collect_vec();
             let mut invalid = false;
             for &pred in &preds {

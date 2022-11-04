@@ -30,6 +30,7 @@ mod literal;
 mod local;
 pub mod local_allocator;
 //mod name_gen;
+pub mod local_declarations;
 pub mod name_locals;
 mod repeat;
 pub mod replace_locals;
@@ -42,7 +43,6 @@ pub mod type_system;
 mod unary;
 mod vararg;
 mod r#while;
-pub mod local_declarations;
 
 pub use assign::*;
 pub use binary::*;

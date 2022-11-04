@@ -130,7 +130,10 @@ impl<'a> Lifter<'a> {
                     d,
                     aux: _,
                 } => match op_code {
-                    OpCode::LOP_JUMP | OpCode::LOP_JUMPBACK | OpCode::LOP_JUMPIF | OpCode::LOP_JUMPIFNOT => {
+                    OpCode::LOP_JUMP
+                    | OpCode::LOP_JUMPBACK
+                    | OpCode::LOP_JUMPIF
+                    | OpCode::LOP_JUMPIFNOT => {
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());

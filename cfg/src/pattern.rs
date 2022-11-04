@@ -1,11 +1,11 @@
 use std::fmt;
 
-use rustc_hash::{FxHashMap, FxHashSet};
 use petgraph::{
     stable_graph::{NodeIndex, StableDiGraph},
     visit::{Dfs, EdgeRef, Walker},
     Direction,
 };
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{block::BlockEdge, function::Function};
 

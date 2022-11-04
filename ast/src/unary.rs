@@ -30,7 +30,10 @@ pub struct Unary {
 impl SideEffects for Unary {
     fn has_side_effects(&self) -> bool {
         // TODO: do this properly
-        matches!(self.operation, UnaryOperation::Negate | UnaryOperation::Length) || self.value.has_side_effects()
+        matches!(
+            self.operation,
+            UnaryOperation::Negate | UnaryOperation::Length
+        ) || self.value.has_side_effects()
     }
 }
 

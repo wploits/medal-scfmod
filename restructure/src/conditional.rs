@@ -160,7 +160,16 @@ impl GraphStructurer {
     ) -> bool {
         if node == header {
             // TODO: only check back edges?
-            if !self.function.predecessor_blocks(header).filter(|&n| n != entry).any(|n| post_dom.dominators(entry).is_some_and(|mut p| p.contains(&n))) {
+            if !self
+                .function
+                .predecessor_blocks(header)
+                .filter(|&n| n != entry)
+                .any(|n| {
+                    post_dom
+                        .dominators(entry)
+                        .is_some_and(|mut p| p.contains(&n))
+                })
+            {
                 return false;
             }
             let block = &mut self.function.block_mut(entry).unwrap();
@@ -169,7 +178,7 @@ impl GraphStructurer {
             let block = &mut self.function.block_mut(entry).unwrap();
             block.push(ast::Break {}.into());
         }
-        self.function.set_edges(entry, vec![]); 
+        self.function.set_edges(entry, vec![]);
         true
     }
 

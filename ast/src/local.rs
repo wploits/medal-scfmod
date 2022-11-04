@@ -1,6 +1,6 @@
 use crate::{type_system::Infer, SideEffects, Traverse, Type, TypeSystem};
 use by_address::ByAddress;
-use derive_more::{From};
+use derive_more::From;
 use enum_dispatch::enum_dispatch;
 use std::{
     cell::RefCell,

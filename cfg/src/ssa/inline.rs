@@ -1,8 +1,8 @@
 use crate::function::Function;
 use ast::{LocalRw, SideEffects, Traverse};
-use rustc_hash::{FxHashMap, FxHashSet};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 fn inline_rvalue(
     statement: &mut ast::Statement,

@@ -1,6 +1,6 @@
-use rustc_hash::{FxHashMap, FxHashSet};
 use petgraph::stable_graph::NodeIndex;
 use rangemap::RangeInclusiveMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::function::Function;
 
