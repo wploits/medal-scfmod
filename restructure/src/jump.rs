@@ -63,7 +63,7 @@ impl super::GraphStructurer {
             if node == target {
                 return false;
             }
-            if Self::block_is_no_op(self.function.block(node).unwrap()) {
+            if Self::block_is_no_op(self.function.block(node).unwrap()) && self.function.entry() != &Some(node) {
                 for (source, edge) in self
                     .function
                     .graph()
@@ -76,9 +76,6 @@ impl super::GraphStructurer {
                     self.try_remove_unnecessary_condition(source);
                 }
                 self.function.remove_block(node);
-                if self.function.entry() == &Some(node) {
-                    self.function.set_entry(target);
-                }
                 true
             } else if self.function.predecessor_blocks(target).count() == 1
                 // TODO: isnt this implied by their only being one predecessor, target?
@@ -86,11 +83,32 @@ impl super::GraphStructurer {
                 // as long as the back edge isnt from target -> node?
                 && dominators.dominators(target).unwrap().contains(&node)
             {
-                let edges = self.function.remove_edges(target);
-                let block = self.function.remove_block(target).unwrap();
-                self.function.block_mut(node).unwrap().extend(block.0);
-                self.function.set_edges(node, edges);
-                true
+                if self.function.entry() != &Some(target) {
+                    let edges = self.function.remove_edges(target);
+                    let block = self.function.remove_block(target).unwrap();
+                    self.function.block_mut(node).unwrap().extend(block.0);
+                    self.function.set_edges(node, edges);
+                    true
+                } else if self.function.entry() != &Some(node) {
+                    // TODO: test
+                    for (source, edge) in self
+                        .function
+                        .graph()
+                        .edges_directed(node, Direction::Incoming)
+                        .map(|e| (e.source(), e.id()))
+                        .collect::<Vec<_>>()
+                    {
+                        let edge = self.function.graph_mut().remove_edge(edge).unwrap();
+                        self.function.graph_mut().add_edge(source, target, edge);
+                        self.try_remove_unnecessary_condition(source);
+                    }
+                    let mut block = self.function.remove_block(node).unwrap();
+                    block.extend(std::mem::take(self.function.block_mut(target).unwrap()).0);
+                    *self.function.block_mut(target).unwrap() = block;
+                    true
+                } else {
+                    unreachable!()
+                }
             } else {
                 false
             }
