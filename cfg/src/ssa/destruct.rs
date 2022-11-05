@@ -18,7 +18,6 @@ use crate::{
 };
 
 mod liveness;
-mod local_declarations;
 
 use self::liveness::Liveness;
 
@@ -112,46 +111,6 @@ impl<'a> Destructor<'a> {
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
 
         self.sequentialize();
-
-        // let liveness = Liveness::new(self.function, false);
-
-        // let mut local_nodes = FxHashMap::<_, FxHashSet<_>>::default();
-        // for (node, liveness) in liveness.block_liveness {
-        //     for local in liveness.uses {
-        //         local_nodes.entry(local).or_default().insert(node);
-        //     }
-
-        //     for local in liveness.defs {
-        //         local_nodes.entry(local).or_default().insert(node);
-        //     }
-        // }
-
-        // local_declarations::declare_locals(
-        //     self.function,
-        //     &self.upvalues_in,
-        //     local_nodes,
-        //     &self.dominators.unwrap(),
-        // );
-
-        // let liveness = Liveness::new(self.function);
-        // let mut interference_graph = InterferenceGraph::new(self.function, &liveness, self.local_count);
-        // ParamLifter::new(function, Some(&mut interference_graph)).lift();
-        // let mut local_nodes = FxHashMap::default();
-        // // interference graph is no longer chordal, coloring is not optimal
-        // let upvalues = LocalRenamer::new(
-        //     function,
-        //     local_groups,
-        //     upvalue_to_group,
-        //     &mut interference_graph,
-        //     &mut local_nodes,
-        // )
-        // .rename();
-        // //crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
-        // let mut upvalues_in = upvalues;
-        // upvalues_in.truncate(upvalues_in_count);
-        // let dominators = simple_fast(function.graph(), function.entry().unwrap());
-        // local_declarations::declare_locals(function, &upvalues_in, local_nodes, &dominators);
-        // upvalues_in
     }
 
     fn add_liveness_comments(&mut self) {
