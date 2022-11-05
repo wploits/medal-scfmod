@@ -40,19 +40,26 @@ struct GraphStructurer {
 }
 
 impl GraphStructurer {
+    fn find_loop_headers(&mut self) {
+        self.loop_headers.clear();
+        depth_first_search(
+            self.function.graph(),
+            Some(self.function.entry().unwrap()),
+            |event| {
+                if let DfsEvent::BackEdge(_, header) = event {
+                    self.loop_headers.insert(header);
+                }
+            },
+        );
+    }
     fn new(function: Function) -> Self {
-        let mut loop_headers = FxHashSet::default();
-        depth_first_search(function.graph(), Some(function.entry().unwrap()), |event| {
-            if let DfsEvent::BackEdge(_, header) = event {
-                loop_headers.insert(header);
-            }
-        });
-
-        Self {
+        let mut this = Self {
             function,
-            loop_headers,
+            loop_headers: FxHashSet::default(),
             label_to_node: FxHashMap::default(),
-        }
+        };
+        this.find_loop_headers();
+        this
     }
 
     fn block_is_no_op(block: &ast::Block) -> bool {
@@ -66,6 +73,7 @@ impl GraphStructurer {
         //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         if self.try_collapse_loop(node, dominators) {
+            self.find_loop_headers();
             // println!("matched loop");
             return true;
         }
@@ -224,6 +232,7 @@ impl GraphStructurer {
                 }
 
                 self.insert_goto_for_edge(edge);
+                self.find_loop_headers();
                 changed = self.match_blocks();
                 if changed {
                     break;

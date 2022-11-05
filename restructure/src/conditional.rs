@@ -238,9 +238,9 @@ impl GraphStructurer {
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
-        if self.is_loop_header(entry) {
-            return false;
-        }
+        // if self.is_loop_header(entry) {
+        //     return false;
+        // }
 
         let block = self.function.block_mut(entry).unwrap();
         if block.last_mut().unwrap().as_if_mut().is_none() {

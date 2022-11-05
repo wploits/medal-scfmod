@@ -63,7 +63,10 @@ impl super::GraphStructurer {
             if node == target {
                 return false;
             }
-            if Self::block_is_no_op(self.function.block(node).unwrap()) && self.function.entry() != &Some(node) {
+            if Self::block_is_no_op(self.function.block(node).unwrap())
+                && self.function.entry() != &Some(node)
+                && !self.is_loop_header(node)
+            {
                 for (source, edge) in self
                     .function
                     .graph()
@@ -83,13 +86,13 @@ impl super::GraphStructurer {
                 // as long as the back edge isnt from target -> node?
                 && dominators.dominators(target).unwrap().contains(&node)
             {
-                if self.function.entry() != &Some(target) {
+                if self.function.entry() != &Some(target) && !self.is_loop_header(target) {
                     let edges = self.function.remove_edges(target);
                     let block = self.function.remove_block(target).unwrap();
                     self.function.block_mut(node).unwrap().extend(block.0);
                     self.function.set_edges(node, edges);
                     true
-                } else if self.function.entry() != &Some(node) {
+                } else if self.function.entry() != &Some(node) && !self.is_loop_header(node) {
                     // TODO: test
                     for (source, edge) in self
                         .function
@@ -107,13 +110,14 @@ impl super::GraphStructurer {
                     *self.function.block_mut(target).unwrap() = block;
                     true
                 } else {
-                    unreachable!()
+                    false
                 }
             } else {
                 false
             }
         } else if Self::block_is_no_op(self.function.block(node).unwrap())
             && self.function.entry() != &Some(node)
+            && !self.is_loop_header(node)
         {
             let preds = self.function.predecessor_blocks(node).collect_vec();
             let mut invalid = false;

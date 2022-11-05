@@ -42,8 +42,16 @@ impl GraphStructurer {
                     then_edge.target()
                 };
                 let header_block = self.function.block_mut(header).unwrap();
-                *header_block =
-                    vec![ast::Repeat::new(condition, header_block.clone()).into()].into();
+                *header_block = if header_block.is_empty() {
+                    vec![ast::While::new(
+                        ast::Unary::new(condition, ast::UnaryOperation::Not).reduce(),
+                        header_block.clone(),
+                    )
+                    .into()]
+                    .into()
+                } else {
+                    vec![ast::Repeat::new(condition, header_block.clone()).into()].into()
+                };
                 self.function.set_edges(
                     header,
                     vec![(next, BlockEdge::new(BranchType::Unconditional))],
@@ -60,13 +68,13 @@ impl GraphStructurer {
             }
             true
         } else if successors.len() == 2 {
+            //if successors.iter().find(|s| self.function.successor_blocks(s).exactly_one() == Ok())
             let post_dom = post_dominators(self.function.graph_mut());
             let (mut next, mut body) = (successors[0], successors[1]);
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
             }
-
-            //println!("{:?} {:?}", next, body);
+            // println!("{:?} {:?}", next, body);
 
             if self
                 .function
@@ -118,6 +126,26 @@ impl GraphStructurer {
                             .unwrap_or(false)
                     })
                     .collect_vec();
+
+                if self
+                    .function
+                    .predecessor_blocks(header)
+                    .filter(|&n| n != header)
+                    .any(|n| {
+                        !dominators
+                            .dominators(n)
+                            .is_some_and(|mut d| d.contains(&body))
+                            && dominators
+                                .dominators(n)
+                                .is_some_and(|mut d| d.contains(&header))
+                            && dominators
+                                .dominators(n)
+                                .is_some_and(|mut d| d.contains(&next))
+                    })
+                    && self.function.successor_blocks(body).exactly_one().ok() != Some(header)
+                {
+                    return false;
+                }
                 //assert!(continues.len() <= 1);
                 //println!("continues: {:?}", continues);
 
