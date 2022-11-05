@@ -651,8 +651,8 @@ fn skip_over_node(
     did_structure
 }
 
-// TODO: this code is repeated in LifterContext::lift
-// TODO: rename to merge_blocks or something
+// TODO: REFACTOR: same as match_jump in restructure, maybe can use some common code?
+// TODO: STYLE: rename to merge_blocks or something
 pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeIndex>) -> bool {
     let mut did_structure = false;
     for node in function.graph().node_indices().collect_vec() {
@@ -664,6 +664,7 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             let jump_target = jump.target();
             let jump_edge = jump.id();
             let block = function.block(node).unwrap();
+            // TODO: block_is_no_op?
             if block.is_empty() {
                 let mut remove = true;
                 for pred in function.predecessor_blocks(node).collect_vec() {
@@ -673,19 +674,18 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                     }
                     remove &= did;
                 }
-                if remove {
+                if remove && function.entry() != &Some(node) {
                     function.remove_block(node);
-                if &Some(node) == function.entry() {
-                    function.set_entry(jump_target);
+                    continue;
                 }
-                }
-            } else if function.predecessor_blocks(jump_target).count() == 1
+            }
+            if function.predecessor_blocks(jump_target).count() == 1
                 && dominators
                     .dominators(jump_target)
                     .map(|mut d| d.contains(&node))
                     .unwrap_or(false)
             {
-                assert!(jump.weight().arguments.is_empty());
+                assert!(function.graph().edge_weight(jump_edge).unwrap().arguments.is_empty());
                 let edges = function.remove_edges(jump_target);
                 let body = function.remove_block(jump_target).unwrap();
                 if &Some(jump_target) == function.entry() {
