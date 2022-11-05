@@ -301,15 +301,29 @@ impl GraphStructurer {
                         stack.push(target_node);
                     }
                 }
-                // TODO: only add comment if first statement in block isnt ::LABEL::?
-                res_block.push(ast::Comment::new(format!("block {:?}", node)).into());
+                if let Some(ast::Statement::Goto(goto)) = res_block.last()
+                // TODO: keep label -> block map instead
+                    && goto.0.0[1..] == node.index().to_string()
+                {
+                    res_block.pop();
+                }
+                if !block
+                    .first()
+                    .is_some_and(|s| matches!(s, ast::Statement::Label(_)))
+                {
+                    res_block.push(ast::Comment::new(format!("block {}", node.index())).into());
+                }
                 res_block.extend(block.0)
             }
             // TODO: these nodes are never executed (i think), comment them out or dont include them
             for node in self.function.graph().node_indices().collect::<Vec<_>>() {
                 let block = self.function.remove_block(node).unwrap();
-                // TODO: only add comment if first statement in block isnt ::LABEL::?
-                res_block.push(ast::Comment::new(format!("block {:?}", node)).into());
+                if !block
+                    .first()
+                    .is_some_and(|s| matches!(s, ast::Statement::Label(_)))
+                {
+                    res_block.push(ast::Comment::new(format!("block {}", node.index())).into());
+                }
                 res_block.extend(block.0)
             }
 
