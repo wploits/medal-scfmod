@@ -75,6 +75,7 @@ impl GraphStructurer {
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
             }
+            assert!(body != header);
 
             if self
                 .function
@@ -86,21 +87,18 @@ impl GraphStructurer {
                 return false;
             }
 
-            let continues = if body != header {
-                self.function
-                    .predecessor_blocks(header)
-                    // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
-                    .filter(|&n| n != header)
-                    .filter(|&n| {
-                        dominators
-                            .dominators(n)
-                            .map(|mut x| x.contains(&header))
-                            .unwrap_or(false)
-                    })
-                    .collect_vec()
-            } else {
-                Vec::new()
-            };
+            let continues = self
+                .function
+                .predecessor_blocks(header)
+                // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
+                .filter(|&n| n != header)
+                .filter(|&n| {
+                    dominators
+                        .dominators(n)
+                        .map(|mut x| x.contains(&header))
+                        .unwrap_or(false)
+                })
+                .collect_vec();
 
             let mut changed = false;
             let common_post_doms = post_dom
@@ -135,81 +133,64 @@ impl GraphStructurer {
                 changed = true;
             }
 
-            // if body == header then body dominates next, which results in breaks being inserted
-            // outside the loop
-            if body != header {
-                let breaks = self
-                    .function
-                    .predecessor_blocks(next)
-                    .filter(|&n| n != header)
-                    .filter(|&n| dominators.dominators(n).unwrap().contains(&body))
-                    .collect_vec();
-                //println!("breaks: {:?}", breaks);
+            let breaks = self
+                .function
+                .predecessor_blocks(next)
+                .filter(|&n| n != header)
+                .filter(|&n| dominators.dominators(n).unwrap().contains(&body))
+                .collect_vec();
+            //println!("breaks: {:?}", breaks);
 
-                if self
-                    .function
-                    .predecessor_blocks(header)
-                    .filter(|&n| n != header)
-                    .any(|n| {
-                        !dominators
+            if self
+                .function
+                .predecessor_blocks(header)
+                .filter(|&n| n != header)
+                .any(|n| {
+                    !dominators
+                        .dominators(n)
+                        .is_some_and(|mut d| d.contains(&body))
+                        && dominators
                             .dominators(n)
-                            .is_some_and(|mut d| d.contains(&body))
-                            && dominators
-                                .dominators(n)
-                                .is_some_and(|mut d| d.contains(&header))
-                            && dominators
-                                .dominators(n)
-                                .is_some_and(|mut d| d.contains(&next))
-                    })
-                    && self.function.successor_blocks(body).exactly_one().ok() != Some(header)
-                {
-                    return false;
-                }
-                //assert!(continues.len() <= 1);
-                //println!("continues: {:?}", continues);
+                            .is_some_and(|mut d| d.contains(&header))
+                        && dominators
+                            .dominators(n)
+                            .is_some_and(|mut d| d.contains(&next))
+                })
+                && self.function.successor_blocks(body).exactly_one().ok() != Some(header)
+            {
+                return false;
+            }
 
-                for node in breaks
-                    .into_iter()
-                    .chain(continues)
-                    .collect::<FxHashSet<_>>()
-                {
-                    if let Some((then_edge, else_edge)) = self.function.conditional_edges(node) {
-                        changed |= self.refine_virtual_edge_conditional(
-                            &post_dom,
-                            node,
-                            then_edge.target(),
-                            else_edge.target(),
-                            header,
-                            next,
-                        );
-                    } else if let Some(edge) = self.function.unconditional_edge(node) {
-                        changed |= self.refine_virtual_edge_jump(
-                            &post_dom,
-                            node,
-                            edge.target(),
-                            header,
-                            next,
-                        );
-                    } else {
-                        unreachable!();
-                    }
+            for node in breaks
+                .into_iter()
+                .chain(continues)
+                .collect::<FxHashSet<_>>()
+            {
+                if let Some((then_edge, else_edge)) = self.function.conditional_edges(node) {
+                    changed |= self.refine_virtual_edge_conditional(
+                        &post_dom,
+                        node,
+                        then_edge.target(),
+                        else_edge.target(),
+                        header,
+                        next,
+                    );
+                } else if let Some(edge) = self.function.unconditional_edge(node) {
+                    changed |=
+                        self.refine_virtual_edge_jump(&post_dom, node, edge.target(), header, next);
+                } else {
+                    unreachable!();
                 }
             }
             //println!("changed: {:?}", changed);
 
-            if body == header
-                || self.function.successor_blocks(body).exactly_one().ok() == Some(header)
-            {
+            if self.function.successor_blocks(body).exactly_one().ok() == Some(header) {
                 let statement = self.function.block_mut(header).unwrap().pop().unwrap();
                 if let ast::Statement::If(if_stat) = statement {
                     let mut if_condition = if_stat.condition;
                     let header_else_target =
                         self.function.conditional_edges(header).unwrap().1.target();
-                    let block = if body == header {
-                        unimplemented!()
-                    } else {
-                        self.function.remove_block(body).unwrap()
-                    };
+                    let block = self.function.remove_block(body).unwrap();
 
                     let while_stat = if !self.function.block_mut(header).unwrap().is_empty() {
                         let mut body_block =
@@ -283,11 +264,7 @@ impl GraphStructurer {
                     });
                     let (init_block, init_index) = init_blocks.exactly_one().unwrap();
 
-                    let mut body_ast = if body == header {
-                        ast::Block::default()
-                    } else {
-                        self.function.remove_block(body).unwrap()
-                    };
+                    let mut body_ast = self.function.remove_block(body).unwrap();
                     body_ast.extend(statements.iter().cloned());
                     let init_ast = &mut self.function.block_mut(init_block).unwrap();
                     init_ast.extend(statements.iter().cloned());

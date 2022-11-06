@@ -630,6 +630,7 @@ impl<'a> Destructor<'a> {
         con_class_a: &Rc<RefCell<CongruenceClass>>,
         con_class_b: &Rc<RefCell<CongruenceClass>>,
     ) {
+        // TODO: move out of con_class_b with con_class_b.unwrap()
         let con_class_b = std::mem::take(&mut *con_class_b.borrow_mut());
         for local in con_class_b.values() {
             self.congruence_classes
