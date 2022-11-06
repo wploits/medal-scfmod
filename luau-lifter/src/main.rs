@@ -7,8 +7,7 @@ use ast::local_declarations::declare_locals;
 use cfg::ssa::{
     self,
     structuring::{
-        structure_conditionals, structure_for_loops, structure_jumps,
-        structure_method_calls,
+        structure_conditionals, structure_for_loops, structure_jumps, structure_method_calls,
     },
 };
 use indexmap::IndexMap;
@@ -150,45 +149,8 @@ fn main() -> anyhow::Result<()> {
                 &upvalues_in.iter().chain(params.iter()).cloned().collect(),
             );
             println!("{}", block);
-
-            /*process_function(&mut main)?;
-            for function in descendants.into_iter() {
-                process_function(&mut function.borrow_mut())?;
-            }*/
-
-            //dot::render_to(&main, &mut std::io::stdout())?;
-
-            /*let now = time::Instant::now();
-            let output = cfg_to_ast::lift(&main);
-            let cfg_to_ast_time = now.elapsed();
-            println!("cfg to ast lifter: {:?}", cfg_to_ast_time);
-
-            println!("{}", output);*/
         }
     }
 
     Ok(())
 }
-
-/*fn process_function(cfg: &mut Function) -> anyhow::Result<()> {
-    let now = time::Instant::now();
-    cfg_ir::value::ensure_write::ensure_writes(cfg);
-    let writes_ensured = now.elapsed();
-    //dot::render_to(cfg, &mut std::io::stdout())?;
-    println!("ensure writes: {:?}", writes_ensured);
-
-    let now = time::Instant::now();
-    ssa::::construct(cfg)?;
-    let ssa_constructed = now.elapsed();
-    //dot::render_to(cfg, &mut std::io::stdout())?;
-    println!("ssa construction: {:?}", ssa_constructed);
-
-    let now = time::Instant::now();
-    ssa::destruct::destruct(cfg);
-    let ssa_destructed = now.elapsed();
-    //dot::render_to(cfg, &mut std::io::stdout())?;
-    println!("ssa destruction: {:?}", ssa_destructed);
-
-    Ok(())
-}
-*/

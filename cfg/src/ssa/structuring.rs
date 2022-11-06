@@ -333,8 +333,6 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
             first_block.pop();
             first_block.extend(removed_block.0);
             did_structure = true;
-
-            // crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
         }
 
         did_structure |= try_remove_unnecessary_condition(function, node);
@@ -349,7 +347,10 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
 // local a; if g == 1 then a = true else a = false end; return a -> return g == 1
 fn structure_bool_conditional(function: &mut Function, node: NodeIndex) -> bool {
     if let Some(ast::Statement::If(_)) = function.block(node).unwrap().last() {
-        let (then_block, else_block) = function.conditional_edges(node).unwrap().map(|e| e.target());
+        let (then_block, else_block) = function
+            .conditional_edges(node)
+            .unwrap()
+            .map(|e| e.target());
         if let Ok(then_out_edge) = function.graph().edges_directed(then_block, Direction::Outgoing).exactly_one()
             && let Ok(else_out_edge) = function.graph().edges_directed(else_block, Direction::Outgoing).exactly_one()
             && then_out_edge.target() == else_out_edge.target()
@@ -677,7 +678,7 @@ fn skip_over_node(
         function.graph_mut().add_edge(before_node, after_node, edge);
         did_structure = true;
     }
-    
+
     did_structure
 }
 

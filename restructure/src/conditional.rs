@@ -192,24 +192,24 @@ impl GraphStructurer {
         next: NodeIndex,
     ) -> bool {
         let then_main_cont = self
-        .function
-        .predecessor_blocks(header)
-        .filter(|&n| n != entry)
-        .any(|n| {
-            post_dom
-                .dominators(then_node)
-                .is_some_and(|mut p| p.contains(&n))
-        });
+            .function
+            .predecessor_blocks(header)
+            .filter(|&n| n != entry)
+            .any(|n| {
+                post_dom
+                    .dominators(then_node)
+                    .is_some_and(|mut p| p.contains(&n))
+            });
 
         let else_main_cont = self
-        .function
-        .predecessor_blocks(header)
-        .filter(|&n| n != entry)
-        .any(|n| {
-            post_dom
-                .dominators(else_node)
-                .is_some_and(|mut p| p.contains(&n))
-        });
+            .function
+            .predecessor_blocks(header)
+            .filter(|&n| n != entry)
+            .any(|n| {
+                post_dom
+                    .dominators(else_node)
+                    .is_some_and(|mut p| p.contains(&n))
+            });
 
         let mut changed = false;
         let header_successors = self.function.successor_blocks(header).collect_vec();
@@ -259,10 +259,6 @@ impl GraphStructurer {
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
-        // if self.is_loop_header(entry) {
-        //     return false;
-        // }
-
         let block = self.function.block_mut(entry).unwrap();
         if block.last_mut().unwrap().as_if_mut().is_none() {
             // for loops

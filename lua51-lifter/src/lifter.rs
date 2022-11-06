@@ -16,8 +16,7 @@ use ast::{
 use cfg::{
     function::Function,
     ssa::structuring::{
-        structure_conditionals, structure_for_loops, structure_jumps,
-        structure_method_calls,
+        structure_conditionals, structure_for_loops, structure_jumps, structure_method_calls,
     },
 };
 
@@ -33,7 +32,6 @@ pub struct LifterContext<'a> {
     bytecode: &'a BytecodeFunction<'a>,
     nodes: FxHashMap<usize, NodeIndex>,
     insert_between: FxHashMap<NodeIndex, (NodeIndex, Statement)>,
-    //blocks_to_skip: FxHashMap<usize, usize>,
     locals: FxHashMap<Register, RcLocal>,
     constants: FxHashMap<usize, ast::Literal>,
     function: Function,
@@ -100,23 +98,12 @@ impl<'a> LifterContext<'a> {
                     let dest_index = (insn_index + 1)
                         .checked_add_signed(skip.try_into().unwrap())
                         .unwrap();
-                    /* let dest_block = * */
                     self.nodes
                         .entry(dest_index)
                         .or_insert_with(|| self.function.new_block());
                     self.nodes
                         .entry(insn_index + 1)
                         .or_insert_with(|| self.function.new_block());
-                    // UNCOMMENTING THIS BREAKS
-                    // for i in t do end
-                    // BETTER TO JUST LEAVE IT COMMENTED
-                    // if insn_index != dest_index {
-                    //     if let Some(jmp_block) = self.nodes.remove(&insn_index) {
-                    //         self.function.remove_block(jmp_block);
-                    //         self.nodes.insert(insn_index, dest_block);
-                    //         self.blocks_to_skip.insert(insn_index, dest_index);
-                    //     }
-                    // }
                 }
                 Instruction::IterateNumericForLoop { skip, .. }
                 | Instruction::InitNumericForLoop { skip, .. } => {
@@ -149,12 +136,7 @@ impl<'a> LifterContext<'a> {
             .skip(1)
             .map(|&s| s - 1)
             .chain(std::iter::once(self.bytecode.code.len() - 1));
-        nodes
-            .iter()
-            .cloned()
-            .zip(ends)
-            //.filter(|(s, _)| !self.blocks_to_skip.contains_key(s))
-            .collect()
+        nodes.iter().cloned().zip(ends).collect()
     }
 
     fn constant(&mut self, constant: Constant) -> ast::Literal {
@@ -634,7 +616,6 @@ impl<'a> LifterContext<'a> {
                     let mut local_map =
                         FxHashMap::with_capacity_and_hasher(upvalues_in.len(), Default::default());
                     for (old, new) in upvalues_in.into_iter().zip(&upvalues_passed) {
-                        // println!("{} -> {}", old, new);
                         local_map.insert(old, new.clone());
                     }
                     replace_locals(&mut body, &local_map);
@@ -732,17 +713,6 @@ impl<'a> LifterContext<'a> {
                         ast::NumForNext::new(internal_counter.clone(), limit.into(), step.into())
                             .into(),
                     );
-                    // statements.push(
-                    //     ast::Assign::new(vec![internal_counter.clone().into()], vec![ast::Binary::new(internal_counter.clone().into(), step.into(), ast::BinaryOperation::Add).into()]).into()
-                    // );
-                    // statements.push(
-                    //     ast::If::new(
-                    //         ast::Binary::new(internal_counter.clone().into(), limit.into(), ast::BinaryOperation::LessThanOrEqual).into(),
-                    //         ast::Block::default(),
-                    //         ast::Block::default(),
-                    //     )
-                    //     .into(),
-                    // );
 
                     let body_node = self.get_node(
                         &((end + 1)
@@ -827,10 +797,8 @@ impl<'a> LifterContext<'a> {
         }
     }
 
+    // TODO: REFACTOR: this function doesnt need to exist
     fn get_node(&'a self, index: &'a usize) -> NodeIndex {
-        // while let Some(index_to) = self.blocks_to_skip.get(index) {
-        //     index = index_to;
-        // }
         self.nodes[index]
     }
 
@@ -921,7 +889,6 @@ impl<'a> LifterContext<'a> {
             bytecode,
             nodes: FxHashMap::default(),
             insert_between: FxHashMap::default(),
-            // blocks_to_skip: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
             function: Function::with_allocator(local_allocator),

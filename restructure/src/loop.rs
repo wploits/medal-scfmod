@@ -86,21 +86,33 @@ impl GraphStructurer {
                 return false;
             }
 
-            let continues = if body != header {self
-            .function
-            .predecessor_blocks(header)
-            // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
-            .filter(|&n| n != header)
-            .filter(|&n| {
-                dominators
-                    .dominators(n)
-                    .map(|mut x| x.contains(&header))
-                    .unwrap_or(false)
-            })
-            .collect_vec() } else {Vec::new()};
+            let continues = if body != header {
+                self.function
+                    .predecessor_blocks(header)
+                    // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
+                    .filter(|&n| n != header)
+                    .filter(|&n| {
+                        dominators
+                            .dominators(n)
+                            .map(|mut x| x.contains(&header))
+                            .unwrap_or(false)
+                    })
+                    .collect_vec()
+            } else {
+                Vec::new()
+            };
 
             let mut changed = false;
-            let common_post_doms = post_dom.dominators(body).map(|d| d.collect_vec()).unwrap_or_default().intersect(post_dom.dominators(next).map(|d| d.collect_vec()).unwrap_or_default());
+            let common_post_doms = post_dom
+                .dominators(body)
+                .map(|d| d.collect_vec())
+                .unwrap_or_default()
+                .intersect(
+                    post_dom
+                        .dominators(next)
+                        .map(|d| d.collect_vec())
+                        .unwrap_or_default(),
+                );
             if let Some(new_next) = common_post_doms.into_iter().find(|&p| {
                 continues.iter().all(|&n| post_dom.dominators(n).unwrap().contains(&p))
             }) && new_next != next {
@@ -123,23 +135,6 @@ impl GraphStructurer {
                 changed = true;
             }
 
-            /*let latches = self
-                .function
-                .graph()
-                .neighbors_directed(header, Direction::Incoming)
-                .filter(|&n| n != next && dominators.dominators(n).unwrap().contains(&header))
-                .collect_vec();
-            let breaks = self
-                .function
-                .graph()
-                .neighbors_directed(next, Direction::Incoming)
-                .filter(|&n| n != header && dominators.dominators(n).unwrap().contains(&header))
-                .collect_vec();
-
-            println!("latches: {:#?}", latches);
-            println!("breaks: {:#?}", breaks);*/
-
-            
             // if body == header then body dominates next, which results in breaks being inserted
             // outside the loop
             if body != header {
@@ -150,8 +145,6 @@ impl GraphStructurer {
                     .filter(|&n| dominators.dominators(n).unwrap().contains(&body))
                     .collect_vec();
                 //println!("breaks: {:?}", breaks);
-
-
 
                 if self
                     .function
@@ -289,11 +282,6 @@ impl GraphStructurer {
                             })
                     });
                     let (init_block, init_index) = init_blocks.exactly_one().unwrap();
-
-                    // if !statements.is_empty() {
-                    //     println!("{}", self.function.block(init_block).unwrap());
-                    //     println!("--");
-                    // }
 
                     let mut body_ast = if body == header {
                         ast::Block::default()

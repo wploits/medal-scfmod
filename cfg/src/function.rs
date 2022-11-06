@@ -38,70 +38,6 @@ impl Function {
         self.entry = Some(new_entry);
     }
 
-    // #[requires(self.has_block(block))]
-    // pub fn set_block_terminator(
-    //     &mut self,
-    //     block: NodeIndex,
-    //     mut new_terminator: Option<Terminator>,
-    // ) {
-    //     self.graph
-    //         .retain_edges(|g, e| g.edge_endpoints(e).unwrap().0 != block);
-    //     match &new_terminator {
-    //         Some(Terminator::Jump(edge)) => {
-    //             self.graph.add_edge(block, edge.node, ());
-    //         }
-    //         Some(Terminator::Conditional(then_edge, else_edge)) => {
-    //             self.graph.add_edge(block, then_edge.node, ());
-    //             if then_edge.node != else_edge.node {
-    //                 self.graph.add_edge(block, else_edge.node, ());
-    //             } else {
-    //                 new_terminator = Some(Terminator::jump(then_edge.node));
-    //             }
-
-    //             /*lif then_edge.node != else_edge.node {
-    //                 self.graph.add_edge(block, else_edge.node, ());
-    //             } else {
-    //                 et source_block = &mut self.block_mut(block).unwrap().ast;
-    //                 let condition = source_block.pop().unwrap().into_if().unwrap().condition;
-    //                 if condition.has_side_effects() {
-    //                     let local = self.local_allocator.borrow_mut().borrow_mut().allocate();
-    //                     self.block_mut(block)
-    //                         .unwrap()
-    //                         .ast
-    //                         .push(ast::Assign::new(vec![local.into()], vec![condition]).into());
-    //                 }
-    //                 new_terminator = Some(Terminator::jump(then_edge.node));
-    //             }*/
-    //         }
-    //         _ => {}
-    //     }
-    //     self.block_mut(block).unwrap().terminator = new_terminator;
-    // }
-
-    // #[requires(self.graph.find_edge(source, old_target).is_some())]
-    // #[requires(self.has_block(target))]
-    // pub fn replace_edge(&mut self, source: NodeIndex, old_target: NodeIndex, target: NodeIndex) {
-    //     if self.successor_blocks(source).contains(&target) {
-    //         self.set_block_terminator(source, Some(Terminator::jump(target)));
-    //     } else {
-    //         self.graph
-    //             .remove_edge(self.graph.find_edge(source, old_target).unwrap());
-    //         self.graph.add_edge(source, target, ());
-    //         self.block_mut(source)
-    //             .unwrap()
-    //             .terminator
-    //             .as_mut()
-    //             .unwrap()
-    //             .replace_branch(old_target, target);
-    //     }
-    // }
-
-    // TODO: take EdgeIndex as argument
-    // pub fn remove_edge(&mut self, source: NodeIndex, target: NodeIndex) {
-    //     self.graph
-    //         .remove_edge(self.graph.find_edge(source, target).unwrap());
-    // }
-
     pub fn graph(&self) -> &StableDiGraph<ast::Block, BlockEdge> {
         &self.graph
     }
@@ -235,43 +171,6 @@ impl Function {
                     .flat_map(|(_, a)| a.values_read())
             }))
     }
-
-    // pub fn edges_to_block_mut(&mut self, node: NodeIndex) -> Vec<&mut BasicBlockEdge> {
-    //     self.graph
-    //         .node_weights_mut()
-    //         .filter_map(|w| w.terminator.as_mut())
-    //         .flat_map(|t| t.edges_mut())
-    //         .filter(|e| e.node == node)
-    //         .collect()
-    // }
-
-    // #[requires(self.graph.find_edge(source, target).is_some())]
-    // pub fn edge(&self, source: NodeIndex, target: NodeIndex) -> Option<&BasicBlockEdge> {
-    //     match self.block(source).unwrap().terminator.as_ref().unwrap() {
-    //         Terminator::Jump(edge) => Some(edge),
-    //         Terminator::Conditional(then_edge, else_edge) if then_edge.node == target => {
-    //             Some(then_edge)
-    //         }
-    //         Terminator::Conditional(then_edge, else_edge) if else_edge.node == target => {
-    //             Some(else_edge)
-    //         }
-    //         _ => None,
-    //     }
-    // }
-
-    // #[requires(self.graph.find_edge(source, target).is_some())]
-    // pub fn edge_mut(
-    //     &mut self,
-    //     source: NodeIndex,
-    //     target: NodeIndex,
-    // ) -> Option<&mut BasicBlockEdge> {
-    //     match self.block_mut(source).unwrap().terminator.as_mut().unwrap() {
-    //         Terminator::Jump(edge) => Some(edge),
-    //         Terminator::Conditional(then_edge, _) if then_edge.node == target => Some(then_edge),
-    //         Terminator::Conditional(_, else_edge) if else_edge.node == target => Some(else_edge),
-    //         _ => None,
-    //     }
-    // }
 
     pub fn new_block(&mut self) -> NodeIndex {
         self.graph.add_node(ast::Block::default())
