@@ -93,7 +93,17 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
         if stat_has_local(stat, local) {
             usages.push(stat_index);
             match usages.len() {
-                1 if !matches!(stat, Statement::If(_) | Statement::While(_) | Statement::Repeat(_) | Statement::NumericFor(_) | Statement::GenericFor(_)) => break,
+                1 if !matches!(
+                    stat,
+                    Statement::If(_)
+                        | Statement::While(_)
+                        | Statement::Repeat(_)
+                        | Statement::NumericFor(_)
+                        | Statement::GenericFor(_)
+                ) =>
+                {
+                    break
+                }
                 1 => continue,
                 2 => break,
                 _ => unreachable!(),
@@ -204,7 +214,12 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
 pub fn declare_locals(block: &mut Block, locals_to_ignore: &FxHashSet<RcLocal>) {
     let mut locals = IndexSet::new();
     collect_block_locals(block, &mut locals);
-    for local in locals.into_iter().filter(|l| !locals_to_ignore.contains(l)).cloned().collect_vec() {
+    for local in locals
+        .into_iter()
+        .filter(|l| !locals_to_ignore.contains(l))
+        .cloned()
+        .collect_vec()
+    {
         declare_local(block, &local);
     }
 }
