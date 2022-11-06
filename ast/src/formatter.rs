@@ -315,7 +315,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     // TODO: PERF: Cow like from_utf8_lossy
     pub(crate) fn escape_string(string: &[u8]) -> Cow<str> {
         let mut owned: Option<String> = None;
-        for (i, &c) in string.iter().enumerate() {
+        let mut iter = string.iter().enumerate().peekable();
+        while let Some((i, &c)) = iter.next() {
             if c == b' ' || (c.is_ascii_graphic() && c != b'\\' && c != b'\'' && c != b'\"') {
                 if let Some(owned) = &mut owned {
                     owned.push(c as char);
@@ -333,7 +334,13 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                     b'\t' => owned.push_str(r"\t"),
                     b'\"' => owned.push_str(r#"\""#),
                     b'\'' => owned.push_str(r"\'"),
-                    _ => owned.push_str(&format!(r"\{:0>3}", c)),
+                    b'\\' => owned.push_str(r"\\"),
+                    12 => owned.push_str(r"\f"),
+                    _ => if let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
+                            owned.push_str(&format!(r"\{:0>3}", c))
+                        } else {
+                            owned.push_str(&format!(r"\{}", c))
+                        },
                 };
             }
         }
