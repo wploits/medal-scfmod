@@ -9,14 +9,14 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{Assign, Block, Literal, LocalRw, NumericFor, RcLocal, Statement};
 
-fn collect_block_locals(block: &Block, locals: &mut IndexSet<RcLocal>) {
+fn collect_block_locals<'a>(block: &'a Block, locals: &mut IndexSet<&'a RcLocal>) {
     for stat in &block.0 {
         collect_stat_locals(stat, locals);
     }
 }
 
-fn collect_stat_locals(stat: &Statement, locals: &mut IndexSet<RcLocal>) {
-    locals.extend(stat.values().into_iter().cloned());
+fn collect_stat_locals<'a>(stat: &'a Statement, locals: &mut IndexSet<&'a RcLocal>) {
+    locals.extend(stat.values().into_iter());
     // TODO: traverse_values
     match stat {
         Statement::If(r#if) => {
@@ -39,14 +39,64 @@ fn collect_stat_locals(stat: &Statement, locals: &mut IndexSet<RcLocal>) {
     }
 }
 
+fn block_has_local(block: &Block, local: &RcLocal) -> bool {
+    for stat in &block.0 {
+        if stat_has_local(stat, local) {
+            return true;
+        }
+    }
+    false
+}
+
+fn stat_has_local(stat: &Statement, local: &RcLocal) -> bool {
+    if stat.values().contains(&local) {
+        return true;
+    }
+    // TODO: traverse_values
+    match stat {
+        Statement::If(r#if) => {
+            if block_has_local(&r#if.then_block, local) {
+                return true;
+            }
+            if block_has_local(&r#if.else_block, local) {
+                return true;
+            }
+        }
+        Statement::While(r#while) => {
+            if block_has_local(&r#while.block, local) {
+                return true;
+            }
+        }
+        Statement::Repeat(repeat) => {
+            if block_has_local(&repeat.block, local) {
+                return true;
+            }
+        }
+        Statement::NumericFor(numeric_for) => {
+            if block_has_local(&numeric_for.block, local) {
+                return true;
+            }
+        }
+        Statement::GenericFor(generic_for) => {
+            if block_has_local(&generic_for.block, local) {
+                return true;
+            }
+        }
+        _ => {}
+    }
+    false
+}
+
 pub fn declare_local(block: &mut Block, local: &RcLocal) {
-    let mut usages = BTreeSet::new();
+    let mut usages = Vec::new();
     for (stat_index, stat) in block.iter().enumerate() {
-        let mut locals = IndexSet::new();
-        collect_stat_locals(stat, &mut locals);
-        for used_local in locals {
-            if used_local == *local {
-                usages.insert(stat_index);
+        if stat_has_local(stat, local) {
+            usages.push(stat_index);
+            match usages.len() {
+                1 if !matches!(stat, Statement::If(_) | Statement::While(_) | Statement::Repeat(_) | Statement::NumericFor(_) | Statement::GenericFor(_)) => break,
+                1 => continue,
+                2 => break,
+                _ => unreachable!(),
             }
         }
     }
@@ -154,8 +204,7 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
 pub fn declare_locals(block: &mut Block, locals_to_ignore: &FxHashSet<RcLocal>) {
     let mut locals = IndexSet::new();
     collect_block_locals(block, &mut locals);
-    locals.retain(|l| !locals_to_ignore.contains(l));
-    for local in locals {
+    for local in locals.into_iter().filter(|l| !locals_to_ignore.contains(l)).cloned().collect_vec() {
         declare_local(block, &local);
     }
 }
