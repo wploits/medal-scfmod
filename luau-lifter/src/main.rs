@@ -7,7 +7,7 @@ use ast::local_declarations::declare_locals;
 use cfg::ssa::{
     self,
     structuring::{
-        structure_compound_conditionals, structure_for_loops, structure_jumps,
+        structure_conditionals, structure_for_loops, structure_jumps,
         structure_method_calls,
     },
 };
@@ -92,7 +92,7 @@ fn main() -> anyhow::Result<()> {
 
                 ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
 
-                if structure_compound_conditionals(&mut function)
+                if structure_conditionals(&mut function)
                     || {
                         let post_dominators = post_dominators(function.graph_mut());
                         structure_for_loops(&mut function, &dominators, &post_dominators)

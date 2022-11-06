@@ -207,7 +207,7 @@ fn match_conditional_assignment(
                 }
             };
 
-            let (a, b) = (edges.0.target(), edges.1.target());
+            let (a, b) = edges.map(|e| e.target());
             if let Some((assigned_local, assigned_value, parameter)) = test_pattern(a, b) {
                 return Some(ConditionalAssignmentPattern {
                     assigner: a,
@@ -235,12 +235,15 @@ fn match_conditional_assignment(
     None
 }
 
-pub fn structure_compound_conditionals(function: &mut Function) -> bool {
+pub fn structure_conditionals(function: &mut Function) -> bool {
     let mut did_structure = false;
     // TODO: does this need to be in dfs post order?
     let mut dfs = DfsPostOrder::new(function.graph(), function.entry().unwrap());
     while let Some(node) = dfs.next(function.graph()) {
         if simplify_condition(function, node) {
+            did_structure = true;
+        }
+        if structure_bool_conditional(function, node) {
             did_structure = true;
         }
         if let Some(pattern) = match_conditional_assignment(function, node)
@@ -333,9 +336,72 @@ pub fn structure_compound_conditionals(function: &mut Function) -> bool {
 
             // crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
         }
+
+        did_structure |= try_remove_unnecessary_condition(function, node);
     }
 
     did_structure
+}
+
+// TODO: `return if g then true else false` in luau?
+// local a; if g then a = true else a = false end; return a -> return g and true or false
+// local a; if g then a = false else a = true end; return a -> return not g
+// local a; if g == 1 then a = true else a = false end; return a -> return g == 1
+fn structure_bool_conditional(function: &mut Function, node: NodeIndex) -> bool {
+    if let Some(ast::Statement::If(_)) = function.block(node).unwrap().last() {
+        let (then_block, else_block) = function.conditional_edges(node).unwrap().map(|e| e.target());
+        if let Ok(then_out_edge) = function.graph().edges_directed(then_block, Direction::Outgoing).exactly_one()
+            && let Ok(else_out_edge) = function.graph().edges_directed(else_block, Direction::Outgoing).exactly_one()
+            && then_out_edge.target() == else_out_edge.target()
+            && let Ok(ast::Statement::Assign(then_assign)) = function.block(then_block).unwrap().iter().exactly_one()
+            && let Ok(ast::LValue::Local(then_local)) = then_assign.left.iter().exactly_one()
+            && let Ok(ast::RValue::Literal(ast::Literal::Boolean(then_value))) = then_assign.right.iter().exactly_one()
+            && let Ok((then_res_local, _)) = then_out_edge.weight().arguments.iter().filter(|(_, a)| a.as_local() == Some(then_local)).exactly_one()
+            && let Ok(ast::Statement::Assign(else_assign)) = function.block(else_block).unwrap().iter().exactly_one()
+            && let Ok(ast::LValue::Local(else_local)) = else_assign.left.iter().exactly_one()
+            && let Ok(ast::RValue::Literal(ast::Literal::Boolean(else_value))) = else_assign.right.iter().exactly_one()
+            && let Ok((else_res_local, _)) = else_out_edge.weight().arguments.iter().filter(|(_, a)| a.as_local() == Some(else_local)).exactly_one()
+            && then_value != else_value
+            && then_res_local == else_res_local
+        {
+            let then_value = *then_value;
+            let res_local = then_res_local.clone();
+            let (then_out_edge, else_out_edge) = (then_out_edge.id(), else_out_edge.id());
+
+            skip_over_node(function, node, then_out_edge);
+            skip_over_node(function, node, else_out_edge);
+            if function.predecessor_blocks(then_block).next().is_none() {
+                function.remove_block(then_block);
+            }
+            if function.predecessor_blocks(else_block).next().is_none() {
+                function.remove_block(else_block);
+            }
+
+            for edge in function.graph().edges_directed(node, Direction::Outgoing).map(|e| e.id()).collect::<Vec<_>>() {
+                function.graph_mut().edge_weight_mut(edge).unwrap().arguments.iter_mut().find(|(p, _)| p == &res_local).unwrap().1 = res_local.clone().into();
+            }
+
+            let block = function.block_mut(node).unwrap();
+            let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
+            let cond = match std::mem::replace(&mut r#if.condition, res_local.clone().into()).reduce() {
+                ast::RValue::Binary(binary) if binary.operation.is_comparator() => binary.into(),
+                ast::RValue::Literal(literal) if matches!(literal, ast::Literal::Boolean(_)) => literal.into(),
+                cond => match then_value {
+                    true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
+                    false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
+                },
+            };
+            let pos = block.len() - 1;
+            block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![cond]).into());
+
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+    //todo!();
 }
 
 fn jumps_to_block_if_local(
@@ -611,44 +677,56 @@ fn skip_over_node(
         function.graph_mut().add_edge(before_node, after_node, edge);
         did_structure = true;
     }
-    let block = function.block(before_node).unwrap();
+    
+    did_structure
+}
+
+fn try_remove_unnecessary_condition(function: &mut Function, node: NodeIndex) -> bool {
+    let block = function.block(node).unwrap();
     if !block.is_empty()
         && block.last().unwrap().as_if().is_some()
-        && let Some((then_edge, else_edge)) = function.conditional_edges(skip_node)
+        && let Some((then_edge, else_edge)) = function.conditional_edges(node)
         && then_edge.target() == else_edge.target()
         && then_edge.weight().arguments == else_edge.weight().arguments
     {
+        let target = then_edge.target();
         // TODO: check if this works (+ restructuring/src/jump.rs)
         let cond = function
-            .block_mut(before_node)
+            .block_mut(node)
             .unwrap()
             .pop()
             .unwrap()
             .into_if()
             .unwrap()
             .condition;
-        if cond.has_side_effects() {
-            // we don't need to handle not creating a local for calls because inline.rs
-            // should optimize the temp local out, but in the case of jump.rs, not so much
-            let temp_local = function.local_allocator.borrow_mut().allocate();
-            function.block_mut(before_node).unwrap().push(
-                ast::Assign {
-                    left: vec![temp_local.into()],
-                    right: vec![cond],
-                    prefix: true,
-                    parallel: false,
-                }
-                .into(),
-            )
-        }
-
+        let new_stat = match cond {
+            ast::RValue::Call(call) => Some(call.into()),
+            ast::RValue::MethodCall(method_call) => Some(method_call.into()),
+            cond if cond.has_side_effects() => {
+                let temp_local = function.local_allocator.borrow_mut().allocate();
+                Some(ast::Assign {
+                        left: vec![temp_local.into()],
+                        right: vec![cond],
+                        prefix: true,
+                        parallel: false,
+                    }
+                    .into(),
+                )
+            },
+            _ => None,
+        };
+        function.block_mut(node).unwrap().extend(new_stat);
+        let arguments = function.remove_edges(node).into_iter().next().unwrap().1.arguments;
+        let mut new_edge = BlockEdge::new(BranchType::Unconditional);
+        new_edge.arguments = arguments;
         function.set_edges(
-            before_node,
-            vec![(after_node, BlockEdge::new(BranchType::Unconditional))],
+            node,
+            vec![(target, new_edge)],
         );
+        true
+    } else {
+        false
     }
-
-    did_structure
 }
 
 // TODO: REFACTOR: same as match_jump in restructure, maybe can use some common code?
@@ -668,7 +746,7 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
             if block.is_empty() {
                 let mut remove = true;
                 for pred in function.predecessor_blocks(node).collect_vec() {
-                    let did = skip_over_node(function, pred, jump_edge);
+                    let did = skip_over_node(function, pred, jump_edge) | try_remove_unnecessary_condition(function, pred);
                     if did {
                         did_structure = true;
                     }
