@@ -26,10 +26,10 @@ impl GraphStructurer {
             } else if !then_return.values.is_empty() && else_return.values.is_empty() {
                 Some(std::mem::take(&mut if_stat.else_block))
             } else if then_return.values.is_empty() && !else_return.values.is_empty() {
-                if_stat.then_block = std::mem::take(&mut if_stat.else_block);
+                let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
-                Some(std::mem::take(&mut if_stat.then_block))
+                Some(then_block)
             } else {
                 match if_stat.then_block.len().cmp(&if_stat.else_block.len()) {
                     std::cmp::Ordering::Less => Some(std::mem::take(&mut if_stat.else_block)),
