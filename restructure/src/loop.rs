@@ -1,3 +1,4 @@
+use array_tool::vec::Intersect;
 use ast::{Reduce, SideEffects};
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
@@ -74,7 +75,6 @@ impl GraphStructurer {
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
             }
-            // println!("{:?} {:?}", next, body);
 
             if self
                 .function
@@ -84,6 +84,44 @@ impl GraphStructurer {
                 != 1
             {
                 return false;
+            }
+
+            let continues = if body != header {self
+            .function
+            .predecessor_blocks(header)
+            // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
+            .filter(|&n| n != header)
+            .filter(|&n| {
+                dominators
+                    .dominators(n)
+                    .map(|mut x| x.contains(&header))
+                    .unwrap_or(false)
+            })
+            .collect_vec() } else {Vec::new()};
+
+            let mut changed = false;
+            let common_post_doms = post_dom.dominators(body).map(|d| d.collect_vec()).unwrap_or_default().intersect(post_dom.dominators(next).map(|d| d.collect_vec()).unwrap_or_default());
+            if let Some(new_next) = common_post_doms.into_iter().find(|&p| {
+                continues.iter().all(|&n| post_dom.dominators(n).unwrap().contains(&p))
+            }) && new_next != next {
+                // TODO: this is uh, yeah
+                next = new_next;
+                let condition_block = self.function.new_block();
+                body = condition_block;
+                let mut new_header_block = ast::Block::default();
+                new_header_block.push(ast::If::new(ast::Literal::Boolean(true).into(), ast::Block::default(), ast::Block::default()).into());
+                *self.function.block_mut(condition_block).unwrap() = std::mem::replace(self.function.block_mut(header).unwrap(), new_header_block);
+                let edges = self.function.remove_edges(header);
+                self.function.set_edges(condition_block, edges);
+                self.function.set_edges(
+                    header,
+                    vec![
+                        (body, BlockEdge::new(BranchType::Then)),
+                        (next, BlockEdge::new(BranchType::Else)),
+                    ],
+                );
+                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+                changed = true;
             }
 
             /*let latches = self
@@ -102,7 +140,7 @@ impl GraphStructurer {
             println!("latches: {:#?}", latches);
             println!("breaks: {:#?}", breaks);*/
 
-            let mut changed = false;
+            
             // if body == header then body dominates next, which results in breaks being inserted
             // outside the loop
             if body != header {
@@ -114,18 +152,7 @@ impl GraphStructurer {
                     .collect_vec();
                 //println!("breaks: {:?}", breaks);
 
-                let continues = self
-                    .function
-                    .predecessor_blocks(header)
-                    // TODO: the line below fixes `for i = 1, 10 do end`, but a different approach might be preferable
-                    .filter(|&n| n != header)
-                    .filter(|&n| {
-                        dominators
-                            .dominators(n)
-                            .map(|mut x| x.contains(&body))
-                            .unwrap_or(false)
-                    })
-                    .collect_vec();
+
 
                 if self
                     .function
@@ -156,6 +183,7 @@ impl GraphStructurer {
                 {
                     if let Some((then_edge, else_edge)) = self.function.conditional_edges(node) {
                         changed |= self.refine_virtual_edge_conditional(
+                            &post_dom,
                             node,
                             then_edge.target(),
                             else_edge.target(),

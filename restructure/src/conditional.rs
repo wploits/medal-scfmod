@@ -184,24 +184,45 @@ impl GraphStructurer {
 
     pub(crate) fn refine_virtual_edge_conditional(
         &mut self,
+        post_dom: &Dominators<NodeIndex>,
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
         header: NodeIndex,
         next: NodeIndex,
     ) -> bool {
+        let then_main_cont = self
+        .function
+        .predecessor_blocks(header)
+        .filter(|&n| n != entry)
+        .any(|n| {
+            post_dom
+                .dominators(then_node)
+                .is_some_and(|mut p| p.contains(&n))
+        });
+
+        let else_main_cont = self
+        .function
+        .predecessor_blocks(header)
+        .filter(|&n| n != entry)
+        .any(|n| {
+            post_dom
+                .dominators(else_node)
+                .is_some_and(|mut p| p.contains(&n))
+        });
+
         let mut changed = false;
         let header_successors = self.function.successor_blocks(header).collect_vec();
         let block = self.function.block_mut(entry).unwrap();
         if let Some(if_stat) = block.last_mut().unwrap().as_if_mut() {
-            if then_node == header && !header_successors.contains(&entry) {
+            if then_node == header && !header_successors.contains(&entry) && then_main_cont {
                 if_stat.then_block = vec![ast::Continue {}.into()].into();
                 changed = true;
             } else if then_node == next {
                 if_stat.then_block = vec![ast::Break {}.into()].into();
                 changed = true;
             }
-            if else_node == header && !header_successors.contains(&entry) {
+            if else_node == header && !header_successors.contains(&entry) && else_main_cont {
                 if_stat.else_block = vec![ast::Continue {}.into()].into();
                 changed = true;
             } else if else_node == next {
