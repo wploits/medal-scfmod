@@ -120,7 +120,6 @@ impl GraphStructurer {
                         (next, BlockEdge::new(BranchType::Else)),
                     ],
                 );
-                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
                 changed = true;
             }
 
