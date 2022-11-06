@@ -34,13 +34,13 @@ impl GraphStructurer {
                 match if_stat.then_block.len().cmp(&if_stat.else_block.len()) {
                     std::cmp::Ordering::Less => Some(std::mem::take(&mut if_stat.else_block)),
                     std::cmp::Ordering::Greater => {
-                        let then_block = std::mem::take(&mut if_stat.then_block);
-                        if_stat.then_block = std::mem::take(&mut if_stat.else_block);
+                        let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
                         if_stat.condition =
                             ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
                                 .reduce();
                         Some(then_block)
                     }
+                    // TODO: `Some(std::mem::take(&mut if_stat.else_block))`?
                     std::cmp::Ordering::Equal => None,
                 }
             }
