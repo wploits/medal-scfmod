@@ -118,12 +118,8 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
         // if possible
         match &mut block[first_stat_index] {
             Statement::If(r#if) if !r#if.values().into_iter().contains(local) => {
-                let mut then_locals = IndexSet::new();
-                let mut else_locals = IndexSet::new();
-                collect_block_locals(&r#if.then_block, &mut then_locals);
-                collect_block_locals(&r#if.else_block, &mut else_locals);
-                let then_contains_local = then_locals.into_iter().contains(local);
-                let else_contains_local = else_locals.into_iter().contains(local);
+                let then_contains_local = block_has_local(&r#if.then_block, local);
+                let else_contains_local = block_has_local(&r#if.else_block, local);
                 if then_contains_local && !else_contains_local {
                     declare_local(&mut r#if.then_block, local);
                     true
