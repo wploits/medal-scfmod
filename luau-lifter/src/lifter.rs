@@ -67,7 +67,7 @@ impl<'a> Lifter<'a> {
             let upvalues_in = context.upvalues;
 
             // println!("before ssa construction");
-            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
             // println!("line defined: {:?}", context.function_list[context.function].line_defined);
 
             let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =

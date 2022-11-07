@@ -43,7 +43,6 @@ impl UpvaluesOpen {
                         if let Some((prev_range, prev_locations)) =
                             open_ranges.get_key_value(&stat_index)
                         {
-                            crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
                             // TODO: this assert fails in Luau with the below code,
                             // but i dont know why. it appears to work fine with the
                             // assert commented out, but we should double check it.
