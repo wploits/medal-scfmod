@@ -728,6 +728,27 @@ impl<'a> Lifter<'a> {
                             .collect();
                         statements.push(ast::Close { locals }.into());
                     }
+                    OpCode::LOP_SETLIST => {
+                        let setlist = if c != 0 {
+                            ast::SetList::new(
+                                self.register(a as _),
+                                aux as usize,
+                                (b..b + c - 1)
+                                    .map(|r| self.register(r as _).into())
+                                    .collect(),
+                                None,
+                            )
+                        } else {
+                            let top = top.take().unwrap();
+                            ast::SetList::new(
+                                self.register(a as _).clone(),
+                                aux as usize,
+                                (b..top.1).map(|r| self.register(r as _).into()).collect(),
+                                Some(top.0),
+                            )
+                        };
+                        statements.push(setlist.into());
+                    }
                     OpCode::LOP_NOP => {}
                     _ => unimplemented!(
                         "{}:{}: {:?}",
