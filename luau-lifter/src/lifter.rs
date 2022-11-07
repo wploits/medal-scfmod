@@ -1356,7 +1356,6 @@ impl<'a> Lifter<'a> {
                         };
                         let func = &self.function_list[func_index];
                         let mut upvalues_passed = Vec::with_capacity(func.num_upvalues.into());
-                        let mut to_close = Vec::new();
                         for _ in 0..func.num_upvalues {
                             let local = match iter.next().as_ref().unwrap().1 {
                                 &Instruction::BC {
@@ -1374,7 +1373,7 @@ impl<'a> Lifter<'a> {
                                             && source != a
                                         {
                                             // we represent capture-by-value by copying into a
-                                            // temporary local that is immediately closed
+                                            // temporary local
                                             let temp_local = self
                                                 .lifted_function
                                                 .local_allocator
@@ -1387,7 +1386,6 @@ impl<'a> Lifter<'a> {
                                                 )
                                                 .into(),
                                             );
-                                            to_close.push(temp_local.clone());
                                             temp_local
                                         } else {
                                             local
@@ -1430,10 +1428,6 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
-
-                        if !to_close.is_empty() {
-                            statements.push(ast::Close { locals: to_close }.into());
-                        }
                     }
                     _ => unimplemented!("{:?}", instruction),
                 },

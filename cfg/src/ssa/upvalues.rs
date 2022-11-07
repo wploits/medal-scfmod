@@ -57,7 +57,7 @@ impl UpvaluesOpen {
                                 return u
                             end
                             */
-                            //assert!(prev_range.contains(&(block.len() - 1)));
+                            // assert!(prev_range.contains(&(block.len() - 1)));
                             open_locations.extend(prev_locations);
                         }
                         open_locations.push((node, stat_index));
