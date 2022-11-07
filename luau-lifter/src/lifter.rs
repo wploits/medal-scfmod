@@ -67,7 +67,8 @@ impl<'a> Lifter<'a> {
             let upvalues_in = context.upvalues;
 
             // println!("before ssa construction");
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // println!("line defined: {:?}", context.function_list[context.function].line_defined);
 
             let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
@@ -290,8 +291,11 @@ impl<'a> Lifter<'a> {
             match insn {
                 Instruction::BC { op_code, c, .. } => match op_code {
                     OpCode::LOP_LOADB if *c != 0 => {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*c).try_into().unwrap())
+                            .unwrap();
                         self.blocks
-                            .entry(insn_index.wrapping_add(*c as usize) + 1)
+                            .entry(dest_index)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
                     _ => {}
@@ -307,11 +311,14 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_JUMPBACK
                     | OpCode::LOP_JUMPIF
                     | OpCode::LOP_JUMPIFNOT => {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*d).try_into().unwrap())
+                            .unwrap();
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
                         self.blocks
-                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .entry(dest_index)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
                     OpCode::LOP_JUMPIFEQ
@@ -324,42 +331,61 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_JUMPXEQKB
                     | OpCode::LOP_JUMPXEQKN
                     | OpCode::LOP_JUMPXEQKS => {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*d).try_into().unwrap())
+                            .unwrap();
                         self.blocks
                             .entry(insn_index + 2)
                             .or_insert_with(|| self.lifted_function.new_block());
                         self.blocks
-                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .entry(dest_index)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
-                    OpCode::LOP_FORNPREP
-                    | OpCode::LOP_FORGPREP
-                    | OpCode::LOP_FORGPREP_NEXT
-                    | OpCode::LOP_FORGPREP_INEXT => {
+                    OpCode::LOP_FORNPREP => {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*d).try_into().unwrap())
+                            .unwrap()
+                            - 1;
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
                         self.blocks
-                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .entry(dest_index)
+                            .or_insert_with(|| self.lifted_function.new_block());
+                    }
+                    OpCode::LOP_FORGPREP
+                    | OpCode::LOP_FORGPREP_NEXT
+                    | OpCode::LOP_FORGPREP_INEXT => {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*d).try_into().unwrap())
+                            .unwrap();
+                        self.blocks
+                            .entry(insn_index + 1)
+                            .or_insert_with(|| self.lifted_function.new_block());
+                        self.blocks
+                            .entry(dest_index)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
                     OpCode::LOP_FORNLOOP => {
-                        // TODO: is this needed? shouldnt the block be created by jumps into the block
-                        self.blocks
-                            .entry(insn_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*d).try_into().unwrap())
+                            .unwrap();
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
                         self.blocks
-                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .entry(dest_index)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
                     OpCode::LOP_FORGLOOP => {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*d).try_into().unwrap())
+                            .unwrap();
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
                         self.blocks
-                            .entry(insn_index.wrapping_add(*d as usize) + 1)
+                            .entry(dest_index)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
                     _ => {}
