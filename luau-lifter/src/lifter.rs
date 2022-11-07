@@ -749,13 +749,32 @@ impl<'a> Lifter<'a> {
                         };
                         statements.push(setlist.into());
                     }
+                    OpCode::LOP_CONCAT => {
+                        let operands = (b..=c).map(|r| self.register(r as _)).collect::<Vec<_>>();
+                        assert!(operands.len() >= 2);
+                        let mut operands = operands.into_iter();
+                        let mut concat = ast::Binary::new(
+                            operands.next().unwrap().into(),
+                            operands.next().unwrap().into(),
+                            ast::BinaryOperation::Concat,
+                        );
+                        for r in operands {
+                            concat = ast::Binary::new(
+                                concat.into(),
+                                r.into(),
+                                ast::BinaryOperation::Concat,
+                            );
+                        }
+                        statements.push(
+                            ast::Assign::new(
+                                vec![self.register(a as _).into()],
+                                vec![concat.into()],
+                            )
+                            .into(),
+                        );
+                    }
                     OpCode::LOP_NOP => {}
-                    _ => unimplemented!(
-                        "{}:{}: {:?}",
-                        self.function_list[self.function].line_defined,
-                        index,
-                        instruction
-                    ),
+                    _ => unimplemented!("{:?}", instruction),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
                     OpCode::LOP_LOADK => {
