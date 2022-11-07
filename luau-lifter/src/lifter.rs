@@ -618,7 +618,7 @@ impl<'a> Lifter<'a> {
                         };
                         let target = self.register(a as _);
                         let left = self.register(b as _);
-                        let right = self.constant(aux as _);
+                        let right = self.constant(c as _);
                         statements.push(
                             ast::Assign::new(
                                 vec![target.into()],
