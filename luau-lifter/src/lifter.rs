@@ -35,9 +35,6 @@ pub struct Lifter<'a> {
     string_table: &'a Vec<String>,
     blocks: FxHashMap<usize, NodeIndex>,
     lifted_function: Function,
-    // TODO: make this a ref
-    lifted_descendants: Vec<Rc<RefCell<Function>>>,
-    closures: FxHashMap<usize, Rc<RefCell<Function>>>,
     register_map: FxHashMap<usize, ast::RcLocal>,
     constant_map: FxHashMap<usize, ast::Literal>,
     current_node: Option<NodeIndex>,
@@ -57,10 +54,8 @@ impl<'a> Lifter<'a> {
             string_table: str_list,
             blocks: FxHashMap::default(),
             lifted_function: Function::with_allocator(local_allocator),
-            closures: FxHashMap::default(),
             register_map: FxHashMap::default(),
             constant_map: FxHashMap::default(),
-            lifted_descendants: Vec::new(),
             current_node: None,
             upvalues: Vec::new(),
         };
@@ -412,6 +407,11 @@ impl<'a> Lifter<'a> {
                         let up = self.upvalues[b as usize].clone();
                         statements.push(ast::Assign::new(vec![a.into()], vec![up.into()]).into());
                     }
+                    OpCode::LOP_SETUPVAL => {
+                        let a = self.register(a as _);
+                        let up = self.upvalues[b as usize].clone();
+                        statements.push(ast::Assign::new(vec![up.into()], vec![a.into()]).into());
+                    }
                     OpCode::LOP_LOADNIL => {
                         let target = self.register(a as _);
                         statements.push(
@@ -435,6 +435,26 @@ impl<'a> Lifter<'a> {
                             ));
                         }
                     }
+                    OpCode::LOP_NEWTABLE => {
+                        statements.push(
+                            ast::Assign::new(
+                                vec![self.register(a as _).into()],
+                                vec![ast::Table::default().into()],
+                            )
+                            .into(),
+                        );
+                    }
+                    OpCode::LOP_GETGLOBAL => {
+                        let value = self.register(a as _);
+                        let global_name = self.constant(aux as _).into_string().unwrap();
+                        statements.push(
+                            ast::Assign::new(
+                                vec![value.into()],
+                                vec![ast::Global::new(global_name).into()],
+                            )
+                            .into(),
+                        );
+                    }
                     OpCode::LOP_SETGLOBAL => {
                         let value = self.register(a as _);
                         let global_name = self.constant(aux as _).into_string().unwrap();
@@ -445,7 +465,18 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
-                        iter.next();
+                    }
+                    OpCode::LOP_GETTABLE => {
+                        let target = self.register(a as _);
+                        let table = self.register(b as _);
+                        let key = self.register(c as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![target.into()],
+                                vec![ast::Index::new(table.into(), key.into()).into()],
+                            )
+                            .into(),
+                        );
                     }
                     OpCode::LOP_GETTABLEKS => {
                         let target = self.register(a as _);
@@ -458,7 +489,6 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
-                        iter.next();
                     }
                     OpCode::LOP_GETTABLEN => {
                         let value = self.register(a as _);
@@ -468,6 +498,18 @@ impl<'a> Lifter<'a> {
                             ast::Assign::new(
                                 vec![value.into()],
                                 vec![ast::Index::new(table.into(), key.into()).into()],
+                            )
+                            .into(),
+                        );
+                    }
+                    OpCode::LOP_SETTABLE => {
+                        let value = self.register(a as _);
+                        let table = self.register(b as _);
+                        let key = self.register(c as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![ast::Index::new(table.into(), key.into()).into()],
+                                vec![value.into()],
                             )
                             .into(),
                         );
@@ -483,7 +525,6 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
-                        iter.next();
                     }
                     OpCode::LOP_SETTABLEN => {
                         let value = self.register(a as _);
@@ -580,9 +621,73 @@ impl<'a> Lifter<'a> {
                         };
                         statements.push(ast::Return::new(values).into());
                     }
-                    OpCode::LOP_FASTCALL | OpCode::LOP_FASTCALL1 => {}
-                    OpCode::LOP_FASTCALL2 | OpCode::LOP_FASTCALL2K => {
-                        iter.next();
+                    OpCode::LOP_FASTCALL
+                    | OpCode::LOP_FASTCALL1
+                    | OpCode::LOP_FASTCALL2
+                    | OpCode::LOP_FASTCALL2K => {}
+                    OpCode::LOP_NAMECALL => {
+                        let namecall_base = a;
+                        let namecall_object = self.register(b as _);
+                        let namecall_method = match self.constant(aux as usize) {
+                            ast::Literal::String(string) => String::from_utf8(string).unwrap(),
+                            _ => unimplemented!(),
+                        };
+                        assert!(matches!(
+                            iter.next().unwrap().1,
+                            Instruction::BC {
+                                op_code: OpCode::LOP_NOP,
+                                ..
+                            }
+                        ));
+                        match iter.next().unwrap().1 {
+                            &Instruction::BC {
+                                op_code: OpCode::LOP_CALL,
+                                a,
+                                b,
+                                c,
+                                ..
+                            } => {
+                                assert!(a == namecall_base);
+                                // TODO: repeated code :(
+                                let arguments = if b != 0 {
+                                    (a + 2..a + b)
+                                        .map(|r| self.register(r as _).into())
+                                        .collect()
+                                } else {
+                                    let top = top.take().unwrap();
+                                    (a + 2..top.1)
+                                        .map(|r| self.register(r as _).into())
+                                        .chain(std::iter::once(top.0))
+                                        .collect()
+                                };
+
+                                // TODO: make sure `a:method with space()` doesnt happen
+                                let call = ast::MethodCall::new(
+                                    namecall_object.into(),
+                                    namecall_method,
+                                    arguments,
+                                );
+
+                                if c != 0 {
+                                    if c == 1 {
+                                        statements.push(call.into());
+                                    } else {
+                                        statements.push(
+                                            ast::Assign::new(
+                                                (a..a + c - 1)
+                                                    .map(|r| self.register(r as _).into())
+                                                    .collect(),
+                                                vec![ast::RValue::Select(call.into())],
+                                            )
+                                            .into(),
+                                        );
+                                    }
+                                } else {
+                                    top = Some((call.into(), a));
+                                }
+                            }
+                            instruction => unimplemented!("{:?}", instruction),
+                        }
                     }
                     OpCode::LOP_CALL => {
                         let arguments = if b != 0 {
@@ -617,8 +722,19 @@ impl<'a> Lifter<'a> {
                             top = Some((call.into(), a));
                         }
                     }
+                    OpCode::LOP_CLOSEUPVALS => {
+                        let locals = (a..self.function_list[self.function].max_stack_size)
+                            .map(|i| self.register(i as _))
+                            .collect();
+                        statements.push(ast::Close { locals }.into());
+                    }
                     OpCode::LOP_NOP => {}
-                    _ => unimplemented!("{:?}", instruction),
+                    _ => unimplemented!(
+                        "{}:{}: {:?}",
+                        self.function_list[self.function].line_defined,
+                        index,
+                        instruction
+                    ),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
                     OpCode::LOP_LOADK => {
@@ -662,7 +778,6 @@ impl<'a> Lifter<'a> {
                         }
                         let assign = ast::Assign::new(vec![target.into()], vec![import_expression]);
                         statements.push(assign.into());
-                        iter.next();
                     }
                     OpCode::LOP_JUMPIFNOT => {
                         let condition = self.register(a as _);
@@ -724,7 +839,6 @@ impl<'a> Lifter<'a> {
                             ),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        iter.next();
                     }
                     OpCode::LOP_JUMPIFNOTLE => {
                         let a = self.register(a as _);
@@ -752,7 +866,6 @@ impl<'a> Lifter<'a> {
                             ),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        iter.next();
                     }
                     OpCode::LOP_JUMPIFNOTLT => {
                         let a = self.register(a as _);
@@ -780,7 +893,6 @@ impl<'a> Lifter<'a> {
                             ),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        iter.next();
                     }
                     OpCode::LOP_JUMPIFEQ => {
                         let a = self.register(a as _);
@@ -804,7 +916,6 @@ impl<'a> Lifter<'a> {
                             self.block_to_node(block_start + index + 2),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        iter.next();
                     }
                     OpCode::LOP_JUMPIFLE => {
                         let a = self.register(a as _);
@@ -832,7 +943,6 @@ impl<'a> Lifter<'a> {
                             self.block_to_node(block_start + index + 2),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        iter.next();
                     }
                     OpCode::LOP_JUMPIFLT => {
                         let a = self.register(a as _);
@@ -860,7 +970,6 @@ impl<'a> Lifter<'a> {
                             self.block_to_node(block_start + index + 2),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        iter.next();
                     }
                     OpCode::LOP_JUMPBACK | OpCode::LOP_JUMP => {
                         edges.push((
@@ -908,7 +1017,6 @@ impl<'a> Lifter<'a> {
                                 BlockEdge::new(BranchType::Else),
                             ));
                         }
-                        iter.next();
                     }
                     OpCode::LOP_JUMPXEQKB => {
                         let a = self.register(a as _);
@@ -953,7 +1061,6 @@ impl<'a> Lifter<'a> {
                                 BlockEdge::new(BranchType::Else),
                             ));
                         }
-                        iter.next();
                     }
                     OpCode::LOP_JUMPXEQKN | OpCode::LOP_JUMPXEQKS => {
                         let a = self.register(a as _);
@@ -994,7 +1101,6 @@ impl<'a> Lifter<'a> {
                                 BlockEdge::new(BranchType::Else),
                             ));
                         }
-                        iter.next();
                     }
                     OpCode::LOP_FORNPREP => {
                         // TODO: do this properly
@@ -1082,11 +1188,21 @@ impl<'a> Lifter<'a> {
                             self.block_to_node(block_start + index + 1),
                             BlockEdge::new(BranchType::Else),
                         ));
-                        // TODO: iter.next() to skip the nop?
+                    }
+                    OpCode::LOP_DUPTABLE => {
+                        statements.push(
+                            ast::Assign::new(
+                                vec![self.register(a as _).into()],
+                                vec![ast::Table::default().into()],
+                            )
+                            .into(),
+                        );
                     }
                     OpCode::LOP_DUPCLOSURE | OpCode::LOP_NEWCLOSURE => {
                         let func_index = match op_code {
-                            OpCode::LOP_NEWCLOSURE => d as usize,
+                            OpCode::LOP_NEWCLOSURE => {
+                                self.function_list[self.function].functions[d as usize]
+                            }
                             OpCode::LOP_DUPCLOSURE => match self.function_list[self.function]
                                 .constants
                                 .get(d as usize)

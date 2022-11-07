@@ -674,6 +674,7 @@ impl<'a> LifterContext<'a> {
                     statements.push(setlist.into());
                 }
                 Instruction::Close(start) => {
+                    // TODO: REFACTOR: self.locals.iter() + skip
                     let locals = (start.0..self.bytecode.maximum_stack_size)
                         .map(|i| self.locals[&Register(i)].clone())
                         .collect();
