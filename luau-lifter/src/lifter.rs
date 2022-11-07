@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use anyhow::Result;
 
 use indexmap::IndexMap;
+use itertools::Itertools;
 use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
 use restructure::post_dominators;
 use rustc_hash::FxHashMap;
@@ -108,13 +109,12 @@ impl<'a> Lifter<'a> {
 
                 ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
 
-                if structure_conditionals(&mut function)
-                    || {
-                        let post_dominators = post_dominators(function.graph_mut());
-                        structure_for_loops(&mut function, &dominators, &post_dominators)
-                    }
-                    // we can't structure method calls like this because of __namecall
-                    // || structure_method_calls(&mut function)
+                if structure_conditionals(&mut function) || {
+                    let post_dominators = post_dominators(function.graph_mut());
+                    structure_for_loops(&mut function, &dominators, &post_dominators)
+                }
+                // we can't structure method calls like this because of __namecall
+                // || structure_method_calls(&mut function)
                 {
                     changed = true;
                 }
@@ -280,7 +280,13 @@ impl<'a> Lifter<'a> {
         }
 
         let entry_node = self.lifted_function.new_block();
-        self.lifted_function.set_edges(entry_node, vec![(self.block_to_node(0), BlockEdge::new(BranchType::Unconditional))]);
+        self.lifted_function.set_edges(
+            entry_node,
+            vec![(
+                self.block_to_node(0),
+                BlockEdge::new(BranchType::Unconditional),
+            )],
+        );
         self.lifted_function.set_entry(entry_node);
     }
 
@@ -347,8 +353,7 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_FORNPREP => {
                         let dest_index = (insn_index + 1)
                             .checked_add_signed((*d).try_into().unwrap())
-                            .unwrap()
-                            - 1;
+                            .unwrap();
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
@@ -373,6 +378,9 @@ impl<'a> Lifter<'a> {
                         let dest_index = (insn_index + 1)
                             .checked_add_signed((*d).try_into().unwrap())
                             .unwrap();
+                        self.blocks
+                            .entry(insn_index)
+                            .or_insert_with(|| self.lifted_function.new_block());
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
@@ -802,26 +810,54 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                     }
-                    OpCode::LOP_AND => {
-                        statements.push(
-                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.register(c as _).into(), ast::BinaryOperation::And).into()]).into()
+                    OpCode::LOP_AND => statements.push(
+                        ast::Assign::new(
+                            vec![self.register(a as _).into()],
+                            vec![ast::Binary::new(
+                                self.register(b as _).into(),
+                                self.register(c as _).into(),
+                                ast::BinaryOperation::And,
+                            )
+                            .into()],
                         )
-                    }
-                    OpCode::LOP_ANDK => {
-                        statements.push(
-                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.constant(c as _).into(), ast::BinaryOperation::And).into()]).into()
+                        .into(),
+                    ),
+                    OpCode::LOP_ANDK => statements.push(
+                        ast::Assign::new(
+                            vec![self.register(a as _).into()],
+                            vec![ast::Binary::new(
+                                self.register(b as _).into(),
+                                self.constant(c as _).into(),
+                                ast::BinaryOperation::And,
+                            )
+                            .into()],
                         )
-                    }
-                    OpCode::LOP_OR => {
-                        statements.push(
-                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.register(c as _).into(), ast::BinaryOperation::Or).into()]).into()
+                        .into(),
+                    ),
+                    OpCode::LOP_OR => statements.push(
+                        ast::Assign::new(
+                            vec![self.register(a as _).into()],
+                            vec![ast::Binary::new(
+                                self.register(b as _).into(),
+                                self.register(c as _).into(),
+                                ast::BinaryOperation::Or,
+                            )
+                            .into()],
                         )
-                    }
-                    OpCode::LOP_ORK => {
-                        statements.push(
-                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.constant(c as _).into(), ast::BinaryOperation::Or).into()]).into()
+                        .into(),
+                    ),
+                    OpCode::LOP_ORK => statements.push(
+                        ast::Assign::new(
+                            vec![self.register(a as _).into()],
+                            vec![ast::Binary::new(
+                                self.register(b as _).into(),
+                                self.constant(c as _).into(),
+                                ast::BinaryOperation::Or,
+                            )
+                            .into()],
                         )
-                    }
+                        .into(),
+                    ),
                     OpCode::LOP_GETVARARGS => {
                         let vararg = ast::VarArg {};
                         if b != 0 {
@@ -1214,19 +1250,19 @@ impl<'a> Lifter<'a> {
                         let counter = self.register((a + 2) as _);
                         statements.push(ast::NumForInit::new(counter, limit, step).into());
 
-                        let loop_index =
-                            ((block_start + index + 1) as isize + d as isize) as usize - 1;
-                        assert!(matches!(
-                            self.function_list[self.function].instructions[loop_index],
-                            Instruction::AD {
-                                op_code: OpCode::LOP_FORNLOOP,
-                                ..
-                            }
-                        ));
-                        edges.push((
-                            self.block_to_node(loop_index),
-                            BlockEdge::new(BranchType::Unconditional),
-                        ));
+                        let loop_node = self
+                            .lifted_function
+                            .predecessor_blocks(self.block_to_node(block_start + index + 1))
+                            .filter(|&p| {
+                                self.lifted_function
+                                    .block(p)
+                                    .unwrap()
+                                    .last()
+                                    .is_some_and(|s| matches!(s, ast::Statement::NumForNext(_)))
+                            })
+                            .exactly_one()
+                            .unwrap();
+                        edges.push((loop_node, BlockEdge::new(BranchType::Unconditional)));
                     }
                     OpCode::LOP_FORNLOOP => {
                         let limit = self.register(a as _);

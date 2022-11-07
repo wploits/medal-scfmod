@@ -1,3 +1,5 @@
+#![feature(is_some_and)]
+
 mod deserializer;
 mod instruction;
 mod lifter;
