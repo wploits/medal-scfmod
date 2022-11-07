@@ -657,6 +657,7 @@ impl<'a> Lifter<'a> {
                                 .collect()
                         };
                         statements.push(ast::Return::new(values).into());
+                        break;
                     }
                     OpCode::LOP_FASTCALL
                     | OpCode::LOP_FASTCALL1
