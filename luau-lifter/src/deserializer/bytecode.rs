@@ -19,11 +19,11 @@ impl Bytecode {
                     Bytecode::Error(String::from_utf8_lossy(error_msg).to_string()),
                 ))
             }
-            1 => panic!("Unsupported bytecode version"),
-            _ => {
+            3 => {
                 let (input, chunk) = Chunk::parse(input)?;
                 Ok((input, Bytecode::Chunk(chunk)))
             }
+            _ => panic!("Unsupported bytecode version"),
         }
     }
 }

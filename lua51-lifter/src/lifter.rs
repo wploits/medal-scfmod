@@ -318,7 +318,7 @@ impl<'a> LifterContext<'a> {
                 }
                 &Instruction::Return(values, b) => {
                     let values = if b != 0 {
-                        (values.0..values.0 + (b - 1) as u8)
+                        (values.0..values.0 + (b - 1))
                             .map(|r| self.locals[&Register(r)].clone().into())
                             .collect()
                     } else {
@@ -589,6 +589,7 @@ impl<'a> LifterContext<'a> {
                         top = Some((vararg.into(), destination.0));
                     }
                 }
+                // TODO: STYLE: rename to NewClosure?
                 Instruction::Closure {
                     destination,
                     function,

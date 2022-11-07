@@ -2,7 +2,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 
-use petgraph::stable_graph::NodeIndex;
+use indexmap::IndexMap;
+use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
+use restructure::post_dominators;
 use rustc_hash::FxHashMap;
 
 use super::{
@@ -12,10 +14,19 @@ use super::{
     instruction::Instruction,
     op_code::OpCode,
 };
-use ast;
+use ast::{
+    self, local_allocator::LocalAllocator, local_declarations::declare_locals,
+    replace_locals::replace_locals,
+};
 use cfg::{
     block::{BlockEdge, BranchType},
     function::Function,
+    ssa::{
+        self,
+        structuring::{
+            structure_conditionals, structure_for_loops, structure_jumps, structure_method_calls,
+        },
+    },
 };
 
 pub struct Lifter<'a> {
@@ -30,36 +41,201 @@ pub struct Lifter<'a> {
     register_map: FxHashMap<usize, ast::RcLocal>,
     constant_map: FxHashMap<usize, ast::Literal>,
     current_node: Option<NodeIndex>,
+    upvalues: Vec<ast::RcLocal>,
 }
 
 impl<'a> Lifter<'a> {
-    pub fn new(
+    pub fn lift(
         f_list: &'a Vec<BytecodeFunction>,
         str_list: &'a Vec<String>,
         function_id: usize,
-    ) -> Self {
-        Self {
+        local_allocator: Rc<RefCell<LocalAllocator>>,
+    ) -> (ast::Block, Vec<ast::RcLocal>, Vec<ast::RcLocal>) {
+        let context = Self {
             function: function_id,
             function_list: f_list,
             string_table: str_list,
             blocks: FxHashMap::default(),
-            lifted_function: Function::default(),
+            lifted_function: Function::with_allocator(local_allocator),
             closures: FxHashMap::default(),
             register_map: FxHashMap::default(),
             constant_map: FxHashMap::default(),
             lifted_descendants: Vec::new(),
             current_node: None,
+            upvalues: Vec::new(),
+        };
+
+        let func = |mut context: Lifter| {
+            context.lift_function();
+
+            let mut function = context.lifted_function;
+            let upvalues_in = context.upvalues;
+
+            // println!("before ssa construction");
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+
+            let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
+                cfg::ssa::construct(&mut function, &upvalues_in);
+
+            // println!("after ssa construction");
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+
+            let upvalue_to_group = upvalue_in_groups
+                .into_iter()
+                .chain(
+                    upvalue_passed_groups
+                        .into_iter()
+                        .map(|m| (function.local_allocator.borrow_mut().allocate(), m)),
+                )
+                .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
+                .collect::<IndexMap<_, _>>();
+
+            let local_to_group = local_groups
+                .iter()
+                .cloned()
+                .enumerate()
+                .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
+                .collect::<FxHashMap<_, _>>();
+            // TODO: REFACTOR: some way to write a macro that states
+            // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
+            // structure_for_loops and remove_unnecessary_params must run again.
+            // if structure_compound_conditionals results in change then dominators and post dominators
+            // must be recalculated.
+            // etc.
+            // the macro could also maybe generate an optimal ordering?
+            let mut changed = true;
+            while changed {
+                changed = false;
+
+                let dominators = simple_fast(function.graph(), function.entry().unwrap());
+                changed |= structure_jumps(&mut function, &dominators);
+
+                ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
+
+                if structure_conditionals(&mut function)
+                    || {
+                        let post_dominators = post_dominators(function.graph_mut());
+                        structure_for_loops(&mut function, &dominators, &post_dominators)
+                    }
+                    || structure_method_calls(&mut function)
+                {
+                    changed = true;
+                }
+
+                // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+
+                let mut local_map = FxHashMap::default();
+
+                // TODO: loop until returns false?
+                if ssa::construct::remove_unnecessary_params(&mut function, &mut local_map) {
+                    changed = true;
+                }
+                ssa::construct::apply_local_map(&mut function, local_map);
+            }
+
+            // let mut triangle_pattern_graph = PatternGraph::new();
+            // let entry = triangle_pattern_graph.add_node(PatternNode::new(true));
+            // let body = triangle_pattern_graph.add_node(PatternNode::new(false));
+            // let exit = triangle_pattern_graph.add_node(PatternNode::new(true));
+
+            // triangle_pattern_graph.add_edge(entry, body, BlockEdge::new(BranchType::Then));
+            // triangle_pattern_graph.add_edge(entry, exit, BlockEdge::new(BranchType::Else));
+            // triangle_pattern_graph.add_edge(body, exit, BlockEdge::new(BranchType::Unconditional));
+
+            // println!(
+            //     "triangle pattern: {}",
+            //     Dot::with_config(&triangle_pattern_graph, &[])
+            // );
+
+            // panic!();
+
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
+            //println!("dataflow: {:#?}", dataflow);
+
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+
+            cfg::ssa::Destructor::new(
+                &mut function,
+                &upvalue_to_group,
+                upvalues_in.iter().cloned().collect(),
+                local_count,
+            )
+            .destruct();
+
+            let params = std::mem::take(&mut function.parameters);
+            let mut block = restructure::lift(function);
+            declare_locals(
+                &mut block,
+                &upvalues_in.iter().chain(params.iter()).cloned().collect(),
+            );
+            (block, params, upvalues_in)
+        };
+
+        match () {
+            #[cfg(feature = "panic_handled")]
+            () => {
+                thread_local! {
+                    static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
+                }
+
+                let mut context = std::panic::AssertUnwindSafe(Some(context));
+
+                let prev_hook = panic::take_hook();
+                panic::set_hook(Box::new(|_| {
+                    let trace = Backtrace::capture();
+                    BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
+                }));
+                let result = panic::catch_unwind(move || func(context.take().unwrap()));
+                panic::set_hook(prev_hook);
+
+                match result {
+                    Ok(r) => r,
+                    Err(e) => {
+                        let panic_information = match e.downcast::<String>() {
+                            Ok(v) => *v,
+                            Err(e) => match e.downcast::<&str>() {
+                                Ok(v) => v.to_string(),
+                                _ => "Unknown Source of Error".to_owned(),
+                            },
+                        };
+
+                        let mut message = String::new();
+                        writeln!(message, "panicked at '{}'", panic_information).unwrap();
+                        if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
+                            write!(message, "stack backtrace:\n{}", backtrace).unwrap();
+                        }
+
+                        let block = message
+                            .trim_end()
+                            .split('\n')
+                            .map(|s| ast::Comment::new(s.to_string()).into())
+                            .collect::<Vec<_>>()
+                            .into();
+                        let mut local_allocator = LocalAllocator::default();
+                        (
+                            block,
+                            (0..bytecode.number_of_parameters)
+                                .map(|_| local_allocator.allocate())
+                                .collect(),
+                            Vec::new(),
+                        )
+                    }
+                }
+            }
+            #[cfg(not(feature = "panic_handled"))]
+            () => func(context),
         }
     }
 
-    pub fn lift_function(mut self) -> Result<Function> {
-        self.discover_blocks()?;
+    fn lift_function(&mut self) {
+        self.discover_blocks().unwrap();
 
         let mut blocks = self.blocks.keys().cloned().collect::<Vec<_>>();
 
         blocks.sort_unstable();
-        println!("{:#?}", blocks);
 
+        // TODO: code_ranges in lua51-lifter
         let block_ranges = blocks
             .iter()
             .rev()
@@ -83,13 +259,17 @@ impl<'a> Lifter<'a> {
             )
             .1;
 
+        for _ in 0..self.function_list[self.function].num_upvalues {
+            self.upvalues
+                .push(self.lifted_function.local_allocator.borrow_mut().allocate());
+        }
+
         for i in 0..self.function_list[self.function].num_parameters {
             let parameter = self.lifted_function.local_allocator.borrow_mut().allocate();
             self.lifted_function.parameters.push(parameter.clone());
             self.register_map.insert(i as usize, parameter);
         }
 
-        println!("{:#?}", block_ranges);
         for (start_pc, end_pc) in block_ranges {
             self.current_node = Some(self.block_to_node(start_pc));
             let (statements, edges) = self.lift_block(start_pc, end_pc);
@@ -103,8 +283,6 @@ impl<'a> Lifter<'a> {
         }
 
         self.lifted_function.set_entry(self.block_to_node(0));
-
-        Ok(self.lifted_function)
     }
 
     fn discover_blocks(&mut self) -> Result<()> {
@@ -170,6 +348,7 @@ impl<'a> Lifter<'a> {
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
                     OpCode::LOP_FORNLOOP => {
+                        // TODO: is this needed? shouldnt the block be created by jumps into the block
                         self.blocks
                             .entry(insn_index)
                             .or_insert_with(|| self.lifted_function.new_block());
@@ -180,9 +359,7 @@ impl<'a> Lifter<'a> {
                             .entry(insn_index.wrapping_add(*d as usize) + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
                     }
-                    OpCode::LOP_FORGLOOP
-                    | OpCode::LOP_FORGLOOP_NEXT
-                    | OpCode::LOP_FORGLOOP_INEXT => {
+                    OpCode::LOP_FORGLOOP => {
                         self.blocks
                             .entry(insn_index + 1)
                             .or_insert_with(|| self.lifted_function.new_block());
@@ -223,11 +400,17 @@ impl<'a> Lifter<'a> {
                     c,
                     aux,
                 } => match op_code {
+                    // TODO: do we want to nil initialize all registers here?
                     OpCode::LOP_PREPVARARGS => {}
                     OpCode::LOP_MOVE => {
                         let a = self.register(a as _);
                         let b = self.register(b as _);
                         statements.push(ast::Assign::new(vec![a.into()], vec![b.into()]).into());
+                    }
+                    OpCode::LOP_GETUPVAL => {
+                        let a = self.register(a as _);
+                        let up = self.upvalues[b as usize].clone();
+                        statements.push(ast::Assign::new(vec![a.into()], vec![up.into()]).into());
                     }
                     OpCode::LOP_LOADNIL => {
                         let target = self.register(a as _);
@@ -434,6 +617,7 @@ impl<'a> Lifter<'a> {
                             top = Some((call.into(), a));
                         }
                     }
+                    OpCode::LOP_NOP => {}
                     _ => unimplemented!("{:?}", instruction),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
@@ -812,6 +996,184 @@ impl<'a> Lifter<'a> {
                         }
                         iter.next();
                     }
+                    OpCode::LOP_FORNPREP => {
+                        // TODO: do this properly
+                        let limit = self.register(a as _);
+                        let step = self.register((a + 1) as _);
+                        let counter = self.register((a + 2) as _);
+                        statements.push(ast::NumForInit::new(counter, limit, step).into());
+
+                        let loop_index =
+                            ((block_start + index + 1) as isize + d as isize) as usize - 1;
+                        assert!(matches!(
+                            self.function_list[self.function].instructions[loop_index],
+                            Instruction::AD {
+                                op_code: OpCode::LOP_FORNLOOP,
+                                ..
+                            }
+                        ));
+                        edges.push((
+                            self.block_to_node(loop_index),
+                            BlockEdge::new(BranchType::Unconditional),
+                        ));
+                    }
+                    OpCode::LOP_FORNLOOP => {
+                        let limit = self.register(a as _);
+                        let step = self.register((a + 1) as _);
+                        let counter = self.register((a + 2) as _);
+                        statements
+                            .push(ast::NumForNext::new(counter, limit.into(), step.into()).into());
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(block_start + index + 1),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                    }
+                    OpCode::LOP_FORGPREP
+                    | OpCode::LOP_FORGPREP_INEXT
+                    | OpCode::LOP_FORGPREP_NEXT => {
+                        let generator = self.register(a as _);
+                        let state = self.register((a + 1) as _);
+                        let counter = self.register((a + 2) as _);
+                        statements.push(ast::GenericForInit::new(generator, state, counter).into());
+                        let loop_index = ((block_start + index + 1) as isize + d as isize) as usize;
+                        assert!(matches!(
+                            self.function_list[self.function].instructions[loop_index],
+                            Instruction::AD {
+                                op_code: OpCode::LOP_FORGLOOP,
+                                ..
+                            }
+                        ));
+                        edges.push((
+                            self.block_to_node(loop_index),
+                            BlockEdge::new(BranchType::Unconditional),
+                        ));
+                    }
+                    // TODO: i think vm can assume generator is next/inext based on aux,
+                    // so what happens if the generator passed isnt next and the env isnt tainted?
+                    // this could be done with some custom bytecode
+                    // same applies to fastcall
+                    OpCode::LOP_FORGLOOP => {
+                        let generator = self.register(a as _);
+                        let state = self.register((a + 1) as _);
+                        let _counter = self.register((a + 2) as _);
+                        statements.push(
+                            ast::GenericForNext::new(
+                                (a as usize + 3..a as usize + 3 + (aux & 0xff) as usize)
+                                    .map(|r| self.register(r))
+                                    .collect::<Vec<_>>(),
+                                generator.into(),
+                                state,
+                            )
+                            .into(),
+                        );
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + d as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Then),
+                        ));
+                        edges.push((
+                            self.block_to_node(block_start + index + 1),
+                            BlockEdge::new(BranchType::Else),
+                        ));
+                        // TODO: iter.next() to skip the nop?
+                    }
+                    OpCode::LOP_DUPCLOSURE | OpCode::LOP_NEWCLOSURE => {
+                        let func_index = match op_code {
+                            OpCode::LOP_NEWCLOSURE => d as usize,
+                            OpCode::LOP_DUPCLOSURE => match self.function_list[self.function]
+                                .constants
+                                .get(d as usize)
+                                .unwrap()
+                            {
+                                &BytecodeConstant::Closure(func_index) => func_index,
+                                _ => unimplemented!(),
+                            },
+                            _ => unreachable!(),
+                        };
+                        let func = &self.function_list[func_index];
+                        let mut upvalues_passed = Vec::with_capacity(func.num_upvalues.into());
+                        let mut to_close = Vec::new();
+                        for _ in 0..func.num_upvalues {
+                            let local = match iter.next().as_ref().unwrap().1 {
+                                &Instruction::BC {
+                                    op_code: OpCode::LOP_CAPTURE,
+                                    a: capture_type,
+                                    b: source,
+                                    ..
+                                } => match capture_type {
+                                    // val & ref
+                                    0 | 1 => {
+                                        let local = self.register(source as _);
+                                        if capture_type == 0 {
+                                            // we represent capture-by-value by copying into a
+                                            // temporary local that is immediately closed
+                                            let temp_local = self
+                                                .lifted_function
+                                                .local_allocator
+                                                .borrow_mut()
+                                                .allocate();
+                                            statements.push(
+                                                ast::Assign::new(
+                                                    vec![temp_local.clone().into()],
+                                                    vec![local.into()],
+                                                )
+                                                .into(),
+                                            );
+                                            to_close.push(temp_local.clone());
+                                            temp_local
+                                        } else {
+                                            local
+                                        }
+                                    }
+                                    // upval
+                                    2 => self.upvalues[source as usize].clone(),
+                                    _ => unimplemented!(),
+                                },
+                                _ => unimplemented!(),
+                            };
+                            upvalues_passed.push(local);
+                        }
+
+                        let (mut body, parameters, upvalues_in) = Self::lift(
+                            self.function_list,
+                            self.string_table,
+                            func_index,
+                            self.lifted_function.local_allocator.clone(),
+                        );
+                        let mut local_map = FxHashMap::with_capacity_and_hasher(
+                            upvalues_in.len(),
+                            Default::default(),
+                        );
+                        for (old, new) in upvalues_in.into_iter().zip(&upvalues_passed) {
+                            local_map.insert(old, new.clone());
+                        }
+                        replace_locals(&mut body, &local_map);
+
+                        statements.push(
+                            ast::Assign::new(
+                                vec![self.register(a as _).clone().into()],
+                                vec![ast::Closure {
+                                    parameters,
+                                    body,
+                                    upvalues: upvalues_passed,
+                                    is_variadic: func.is_vararg,
+                                }
+                                .into()],
+                            )
+                            .into(),
+                        );
+
+                        if !to_close.is_empty() {
+                            statements.push(ast::Close { locals: to_close }.into());
+                        }
+                    }
                     _ => unimplemented!("{:?}", instruction),
                 },
                 _ => unimplemented!("{:?}", instruction),
@@ -880,8 +1242,6 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_JUMPIFNOTEQ
                     | OpCode::LOP_JUMPIFNOTLE
                     | OpCode::LOP_JUMPIFNOTLT
-                    | OpCode::LOP_JUMPIFEQK
-                    | OpCode::LOP_JUMPIFNOTEQK
                     | OpCode::LOP_JUMPXEQKNIL
                     | OpCode::LOP_JUMPXEQKB
                     | OpCode::LOP_JUMPXEQKN
@@ -891,9 +1251,7 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_FORGPREP
                     | OpCode::LOP_FORGLOOP
                     | OpCode::LOP_FORGPREP_INEXT
-                    | OpCode::LOP_FORGLOOP_INEXT
                     | OpCode::LOP_FORGPREP_NEXT
-                    | OpCode::LOP_FORGLOOP_NEXT
             ),
             Instruction::E { op_code, .. } => matches!(op_code, OpCode::LOP_JUMPX),
         }

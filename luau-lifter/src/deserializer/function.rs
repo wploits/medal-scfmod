@@ -74,8 +74,6 @@ impl Function {
                 | OpCode::LOP_SETLIST
                 | OpCode::LOP_FORGLOOP
                 | OpCode::LOP_LOADKX
-                | OpCode::LOP_JUMPIFEQK
-                | OpCode::LOP_JUMPIFNOTEQK
                 | OpCode::LOP_FASTCALL2
                 | OpCode::LOP_FASTCALL2K
                 | OpCode::LOP_JUMPXEQKNIL
