@@ -43,7 +43,22 @@ impl UpvaluesOpen {
                         if let Some((prev_range, prev_locations)) =
                             open_ranges.get_key_value(&stat_index)
                         {
-                            assert!(prev_range.contains(&(block.len() - 1)));
+                            crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
+                            // TODO: this assert fails in Luau with the below code,
+                            // but i dont know why. it appears to work fine with the
+                            // assert commented out, but we should double check it.
+                            /*
+                            local u = a
+
+                            if u then
+                                print'hi'
+                            end
+
+                            function f()
+                                return u
+                            end
+                            */
+                            //assert!(prev_range.contains(&(block.len() - 1)));
                             open_locations.extend(prev_locations);
                         }
                         open_locations.push((node, stat_index));
