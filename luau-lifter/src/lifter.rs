@@ -113,7 +113,8 @@ impl<'a> Lifter<'a> {
                         let post_dominators = post_dominators(function.graph_mut());
                         structure_for_loops(&mut function, &dominators, &post_dominators)
                     }
-                    || structure_method_calls(&mut function)
+                    // we can't structure method calls like this because of __namecall
+                    // || structure_method_calls(&mut function)
                 {
                     changed = true;
                 }
@@ -798,6 +799,42 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
+                    }
+                    OpCode::LOP_AND => {
+                        statements.push(
+                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.register(c as _).into(), ast::BinaryOperation::And).into()]).into()
+                        )
+                    }
+                    OpCode::LOP_ANDK => {
+                        statements.push(
+                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.constant(c as _).into(), ast::BinaryOperation::And).into()]).into()
+                        )
+                    }
+                    OpCode::LOP_OR => {
+                        statements.push(
+                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.register(c as _).into(), ast::BinaryOperation::Or).into()]).into()
+                        )
+                    }
+                    OpCode::LOP_ORK => {
+                        statements.push(
+                            ast::Assign::new(vec![self.register(a as _).into()], vec![ast::Binary::new(self.register(b as _).into(), self.constant(c as _).into(), ast::BinaryOperation::Or).into()]).into()
+                        )
+                    }
+                    OpCode::LOP_GETVARARGS => {
+                        let vararg = ast::VarArg {};
+                        if b != 0 {
+                            statements.push(
+                                ast::Assign::new(
+                                    (a..a + b - 1)
+                                        .map(|r| self.register(r as _).into())
+                                        .collect(),
+                                    vec![ast::RValue::Select(vararg.into())],
+                                )
+                                .into(),
+                            );
+                        } else {
+                            top = Some((vararg.into(), a));
+                        }
                     }
                     OpCode::LOP_NOP => {}
                     _ => unimplemented!("{:?}", instruction),

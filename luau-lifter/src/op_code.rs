@@ -343,7 +343,4 @@ pub enum OpCode {
     // AUX: constant table index in low 24 bits, NOT flag (that flips comparison result) in high bit
     LOP_JUMPXEQKN,
     LOP_JUMPXEQKS,
-
-    // Enum entry for number of opcodes, not a valid opcode by itself!
-    LOP__COUNT,
 }
