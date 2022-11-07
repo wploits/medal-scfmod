@@ -1368,7 +1368,11 @@ impl<'a> Lifter<'a> {
                                     // val & ref
                                     0 | 1 => {
                                         let local = self.register(source as _);
-                                        if capture_type == 0 {
+                                        if capture_type == 0
+                                            // TODO: recursive function weirdness,
+                                            // is there a better way to handle it?
+                                            && source != a
+                                        {
                                             // we represent capture-by-value by copying into a
                                             // temporary local that is immediately closed
                                             let temp_local = self
