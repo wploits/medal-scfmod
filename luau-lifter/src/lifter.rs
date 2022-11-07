@@ -279,7 +279,9 @@ impl<'a> Lifter<'a> {
                 .set_edges(self.current_node.unwrap(), edges);
         }
 
-        self.lifted_function.set_entry(self.block_to_node(0));
+        let entry_node = self.lifted_function.new_block();
+        self.lifted_function.set_edges(entry_node, vec![(self.block_to_node(0), BlockEdge::new(BranchType::Unconditional))]);
+        self.lifted_function.set_entry(entry_node);
     }
 
     fn discover_blocks(&mut self) -> Result<()> {
