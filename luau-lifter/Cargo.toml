@@ -22,3 +22,5 @@ lazy_static = "1.4.0"
 itertools = "0.10.5"
 indexmap = "1.9.1"
 
+[features]
+panic_handled = []

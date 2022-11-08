@@ -1,3 +1,6 @@
+use std::fmt::Write;
+use std::backtrace::Backtrace;
+use std::panic;
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
@@ -212,7 +215,7 @@ impl<'a> Lifter<'a> {
                         let mut local_allocator = LocalAllocator::default();
                         (
                             block,
-                            (0..bytecode.number_of_parameters)
+                            (0..f_list[function_id].num_parameters)
                                 .map(|_| local_allocator.allocate())
                                 .collect(),
                             Vec::new(),
