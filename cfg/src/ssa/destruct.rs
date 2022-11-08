@@ -103,7 +103,7 @@ impl<'a> Destructor<'a> {
         self.coalesce_upvalues();
         self.coalesce_params();
         self.coalesce_copies();
-        self.coalesce_copies_into_upvalues();
+        //self.coalesce_copies_into_upvalues();
 
         super::construct::apply_local_map(self.function, self.build_local_map());
 
