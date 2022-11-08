@@ -1,13 +1,27 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ops::Sub,
+    ops::Sub, rc::Rc,
 };
 
-use indexmap::IndexSet;
+use indexmap::{IndexSet, IndexMap};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{Assign, Block, Literal, LocalRw, NumericFor, RcLocal, Statement};
+
+fn block_collect_local_use_ranges<'a>(block: &'a Block, local_use_ranges: &mut IndexMap<&'a RcLocal, (usize, usize)>) {
+    for (index, stat) in block.iter().enumerate() {
+        let mut locals = IndexSet::new();
+        collect_stat_locals(stat, &mut locals);
+        for local in locals {
+            if !local_use_ranges.contains_key(local) {
+                local_use_ranges.insert(local, (index, index));
+            } else {
+                local_use_ranges.get_mut(local).unwrap().1 = index;
+            }
+        }
+    }
+}
 
 fn collect_block_locals<'a>(block: &'a Block, locals: &mut IndexSet<&'a RcLocal>) {
     for stat in &block.0 {
@@ -37,6 +51,15 @@ fn collect_stat_locals<'a>(stat: &'a Statement, locals: &mut IndexSet<&'a RcLoca
         }
         _ => {}
     }
+}
+
+fn block_local_first_use(block: &Block, local: &RcLocal) -> Option<usize> {
+    for (index, stat) in block.iter().enumerate() {
+        if stat_has_local(stat, local) {
+            return Some(index);
+        }
+    }
+    None
 }
 
 fn block_has_local(block: &Block, local: &RcLocal) -> bool {
@@ -87,10 +110,10 @@ fn stat_has_local(stat: &Statement, local: &RcLocal) -> bool {
     false
 }
 
-pub fn declare_local(block: &mut Block, local: &RcLocal) {
+pub fn declare_local(block: &mut Block, first_use_index: Option<usize>, last_use_index: Option<usize>, local: &RcLocal) {
     let mut usages = Vec::new();
-    for (stat_index, stat) in block.iter().enumerate() {
-        if stat_has_local(stat, local) {
+    for (stat_index, stat) in block.iter().enumerate().skip(first_use_index.unwrap_or(0)).take_while(|&(i, _)| if i == 0 { true } else { Some(i-1) != last_use_index }) {
+        if Some(stat_index) == first_use_index || stat_has_local(stat, local) {
             usages.push(stat_index);
             match usages.len() {
                 1 if !matches!(
@@ -118,24 +141,24 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
         // if possible
         match &mut block[first_stat_index] {
             Statement::If(r#if) if !r#if.values().into_iter().contains(local) => {
-                let then_contains_local = block_has_local(&r#if.then_block, local);
-                let else_contains_local = block_has_local(&r#if.else_block, local);
-                if then_contains_local && !else_contains_local {
-                    declare_local(&mut r#if.then_block, local);
+                let then_use_index = block_local_first_use(&r#if.then_block, local);
+                let else_use_index = block_local_first_use(&r#if.else_block, local);
+                if then_use_index.is_some() && else_use_index.is_none() {
+                    declare_local(&mut r#if.then_block, then_use_index, None, local);
                     true
-                } else if else_contains_local && !then_contains_local {
-                    declare_local(&mut r#if.else_block, local);
+                } else if else_use_index.is_some() && then_use_index.is_none() {
+                    declare_local(&mut r#if.else_block, else_use_index, None, local);
                     true
                 } else {
                     false
                 }
             }
             Statement::While(r#while) if !r#while.values().into_iter().contains(local) => {
-                declare_local(&mut r#while.block, local);
+                declare_local(&mut r#while.block, None, None, local);
                 true
             }
             Statement::Repeat(repeat) => {
-                declare_local(&mut repeat.block, local);
+                declare_local(&mut repeat.block, None, None, local);
                 true
             }
             Statement::NumericFor(numeric_for)
@@ -151,13 +174,13 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
             Statement::NumericFor(numeric_for)
                 if !numeric_for.values().into_iter().contains(local) =>
             {
-                declare_local(&mut numeric_for.block, local);
+                declare_local(&mut numeric_for.block, None, None, local);
                 true
             }
             Statement::GenericFor(generic_for)
                 if !generic_for.values().into_iter().contains(local) =>
             {
-                declare_local(&mut generic_for.block, local);
+                declare_local(&mut generic_for.block, None, None, local);
                 true
             }
             _ => false,
@@ -208,14 +231,14 @@ pub fn declare_local(block: &mut Block, local: &RcLocal) {
 }
 
 pub fn declare_locals(block: &mut Block, locals_to_ignore: &FxHashSet<RcLocal>) {
-    let mut locals = IndexSet::new();
-    collect_block_locals(block, &mut locals);
-    for local in locals
+    let mut locals = IndexMap::new();
+    block_collect_local_use_ranges(block, &mut locals);
+    for (local, (first, last)) in locals
         .into_iter()
-        .filter(|l| !locals_to_ignore.contains(l))
-        .cloned()
+        .filter(|(l, _)| !locals_to_ignore.contains(l))
+        .map(|(l, i)| (l.clone(), i))
         .collect_vec()
     {
-        declare_local(block, &local);
+        declare_local(block, Some(first), Some(last), &local);
     }
 }
