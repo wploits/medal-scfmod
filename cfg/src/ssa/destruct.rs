@@ -46,7 +46,6 @@ pub struct Destructor<'a> {
     upvalue_to_group: &'a IndexMap<RcLocal, RcLocal>,
     upvalues_in: FxHashSet<RcLocal>,
     local_count: usize,
-    reserved: FxHashSet<RcLocal>,
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
     // map( local -> rc_map( local -> (pre-order block index, param index) ) )
     // TODO: hash map?
@@ -72,7 +71,6 @@ impl<'a> Destructor<'a> {
             upvalue_to_group,
             upvalues_in,
             local_count,
-            reserved: FxHashSet::default(),
             values: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
             congruence_classes: FxHashMap::with_capacity_and_hasher(
                 local_count,
@@ -105,6 +103,7 @@ impl<'a> Destructor<'a> {
         self.coalesce_upvalues();
         self.coalesce_params();
         self.coalesce_copies();
+        self.coalesce_copies_into_upvalues();
 
         super::construct::apply_local_map(self.function, self.build_local_map());
 
@@ -133,9 +132,6 @@ impl<'a> Destructor<'a> {
                 .borrow_mut()
                 .insert((upval_dom_index, upval_stat_index), upvalue.clone());
             self.congruence_classes.insert(upvalue.clone(), con_class);
-            self.reserved.insert(upvalue.clone());
-            // TODO: is this line needed?
-            self.reserved.insert(group.clone());
         }
     }
 
@@ -377,9 +373,9 @@ impl<'a> Destructor<'a> {
                                     && self.upvalues_in.contains(&left)
                         );
 
-                        // TODO: we should be able to coalesce passed upvalues
-                        // but not with other upvalues
-                        if self.reserved.contains(&left) || self.reserved.contains(&right) {
+                        if self.upvalue_to_group.contains_key(&left)
+                            || self.upvalue_to_group.contains_key(&right)
+                        {
                             continue;
                         }
 
@@ -387,6 +383,73 @@ impl<'a> Destructor<'a> {
                             || self.try_coalesce_copy_by_sharing(&left, &right)
                         {
                             to_remove.push(i);
+                        }
+                    }
+                    let assign = self.function.block_mut(node).unwrap()[stat_index]
+                        .as_assign_mut()
+                        .unwrap();
+                    for i in to_remove.into_iter().rev() {
+                        assign.left.remove(i);
+                        assign.right.remove(i);
+                    }
+                    assign.left.is_empty()
+                } else {
+                    false
+                };
+
+                if should_remove {
+                    to_remove.push(stat_index)
+                }
+            }
+
+            let block = self.function.block_mut(node).unwrap();
+            for i in to_remove.into_iter().rev() {
+                block.remove(i);
+            }
+        }
+    }
+
+    fn coalesce_copies_into_upvalues(&mut self) {
+        let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
+        while let Some(node) = dominator_dfs.next(self.function.graph()) {
+            let mut to_remove = Vec::new();
+            for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
+                let should_remove = if let ast::Statement::Assign(assign) =
+                    &self.function.block(node).unwrap()[stat_index]
+                {
+                    let mut to_remove = Vec::new();
+                    let left = assign
+                        .left
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
+                        .collect::<Vec<_>>();
+                    for (i, left, right) in left
+                        .into_iter()
+                        .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
+                        .collect::<Vec<_>>()
+                    {
+                        // upvalues in and parameters cannot be coalesced
+                        debug_assert!(
+                            !(self.function.parameters.contains(&left)
+                                && self.upvalues_in.contains(&right))
+                                || self.function.parameters.contains(&right)
+                                    && self.upvalues_in.contains(&left)
+                        );
+
+                        if let Some(group) = self.upvalue_to_group.get(&left) && !self.upvalue_to_group.contains_key(&right) {
+                            let left_con_class = self.get_congruence_class(left);
+                            if left_con_class.borrow().iter().filter(|&(_, l)| l != group).exactly_one().is_ok()
+                            {
+                                let left_con_class = left_con_class.clone();
+                                let right_con_class = self.get_congruence_class(right);
+                                if right_con_class.borrow().len() == 1
+                                {
+                                    let right_con_class = right_con_class.clone();
+                                    self.merge_congruence_classes(&left_con_class, &right_con_class);
+                                    to_remove.push(i);
+                                }
+                            }
                         }
                     }
                     let assign = self.function.block_mut(node).unwrap()[stat_index]
