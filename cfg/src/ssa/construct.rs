@@ -457,6 +457,34 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
+    fn read(&mut self, map: &mut FxHashMap<RcLocal, RcLocal>, node: NodeIndex, stat_index: usize) {
+        let statement = self
+            .function
+            .block_mut(node)
+            .unwrap()
+            .get_mut(stat_index)
+            .unwrap();
+        let read = statement
+            .values_read()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+
+        for local in &read {
+            let new_local = self.find_local(node, local);
+            map.insert(local.clone(), new_local);
+        }
+        for (local_index, local) in read.into_iter().enumerate() {
+            let statement = self
+                .function
+                .block_mut(node)
+                .unwrap()
+                .get_mut(stat_index)
+                .unwrap();
+            *statement.values_read_mut()[local_index] = map[&local].clone();
+        }
+    }
+
     fn construct(
         mut self,
     ) -> (
@@ -472,37 +500,7 @@ impl<'a> SsaConstructor<'a> {
             visited_nodes.push(node);
             for stat_index in 0..self.function.block(node).unwrap().len() {
                 // read
-                let statement = self
-                    .function
-                    .block_mut(node)
-                    .unwrap()
-                    .get_mut(stat_index)
-                    .unwrap();
-                let read = statement
-                    .values_read()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let written = statement
-                    .values_written()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let mut map = FxHashMap::with_capacity_and_hasher(read.len(), Default::default());
-
-                for local in &read {
-                    let new_local = self.find_local(node, local);
-                    map.insert(local.clone(), new_local);
-                }
-                for (local_index, local) in read.into_iter().enumerate() {
-                    let statement = self
-                        .function
-                        .block_mut(node)
-                        .unwrap()
-                        .get_mut(stat_index)
-                        .unwrap();
-                    *statement.values_read_mut()[local_index] = map[&local].clone();
-                }
+                let mut map = FxHashMap::default();
 
                 let statement = self
                     .function
@@ -531,17 +529,32 @@ impl<'a> SsaConstructor<'a> {
                         .unwrap();
                     let assign = statement.as_assign_mut().unwrap();
                     *assign.left[0].as_local_mut().unwrap() = new_local.clone();
+                    // we do read after bc of recursive closures
+                    self.read(&mut map, node, stat_index);
+                    let statement = self
+                        .function
+                        .block_mut(node)
+                        .unwrap()
+                        .get_mut(stat_index)
+                        .unwrap();
+                    let assign = statement.as_assign_mut().unwrap();
                     if let Some(upvalue) = assign.right[0]
                         .as_closure_mut()
                         .unwrap()
                         .upvalues
                         .iter_mut()
-                        .find(|u| self.old_locals[u] == local)
+                        .find(|u| self.old_locals.get(u) == Some(&local))
                     {
                         *upvalue = new_local.clone();
                         map.insert(local, new_local);
                     }
                 } else {
+                    let written = statement
+                    .values_written()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                    self.read(&mut map, node, stat_index);
                     // write
                     for (local_index, local) in written.iter().enumerate() {
                         let new_local = self.function.local_allocator.borrow_mut().allocate();
