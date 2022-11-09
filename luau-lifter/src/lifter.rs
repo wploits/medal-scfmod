@@ -1,5 +1,5 @@
-use std::fmt::Write;
 use std::backtrace::Backtrace;
+use std::fmt::Write;
 use std::panic;
 use std::{cell::RefCell, rc::Rc};
 
@@ -1344,6 +1344,7 @@ impl<'a> Lifter<'a> {
                         );
                     }
                     OpCode::LOP_DUPCLOSURE | OpCode::LOP_NEWCLOSURE => {
+                        let dest_local = self.register(a as _);
                         let func_index = match op_code {
                             OpCode::LOP_NEWCLOSURE => {
                                 self.function_list[self.function].functions[d as usize]
@@ -1359,6 +1360,7 @@ impl<'a> Lifter<'a> {
                             _ => unreachable!(),
                         };
                         let func = &self.function_list[func_index];
+                        let mut closure_temp_local = None;
                         let mut upvalues_passed = Vec::with_capacity(func.num_upvalues.into());
                         for _ in 0..func.num_upvalues {
                             let local = match iter.next().as_ref().unwrap().1 {
@@ -1371,26 +1373,30 @@ impl<'a> Lifter<'a> {
                                     // val & ref
                                     0 | 1 => {
                                         let local = self.register(source as _);
-                                        if capture_type == 0
-                                            // TODO: recursive function weirdness,
-                                            // is there a better way to handle it?
-                                            && source != a
-                                        {
-                                            // we represent capture-by-value by copying into a
-                                            // temporary local
-                                            let temp_local = self
-                                                .lifted_function
-                                                .local_allocator
-                                                .borrow_mut()
-                                                .allocate();
-                                            statements.push(
-                                                ast::Assign::new(
-                                                    vec![temp_local.clone().into()],
-                                                    vec![local.into()],
-                                                )
-                                                .into(),
-                                            );
-                                            temp_local
+                                        if capture_type == 0 {
+                                            if source == a {
+                                                closure_temp_local.get_or_insert_with(|| self
+                                                    .lifted_function
+                                                    .local_allocator
+                                                    .borrow_mut()
+                                                    .allocate()).clone()
+                                            } else {
+                                                // we represent capture-by-value by copying into a
+                                                // temporary local
+                                                let temp_local = self
+                                                    .lifted_function
+                                                    .local_allocator
+                                                    .borrow_mut()
+                                                    .allocate();
+                                                statements.push(
+                                                    ast::Assign::new(
+                                                        vec![temp_local.clone().into()],
+                                                        vec![local.into()],
+                                                    )
+                                                    .into(),
+                                                );
+                                                temp_local
+                                            }
                                         } else {
                                             local
                                         }
@@ -1421,7 +1427,7 @@ impl<'a> Lifter<'a> {
 
                         statements.push(
                             ast::Assign::new(
-                                vec![self.register(a as _).clone().into()],
+                                vec![closure_temp_local.as_ref().unwrap_or(&dest_local).clone().into()],
                                 vec![ast::Closure {
                                     parameters,
                                     body,
@@ -1432,6 +1438,9 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
+                        if let Some(temp_local) = closure_temp_local {
+                            statements.push(ast::Assign::new(vec![dest_local.into()], vec![temp_local.into()]).into());
+                        }
                     }
                     _ => unimplemented!("{:?}", instruction),
                 },
