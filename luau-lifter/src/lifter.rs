@@ -78,7 +78,7 @@ impl<'a> Lifter<'a> {
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
             // println!("after ssa construction");
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             let upvalue_to_group = upvalue_in_groups
                 .into_iter()
@@ -157,7 +157,7 @@ impl<'a> Lifter<'a> {
 
             cfg::ssa::Destructor::new(
                 &mut function,
-                &upvalue_to_group,
+                upvalue_to_group,
                 upvalues_in.iter().cloned().collect(),
                 local_count,
             )
@@ -1375,11 +1375,14 @@ impl<'a> Lifter<'a> {
                                         let local = self.register(source as _);
                                         if capture_type == 0 {
                                             if source == a {
-                                                closure_temp_local.get_or_insert_with(|| self
-                                                    .lifted_function
-                                                    .local_allocator
-                                                    .borrow_mut()
-                                                    .allocate()).clone()
+                                                closure_temp_local
+                                                    .get_or_insert_with(|| {
+                                                        self.lifted_function
+                                                            .local_allocator
+                                                            .borrow_mut()
+                                                            .allocate()
+                                                    })
+                                                    .clone()
                                             } else {
                                                 // we represent capture-by-value by copying into a
                                                 // temporary local
@@ -1427,7 +1430,11 @@ impl<'a> Lifter<'a> {
 
                         statements.push(
                             ast::Assign::new(
-                                vec![closure_temp_local.as_ref().unwrap_or(&dest_local).clone().into()],
+                                vec![closure_temp_local
+                                    .as_ref()
+                                    .unwrap_or(&dest_local)
+                                    .clone()
+                                    .into()],
                                 vec![ast::Closure {
                                     parameters,
                                     body,
@@ -1439,7 +1446,10 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                         if let Some(temp_local) = closure_temp_local {
-                            statements.push(ast::Assign::new(vec![dest_local.into()], vec![temp_local.into()]).into());
+                            statements.push(
+                                ast::Assign::new(vec![dest_local.into()], vec![temp_local.into()])
+                                    .into(),
+                            );
                         }
                     }
                     _ => unimplemented!("{:?}", instruction),

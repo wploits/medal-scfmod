@@ -43,7 +43,7 @@ type CongruenceClass = BTreeMap<(usize, ParamOrStatIndex), RcLocal>;
 // https://github.com/LLVM-but-worse/maple-ir/blob/f8711230b7c63ce5fd916f86563912ec36f1217e/org.mapleir.ir/src/main/java/org/mapleir/ir/algorithms/BoissinotDestructor.java
 pub struct Destructor<'a> {
     function: &'a mut Function,
-    upvalue_to_group: &'a IndexMap<RcLocal, RcLocal>,
+    upvalue_to_group: IndexMap<RcLocal, RcLocal>,
     upvalues_in: FxHashSet<RcLocal>,
     local_count: usize,
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
@@ -62,7 +62,7 @@ pub struct Destructor<'a> {
 impl<'a> Destructor<'a> {
     pub fn new(
         function: &'a mut Function,
-        upvalue_to_group: &'a IndexMap<RcLocal, RcLocal>,
+        upvalue_to_group: IndexMap<RcLocal, RcLocal>,
         upvalues_in: FxHashSet<RcLocal>,
         local_count: usize,
     ) -> Self {
@@ -125,9 +125,14 @@ impl<'a> Destructor<'a> {
     }
 
     fn coalesce_upvalues(&mut self) {
-        for (upvalue, group) in self.upvalue_to_group {
+        for (upvalue, group) in self
+            .upvalue_to_group
+            .iter()
+            .map(|(u, g)| (u.clone(), g.clone()))
+            .collect::<Vec<_>>()
+        {
             let con_class = self.get_congruence_class(group.clone()).clone();
-            let (upval_dom_index, _, upval_stat_index) = self.local_defs[upvalue];
+            let (upval_dom_index, _, upval_stat_index) = self.local_defs[&upvalue];
             con_class
                 .borrow_mut()
                 .insert((upval_dom_index, upval_stat_index), upvalue.clone());
@@ -150,7 +155,14 @@ impl<'a> Destructor<'a> {
                 if let ast::Statement::Assign(assign) = stat {
                     if assign.parallel {
                         if assign.left.len() == 1 {
-                            assign.parallel = false;
+                            if assign.left[0].as_local().unwrap()
+                                == assign.right[0].as_local().unwrap()
+                            {
+                                // redundant assign, we can remove it
+                                replace_map.push((stat_index, Vec::new()))
+                            } else {
+                                assign.parallel = false;
+                            }
                         } else {
                             let mut ready = Vec::new();
                             let mut to_do = Vec::new();
@@ -178,11 +190,12 @@ impl<'a> Destructor<'a> {
                                 while let Some(local_b) = ready.pop() {
                                     let local_a = pred[&local_b].clone();
                                     let local_c = loc[&local_a].clone();
-                                    result.push(ast::Assign::new(
-                                        vec![local_b.clone().into()],
-                                        vec![local_c.clone().into()],
-                                    ));
-                                    if local_a == local_c && pred.get(&local_a).is_some() {
+                                    if local_b != local_c {
+                                        result.push(ast::Assign::new(
+                                            vec![local_b.clone().into()],
+                                            vec![local_c.clone().into()],
+                                        ));
+                                    } else if pred.get(&local_a).is_some() {
                                         ready.push(local_a.clone());
                                     }
                                     loc.insert(local_a, local_b);
@@ -437,9 +450,9 @@ impl<'a> Destructor<'a> {
                                     && self.upvalues_in.contains(&left)
                         );
 
-                        if let Some(group) = self.upvalue_to_group.get(&left) && !self.upvalue_to_group.contains_key(&right) {
+                        if let Some(group) = self.upvalue_to_group.get(&left).cloned() && !self.upvalue_to_group.contains_key(&right) {
                             let left_con_class = self.get_congruence_class(left);
-                            if left_con_class.borrow().iter().filter(|&(_, l)| l != group).exactly_one().is_ok()
+                            if left_con_class.borrow().iter().filter(|&(_, l)| l != &group).exactly_one().is_ok()
                             {
                                 let left_con_class = left_con_class.clone();
                                 let right_con_class = self.get_congruence_class(right);
@@ -497,7 +510,12 @@ impl<'a> Destructor<'a> {
         let con_class_x = self.get_congruence_class(local_a.clone()).clone();
         let con_class_y = self.get_congruence_class(local_b.clone()).clone();
 
-        let values = self.values[local_a].borrow().iter().cloned().collect_vec();
+        let values = self
+            .get_value_class(local_a.clone())
+            .borrow()
+            .iter()
+            .cloned()
+            .collect_vec();
         for local_c in values {
             if &local_c == local_b
                 || &local_c == local_a
@@ -537,7 +555,10 @@ impl<'a> Destructor<'a> {
         if self.check_pre_dom_order(&local_a, &local_b) {
             std::mem::swap(&mut local_a, &mut local_b);
         }
-        if self.intersect(&local_a, &local_b) && self.values[&local_a] != self.values[&local_b] {
+        if self.intersect(&local_a, &local_b)
+            // TODO: get many mut
+            && self.get_value_class(local_a.clone()).clone() != self.get_value_class(local_b.clone()).clone()
+        {
             true
         } else {
             self.equal_ancestor_in.insert(local_a, local_b.clone());
@@ -663,21 +684,26 @@ impl<'a> Destructor<'a> {
             Some(local_b)
         };
 
-        if let Some(local_b) = local_b {
-            assert!(!self.dominates(local_a, local_b));
+        if let Some(local_b) = local_b.cloned() {
+            assert!(!self.dominates(local_a, &local_b));
 
-            let mut tmp = Some(local_b);
+            let mut tmp = Some(&local_b);
             while let Some(curr_tmp) = tmp
                 && !self.intersect(local_a, curr_tmp)
             {
                 tmp = self.equal_ancestor_in.get(curr_tmp);
             }
+            let tmp = tmp.cloned();
 
-            if self.values[local_a] != self.values[local_b] {
+            let local_b = local_b.clone();
+            // TODO: get many mut
+            if self.get_value_class(local_a.clone()).clone()
+                != self.get_value_class(local_b).clone()
+            {
                 tmp.is_some()
             } else {
                 if let Some(tmp) = tmp {
-                    self.equal_ancestor_out.insert(local_a.clone(), tmp.clone());
+                    self.equal_ancestor_out.insert(local_a.clone(), tmp);
                 } else {
                     self.equal_ancestor_out.remove(local_a);
                 }
@@ -802,7 +828,12 @@ impl<'a> Destructor<'a> {
         let mut param_map = FxHashMap::default();
         if let Some((_, BlockEdge { arguments, .. })) = self.function.edges_to_block(node).next() {
             for param in arguments.iter().map(|(p, _)| p) {
-                param_map.insert(param.clone(), local_allocator.borrow_mut().allocate());
+                let temp_param = local_allocator.borrow_mut().allocate();
+                if let Some(group) = self.upvalue_to_group.get(param) {
+                    self.upvalue_to_group
+                        .insert(temp_param.clone(), group.clone());
+                }
+                param_map.insert(param.clone(), temp_param);
             }
         }
 
@@ -856,12 +887,17 @@ impl<'a> Destructor<'a> {
                     parallel: true,
                 };
                 for (param, arg) in args {
+                    let arg = arg.as_local_mut().unwrap();
                     let temp_local = local_allocator.borrow_mut().allocate();
+                    if let Some(group) = self.upvalue_to_group.get(arg) {
+                        self.upvalue_to_group
+                            .insert(temp_local.clone(), group.clone());
+                    }
 
                     parallel_assign.left.push(temp_local.clone().into());
-                    parallel_assign.right.push(arg.clone());
+                    parallel_assign.right.push(arg.clone().into());
                     *param = param_map[param].clone();
-                    *arg = temp_local.into();
+                    *arg = temp_local;
                 }
 
                 if !parallel_assign.left.is_empty() {

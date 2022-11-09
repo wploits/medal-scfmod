@@ -1041,7 +1041,7 @@ impl<'a> LifterContext<'a> {
 
             cfg::ssa::Destructor::new(
                 &mut function,
-                &upvalue_to_group,
+                upvalue_to_group,
                 upvalues_in.iter().cloned().collect(),
                 local_count,
             )
