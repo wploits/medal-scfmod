@@ -1,15 +1,19 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ops::Sub, rc::Rc,
+    ops::Sub,
+    rc::Rc,
 };
 
-use indexmap::{IndexSet, IndexMap};
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{Assign, Block, Literal, LocalRw, NumericFor, RcLocal, Statement};
 
-fn block_collect_local_use_ranges<'a>(block: &'a Block, local_use_ranges: &mut IndexMap<&'a RcLocal, (usize, usize)>) {
+fn block_collect_local_use_ranges<'a>(
+    block: &'a Block,
+    local_use_ranges: &mut IndexMap<&'a RcLocal, (usize, usize)>,
+) {
     for (index, stat) in block.iter().enumerate() {
         let mut locals = IndexSet::new();
         collect_stat_locals(stat, &mut locals);
@@ -110,9 +114,25 @@ fn stat_has_local(stat: &Statement, local: &RcLocal) -> bool {
     false
 }
 
-pub fn declare_local(block: &mut Block, first_use_index: Option<usize>, last_use_index: Option<usize>, local: &RcLocal) {
+pub fn declare_local(
+    block: &mut Block,
+    first_use_index: Option<usize>,
+    last_use_index: Option<usize>,
+    local: &RcLocal,
+) {
     let mut usages = Vec::new();
-    for (stat_index, stat) in block.iter().enumerate().skip(first_use_index.unwrap_or(0)).take_while(|&(i, _)| if i == 0 { true } else { Some(i-1) != last_use_index }) {
+    for (stat_index, stat) in block
+        .iter()
+        .enumerate()
+        .skip(first_use_index.unwrap_or(0))
+        .take_while(|&(i, _)| {
+            if i == 0 {
+                true
+            } else {
+                Some(i - 1) != last_use_index
+            }
+        })
+    {
         if Some(stat_index) == first_use_index || stat_has_local(stat, local) {
             usages.push(stat_index);
             match usages.len() {
@@ -231,14 +251,14 @@ pub fn declare_local(block: &mut Block, first_use_index: Option<usize>, last_use
 }
 
 pub fn declare_locals(block: &mut Block, locals_to_ignore: &FxHashSet<RcLocal>) {
-    let mut locals = IndexMap::new();
-    block_collect_local_use_ranges(block, &mut locals);
-    for (local, (first, last)) in locals
+    let mut locals = IndexSet::new();
+    collect_block_locals(block, &mut locals);
+    for local in locals
         .into_iter()
-        .filter(|(l, _)| !locals_to_ignore.contains(l))
-        .map(|(l, i)| (l.clone(), i))
+        .filter(|l| !locals_to_ignore.contains(l))
+        .cloned()
         .collect_vec()
     {
-        declare_local(block, Some(first), Some(last), &local);
+        declare_local(block, None, None, &local);
     }
 }
