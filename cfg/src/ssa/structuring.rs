@@ -384,16 +384,19 @@ fn structure_bool_conditional(function: &mut Function, node: NodeIndex) -> bool 
 
             let block = function.block_mut(node).unwrap();
             let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
-            let cond = match std::mem::replace(&mut r#if.condition, res_local.clone().into()).reduce() {
-                ast::RValue::Binary(binary) if binary.operation.is_comparator() => binary.into(),
-                ast::RValue::Literal(literal) if matches!(literal, ast::Literal::Boolean(_)) => literal.into(),
+            let cond: ast::RValue = match std::mem::replace(&mut r#if.condition, res_local.clone().into()).reduce() {
+                ast::RValue::Binary(binary) if binary.operation.is_comparator() => match then_value {
+                    true => binary.into(),
+                    false => ast::Unary::new(binary.into(), ast::UnaryOperation::Not).into(),
+                },
+                ast::RValue::Literal(ast::Literal::Boolean(bool)) => ast::Literal::Boolean(bool == then_value).into(),
                 cond => match then_value {
                     true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
                     false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
                 },
             };
             let pos = block.len() - 1;
-            block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![cond]).into());
+            block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![cond.reduce()]).into());
 
             true
         } else {
