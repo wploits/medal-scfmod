@@ -110,7 +110,7 @@ pub enum Instruction {
 
 impl Instruction {
     pub fn parse(insn: u32) -> Result<Instruction, nom::error::ErrorKind> {
-        let op_code = (insn & 0xFF) as u8;
+        let op_code = ((insn & 0xFF) as u8).wrapping_mul(203);
         match op_code {
             0
             | 1

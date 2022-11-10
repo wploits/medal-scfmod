@@ -1,4 +1,3 @@
-use mlua::Compiler;
 use nom::{bytes::complete::take, IResult};
 use nom_leb128::leb128_usize;
 
@@ -17,16 +16,6 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
 
 pub fn deserialize(bytecode: &[u8]) -> Result<bytecode::Bytecode, String> {
     match bytecode::Bytecode::parse(bytecode) {
-        Ok((_, deserialized_bytecode)) => Ok(deserialized_bytecode),
-        Err(err) => Err(err.to_string()),
-    }
-}
-
-pub fn compile(code: &String) -> Result<bytecode::Bytecode, String> {
-    let compiler = Compiler::new().set_debug_level(1).set_optimization_level(2);
-    let bytecode = compiler.compile(code);
-
-    match bytecode::Bytecode::parse(&bytecode) {
         Ok((_, deserialized_bytecode)) => Ok(deserialized_bytecode),
         Err(err) => Err(err.to_string()),
     }

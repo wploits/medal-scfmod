@@ -23,7 +23,7 @@ use rustc_hash::FxHashMap;
 use std::{
     fs::File,
     io::{Read, Write},
-    time::{self, Instant},
+    time::{self, Instant}, path::Path,
 };
 
 use deserializer::bytecode::Bytecode;
@@ -37,13 +37,13 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    let mut input = File::open(args.file)?;
+    let path = Path::new(&args.file);
+    let mut input = File::open(path)?;
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
     let now = time::Instant::now();
-    let chunk = deserializer::compile(&String::from_utf8(buffer).unwrap()).unwrap();
+    let chunk = deserializer::deserialize(&buffer).unwrap();
     let parsed = now.elapsed();
     println!("parsing: {:?}", parsed);
 
@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
             let res = main.to_string();
             let duration = start.elapsed();
 
-            let mut out = File::create("result-u.lua")?;
+            let mut out = File::create(path.with_extension("dec.lua"))?;
             writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
             writeln!(out, "{}", res)?;
         }

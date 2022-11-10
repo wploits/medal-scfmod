@@ -13,7 +13,6 @@ clap = { version = "3.1.0", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
 cfg = { path = "../cfg" }
 ast = { path = "../ast" }
-mlua = { version = "0.8.5", features = ["luau"] }
 rustc-hash = "1.1.0"
 either = "1.6.1"
 petgraph = { git = "https://github.com/jujhar16/petgraph.git", branch = "ensure_len_resize_with" }
