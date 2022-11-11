@@ -1392,18 +1392,20 @@ impl<'a> Lifter<'a> {
                             upvalues_in.len(),
                             Default::default(),
                         );
-                        for (old, new) in upvalues_in.into_iter().zip(upvalues_passed.iter().map(|u| match u {
-                            ast::Upvalue::Copy(l)
-                            | ast::Upvalue::Ref(l) => l,
-                        })) {
+                        for (old, new) in
+                            upvalues_in
+                                .into_iter()
+                                .zip(upvalues_passed.iter().map(|u| match u {
+                                    ast::Upvalue::Copy(l) | ast::Upvalue::Ref(l) => l,
+                                }))
+                        {
                             local_map.insert(old, new.clone());
                         }
                         replace_locals(&mut body, &local_map);
 
                         statements.push(
                             ast::Assign::new(
-                                vec![dest_local
-                                    .into()],
+                                vec![dest_local.into()],
                                 vec![ast::Closure {
                                     parameters,
                                     body,

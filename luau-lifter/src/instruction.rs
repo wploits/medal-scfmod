@@ -111,7 +111,11 @@ pub enum Instruction {
 impl Instruction {
     pub fn parse(insn: u32, use_rbx_encoding: bool) -> Result<Instruction, nom::error::ErrorKind> {
         let op_code = ((insn & 0xFF) as u8);
-        let op_code = if use_rbx_encoding { op_code.wrapping_mul(203) } else { op_code };
+        let op_code = if use_rbx_encoding {
+            op_code.wrapping_mul(203)
+        } else {
+            op_code
+        };
         match op_code {
             0
             | 1

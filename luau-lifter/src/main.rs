@@ -23,7 +23,8 @@ use rustc_hash::FxHashMap;
 use std::{
     fs::File,
     io::{Read, Write},
-    time::{self, Instant}, path::Path,
+    path::Path,
+    time::{self, Instant},
 };
 
 use deserializer::bytecode::Bytecode;
