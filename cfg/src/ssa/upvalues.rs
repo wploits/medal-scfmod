@@ -36,6 +36,10 @@ impl UpvaluesOpen {
                         .iter()
                         .filter_map(|r| r.as_closure())
                         .flat_map(|c| c.upvalues.iter())
+                        .filter_map(|u| match u {
+                            ast::Upvalue::Copy(_) => None,
+                            ast::Upvalue::Ref(l) => Some(l),
+                        })
                         .map(|l| this.old_locals[l].clone())
                     {
                         let open_ranges = block_opened.entry(opened).or_default();

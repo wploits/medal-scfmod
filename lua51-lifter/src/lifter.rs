@@ -627,7 +627,7 @@ impl<'a> LifterContext<'a> {
                             vec![ast::Closure {
                                 parameters,
                                 body,
-                                upvalues: upvalues_passed,
+                                upvalues: upvalues_passed.into_iter().map(ast::Upvalue::Ref).collect(),
                                 is_variadic: closure.vararg_flag != 0,
                             }
                             .into()],

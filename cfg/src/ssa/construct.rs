@@ -469,7 +469,6 @@ impl<'a> SsaConstructor<'a> {
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
-
         for local in &read {
             let new_local = self.find_local(node, local);
             map.insert(local.clone(), new_local);
@@ -531,23 +530,6 @@ impl<'a> SsaConstructor<'a> {
                     *assign.left[0].as_local_mut().unwrap() = new_local.clone();
                     // we do read after bc of recursive closures
                     self.read(&mut map, node, stat_index);
-                    let statement = self
-                        .function
-                        .block_mut(node)
-                        .unwrap()
-                        .get_mut(stat_index)
-                        .unwrap();
-                    let assign = statement.as_assign_mut().unwrap();
-                    if let Some(upvalue) = assign.right[0]
-                        .as_closure_mut()
-                        .unwrap()
-                        .upvalues
-                        .iter_mut()
-                        .find(|u| self.old_locals.get(u) == Some(&local))
-                    {
-                        *upvalue = new_local.clone();
-                        map.insert(local, new_local);
-                    }
                 } else {
                     let written = statement
                     .values_written()

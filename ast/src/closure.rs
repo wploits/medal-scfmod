@@ -9,9 +9,15 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum Upvalue {
+    Copy(RcLocal),
+    Ref(RcLocal),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Closure {
     pub parameters: Vec<RcLocal>,
-    pub upvalues: Vec<RcLocal>,
+    pub upvalues: Vec<Upvalue>,
     pub body: Block,
     pub is_variadic: bool,
 }
@@ -42,11 +48,17 @@ impl fmt::Display for Closure {
 
 impl LocalRw for Closure {
     fn values_read(&self) -> Vec<&RcLocal> {
-        self.upvalues.iter().collect()
+        self.upvalues.iter().map(|u| match u {
+            Upvalue::Copy(l)
+            | Upvalue::Ref(l) => l,
+        }).collect()
     }
 
     fn values_read_mut(&mut self) -> Vec<&mut RcLocal> {
-        self.upvalues.iter_mut().collect()
+        self.upvalues.iter_mut().map(|u| match u {
+            Upvalue::Copy(l)
+            | Upvalue::Ref(l) => l,
+        }).collect()
     }
 }
 
