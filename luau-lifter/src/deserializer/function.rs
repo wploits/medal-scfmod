@@ -29,12 +29,12 @@ pub struct Function {
 }
 
 impl Function {
-    fn parse_instructions(vec: &Vec<u32>) -> Vec<Instruction> {
+    fn parse_instructions(vec: &Vec<u32>, use_rbx_encoding: bool) -> Vec<Instruction> {
         let mut v: Vec<Instruction> = Vec::new();
         let mut pc = 0;
 
         loop {
-            let ins = Instruction::parse(vec[pc]).unwrap();
+            let ins = Instruction::parse(vec[pc], use_rbx_encoding).unwrap();
             let op = match ins {
                 Instruction::BC { op_code, .. } => op_code,
                 Instruction::AD { op_code, .. } => op_code,
@@ -106,14 +106,14 @@ impl Function {
         v
     }
 
-    pub(crate) fn parse(input: &[u8]) -> IResult<&[u8], Self> {
+    pub(crate) fn parse(input: &[u8], use_rbx_encoding: bool) -> IResult<&[u8], Self> {
         let (input, max_stack_size) = le_u8(input)?;
         let (input, num_parameters) = le_u8(input)?;
         let (input, num_upvalues) = le_u8(input)?;
         let (input, is_vararg) = le_u8(input)?;
         let (input, u32_instructions) = parse_list(input, le_u32)?;
         //let (input, instructions) = parse_list(input, Function::parse_instrution)?;
-        let instructions = Self::parse_instructions(&u32_instructions);
+        let instructions = Self::parse_instructions(&u32_instructions, use_rbx_encoding);
         let (input, constants) = parse_list(input, Constant::parse)?;
         let (input, functions) = parse_list(input, leb128_usize)?;
         let (input, line_defined) = leb128_usize(input)?;

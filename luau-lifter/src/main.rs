@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
     input.read_exact(&mut buffer)?;
 
     let now = time::Instant::now();
-    let chunk = deserializer::deserialize(&buffer).unwrap();
+    let chunk = deserializer::deserialize(&buffer, false).unwrap();
     let parsed = now.elapsed();
     println!("parsing: {:?}", parsed);
 

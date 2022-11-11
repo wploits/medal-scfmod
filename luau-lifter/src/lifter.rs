@@ -153,7 +153,7 @@ impl<'a> Lifter<'a> {
             //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
             //println!("dataflow: {:#?}", dataflow);
 
-            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
 
             cfg::ssa::Destructor::new(
                 &mut function,

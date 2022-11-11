@@ -14,8 +14,8 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
     Ok((input, string))
 }
 
-pub fn deserialize(bytecode: &[u8]) -> Result<bytecode::Bytecode, String> {
-    match bytecode::Bytecode::parse(bytecode) {
+pub fn deserialize(bytecode: &[u8], use_rbx_encoding: bool) -> Result<bytecode::Bytecode, String> {
+    match bytecode::Bytecode::parse(bytecode, use_rbx_encoding) {
         Ok((_, deserialized_bytecode)) => Ok(deserialized_bytecode),
         Err(err) => Err(err.to_string()),
     }
