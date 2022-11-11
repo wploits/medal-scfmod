@@ -59,14 +59,19 @@ pub fn remove_unnecessary_params(
                 .collect::<Vec<_>>();
             let mut params_to_remove = FxHashSet::default();
             for (index, mut param) in params.enumerate() {
+                if args_in_by_block
+                    .iter()
+                    .map(|a| a[index])
+                    .any(|r| r.as_local().is_none())
+                {
+                    continue;
+                }
                 // TODO: should we really be doing this by index?
                 let arg_set = args_in_by_block
                     .iter()
                     .map(|a| a[index])
                     .filter_map(|r| r.as_local())
                     .collect::<FxHashSet<_>>();
-                // TODO: we should include non-local arguments in the count
-                // we should actually just run this check by doing edges.len
                 if arg_set.len() == 1 {
                     while let Some(param_to) = local_map.get(param) {
                         param = param_to;

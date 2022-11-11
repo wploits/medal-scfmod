@@ -1,4 +1,4 @@
-use ast::RcLocal;
+use ast::{LocalRw, RcLocal};
 use indexmap::IndexSet;
 use petgraph::{
     prelude::DiGraph,
@@ -33,11 +33,12 @@ impl ParamDependencyGraph {
             }
             // TODO: support non-local block arguments
             for (param, arg) in &edge.1.arguments {
-                let arg = arg.as_local().unwrap();
-                if let Some(&defining_param_node) = this.local_to_node.get(arg) {
-                    let param_node = this.local_to_node[param];
-                    if param_node != defining_param_node {
-                        this.graph.add_edge(param_node, defining_param_node, ());
+                for read in arg.values_read() {
+                    if let Some(&defining_param_node) = this.local_to_node.get(read) {
+                        let param_node = this.local_to_node[param];
+                        if param_node != defining_param_node {
+                            this.graph.add_edge(param_node, defining_param_node, ());
+                        }
                     }
                 }
             }

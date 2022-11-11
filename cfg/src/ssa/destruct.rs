@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use ast::{LocalRw, RcLocal};
+use ast::{LocalRw, RcLocal, SideEffects};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{
@@ -155,8 +155,9 @@ impl<'a> Destructor<'a> {
                 if let ast::Statement::Assign(assign) = stat {
                     if assign.parallel {
                         if assign.left.len() == 1 {
-                            if assign.left[0].as_local().unwrap()
-                                == assign.right[0].as_local().unwrap()
+                            if assign.right[0]
+                                .as_local()
+                                .is_some_and(|r| r == assign.left[0].as_local().unwrap())
                             {
                                 // redundant assign, we can remove it
                                 replace_map.push((stat_index, Vec::new()))
@@ -169,11 +170,13 @@ impl<'a> Destructor<'a> {
                             let mut loc = FxHashMap::default();
                             let mut pred = FxHashMap::default();
 
+                            // TODO: unnecessary clones, take left and right
                             for i in 0..assign.left.len() {
                                 let dst = assign.left[i].as_local().unwrap();
-                                let src = assign.right[i].as_local().unwrap();
-                                loc.insert(src.clone(), src.clone());
-                                pred.insert(dst.clone(), src.clone());
+                                if let ast::RValue::Local(src) = &assign.right[i] {
+                                    loc.insert(src.clone(), src.clone());
+                                }
+                                pred.insert(dst.clone(), assign.right[i].clone());
                                 to_do.push(dst.clone());
                             }
 
@@ -188,29 +191,48 @@ impl<'a> Destructor<'a> {
                             let mut result = Vec::new();
                             while let Some(local_b) = to_do.pop() {
                                 while let Some(local_b) = ready.pop() {
-                                    let local_a = pred[&local_b].clone();
-                                    let local_c = loc[&local_a].clone();
-                                    if local_b != local_c {
-                                        result.push(ast::Assign::new(
-                                            vec![local_b.clone().into()],
-                                            vec![local_c.clone().into()],
-                                        ));
-                                    } else if pred.get(&local_a).is_some() {
-                                        ready.push(local_a.clone());
+                                    match pred[&local_b].clone() {
+                                        ast::RValue::Local(local_a) => {
+                                            let local_c = loc[&local_a].clone();
+                                            if local_b != local_c {
+                                                result.push(ast::Assign::new(
+                                                    vec![local_b.clone().into()],
+                                                    vec![local_c.clone().into()],
+                                                ));
+                                            } else if pred.get(&local_a).is_some() {
+                                                ready.push(local_a.clone());
+                                            }
+                                            loc.insert(local_a, local_b);
+                                        }
+                                        rvalue => {
+                                            result.push(ast::Assign::new(
+                                                vec![local_b.clone().into()],
+                                                vec![rvalue],
+                                            ));
+                                        }
                                     }
-                                    loc.insert(local_a, local_b);
                                 }
 
-                                if local_b != loc[&pred[&local_b]] {
-                                    let spill = spill.get_or_insert_with(|| {
-                                        local_allocator.borrow_mut().allocate()
-                                    });
-                                    result.push(ast::Assign::new(
-                                        vec![spill.clone().into()],
-                                        vec![local_b.clone().into()],
-                                    ));
-                                    loc.insert(local_b.clone(), spill.clone());
-                                    ready.push(local_b);
+                                match &pred[&local_b] {
+                                    ast::RValue::Local(local_a) => {
+                                        if local_b != loc[local_a] {
+                                            let spill = spill.get_or_insert_with(|| {
+                                                local_allocator.borrow_mut().allocate()
+                                            });
+                                            result.push(ast::Assign::new(
+                                                vec![spill.clone().into()],
+                                                vec![local_b.clone().into()],
+                                            ));
+                                            loc.insert(local_b.clone(), spill.clone());
+                                            ready.push(local_b);
+                                        }
+                                    }
+                                    rvalue => {
+                                        result.push(ast::Assign::new(
+                                            vec![local_b.clone().into()],
+                                            vec![rvalue.clone()],
+                                        ));
+                                    }
                                 }
                             }
                             replace_map.push((stat_index, result))
@@ -872,6 +894,30 @@ impl<'a> Destructor<'a> {
                 .collect::<Vec<_>>();
 
             for &edge in &edges_to_node {
+                // params are executed in parallel, make sure no args reference undeclared locals or have side-effects
+                debug_assert!({
+                    let args = self
+                        .function
+                        .graph_mut()
+                        .edge_weight_mut(edge)
+                        .unwrap()
+                        .arguments
+                        .iter_mut()
+                        .collect_vec();
+                    let mut fail = false;
+                    for (param, arg) in &args {
+                        if arg.has_side_effects()
+                            || (arg
+                                .values_read()
+                                .into_iter()
+                                .any(|r| r != param && args.iter().any(|(p, _)| p == r)))
+                        {
+                            fail = true;
+                        }
+                    }
+                    !fail
+                });
+
                 let args = self
                     .function
                     .graph_mut()
@@ -886,18 +932,19 @@ impl<'a> Destructor<'a> {
                     prefix: false,
                     parallel: true,
                 };
+
                 for (param, arg) in args {
-                    let arg = arg.as_local_mut().unwrap();
                     let temp_local = local_allocator.borrow_mut().allocate();
-                    if let Some(group) = self.upvalue_to_group.get(arg) {
+                    if let ast::RValue::Local(arg) = arg && let Some(group) = self.upvalue_to_group.get(arg) {
                         self.upvalue_to_group
                             .insert(temp_local.clone(), group.clone());
                     }
 
                     parallel_assign.left.push(temp_local.clone().into());
-                    parallel_assign.right.push(arg.clone().into());
+                    parallel_assign
+                        .right
+                        .push(std::mem::replace(arg, temp_local.into()));
                     *param = param_map[param].clone();
-                    *arg = temp_local;
                 }
 
                 if !parallel_assign.left.is_empty() {

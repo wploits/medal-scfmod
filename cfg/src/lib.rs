@@ -3,6 +3,7 @@
 #![feature(let_chains)]
 #![feature(if_let_guard)]
 #![feature(iter_order_by)]
+#![feature(is_some_and)]
 
 pub mod block;
 pub mod dot;
