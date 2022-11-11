@@ -191,7 +191,8 @@ fn inline_rvalues(
                                     new_rvalue_has_side_effects,
                                 ) {
                                     assert!(new_rvalue.is_none());
-                                    // TODO: PERF: remove local_usages[l] == 1 in stat_to_values_read and use that
+                                    // TODO: PERF: remove `local_usages[l] == 1` filter in stat_to_values_read
+                                    // and use stat_to_values_read here
                                     for local in block[stat_index].values_read() {
                                         let local_usage_count = local_usages.get_mut(local).unwrap();
                                         *local_usage_count = local_usage_count.saturating_sub(1);
@@ -208,6 +209,51 @@ fn inline_rvalues(
                                         .right
                                         .push(new_rvalue.unwrap());
                                 }
+                            }
+                        } else if let Some(generic_for_init) = block[index].as_generic_for_init()
+                            && generic_for_init.0.right.iter().rev().map_while(|r| r.as_local())
+                                .eq_by(assign.left.iter().rev(), |a, b| Some(a) == b.as_local())
+                        {
+                            let start_index = generic_for_init.0.right.len() - assign.left.len();
+                            let has_leading_side_effects = || {
+                                let mut leading_side_effects = false;
+                                for expr in generic_for_init.0.right.iter().take(start_index) {
+                                    if expr.has_side_effects() {
+                                        leading_side_effects = true;
+                                        break;
+                                    }
+                                }
+                                leading_side_effects
+                            };
+
+                            if !new_rvalue_has_side_effects || !has_leading_side_effects() {
+                                let new_rvalue = block[stat_index]
+                                    .as_assign_mut()
+                                    .unwrap()
+                                    .right
+                                    .pop()
+                                    .unwrap();
+
+                                let generic_for_init = block[index].as_generic_for_init_mut().unwrap();
+                                let old_locals = generic_for_init.0.right.drain(start_index..).map(|r| r.as_local().unwrap().clone()).collect_vec();
+                                generic_for_init.0.right.push(new_rvalue);
+
+                                // TODO: PERF: remove `local_usages[l] == 1` filter in stat_to_values_read
+                                // and use stat_to_values_read here
+                                for local in block[stat_index].values_read() {
+                                    let local_usage_count = local_usages.get_mut(local).unwrap();
+                                    *local_usage_count = local_usage_count.saturating_sub(1);
+                                }
+                                // we dont need to update local usages because tracking usages for a local
+                                // with no declarations serves no purpose
+                                block[stat_index] = ast::Empty {}.into();
+                                for old_local in old_locals {
+                                    *stat_to_values_read[index]
+                                        .iter_mut()
+                                        .find(|l| l.as_ref() == Some(&old_local))
+                                        .unwrap() = None;
+                                }
+                                continue 'w;
                             }
                         }
                     }
