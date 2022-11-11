@@ -3,8 +3,8 @@ use std::{borrow::Cow, fmt};
 use itertools::Itertools;
 
 use crate::{
-    Assign, Binary, Block, Call, Closure, GenericFor, If, Index, LValue, Literal, MethodCall,
-    NumericFor, RValue, Repeat, Return, Select, Statement, Table, Unary, While,
+    Assign, Binary, BinaryOperation, Block, Call, Closure, GenericFor, If, Index, LValue, Literal,
+    MethodCall, NumericFor, RValue, Repeat, Return, Select, Statement, Table, Unary, While,
 };
 
 pub enum IndentationMode {
@@ -282,6 +282,18 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             RValue::Unary(unary) => self.format_unary(unary),
             RValue::Binary(binary) => self.format_binary(binary),
             RValue::Closure(closure) => self.format_closure(closure),
+            RValue::Literal(Literal::Number(n)) if n.is_infinite() => {
+                self.format_binary(&Binary::new(
+                    Literal::Number(if n.is_sign_positive() { 1.0 } else { -1.0 }).into(),
+                    Literal::Number(0.0).into(),
+                    BinaryOperation::Div,
+                ))
+            }
+            RValue::Literal(Literal::Number(n)) if n.is_nan() => self.format_binary(&Binary::new(
+                Literal::Number(0.0).into(),
+                Literal::Number(0.0).into(),
+                BinaryOperation::Div,
+            )),
             _ => write!(self.output, "{}", rvalue),
         }
     }
