@@ -215,6 +215,9 @@ impl<'a> Inliner<'a> {
                             } else if let Some(generic_for_init) = block[index].as_generic_for_init()
                                 && generic_for_init.0.right.iter().rev().map_while(|r| r.as_local())
                                     .eq_by(assign.left.iter().rev(), |a, b| Some(a) == b.as_local())
+                                && assign.left.iter().all(|l| l.as_local().is_some_and(|l| stat_to_values_read[index]
+                                    .iter_mut()
+                                    .any(|r| r.as_ref() == Some(l))))
                             {
                                 let start_index = generic_for_init.0.right.len() - assign.left.len();
                                 let has_leading_side_effects = || {
