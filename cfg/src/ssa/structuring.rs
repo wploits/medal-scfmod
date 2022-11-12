@@ -344,12 +344,29 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
     did_structure
 }
 
+// TODO: REFACTOR: move to ast
+fn is_truthy(rvalue: ast::RValue) -> bool {
+    match rvalue.reduce() {
+        // __len has to return number, but __unm can return any value
+        ast::RValue::Unary(ast::Unary {
+            operation: ast::UnaryOperation::Length,
+            ..
+        }) => true,
+        ast::RValue::Literal(
+            ast::Literal::Boolean(true) | ast::Literal::Number(_) | ast::Literal::String(_),
+        )
+        | ast::RValue::Table(_)
+        | ast::RValue::Closure(_) => true,
+        _ => false,
+    }
+}
+
 // TODO: STYLE: rename
 fn make_bool_conditional(
     function: &mut Function,
     node: NodeIndex,
-    then_value: ast::RValue,
-    else_value: ast::RValue,
+    mut then_value: ast::RValue,
+    mut else_value: ast::RValue,
 ) -> Option<ast::RValue> {
     let block = function.block_mut(node).unwrap();
     let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
@@ -370,7 +387,26 @@ fn make_bool_conditional(
         };
         Some(cond.reduce())
     } else {
-        None
+        let then_truthy = is_truthy(then_value.clone());
+        let else_truthy = is_truthy(else_value.clone());
+        let cond = if !then_truthy && !else_truthy {
+            return None
+        } else if !then_truthy {
+            std::mem::swap(&mut then_value, &mut else_value);
+            ast::Unary::new(std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()), ast::UnaryOperation::Not).reduce()
+        } else if !else_truthy {
+            std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce()
+        } else {
+            let cond = std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce();
+            if let ast::RValue::Unary(ast::Unary { box value, operation: ast::UnaryOperation::Not }) = cond {
+                std::mem::swap(&mut then_value, &mut else_value);
+                value
+            } else {
+                cond
+            }
+        };
+
+        Some(ast::Binary::new(ast::Binary::new(cond, then_value, ast::BinaryOperation::And).into(), else_value, ast::BinaryOperation::Or).into())
     }
 }
 
