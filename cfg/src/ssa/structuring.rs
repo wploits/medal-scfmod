@@ -382,8 +382,8 @@ fn structure_bool_conditional(function: &mut Function, node: NodeIndex) -> bool 
             };
 
             if let Some(res) = res {
-                function.graph_mut().edge_weight_mut(then_edge).unwrap().arguments.clear();
-                function.graph_mut().edge_weight_mut(else_edge).unwrap().arguments.clear();
+                function.graph_mut().edge_weight_mut(then_edge).unwrap().arguments[0].1 = res_local.clone().into();
+                function.graph_mut().edge_weight_mut(else_edge).unwrap().arguments[0].1 = res_local.clone().into();
                 let block = function.block_mut(node).unwrap();
                 let pos = block.len() - 1;
                 block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![res]).into());
