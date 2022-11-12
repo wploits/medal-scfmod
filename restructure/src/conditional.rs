@@ -27,6 +27,7 @@ impl GraphStructurer {
                 Some(std::mem::take(&mut if_stat.else_block))
             } else if then_return.values.is_empty() && !else_return.values.is_empty() {
                 let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
+                // TODO: unnecessary clone (also other cases)
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
                 Some(then_block)
@@ -75,12 +76,20 @@ impl GraphStructurer {
         let else_block = self.function.remove_block(else_node).unwrap();
 
         let block = self.function.block_mut(entry).unwrap();
+        // TODO: STYLE: rename to r#if?
         let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
         if_stat.then_block = then_block;
         if_stat.else_block = else_block;
         Self::simplify_if(if_stat);
 
-        if let Some(after) = Self::expand_if(if_stat) {
+        let after = Self::expand_if(if_stat);
+        if if_stat.then_block.is_empty() {
+            // TODO: unnecessary clone
+            if_stat.condition =
+                ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
+            std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
+        }
+        if let Some(after) = after {
             block.extend(after.0);
         }
 
