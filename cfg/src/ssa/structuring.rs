@@ -156,7 +156,6 @@ fn match_conditional_sequence(
         } else if function.predecessor_blocks(else_edge.target()).count() == 1
             && let Some((second_condition, assign)) = test_pattern(else_edge.target(), then_edge.target())
         {
-            crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
             let second_terminator = function.conditional_edges(else_edge.target()).unwrap();
             if first_terminator.0.target() == second_terminator.0.target() {
                 Some(ConditionalSequencePattern {
