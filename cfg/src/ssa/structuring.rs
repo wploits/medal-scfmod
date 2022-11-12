@@ -1,3 +1,4 @@
+use array_tool::vec::Intersect;
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 
 use itertools::Itertools;
@@ -347,58 +348,47 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
 // local a; if g == 1 then a = true else a = false end; return a -> return g == 1
 fn structure_bool_conditional(function: &mut Function, node: NodeIndex) -> bool {
     if let Some(ast::Statement::If(_)) = function.block(node).unwrap().last() {
-        let (then_block, else_block) = function
-            .conditional_edges(node)
-            .unwrap()
-            .map(|e| e.target());
-        if let Ok(then_out_edge) = function.graph().edges_directed(then_block, Direction::Outgoing).exactly_one()
-            && let Ok(else_out_edge) = function.graph().edges_directed(else_block, Direction::Outgoing).exactly_one()
-            && then_out_edge.target() == else_out_edge.target()
-            && let Ok(ast::Statement::Assign(then_assign)) = function.block(then_block).unwrap().iter().exactly_one()
-            && let Ok(ast::LValue::Local(then_local)) = then_assign.left.iter().exactly_one()
-            && let Ok(ast::RValue::Literal(ast::Literal::Boolean(then_value))) = then_assign.right.iter().exactly_one()
-            && let Ok((then_res_local, _)) = then_out_edge.weight().arguments.iter().filter(|(_, a)| a.as_local() == Some(then_local)).exactly_one()
-            && let Ok(ast::Statement::Assign(else_assign)) = function.block(else_block).unwrap().iter().exactly_one()
-            && let Ok(ast::LValue::Local(else_local)) = else_assign.left.iter().exactly_one()
-            && let Ok(ast::RValue::Literal(ast::Literal::Boolean(else_value))) = else_assign.right.iter().exactly_one()
-            && let Ok((else_res_local, _)) = else_out_edge.weight().arguments.iter().filter(|(_, a)| a.as_local() == Some(else_local)).exactly_one()
-            && then_value != else_value
-            && then_res_local == else_res_local
+        let (then_edge, else_edge) = function.conditional_edges(node).unwrap();
+        if then_edge.target() == else_edge.target()
+            && let Ok((res_local, then_value, else_value)) = then_edge.weight().arguments.iter().filter_map(|(p, a)| else_edge.weight().arguments.iter().find(|(p1, _)| p == p1).map(|(_, a1)| (p, a, a1))).into_iter().exactly_one()
         {
-            let then_value = *then_value;
-            let res_local = then_res_local.clone();
-            let (then_out_edge, else_out_edge) = (then_out_edge.id(), else_out_edge.id());
-
-            skip_over_node(function, node, then_out_edge);
-            skip_over_node(function, node, else_out_edge);
-            if function.predecessor_blocks(then_block).next().is_none() {
-                function.remove_block(then_block);
-            }
-            if function.predecessor_blocks(else_block).next().is_none() {
-                function.remove_block(else_block);
-            }
-
-            for edge in function.graph().edges_directed(node, Direction::Outgoing).map(|e| e.id()).collect::<Vec<_>>() {
-                function.graph_mut().edge_weight_mut(edge).unwrap().arguments.iter_mut().find(|(p, _)| p == &res_local).unwrap().1 = res_local.clone().into();
-            }
+            let (then_edge, else_edge) = (then_edge.id(), else_edge.id());
+            let res_local = res_local.clone();
+            let then_value = then_value.clone();
+            let else_value = else_value.clone();
 
             let block = function.block_mut(node).unwrap();
             let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
-            let cond: ast::RValue = match std::mem::replace(&mut r#if.condition, res_local.clone().into()).reduce() {
-                ast::RValue::Binary(binary) if binary.operation.is_comparator() => match then_value {
-                    true => binary.into(),
-                    false => ast::Unary::new(binary.into(), ast::UnaryOperation::Not).into(),
-                },
-                ast::RValue::Literal(ast::Literal::Boolean(bool)) => ast::Literal::Boolean(bool == then_value).into(),
-                cond => match then_value {
-                    true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
-                    false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
-                },
+            let res = if let ast::RValue::Literal(ast::Literal::Boolean(then_value)) = then_value
+                && let ast::RValue::Literal(ast::Literal::Boolean(else_value)) = else_value
+                && then_value != else_value
+            {
+                let cond: ast::RValue = match std::mem::replace(&mut r#if.condition, res_local.clone().into()).reduce() {
+                    ast::RValue::Binary(binary) if binary.operation.is_comparator() => match then_value {
+                        true => binary.into(),
+                        false => ast::Unary::new(binary.into(), ast::UnaryOperation::Not).into(),
+                    },
+                    ast::RValue::Literal(ast::Literal::Boolean(bool)) => ast::Literal::Boolean(bool == then_value).into(),
+                    cond => match then_value {
+                        true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
+                        false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
+                    },
+                };
+                Some(cond.reduce())
+            } else {
+                None
             };
-            let pos = block.len() - 1;
-            block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![cond.reduce()]).into());
 
-            true
+            if let Some(res) = res {
+                function.graph_mut().edge_weight_mut(then_edge).unwrap().arguments.clear();
+                function.graph_mut().edge_weight_mut(else_edge).unwrap().arguments.clear();
+                let block = function.block_mut(node).unwrap();
+                let pos = block.len() - 1;
+                block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![res]).into());
+                true
+            } else {
+                false
+            }
         } else {
             false
         }
