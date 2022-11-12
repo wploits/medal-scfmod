@@ -344,6 +344,36 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
     did_structure
 }
 
+// TODO: STYLE: rename
+fn make_bool_conditional(
+    function: &mut Function,
+    node: NodeIndex,
+    then_value: ast::RValue,
+    else_value: ast::RValue,
+) -> Option<ast::RValue> {
+    let block = function.block_mut(node).unwrap();
+    let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
+    if let ast::RValue::Literal(ast::Literal::Boolean(then_value)) = then_value
+        && let ast::RValue::Literal(ast::Literal::Boolean(else_value)) = else_value
+        && then_value != else_value
+    {
+        let cond: ast::RValue = match std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce() {
+            ast::RValue::Binary(binary) if binary.operation.is_comparator() => match then_value {
+                true => binary.into(),
+                false => ast::Unary::new(binary.into(), ast::UnaryOperation::Not).into(),
+            },
+            ast::RValue::Literal(ast::Literal::Boolean(bool)) => ast::Literal::Boolean(bool == then_value).into(),
+            cond => match then_value {
+                true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
+                false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
+            },
+        };
+        Some(cond.reduce())
+    } else {
+        None
+    }
+}
+
 // TODO: `return if g then true else false` in luau?
 // local a; if g then a = true else a = false end; return a -> return g and true or false
 // local a; if g then a = false else a = true end; return a -> return not g
@@ -359,39 +389,43 @@ fn structure_bool_conditional(function: &mut Function, node: NodeIndex) -> bool 
             let then_value = then_value.clone();
             let else_value = else_value.clone();
 
-            let block = function.block_mut(node).unwrap();
-            let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
-            let res = if let ast::RValue::Literal(ast::Literal::Boolean(then_value)) = then_value
-                && let ast::RValue::Literal(ast::Literal::Boolean(else_value)) = else_value
-                && then_value != else_value
-            {
-                let cond: ast::RValue = match std::mem::replace(&mut r#if.condition, res_local.clone().into()).reduce() {
-                    ast::RValue::Binary(binary) if binary.operation.is_comparator() => match then_value {
-                        true => binary.into(),
-                        false => ast::Unary::new(binary.into(), ast::UnaryOperation::Not).into(),
-                    },
-                    ast::RValue::Literal(ast::Literal::Boolean(bool)) => ast::Literal::Boolean(bool == then_value).into(),
-                    cond => match then_value {
-                        true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
-                        false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
-                    },
-                };
-                Some(cond.reduce())
-            } else {
-                None
-            };
-
-            if let Some(res) = res {
+            if let Some(res) = make_bool_conditional(function, node, then_value, else_value) {
                 function.graph_mut().edge_weight_mut(then_edge).unwrap().arguments[0].1 = res_local.clone().into();
                 function.graph_mut().edge_weight_mut(else_edge).unwrap().arguments[0].1 = res_local.clone().into();
                 let block = function.block_mut(node).unwrap();
+                let r#if = block.last_mut().unwrap().as_if_mut().unwrap();
+                r#if.condition = res_local.clone().into();
                 let pos = block.len() - 1;
                 block.insert(pos, ast::Assign::new(vec![res_local.into()], vec![res]).into());
                 true
             } else {
                 false
             }
-        } else {
+        } else if then_edge.target() != else_edge.target()
+            && let (then_target, else_target) = (then_edge.target(), else_edge.target())
+            && function.predecessor_blocks(then_target).exactly_one().is_ok() && function.predecessor_blocks(else_target).exactly_one().is_ok()
+            && function.successor_blocks(then_target).next().is_none() && function.successor_blocks(else_target).next().is_none()
+            && let Ok(ast::Statement::Return(ast::Return { values: then_values })) = function.block(then_target).unwrap().iter().exactly_one()
+            && let Ok(then_value) = then_values.iter().exactly_one()
+            && let Ok(ast::Statement::Return(ast::Return { values: else_values })) = function.block(else_target).unwrap().iter().exactly_one()
+            && let Ok(else_value) = else_values.iter().exactly_one()
+        {
+            let then_value = then_value.clone();
+            let else_value = else_value.clone();
+
+            if let Some(res) = make_bool_conditional(function, node, then_value, else_value) {
+                function.remove_block(then_target);
+                function.remove_block(else_target);
+                let block = function.block_mut(node).unwrap();
+                block.pop();
+                block.push(ast::Return::new(vec![res]).into());
+                true
+            } else {
+                false
+            }
+        }
+        
+        else {
             false
         }
     } else {
