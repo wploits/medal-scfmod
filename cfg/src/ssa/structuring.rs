@@ -96,16 +96,15 @@ fn match_conditional_sequence(
     if let Some(r#if) = block.last().and_then(|s| s.as_if()) {
         let first_condition = r#if.condition.clone();
         let test_pattern = |second_conditional, other| {
-            let second_conditional_successors =
-                function.successor_blocks(second_conditional).collect_vec();
+            let second_conditional_successors = function.edges(second_conditional).collect_vec();
             let second_block = function.block(second_conditional).unwrap();
             if let Some(second_conditional_if) = second_block.last().and_then(|s| s.as_if()) {
                 if second_conditional_successors.len() == 2
                     && second_conditional_successors
                         .iter()
-                        .filter(|&s| s == &other)
-                        .count()
-                        == 1
+                        .filter(|&s| s.target() == other && s.weight().arguments.is_empty())
+                        .exactly_one()
+                        .is_ok()
                 {
                     if second_block.len() == 2 {
                         if let ast::Statement::Assign(assign) = &second_block[0] {
@@ -128,6 +127,9 @@ fn match_conditional_sequence(
         };
         let first_terminator = function.conditional_edges(node).unwrap();
         let (then_edge, else_edge) = first_terminator;
+        if !then_edge.weight().arguments.is_empty() || !else_edge.weight().arguments.is_empty() {
+            return None;
+        }
         if function.predecessor_blocks(then_edge.target()).count() == 1
             && let Some((second_condition, assign)) = test_pattern(then_edge.target(), else_edge.target())
         {
@@ -154,6 +156,7 @@ fn match_conditional_sequence(
         } else if function.predecessor_blocks(else_edge.target()).count() == 1
             && let Some((second_condition, assign)) = test_pattern(else_edge.target(), then_edge.target())
         {
+            crate::dot::render_to(function, &mut std::io::stdout()).unwrap();
             let second_terminator = function.conditional_edges(else_edge.target()).unwrap();
             if first_terminator.0.target() == second_terminator.0.target() {
                 Some(ConditionalSequencePattern {
