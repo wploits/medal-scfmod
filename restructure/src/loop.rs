@@ -16,6 +16,7 @@ impl GraphStructurer {
         &mut self,
         header: NodeIndex,
         dominators: &Dominators<NodeIndex>,
+        post_dom: &Dominators<NodeIndex>,
     ) -> bool {
         if !self.is_loop_header(header) {
             return false;
@@ -70,7 +71,6 @@ impl GraphStructurer {
             true
         } else if successors.len() == 2 {
             //if successors.iter().find(|s| self.function.successor_blocks(s).exactly_one() == Ok())
-            let post_dom = post_dominators(self.function.graph_mut());
             let (mut next, mut body) = (successors[0], successors[1]);
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
@@ -112,7 +112,8 @@ impl GraphStructurer {
                         .unwrap_or_default(),
                 );
             if let Some(new_next) = common_post_doms.into_iter().find(|&p| {
-                continues.iter().all(|&n| post_dom.dominators(n).unwrap().contains(&p))
+                self.function.has_block(p)
+                && continues.iter().all(|&n| post_dom.dominators(n).unwrap().contains(&p))
             }) && new_next != next {
                 // TODO: this is uh, yeah
                 next = new_next;
@@ -141,6 +142,7 @@ impl GraphStructurer {
                 .collect_vec();
             //println!("breaks: {:?}", breaks);
 
+            // TODO: is this needed?
             if self
                 .function
                 .predecessor_blocks(header)
@@ -158,7 +160,7 @@ impl GraphStructurer {
                 })
                 && self.function.successor_blocks(body).exactly_one().ok() != Some(header)
             {
-                return false;
+                return changed;
             }
 
             for node in breaks

@@ -66,13 +66,13 @@ impl GraphStructurer {
         !block.iter().any(|s| s.as_comment().is_none())
     }
 
-    fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>) -> bool {
+    fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>, post_dom: &Dominators<NodeIndex>) -> bool {
         let successors = self.function.successor_blocks(node).collect_vec();
 
         //println!("before");
         //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
-        if self.try_collapse_loop(node, dominators) {
+        if self.try_collapse_loop(node, dominators, post_dom) {
             self.find_loop_headers();
             // println!("matched loop");
             return true;
@@ -113,13 +113,14 @@ impl GraphStructurer {
         let mut dfs_postorder =
             DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
+        let post_dom = post_dominators(self.function.graph_mut());
 
         // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
         let mut changed = false;
         while let Some(node) = dfs_postorder.next(self.function.graph()) {
             // println!("matching {:?}", node);
-            let matched = self.try_match_pattern(node, &dominators);
+            let matched = self.try_match_pattern(node, &dominators, &post_dom);
             changed |= matched;
             // if matched {
             //     cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
@@ -147,8 +148,8 @@ impl GraphStructurer {
                 {
                     self.function.remove_block(node);
                 } else {
-                    let dominators = simple_fast(self.function.graph(), node);
-                    let matched = self.try_match_pattern(node, &dominators);
+                    //let dominators = simple_fast(self.function.graph(), node);
+                    let matched = self.try_match_pattern(node, &dominators, &post_dom);
                     changed |= matched;
                 }
             }
