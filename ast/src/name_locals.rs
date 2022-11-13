@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use rustc_hash::FxHashSet;
 
-use crate::{Block, RValue, RcLocal, Statement, Traverse};
+use crate::{Block, RValue, RcLocal, Statement, Traverse, Upvalue};
 
 struct Namer {
     rename: bool,
@@ -77,7 +77,15 @@ impl Namer {
             // TODO: traverse_values
             statement.post_traverse_values(&mut |value| -> Option<()> {
                 if let itertools::Either::Right(RValue::Closure(closure)) = value {
-                    self.upvalues.extend(closure.upvalues.iter().cloned());
+                    self.upvalues.extend(
+                        closure
+                            .upvalues
+                            .iter()
+                            .map(|u| match u {
+                                Upvalue::Copy(l) | Upvalue::Ref(l) => l,
+                            })
+                            .cloned(),
+                    );
                     self.find_upvalues(&mut closure.body);
                 };
                 None
