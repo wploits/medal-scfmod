@@ -8,6 +8,7 @@ use petgraph::{
     visit::{DfsPostOrder, EdgeRef},
     Direction,
 };
+use rustc_hash::{FxHashMap, FxHashSet};
 use tuple::Map;
 
 use crate::{
@@ -95,30 +96,40 @@ fn match_conditional_sequence(
     let block = function.block(node).unwrap();
     if let Some(r#if) = block.last().and_then(|s| s.as_if()) {
         let first_condition = r#if.condition.clone();
-        let test_pattern = |second_conditional, other| {
+        let test_pattern = |second_conditional, other, other_args: FxHashMap<_, _>| {
             let second_conditional_successors = function.edges(second_conditional).collect_vec();
             let second_block = function.block(second_conditional).unwrap();
             if let Some(second_conditional_if) = second_block.last().and_then(|s| s.as_if()) {
                 if second_conditional_successors.len() == 2
-                    && second_conditional_successors
+                    && let Ok(edge_to_other) = second_conditional_successors
                         .iter()
-                        .filter(|&s| s.target() == other && s.weight().arguments.is_empty())
+                        .filter(|&s| s.target() == other && s.weight().arguments.iter().all(|(p, _)| other_args.contains_key(p)))
                         .exactly_one()
-                        .is_ok()
                 {
                     if second_block.len() == 2 {
                         if let ast::Statement::Assign(assign) = &second_block[0] {
+                            // TODO: make sure this variable isnt used anywhere but this block
+                            // and the args passed to other.
                             let values_written = assign.values_written();
                             if values_written.len() == 1
                                 && second_conditional_if.condition
                                     == values_written[0].clone().into()
                             {
-                                assert!(assign.right.len() == 1);
-                                return Some((assign.right[0].clone(), true));
+                                let valid = if other_args.len() == 1 && let Ok((_, ast::RValue::Local(local))) = edge_to_other.weight().arguments.iter().exactly_one()
+                                && local == values_written[0] {
+                                    true
+                                } else { other_args.is_empty() };
+                                if valid {
+                                    assert!(assign.right.len() == 1);
+                                    return Some((assign.right[0].clone(), true));
+                                }
                             }
                         }
                         return None;
-                    } else if second_block.len() == 1 {
+                    } else if second_block.len() == 1
+                        // TODO: check if all arguments the same instead
+                        && edge_to_other.weight().arguments.is_empty()
+                    {
                         return Some((second_conditional_if.condition.clone(), false));
                     }
                 }
@@ -127,11 +138,10 @@ fn match_conditional_sequence(
         };
         let first_terminator = function.conditional_edges(node).unwrap();
         let (then_edge, else_edge) = first_terminator;
-        if !then_edge.weight().arguments.is_empty() || !else_edge.weight().arguments.is_empty() {
-            return None;
-        }
         if function.predecessor_blocks(then_edge.target()).count() == 1
-            && let Some((second_condition, assign)) = test_pattern(then_edge.target(), else_edge.target())
+            && then_edge.weight().arguments.is_empty()
+            && let else_args = else_edge.weight().arguments.iter().cloned().collect::<FxHashMap<_, _>>()
+            && let Some((second_condition, assign)) = test_pattern(then_edge.target(), else_edge.target(), else_args)
         {
             let second_terminator = function.conditional_edges(then_edge.target()).unwrap();
             if second_terminator.0.target() == else_edge.target() {
@@ -154,7 +164,9 @@ fn match_conditional_sequence(
                 })
             }
         } else if function.predecessor_blocks(else_edge.target()).count() == 1
-            && let Some((second_condition, assign)) = test_pattern(else_edge.target(), then_edge.target())
+            && else_edge.weight().arguments.is_empty()
+            && let then_args = then_edge.weight().arguments.iter().cloned().collect::<FxHashMap<_, _>>()
+            && let Some((second_condition, assign)) = test_pattern(else_edge.target(), then_edge.target(), then_args)
         {
             let second_terminator = function.conditional_edges(else_edge.target()).unwrap();
             if first_terminator.0.target() == second_terminator.0.target() {
