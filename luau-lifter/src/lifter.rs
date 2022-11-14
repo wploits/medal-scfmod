@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
 use restructure::post_dominators;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::{
     deserializer::{
@@ -72,7 +72,13 @@ impl<'a> Lifter<'a> {
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
             // println!("after ssa construction");
-            //cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // // TODO: cfg::name_locals
+            // for (_, block) in function.blocks_mut() {
+            //     ast::local_declarations::declare_locals(block, &FxHashSet::default());
+            //     ast::name_locals::name_locals(block, true);
+            // }
+            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
+            // panic!();
 
             let upvalue_to_group = upvalue_in_groups
                 .into_iter()

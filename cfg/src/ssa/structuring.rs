@@ -401,16 +401,20 @@ fn make_bool_conditional(
         };
         Some(cond.reduce())
     } else {
+        // TODO: `v0 and v1 and v2`, v0, v1 and v2 are truthy, but only v2 is treated as such
         let then_truthy = match is_truthy(then_value.clone()) {
             Some(truthy) => truthy,
-            None if
-                let ast::RValue::Binary(ast::Binary { right, operation: ast::BinaryOperation::And, .. }) = &r#if.condition
-                && !right.has_side_effects() && !then_value.has_side_effects()
-                && right.as_ref() == &then_value
-            => true,
+            None if !then_value.has_side_effects() => {
+                let value = match &r#if.condition {
+                    ast::RValue::Binary(ast::Binary { right: box ref value, operation: ast::BinaryOperation::And, .. })
+                        => value,
+                    value => value,
+                };
+                !value.has_side_effects() && *value == then_value
+            },
             None => false,
         };
-        // TODO: if condition is `and not else_value` then truthy?
+        // TODO: if condition is `and not else_value` or `not else_value` then truthy?
         let else_truthy = is_truthy(else_value.clone()).is_some_and(|v| v);
         let cond = if !then_truthy && !else_truthy {
             return None
@@ -429,7 +433,12 @@ fn make_bool_conditional(
             }
         };
 
-        Some(ast::Binary::new(ast::Binary::new(cond, then_value, ast::BinaryOperation::And).into(), else_value, ast::BinaryOperation::Or).into())
+        // TODO: should we be doing this in other places too?
+        if cond.as_local().is_some_and(|l| Some(l) == then_value.as_local()) {
+            Some(ast::Binary::new(then_value, else_value, ast::BinaryOperation::Or).into())
+        } else {
+            Some(ast::Binary::new(ast::Binary::new(cond, then_value, ast::BinaryOperation::And).into(), else_value, ast::BinaryOperation::Or).into())
+        }
     }
 }
 
