@@ -1,8 +1,15 @@
-use std::{borrow::Cow, io::Write};
+use std::{
+    borrow::{Borrow, Cow},
+    cell::RefCell,
+    io::Write,
+};
 
+use ast::LocalRw;
 use dot::{GraphWalk, LabelText, Labeller};
 
+use itertools::Itertools;
 use petgraph::stable_graph::{EdgeIndex, NodeIndex};
+use rustc_hash::FxHashMap;
 
 use crate::function::Function;
 
@@ -18,19 +25,40 @@ fn arguments(args: &Vec<(ast::RcLocal, ast::RValue)>) -> String {
     s
 }
 
-impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for Function {
+struct FunctionLabeller<'a> {
+    function: &'a Function,
+    counter: RefCell<usize>,
+}
+
+impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for FunctionLabeller<'a> {
     fn graph_id(&'a self) -> dot::Id<'a> {
         dot::Id::new("cfg").unwrap()
     }
 
     fn node_label<'b>(&'b self, n: &NodeIndex) -> dot::LabelText<'b> {
-        let block = self.block(*n).unwrap();
-        dot::LabelText::LabelStr(block.to_string().into())
-            .prefix_line(dot::LabelText::LabelStr(n.index().to_string().into()))
+        let block = self.function.block(*n).unwrap();
+        dot::LabelText::LabelStr(
+            block
+                .iter()
+                .map(|s| {
+                    for local in s.values() {
+                        let name = &mut local.0 .0.borrow_mut().0;
+                        if name.is_none() {
+                            // TODO: ugly
+                            *name = Some(format!("v{}", self.counter.borrow()));
+                            *self.counter.borrow_mut() += 1;
+                        }
+                    }
+                    s
+                })
+                .join("\n")
+                .into(),
+        )
+        .prefix_line(dot::LabelText::LabelStr(n.index().to_string().into()))
     }
 
     fn edge_label<'b>(&'b self, e: &EdgeIndex) -> dot::LabelText<'b> {
-        let edge = self.graph().edge_weight(*e).unwrap();
+        let edge = self.function.graph().edge_weight(*e).unwrap();
         match edge.branch_type {
             crate::block::BranchType::Unconditional => {
                 dot::LabelText::LabelStr(arguments(&edge.arguments).into())
@@ -63,24 +91,30 @@ impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for Function {
     }
 }
 
-impl<'a> GraphWalk<'a, NodeIndex, EdgeIndex> for Function {
+impl<'a> GraphWalk<'a, NodeIndex, EdgeIndex> for FunctionLabeller<'a> {
     fn nodes(&'a self) -> dot::Nodes<'a, NodeIndex> {
-        Cow::Owned(self.graph().node_indices().collect())
+        Cow::Owned(self.function.graph().node_indices().collect())
     }
 
     fn edges(&'a self) -> dot::Edges<'a, EdgeIndex> {
-        Cow::Owned(self.graph().edge_indices().collect())
+        Cow::Owned(self.function.graph().edge_indices().collect())
     }
 
     fn source(&self, e: &EdgeIndex) -> NodeIndex {
-        self.graph().edge_endpoints(*e).unwrap().0
+        self.function.graph().edge_endpoints(*e).unwrap().0
     }
 
     fn target(&self, e: &EdgeIndex) -> NodeIndex {
-        self.graph().edge_endpoints(*e).unwrap().1
+        self.function.graph().edge_endpoints(*e).unwrap().1
     }
 }
 
-pub fn render_to<W: Write>(cfg: &Function, output: &mut W) -> std::io::Result<()> {
-    dot::render(cfg, output)
+pub fn render_to<W: Write>(function: &Function, output: &mut W) -> std::io::Result<()> {
+    dot::render(
+        &FunctionLabeller {
+            function,
+            counter: RefCell::new(1),
+        },
+        output,
+    )
 }

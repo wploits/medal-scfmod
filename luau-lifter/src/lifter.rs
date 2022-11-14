@@ -71,14 +71,7 @@ impl<'a> Lifter<'a> {
             let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
 
-            // println!("after ssa construction");
-            // // TODO: cfg::name_locals
-            // for (_, block) in function.blocks_mut() {
-            //     ast::local_declarations::declare_locals(block, &FxHashSet::default());
-            //     ast::name_locals::name_locals(block, true);
-            // }
             // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-            // panic!();
 
             let upvalue_to_group = upvalue_in_groups
                 .into_iter()
