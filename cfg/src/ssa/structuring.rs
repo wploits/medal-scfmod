@@ -695,7 +695,7 @@ fn match_method_call(call: &ast::Call) -> Option<(&ast::RValue, &str)> {
 // This code does not apply to Luau
 pub fn structure_method_calls(function: &mut Function) -> bool {
     let mut did_structure = false;
-    for (_, block) in function.blocks_mut() {
+    for block in function.blocks_mut() {
         for stat in &mut block.0 {
             if let ast::Statement::Call(call) = stat {
                 if let Some((value, method)) = match_method_call(call) {

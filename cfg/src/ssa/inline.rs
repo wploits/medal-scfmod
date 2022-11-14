@@ -437,7 +437,7 @@ pub fn inline(
         .inline_rvalues();
 
         // remove unused locals
-        for (_, block) in function.blocks_mut() {
+        for block in function.blocks_mut() {
             for stat_index in 0..block.len() {
                 if let ast::Statement::Assign(assign) = &block[stat_index]
                     && assign.left.len() == 1
@@ -474,7 +474,7 @@ pub fn inline(
             }
         }
 
-        for (_, block) in function.blocks_mut() {
+        for block in function.blocks_mut() {
             // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
             // TODO: fix ^
             block.retain(|s| s.as_empty().is_none());
@@ -560,7 +560,7 @@ pub fn inline(
     }
     // we check block.ast.len() elsewhere and do `i - ` here and elsewhere so we need to get rid of empty statements
     // TODO: fix ^
-    for (_, block) in function.blocks_mut() {
+    for block in function.blocks_mut() {
         block.retain(|s| s.as_empty().is_none());
     }
 }

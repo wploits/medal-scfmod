@@ -62,14 +62,8 @@ impl Function {
             .map(|i| (i, self.graph.node_weight(i).unwrap()))
     }
 
-    // TODO: indexmap
-    pub fn blocks_mut(&mut self) -> FxHashMap<NodeIndex, &mut ast::Block> {
-        self.graph
-            .node_indices()
-            .collect_vec()
-            .into_iter()
-            .zip(self.graph.node_weights_mut())
-            .collect()
+    pub fn blocks_mut(&mut self) -> impl Iterator<Item = &mut ast::Block> {
+        self.graph.node_weights_mut()
     }
 
     pub fn successor_blocks(&self, block: NodeIndex) -> Neighbors<BlockEdge> {
