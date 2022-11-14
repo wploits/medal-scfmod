@@ -3,7 +3,7 @@ use enum_as_inner::EnumAsInner;
 use std::fmt;
 
 use crate::{
-    formatter::Formatter, type_system::Infer, LocalRw, SideEffects, Traverse, Type, TypeSystem,
+    formatter::Formatter, type_system::Infer, LocalRw, SideEffects, Traverse, Type, TypeSystem, Reduce,
 };
 
 #[derive(Debug, From, Clone, PartialEq, PartialOrd, EnumAsInner)]
@@ -12,6 +12,19 @@ pub enum Literal {
     Boolean(bool),
     Number(f64),
     String(Vec<u8>),
+}
+
+impl Reduce for Literal {
+    fn reduce(self) -> crate::RValue {
+        self.into()
+    }
+
+    fn reduce_condition(self) -> crate::RValue {
+        Literal::Boolean(match self {
+            Literal::Boolean(false) | Literal::Nil => false,
+            Literal::Boolean(true) | Literal::Number(_) | Literal::String(_) => true,
+        }).into()
+    }
 }
 
 impl Infer for Literal {

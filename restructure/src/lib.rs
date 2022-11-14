@@ -66,7 +66,12 @@ impl GraphStructurer {
         !block.iter().any(|s| s.as_comment().is_none())
     }
 
-    fn try_match_pattern(&mut self, node: NodeIndex, dominators: &Dominators<NodeIndex>, post_dom: &Dominators<NodeIndex>) -> bool {
+    fn try_match_pattern(
+        &mut self,
+        node: NodeIndex,
+        dominators: &Dominators<NodeIndex>,
+        post_dom: &Dominators<NodeIndex>,
+    ) -> bool {
         let successors = self.function.successor_blocks(node).collect_vec();
 
         //println!("before");
@@ -248,6 +253,7 @@ impl GraphStructurer {
                         continue;
                     }
                     self.insert_goto_for_edge(edge);
+                    self.find_loop_headers();
                     changed = self.match_blocks();
                     if changed {
                         break;

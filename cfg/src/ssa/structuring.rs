@@ -342,7 +342,7 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
             if pattern.inverted {
                 let removed_if = removed_block.last_mut().unwrap().as_if_mut().unwrap();
                 // TODO: unnecessary clone?
-                removed_if.condition = ast::Unary::new(removed_if.condition.clone(), UnaryOperation::Not).reduce();
+                removed_if.condition = ast::Unary::new(removed_if.condition.clone(), UnaryOperation::Not).reduce_condition();
             }
             let first_block = function.block_mut(first_node).unwrap();
             first_block.pop();
@@ -359,7 +359,7 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
 // TODO: REFACTOR: move to ast
 // None = unknown
 fn is_truthy(rvalue: ast::RValue) -> Option<bool> {
-    match rvalue.reduce() {
+    match rvalue.reduce_condition() {
         // __len has to return number, but __unm can return any value
         ast::RValue::Unary(ast::Unary {
             operation: ast::UnaryOperation::Length,
@@ -388,17 +388,11 @@ fn make_bool_conditional(
         && let ast::RValue::Literal(ast::Literal::Boolean(else_value)) = else_value
         && then_value != else_value
     {
-        let cond: ast::RValue = match std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce() {
-            ast::RValue::Binary(binary) if binary.operation.is_comparator() => match then_value {
-                true => binary.into(),
-                false => ast::Unary::new(binary.into(), ast::UnaryOperation::Not).into(),
-            },
-            ast::RValue::Literal(ast::Literal::Boolean(bool)) => ast::Literal::Boolean(bool == then_value).into(),
-            cond => match then_value {
-                true => ast::Binary::new(ast::Binary::new(cond, ast::Literal::Boolean(true).into(), ast::BinaryOperation::And).into(), ast::Literal::Boolean(false).into(), ast::BinaryOperation::Or).into(),
-                false => ast::Unary::new(cond, ast::UnaryOperation::Not).into(),
-            },
-        };
+        // TODO: just call reduce on `not not condition`/`not condition` depending on then_value
+        let cond = ast::Unary::new(std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()), ast::UnaryOperation::Not);
+        let cond = if then_value {
+            ast::Unary::new(cond.into(), ast::UnaryOperation::Not)
+        } else { cond };
         Some(cond.reduce())
     } else {
         // TODO: `v0 and v1 and v2`, v0, v1 and v2 are truthy, but only v2 is treated as such
@@ -420,11 +414,11 @@ fn make_bool_conditional(
             return None
         } else if !then_truthy {
             std::mem::swap(&mut then_value, &mut else_value);
-            ast::Unary::new(std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()), ast::UnaryOperation::Not).reduce()
+            ast::Unary::new(std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()), ast::UnaryOperation::Not).reduce_condition()
         } else if !else_truthy {
-            std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce()
+            std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce_condition()
         } else {
-            let cond = std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce();
+            let cond = std::mem::replace(&mut r#if.condition, ast::Literal::Nil.into()).reduce_condition();
             if let ast::RValue::Unary(ast::Unary { box value, operation: ast::UnaryOperation::Not }) = cond {
                 std::mem::swap(&mut then_value, &mut else_value);
                 value
@@ -516,7 +510,7 @@ fn jumps_to_block_if_local(
     -- ...
     if control ~= a */
     let r#if = block[block.len() - 1].as_if().unwrap();
-    match r#if.condition.clone().reduce() {
+    match r#if.condition.clone().reduce_condition() {
         ast::RValue::Binary(ast::Binary {
             left: box ast::RValue::Local(cond_control),
             right: box ast::RValue::Literal(ast::Literal::Nil),

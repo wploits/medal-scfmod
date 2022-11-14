@@ -1,9 +1,24 @@
-use crate::{formatter::Formatter, LocalRw, RValue, RcLocal, SideEffects, Traverse};
+use crate::{formatter::Formatter, LocalRw, RValue, RcLocal, SideEffects, Traverse, Reduce, Literal};
 
 use std::{fmt, iter};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Table(pub Vec<(Option<RValue>, RValue)>);
+
+impl Reduce for Table {
+    fn reduce(self) -> RValue {
+        self.into()
+    }
+
+    fn reduce_condition(self) -> RValue {
+        if self.has_side_effects() {
+            // TODO: remove all members w/o side effects
+            self.into()
+        } else {
+            Literal::Boolean(true).into()
+        }
+    }
+}
 
 /*impl Infer for Table {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {

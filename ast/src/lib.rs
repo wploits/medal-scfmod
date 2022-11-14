@@ -70,6 +70,7 @@ pub use vararg::*;
 
 pub trait Reduce {
     fn reduce(self) -> RValue;
+    fn reduce_condition(self) -> RValue;
 }
 
 #[enum_dispatch(LocalRw, SideEffects, Traverse)]
@@ -129,6 +130,20 @@ impl<'a: 'b, 'b> Reduce for RValue {
         match self {
             Self::Unary(unary) => unary.reduce(),
             Self::Binary(binary) => binary.reduce(),
+            Self::Literal(literal) => literal.reduce(),
+            Self::Table(table) => table.reduce(),
+            Self::Closure(closure) => closure.reduce(),
+            other => other,
+        }
+    }
+
+    fn reduce_condition(self) -> RValue {
+        match self {
+            Self::Unary(unary) => unary.reduce_condition(),
+            Self::Binary(binary) => binary.reduce_condition(),
+            Self::Literal(literal) => literal.reduce_condition(),
+            Self::Table(table) => table.reduce_condition(),
+            Self::Closure(closure) => closure.reduce_condition(),
             other => other,
         }
     }

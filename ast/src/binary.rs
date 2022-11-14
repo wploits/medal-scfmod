@@ -94,13 +94,14 @@ impl SideEffects for Binary {
 
 impl<'a: 'b, 'b> Reduce for Binary {
     fn reduce(self) -> RValue {
-        match (self.left, self.right, self.operation) {
+        // TODO: true == true, true == false, etc.
+        match (self.left.reduce(), self.right.reduce(), self.operation) {
             (
-                box RValue::Unary(Unary {
+                RValue::Unary(Unary {
                     operation: UnaryOperation::Not,
                     value: left,
                 }),
-                box RValue::Unary(Unary {
+                RValue::Unary(Unary {
                     operation: UnaryOperation::Not,
                     value: right,
                 }),
@@ -122,8 +123,8 @@ impl<'a: 'b, 'b> Reduce for Binary {
             }
             .into(),
             (
-                box RValue::Literal(Literal::Boolean(left)),
-                box RValue::Literal(Literal::Boolean(right)),
+                RValue::Literal(Literal::Boolean(left)),
+                RValue::Literal(Literal::Boolean(right)),
                 BinaryOperation::And | BinaryOperation::Or,
             ) => Literal::Boolean(if self.operation == BinaryOperation::And {
                 left && right
@@ -132,49 +133,115 @@ impl<'a: 'b, 'b> Reduce for Binary {
             })
             .into(),
             (
-                box RValue::Literal(Literal::Boolean(left)),
-                box right,
+                RValue::Literal(Literal::Boolean(left)),
+                right,
                 BinaryOperation::And | BinaryOperation::Or,
             ) => {
-                if self.operation == BinaryOperation::And {
-                    if !left {
-                        RValue::Literal(Literal::Boolean(false))
-                    } else {
-                        right.reduce()
-                    }
-                } else if left {
-                    RValue::Literal(Literal::Boolean(true))
-                } else {
-                    right.reduce()
+                match self.operation {
+                    BinaryOperation::And if !left => RValue::Literal(Literal::Boolean(false)),
+                    BinaryOperation::And => right.reduce(),
+                    BinaryOperation::Or if left => RValue::Literal(Literal::Boolean(true)),
+                    BinaryOperation::Or => right.reduce(),
+                    _ => unreachable!(),
                 }
             }
+            // TODO: concat numbers
             (
-                box left,
-                box RValue::Literal(Literal::Boolean(right)),
-                BinaryOperation::And | BinaryOperation::Or,
-            ) => {
-                if self.operation == BinaryOperation::And {
-                    if !right {
-                        RValue::Literal(Literal::Boolean(false))
-                    } else {
-                        left.reduce()
-                    }
-                } else if right {
-                    RValue::Literal(Literal::Boolean(true))
-                } else {
-                    left.reduce()
-                }
-            }
-            (
-                box RValue::Literal(Literal::String(left)),
-                box RValue::Literal(Literal::String(right)),
+                RValue::Literal(Literal::String(left)),
+                RValue::Literal(Literal::String(right)),
                 BinaryOperation::Concat,
             ) => RValue::Literal(Literal::String(
                 left.into_iter().chain(right.into_iter()).collect(),
             )),
             (left, right, operation) => Self {
-                left: Box::new(left.reduce()),
-                right: Box::new(right.reduce()),
+                left: Box::new(left),
+                right: Box::new(right),
+                operation,
+            }
+            .into(),
+        }
+    }
+
+    fn reduce_condition(self) -> RValue {
+        let (left, right) = if matches!(self.operation, BinaryOperation::And | BinaryOperation::Or) {
+            (self.left.reduce_condition(), self.right.reduce_condition())
+        } else {
+            (self.left.reduce(), self.right.reduce())
+        };
+        match (left, right, self.operation) {
+            (
+                RValue::Unary(Unary {
+                    operation: UnaryOperation::Not,
+                    value: left,
+                }),
+                RValue::Unary(Unary {
+                    operation: UnaryOperation::Not,
+                    value: right,
+                }),
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => Unary {
+                value: Box::new(
+                    Binary {
+                        left,
+                        right,
+                        operation: if self.operation == BinaryOperation::And {
+                            BinaryOperation::Or
+                        } else {
+                            BinaryOperation::And
+                        },
+                    }
+                    .into(),
+                ),
+                operation: UnaryOperation::Not,
+            }
+            .into(),
+            (
+                RValue::Literal(Literal::Boolean(left)),
+                RValue::Literal(Literal::Boolean(right)),
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => Literal::Boolean(if self.operation == BinaryOperation::And {
+                left && right
+            } else {
+                left || right
+            })
+            .into(),
+            (
+                RValue::Literal(Literal::Boolean(left)),
+                right,
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => {
+                match self.operation {
+                    BinaryOperation::And if !left => RValue::Literal(Literal::Boolean(false)),
+                    BinaryOperation::And => right.reduce(),
+                    BinaryOperation::Or if left => RValue::Literal(Literal::Boolean(true)),
+                    BinaryOperation::Or => right.reduce(),
+                    _ => unreachable!(),
+                }
+            }
+            (
+                left,
+                RValue::Literal(Literal::Boolean(right)),
+                BinaryOperation::And | BinaryOperation::Or,
+            ) => {
+                match self.operation {
+                    BinaryOperation::And if !right => RValue::Literal(Literal::Boolean(false)),
+                    BinaryOperation::And => left.reduce(),
+                    BinaryOperation::Or if right => RValue::Literal(Literal::Boolean(true)),
+                    BinaryOperation::Or => left.reduce(),
+                    _ => unreachable!(),
+                }
+            }
+            // TODO: concat numbers
+            (
+                RValue::Literal(Literal::String(left)),
+                RValue::Literal(Literal::String(right)),
+                BinaryOperation::Concat,
+            ) => RValue::Literal(Literal::String(
+                left.into_iter().chain(right.into_iter()).collect(),
+            )),
+            (left, right, operation) => Self {
+                left: Box::new(left),
+                right: Box::new(right),
                 operation,
             }
             .into(),

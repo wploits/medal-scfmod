@@ -5,7 +5,7 @@ use itertools::Itertools;
 use crate::{
     formatter::Formatter,
     type_system::{Infer, TypeSystem},
-    Block, LocalRw, RcLocal, SideEffects, Traverse, Type,
+    Block, LocalRw, RcLocal, SideEffects, Traverse, Type, Reduce, Literal,
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -20,6 +20,16 @@ pub struct Closure {
     pub upvalues: Vec<Upvalue>,
     pub body: Block,
     pub is_variadic: bool,
+}
+
+impl Reduce for Closure {
+    fn reduce(self) -> crate::RValue {
+        self.into()
+    }
+
+    fn reduce_condition(self) -> crate::RValue {
+        Literal::Boolean(true).into()
+    }
 }
 
 impl Infer for Closure {

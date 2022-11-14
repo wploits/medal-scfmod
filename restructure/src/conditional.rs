@@ -29,7 +29,7 @@ impl GraphStructurer {
                 let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
                 // TODO: unnecessary clone (also other cases)
                 if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
                 Some(then_block)
             } else {
                 match if_stat.then_block.len().cmp(&if_stat.else_block.len()) {
@@ -38,7 +38,7 @@ impl GraphStructurer {
                         let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
                         if_stat.condition =
                             ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
-                                .reduce();
+                                .reduce_condition();
                         Some(then_block)
                     }
                     // TODO: `Some(std::mem::take(&mut if_stat.else_block))`?
@@ -86,7 +86,7 @@ impl GraphStructurer {
         if if_stat.then_block.is_empty() {
             // TODO: unnecessary clone
             if_stat.condition =
-                ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
+                ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
             std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
         }
         if let Some(after) = after {
@@ -139,7 +139,7 @@ impl GraphStructurer {
 
             if inverted {
                 if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce()
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition()
             }
 
             //Self::simplify_if(if_stat);
@@ -246,7 +246,7 @@ impl GraphStructurer {
                 changed = true;
             } else if if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
                 if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce();
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
                 std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
                 self.function.set_edges(
                     entry,

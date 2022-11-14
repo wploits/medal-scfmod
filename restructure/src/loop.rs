@@ -38,7 +38,7 @@ impl GraphStructurer {
                 let mut condition = if_stat.condition;
                 let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
                 let next = if then_edge.target() == header {
-                    condition = ast::Unary::new(condition, ast::UnaryOperation::Not).reduce();
+                    condition = ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition();
                     else_edge.target()
                 } else {
                     then_edge.target()
@@ -46,7 +46,7 @@ impl GraphStructurer {
                 let header_block = self.function.block_mut(header).unwrap();
                 *header_block = if header_block.is_empty() {
                     vec![ast::While::new(
-                        ast::Unary::new(condition, ast::UnaryOperation::Not).reduce(),
+                        ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition(),
                         header_block.clone(),
                     )
                     .into()]
@@ -75,6 +75,7 @@ impl GraphStructurer {
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
             }
+            // println!("{:?} {:?} {:?}", header, body, next);
             assert!(body != header);
 
             if self
@@ -200,7 +201,7 @@ impl GraphStructurer {
                         if header_else_target != body {
                             // TODO: is this correct?
                             if_condition =
-                                ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce();
+                                ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce_condition();
                         }
                         body_block.push(
                             ast::If::new(
@@ -216,7 +217,7 @@ impl GraphStructurer {
                     } else {
                         if header_else_target == body {
                             if_condition =
-                                ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce();
+                                ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce_condition();
                         }
 
                         ast::While::new(if_condition, block)
