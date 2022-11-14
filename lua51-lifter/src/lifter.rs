@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use ast::{local_declarations::declare_locals, replace_locals::replace_locals, RcLocal, Statement};
+use ast::{local_declarations::LocalDeclarer, replace_locals::replace_locals, RcLocal, Statement};
 use cfg::{
     function::Function,
     ssa::structuring::{
@@ -453,8 +453,8 @@ impl<'a> LifterContext<'a> {
                 } => {
                     let value: ast::RValue = self.locals[value].clone().into();
                     statements.push(
-                        ast::If {
-                            condition: if *invert {
+                        ast::If::new(
+                            if *invert {
                                 ast::Unary {
                                     value: Box::new(value.clone()),
                                     operation: ast::UnaryOperation::Not,
@@ -463,9 +463,9 @@ impl<'a> LifterContext<'a> {
                             } else {
                                 value.clone()
                             },
-                            then_block: ast::Block::default(),
-                            else_block: ast::Block::default(),
-                        }
+                            ast::Block::default(),
+                            ast::Block::default(),
+                        )
                         .into(),
                     );
 
@@ -1043,12 +1043,17 @@ impl<'a> LifterContext<'a> {
             .destruct();
 
             let params = std::mem::take(&mut function.parameters);
-            let mut block = restructure::lift(function);
-            declare_locals(
-                &mut block,
+            let block = Rc::new(restructure::lift(function).into());
+            LocalDeclarer::default().declare_locals(
+                // TODO: why does block.clone() not work?
+                Rc::clone(&block),
                 &upvalues_in.iter().chain(params.iter()).cloned().collect(),
             );
-            (block, params, upvalues_in)
+            (
+                Rc::try_unwrap(block).unwrap().into_inner(),
+                params,
+                upvalues_in,
+            )
         };
 
         match () {

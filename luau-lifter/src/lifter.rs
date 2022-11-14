@@ -18,7 +18,7 @@ use super::{
     instruction::Instruction,
     op_code::OpCode,
 };
-use ast::{self, local_declarations::declare_locals, replace_locals::replace_locals};
+use ast::{self, local_declarations::LocalDeclarer, replace_locals::replace_locals};
 use cfg::{
     block::{BlockEdge, BranchType},
     function::Function,
@@ -157,12 +157,17 @@ impl<'a> Lifter<'a> {
             .destruct();
 
             let params = std::mem::take(&mut function.parameters);
-            let mut block = restructure::lift(function);
-            declare_locals(
-                &mut block,
+            let block = Rc::new(restructure::lift(function).into());
+            LocalDeclarer::default().declare_locals(
+                // TODO: why does block.clone() not work?
+                Rc::clone(&block),
                 &upvalues_in.iter().chain(params.iter()).cloned().collect(),
             );
-            (block, params, upvalues_in)
+            (
+                Rc::try_unwrap(block).unwrap().into_inner(),
+                params,
+                upvalues_in,
+            )
         };
 
         match () {

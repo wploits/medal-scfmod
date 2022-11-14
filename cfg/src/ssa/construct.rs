@@ -474,6 +474,8 @@ impl<'a> SsaConstructor<'a> {
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
+        // TODO: REFACTOR: extend
+        map.reserve(read.len());
         for local in &read {
             let new_local = self.find_local(node, local);
             map.insert(local.clone(), new_local);

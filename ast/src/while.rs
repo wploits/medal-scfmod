@@ -1,17 +1,20 @@
 use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
-use std::fmt;
+use std::{cell::RefCell, fmt, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct While {
     pub condition: RValue,
-    pub block: Block,
+    pub block: Rc<RefCell<Block>>,
 }
 
 has_side_effects!(While);
 
 impl While {
     pub fn new(condition: RValue, block: Block) -> Self {
-        Self { condition, block }
+        Self {
+            condition,
+            block: Rc::new(block.into()),
+        }
     }
 }
 

@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
@@ -16,26 +18,28 @@ impl GraphStructurer {
     }
 
     fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
-        let then_return = if_stat.then_block.last().and_then(|x| x.as_return());
-        let else_return = if_stat.else_block.last().and_then(|x| x.as_return());
+        let mut then_block = if_stat.then_block.borrow_mut();
+        let mut else_block = if_stat.else_block.borrow_mut();
+        let then_return = then_block.last().and_then(|x| x.as_return());
+        let else_return = else_block.last().and_then(|x| x.as_return());
         if let Some(then_return) = then_return && let Some(else_return) = else_return {
             if then_return.values.is_empty() && else_return.values.is_empty() {
-                if_stat.then_block.pop();
-                if_stat.else_block.pop();
+                then_block.pop();
+                else_block.pop();
                 None
             } else if !then_return.values.is_empty() && else_return.values.is_empty() {
-                Some(std::mem::take(&mut if_stat.else_block))
+                Some(std::mem::take(&mut else_block))
             } else if then_return.values.is_empty() && !else_return.values.is_empty() {
-                let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
+                let then_block = std::mem::replace::<ast::Block>(&mut then_block, std::mem::take(&mut else_block));
                 // TODO: unnecessary clone (also other cases)
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
                 Some(then_block)
             } else {
-                match if_stat.then_block.len().cmp(&if_stat.else_block.len()) {
-                    std::cmp::Ordering::Less => Some(std::mem::take(&mut if_stat.else_block)),
+                match then_block.len().cmp(&else_block.len()) {
+                    std::cmp::Ordering::Less => Some(std::mem::take(&mut else_block)),
                     std::cmp::Ordering::Greater => {
-                        let then_block = std::mem::replace(&mut if_stat.then_block, std::mem::take(&mut if_stat.else_block));
+                        let then_block = std::mem::replace::<ast::Block>(&mut then_block, std::mem::take(&mut else_block));
                         if_stat.condition =
                             ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
                                 .reduce_condition();
@@ -78,12 +82,12 @@ impl GraphStructurer {
         let block = self.function.block_mut(entry).unwrap();
         // TODO: STYLE: rename to r#if?
         let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-        if_stat.then_block = then_block;
-        if_stat.else_block = else_block;
+        if_stat.then_block = Rc::new(then_block.into());
+        if_stat.else_block = Rc::new(else_block.into());
         Self::simplify_if(if_stat);
 
         let after = Self::expand_if(if_stat);
-        if if_stat.then_block.is_empty() {
+        if if_stat.then_block.borrow().is_empty() {
             // TODO: unnecessary clone
             if_stat.condition =
                 ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
@@ -136,7 +140,7 @@ impl GraphStructurer {
 
             let block = self.function.block_mut(entry).unwrap();
             let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-            if_stat.then_block = then_block;
+            if_stat.then_block = Rc::new(then_block.into());
 
             if inverted {
                 if_stat.condition =
@@ -227,26 +231,28 @@ impl GraphStructurer {
         let block = self.function.block_mut(entry).unwrap();
         if let Some(if_stat) = block.last_mut().unwrap().as_if_mut() {
             if then_node == header && !header_successors.contains(&entry) && then_main_cont {
-                if_stat.then_block = vec![ast::Continue {}.into()].into();
+                if_stat.then_block = Rc::new(RefCell::new(vec![ast::Continue {}.into()].into()));
                 changed = true;
             } else if then_node == next {
-                if_stat.then_block = vec![ast::Break {}.into()].into();
+                if_stat.then_block = Rc::new(RefCell::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
             if else_node == header && !header_successors.contains(&entry) && else_main_cont {
-                if_stat.else_block = vec![ast::Continue {}.into()].into();
+                if_stat.else_block = Rc::new(RefCell::new(vec![ast::Continue {}.into()].into()));
                 changed = true;
             } else if else_node == next {
-                if_stat.else_block = vec![ast::Break {}.into()].into();
+                if_stat.else_block = Rc::new(RefCell::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
-            if !if_stat.then_block.is_empty() && if_stat.else_block.is_empty() {
+            if !if_stat.then_block.borrow().is_empty() && if_stat.else_block.borrow().is_empty() {
                 self.function.set_edges(
                     entry,
                     vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
+            } else if if_stat.then_block.borrow().is_empty()
+                && !if_stat.else_block.borrow().is_empty()
+            {
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
                         .reduce_condition();
@@ -256,7 +262,9 @@ impl GraphStructurer {
                     vec![(then_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if !if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
+            } else if !if_stat.then_block.borrow().is_empty()
+                && !if_stat.else_block.borrow().is_empty()
+            {
                 self.function.remove_edges(entry);
                 changed = true;
             }

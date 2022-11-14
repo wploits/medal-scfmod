@@ -141,52 +141,53 @@ impl<'a> TypeSystem<'a> {
     }
 
     pub fn analyze_block(&mut self, block: &'a mut Block) -> Vec<Type> {
-        let mut return_values = Vec::new();
+        todo!()
+        // let mut return_values = Vec::new();
 
-        for statement in &mut block.0 {
-            match statement {
-                /*Statement::Assign(assign) => {
-                    for ((lvalue, annotation), rvalue) in
-                        assign.left.iter_mut().zip(assign.right.iter_mut())
-                    {
-                        let r#type = rvalue.infer(self);
+        // for statement in &mut block.0 {
+        //     match statement {
+        //         /*Statement::Assign(assign) => {
+        //             for ((lvalue, annotation), rvalue) in
+        //                 assign.left.iter_mut().zip(assign.right.iter_mut())
+        //             {
+        //                 let r#type = rvalue.infer(self);
 
-                        if let LValue::Local(local) = lvalue {
-                            if let Some(annotation) = self.annotations.get_mut(local) {
-                                if let Type::Union(types) = annotation {
-                                    types.insert(r#type);
-                                } else {
-                                    let mut types = BTreeSet::new();
+        //                 if let LValue::Local(local) = lvalue {
+        //                     if let Some(annotation) = self.annotations.get_mut(local) {
+        //                         if let Type::Union(types) = annotation {
+        //                             types.insert(r#type);
+        //                         } else {
+        //                             let mut types = BTreeSet::new();
 
-                                    types.insert(annotation.clone());
-                                    types.insert(r#type);
+        //                             types.insert(annotation.clone());
+        //                             types.insert(r#type);
 
-                                    **annotation = Type::Union(types);
-                                }
-                            } else {
-                                *annotation = Some(r#type);
-                                self.annotations.insert(local, annotation.as_mut().unwrap());
-                            }
-                        }
-                    }
-                }*/
-                Statement::If(r#if) => {
-                    self.analyze_block(&mut r#if.then_block);
-                    self.analyze_block(&mut r#if.else_block);
-                }
-                // TODO: repeat and for loops
-                Statement::While(r#while) => {
-                    self.analyze_block(&mut r#while.block);
-                }
-                Statement::Return(r#return) => {
-                    return_values.extend(r#return.values.iter_mut().map(|v| v.infer(self)));
-                }
-                // TODO: numericfor, genericfor
-                _ => {}
-            }
-        }
+        //                             **annotation = Type::Union(types);
+        //                         }
+        //                     } else {
+        //                         *annotation = Some(r#type);
+        //                         self.annotations.insert(local, annotation.as_mut().unwrap());
+        //                     }
+        //                 }
+        //             }
+        //         }*/
+        //         Statement::If(r#if) => {
+        //             self.analyze_block(&mut r#if.then_block);
+        //             self.analyze_block(&mut r#if.else_block);
+        //         }
+        //         // TODO: repeat and for loops
+        //         Statement::While(r#while) => {
+        //             self.analyze_block(&mut r#while.block.borrow_mut());
+        //         }
+        //         Statement::Return(r#return) => {
+        //             return_values.extend(r#return.values.iter_mut().map(|v| v.infer(self)));
+        //         }
+        //         // TODO: numericfor, genericfor
+        //         _ => {}
+        //     }
+        // }
 
-        return_values
+        // return_values
     }
 
     pub fn type_of(&self, local: &RcLocal) -> &Type {

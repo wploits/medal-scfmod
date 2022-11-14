@@ -434,21 +434,21 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " then")?;
 
-        if !r#if.then_block.is_empty() {
-            self.format_block(&r#if.then_block)?;
+        let then_block = r#if.then_block.borrow();
+        if !then_block.is_empty() {
+            self.format_block(&then_block)?;
             writeln!(self.output)?;
         }
 
-        if !r#if.else_block.is_empty() {
+        let else_block = r#if.else_block.borrow();
+        if !else_block.is_empty() {
             self.indent()?;
-            if r#if.else_block.len() == 1
-                && let Some(else_if) = r#if.else_block[0].as_if()
-            {
+            if let Some(else_if) = else_block.iter().exactly_one().ok().and_then(|s| s.as_if()) {
                 write!(self.output, "else")?;
                 return self.format_if(else_if);
             }
             writeln!(self.output, "else")?;
-            self.format_block(&r#if.else_block)?;
+            self.format_block(&else_block)?;
             writeln!(self.output)?;
         }
 
@@ -506,7 +506,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " do")?;
 
-        self.format_block(&r#while.block)?;
+        self.format_block(&r#while.block.borrow())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")
@@ -514,7 +514,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
     pub(crate) fn format_repeat(&mut self, r#repeat: &Repeat) -> fmt::Result {
         writeln!(self.output, "repeat")?;
-        self.format_block(&repeat.block)?;
+        self.format_block(&repeat.block.borrow())?;
         writeln!(self.output)?;
         self.indent()?;
 
@@ -538,7 +538,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(&numeric_for.step)?;
         }
         writeln!(self.output, " do")?;
-        self.format_block(&numeric_for.block)?;
+        self.format_block(&numeric_for.block.borrow())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")
@@ -557,7 +557,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(rvalue)?;
         }
         writeln!(self.output, " do")?;
-        self.format_block(&generic_for.block)?;
+        self.format_block(&generic_for.block.borrow())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")

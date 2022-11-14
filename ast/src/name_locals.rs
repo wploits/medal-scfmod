@@ -48,30 +48,31 @@ impl Namer {
                     }
                 }
                 Statement::If(r#if) => {
-                    self.name_locals(&mut r#if.then_block);
-                    self.name_locals(&mut r#if.else_block);
+                    self.name_locals(&mut r#if.then_block.borrow_mut());
+                    self.name_locals(&mut r#if.else_block.borrow_mut());
                 }
                 Statement::While(r#while) => {
-                    self.name_locals(&mut r#while.block);
+                    self.name_locals(&mut r#while.block.borrow_mut());
                 }
                 Statement::Repeat(repeat) => {
-                    self.name_locals(&mut repeat.block);
+                    self.name_locals(&mut repeat.block.borrow_mut());
                 }
                 Statement::NumericFor(numeric_for) => {
                     self.name_local("v", &numeric_for.counter);
-                    self.name_locals(&mut numeric_for.block);
+                    self.name_locals(&mut numeric_for.block.borrow_mut());
                 }
                 Statement::GenericFor(generic_for) => {
                     for res_local in &generic_for.res_locals {
                         self.name_local("v", res_local);
                     }
-                    self.name_locals(&mut generic_for.block);
+                    self.name_locals(&mut generic_for.block.borrow_mut());
                 }
                 _ => {}
             }
         }
     }
 
+    // TODO: does this need to be mut?
     fn find_upvalues(&mut self, block: &mut Block) {
         for statement in &mut block.0 {
             // TODO: traverse_values
@@ -92,20 +93,20 @@ impl Namer {
             });
             match statement {
                 Statement::If(r#if) => {
-                    self.find_upvalues(&mut r#if.then_block);
-                    self.find_upvalues(&mut r#if.else_block);
+                    self.find_upvalues(&mut r#if.then_block.borrow_mut());
+                    self.find_upvalues(&mut r#if.else_block.borrow_mut());
                 }
                 Statement::While(r#while) => {
-                    self.find_upvalues(&mut r#while.block);
+                    self.find_upvalues(&mut r#while.block.borrow_mut());
                 }
                 Statement::Repeat(repeat) => {
-                    self.find_upvalues(&mut repeat.block);
+                    self.find_upvalues(&mut repeat.block.borrow_mut());
                 }
                 Statement::NumericFor(numeric_for) => {
-                    self.find_upvalues(&mut numeric_for.block);
+                    self.find_upvalues(&mut numeric_for.block.borrow_mut());
                 }
                 Statement::GenericFor(generic_for) => {
-                    self.find_upvalues(&mut generic_for.block);
+                    self.find_upvalues(&mut generic_for.block.borrow_mut());
                 }
                 _ => {}
             }

@@ -1,18 +1,21 @@
 use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
-use std::fmt;
+use std::{cell::RefCell, fmt, rc::Rc};
 
 // TODO: move condition after block
 #[derive(Debug, PartialEq, Clone)]
 pub struct Repeat {
     pub condition: RValue,
-    pub block: Block,
+    pub block: Rc<RefCell<Block>>,
 }
 
 has_side_effects!(Repeat);
 
 impl Repeat {
     pub fn new(condition: RValue, block: Block) -> Self {
-        Self { condition, block }
+        Self {
+            condition,
+            block: Rc::new(block.into()),
+        }
     }
 }
 

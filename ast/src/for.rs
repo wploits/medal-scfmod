@@ -2,7 +2,7 @@ use crate::{
     has_side_effects, Assign, Block, LValue, LocalRw, RValue, RcLocal, SideEffects, Traverse,
 };
 use itertools::Itertools;
-use std::fmt;
+use std::{cell::RefCell, fmt, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumForInit {
@@ -178,7 +178,7 @@ pub struct NumericFor {
     pub step: RValue,
     // TODO: STYLE: rename to `control`? (thats what lua calls it)
     pub counter: RcLocal,
-    pub block: Block,
+    pub block: Rc<RefCell<Block>>,
 }
 
 has_side_effects!(NumericFor);
@@ -196,7 +196,7 @@ impl NumericFor {
             limit,
             step,
             counter,
-            block,
+            block: Rc::new(block.into()),
         }
     }
 }
@@ -249,6 +249,7 @@ impl fmt::Display for NumericFor {
             self.limit,
             self.step,
             self.block
+                .borrow()
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")
@@ -409,7 +410,7 @@ impl fmt::Display for GenericForNext {
 pub struct GenericFor {
     pub res_locals: Vec<RcLocal>,
     pub right: Vec<RValue>,
-    pub block: Block,
+    pub block: Rc<RefCell<Block>>,
 }
 
 impl GenericFor {
@@ -417,7 +418,7 @@ impl GenericFor {
         Self {
             res_locals,
             right,
-            block,
+            block: Rc::new(block.into()),
         }
     }
 }
@@ -463,6 +464,7 @@ impl fmt::Display for GenericFor {
             self.res_locals.iter().join(", "),
             self.right.iter().join(", "),
             self.block
+                .borrow()
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")

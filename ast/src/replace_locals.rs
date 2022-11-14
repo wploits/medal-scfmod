@@ -24,25 +24,20 @@ pub fn replace_locals<H: std::hash::BuildHasher>(
         });
         match statement {
             Statement::If(r#if) => {
-                if !r#if.then_block.is_empty() {
-                    replace_locals(&mut r#if.then_block, map);
-                }
-
-                if !r#if.else_block.is_empty() {
-                    replace_locals(&mut r#if.else_block, map);
-                }
+                replace_locals(&mut r#if.then_block.borrow_mut(), map);
+                replace_locals(&mut r#if.else_block.borrow_mut(), map);
             }
             Statement::While(r#while) => {
-                replace_locals(&mut r#while.block, map);
+                replace_locals(&mut r#while.block.borrow_mut(), map);
             }
             Statement::Repeat(repeat) => {
-                replace_locals(&mut repeat.block, map);
+                replace_locals(&mut repeat.block.borrow_mut(), map);
             }
             Statement::NumericFor(numeric_for) => {
-                replace_locals(&mut numeric_for.block, map);
+                replace_locals(&mut numeric_for.block.borrow_mut(), map);
             }
             Statement::GenericFor(generic_for) => {
-                replace_locals(&mut generic_for.block, map);
+                replace_locals(&mut generic_for.block.borrow_mut(), map);
             }
             _ => {}
         }

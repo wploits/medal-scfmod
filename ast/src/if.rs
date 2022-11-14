@@ -2,21 +2,21 @@ use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::{Block, RValue};
 
-use std::fmt;
+use std::{cell::RefCell, fmt, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct If {
     pub condition: RValue,
-    pub then_block: Block,
-    pub else_block: Block,
+    pub then_block: Rc<RefCell<Block>>,
+    pub else_block: Rc<RefCell<Block>>,
 }
 
 impl If {
     pub fn new(condition: RValue, then_block: Block, else_block: Block) -> Self {
         Self {
             condition,
-            then_block,
-            else_block,
+            then_block: Rc::new(then_block.into()),
+            else_block: Rc::new(else_block.into()),
         }
     }
 }

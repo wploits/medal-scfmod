@@ -5,7 +5,7 @@ mod instruction;
 mod lifter;
 mod op_code;
 
-use ast::{local_declarations::declare_locals, name_locals::name_locals};
+use ast::name_locals::name_locals;
 use cfg::ssa::{
     self,
     structuring::{
