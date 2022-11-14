@@ -5,7 +5,7 @@ use itertools::Itertools;
 use crate::{
     formatter::Formatter,
     type_system::{Infer, TypeSystem},
-    Block, LocalRw, RcLocal, SideEffects, Traverse, Type, Reduce, Literal,
+    Block, Literal, LocalRw, RcLocal, Reduce, SideEffects, Traverse, Type,
 };
 
 #[derive(Debug, PartialEq, Clone)]

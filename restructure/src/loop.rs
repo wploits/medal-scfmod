@@ -38,7 +38,8 @@ impl GraphStructurer {
                 let mut condition = if_stat.condition;
                 let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
                 let next = if then_edge.target() == header {
-                    condition = ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition();
+                    condition =
+                        ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition();
                     else_edge.target()
                 } else {
                     then_edge.target()
@@ -200,8 +201,8 @@ impl GraphStructurer {
                             std::mem::take(self.function.block_mut(header).unwrap());
                         if header_else_target != body {
                             // TODO: is this correct?
-                            if_condition =
-                                ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce_condition();
+                            if_condition = ast::Unary::new(if_condition, ast::UnaryOperation::Not)
+                                .reduce_condition();
                         }
                         body_block.push(
                             ast::If::new(
@@ -216,8 +217,8 @@ impl GraphStructurer {
                         ast::While::new(ast::Literal::Boolean(true).into(), body_block)
                     } else {
                         if header_else_target == body {
-                            if_condition =
-                                ast::Unary::new(if_condition, ast::UnaryOperation::Not).reduce_condition();
+                            if_condition = ast::Unary::new(if_condition, ast::UnaryOperation::Not)
+                                .reduce_condition();
                         }
 
                         ast::While::new(if_condition, block)

@@ -136,15 +136,13 @@ impl<'a: 'b, 'b> Reduce for Binary {
                 RValue::Literal(Literal::Boolean(left)),
                 right,
                 BinaryOperation::And | BinaryOperation::Or,
-            ) => {
-                match self.operation {
-                    BinaryOperation::And if !left => RValue::Literal(Literal::Boolean(false)),
-                    BinaryOperation::And => right.reduce(),
-                    BinaryOperation::Or if left => RValue::Literal(Literal::Boolean(true)),
-                    BinaryOperation::Or => right.reduce(),
-                    _ => unreachable!(),
-                }
-            }
+            ) => match self.operation {
+                BinaryOperation::And if !left => RValue::Literal(Literal::Boolean(false)),
+                BinaryOperation::And => right.reduce(),
+                BinaryOperation::Or if left => RValue::Literal(Literal::Boolean(true)),
+                BinaryOperation::Or => right.reduce(),
+                _ => unreachable!(),
+            },
             // TODO: concat numbers
             (
                 RValue::Literal(Literal::String(left)),
@@ -163,7 +161,8 @@ impl<'a: 'b, 'b> Reduce for Binary {
     }
 
     fn reduce_condition(self) -> RValue {
-        let (left, right) = if matches!(self.operation, BinaryOperation::And | BinaryOperation::Or) {
+        let (left, right) = if matches!(self.operation, BinaryOperation::And | BinaryOperation::Or)
+        {
             (self.left.reduce_condition(), self.right.reduce_condition())
         } else {
             (self.left.reduce(), self.right.reduce())
@@ -209,28 +208,24 @@ impl<'a: 'b, 'b> Reduce for Binary {
                 RValue::Literal(Literal::Boolean(left)),
                 right,
                 BinaryOperation::And | BinaryOperation::Or,
-            ) => {
-                match self.operation {
-                    BinaryOperation::And if !left => RValue::Literal(Literal::Boolean(false)),
-                    BinaryOperation::And => right.reduce(),
-                    BinaryOperation::Or if left => RValue::Literal(Literal::Boolean(true)),
-                    BinaryOperation::Or => right.reduce(),
-                    _ => unreachable!(),
-                }
-            }
+            ) => match self.operation {
+                BinaryOperation::And if !left => RValue::Literal(Literal::Boolean(false)),
+                BinaryOperation::And => right.reduce(),
+                BinaryOperation::Or if left => RValue::Literal(Literal::Boolean(true)),
+                BinaryOperation::Or => right.reduce(),
+                _ => unreachable!(),
+            },
             (
                 left,
                 RValue::Literal(Literal::Boolean(right)),
                 BinaryOperation::And | BinaryOperation::Or,
-            ) => {
-                match self.operation {
-                    BinaryOperation::And if !right => RValue::Literal(Literal::Boolean(false)),
-                    BinaryOperation::And => left.reduce(),
-                    BinaryOperation::Or if right => RValue::Literal(Literal::Boolean(true)),
-                    BinaryOperation::Or => left.reduce(),
-                    _ => unreachable!(),
-                }
-            }
+            ) => match self.operation {
+                BinaryOperation::And if !right => RValue::Literal(Literal::Boolean(false)),
+                BinaryOperation::And => left.reduce(),
+                BinaryOperation::Or if right => RValue::Literal(Literal::Boolean(true)),
+                BinaryOperation::Or => left.reduce(),
+                _ => unreachable!(),
+            },
             // TODO: concat numbers
             (
                 RValue::Literal(Literal::String(left)),

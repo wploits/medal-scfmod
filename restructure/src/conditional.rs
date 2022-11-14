@@ -86,7 +86,8 @@ impl GraphStructurer {
         if if_stat.then_block.is_empty() {
             // TODO: unnecessary clone
             if_stat.condition =
-                ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
+                ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
+                    .reduce_condition();
             std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
         }
         if let Some(after) = after {
@@ -139,7 +140,8 @@ impl GraphStructurer {
 
             if inverted {
                 if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition()
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
+                        .reduce_condition()
             }
 
             //Self::simplify_if(if_stat);
@@ -246,7 +248,8 @@ impl GraphStructurer {
                 changed = true;
             } else if if_stat.then_block.is_empty() && !if_stat.else_block.is_empty() {
                 if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
+                        .reduce_condition();
                 std::mem::swap(&mut if_stat.then_block, &mut if_stat.else_block);
                 self.function.set_edges(
                     entry,

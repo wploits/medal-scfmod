@@ -1,4 +1,6 @@
-use crate::{formatter::Formatter, LocalRw, RValue, RcLocal, SideEffects, Traverse, Reduce, Literal};
+use crate::{
+    formatter::Formatter, Literal, LocalRw, RValue, RcLocal, Reduce, SideEffects, Traverse,
+};
 
 use std::{fmt, iter};
 

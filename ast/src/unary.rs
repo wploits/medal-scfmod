@@ -55,7 +55,11 @@ impl Reduce for Unary {
         fn is_boolean(r: &RValue) -> bool {
             match r {
                 RValue::Binary(binary) if binary.operation.is_comparator() => true,
-                RValue::Binary(Binary { left, right, operation: BinaryOperation::And | BinaryOperation::Or }) => is_boolean(left) && is_boolean(right),
+                RValue::Binary(Binary {
+                    left,
+                    right,
+                    operation: BinaryOperation::And | BinaryOperation::Or,
+                }) => is_boolean(left) && is_boolean(right),
                 RValue::Literal(Literal::Boolean(_)) => true,
                 // no point matching strings, numbers and tables since reduce_condition has already been called
                 _ => false,
@@ -66,7 +70,12 @@ impl Reduce for Unary {
             if is_boolean(&r) {
                 r
             } else {
-                Binary::new(Binary::new(r, Literal::Boolean(true).into(), BinaryOperation::And).into(), Literal::Boolean(false).into(), BinaryOperation::Or).into()
+                Binary::new(
+                    Binary::new(r, Literal::Boolean(true).into(), BinaryOperation::And).into(),
+                    Literal::Boolean(false).into(),
+                    BinaryOperation::Or,
+                )
+                .into()
             }
         };
 
@@ -183,28 +192,30 @@ impl Reduce for Unary {
                     operation: UnaryOperation::Not,
                 }.into())) =>
             {
-                ensure_boolean(Binary {
-                    left: Box::new(
-                        Unary {
-                            value: left,
-                            operation: UnaryOperation::Not,
-                        }
-                        .reduce_condition(),
-                    ),
-                    right: Box::new(
-                        Unary {
-                            value: right,
-                            operation: UnaryOperation::Not,
-                        }
-                        .reduce_condition(),
-                    ),
-                    operation: if operation == BinaryOperation::And {
-                        BinaryOperation::Or
-                    } else {
-                        BinaryOperation::And
-                    },
-                }
-                .reduce_condition())
+                ensure_boolean(
+                    Binary {
+                        left: Box::new(
+                            Unary {
+                                value: left,
+                                operation: UnaryOperation::Not,
+                            }
+                            .reduce_condition(),
+                        ),
+                        right: Box::new(
+                            Unary {
+                                value: right,
+                                operation: UnaryOperation::Not,
+                            }
+                            .reduce_condition(),
+                        ),
+                        operation: if operation == BinaryOperation::And {
+                            BinaryOperation::Or
+                        } else {
+                            BinaryOperation::And
+                        },
+                    }
+                    .reduce_condition(),
+                )
             }
             (value, operation) => Self {
                 value: Box::new(value),
