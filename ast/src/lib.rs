@@ -28,7 +28,6 @@ mod r#if;
 mod index;
 mod literal;
 mod local;
-pub mod local_allocator;
 //mod name_gen;
 pub mod local_declarations;
 pub mod name_locals;

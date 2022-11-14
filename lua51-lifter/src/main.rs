@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
 
     let start = Instant::now();
     let chunk = Chunk::parse(&buffer).unwrap().1;
-    let (mut main, _, _) = lifter::LifterContext::lift(&chunk.function, Default::default());
+    let (mut main, _, _) = lifter::LifterContext::lift(&chunk.function);
     name_locals(&mut main, true);
 
     let res = main.to_string();

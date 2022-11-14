@@ -9,10 +9,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use ast::{
-    local_allocator::LocalAllocator, local_declarations::declare_locals,
-    replace_locals::replace_locals, RcLocal, Statement,
-};
+use ast::{local_declarations::declare_locals, replace_locals::replace_locals, RcLocal, Statement};
 use cfg::{
     function::Function,
     ssa::structuring::{
@@ -43,14 +40,13 @@ impl<'a> LifterContext<'a> {
         self.upvalues
             .reserve(self.bytecode.number_of_upvalues as usize);
         for _ in 0..self.bytecode.number_of_upvalues {
-            self.upvalues
-                .push(self.function.local_allocator.borrow_mut().allocate());
+            self.upvalues.push(RcLocal::default());
         }
 
         self.locals
             .reserve(self.bytecode.maximum_stack_size as usize);
         for i in 0..self.bytecode.maximum_stack_size {
-            let local = self.function.local_allocator.borrow_mut().allocate();
+            let local = RcLocal::default();
             if i < self.bytecode.number_of_parameters {
                 self.function.parameters.push(local.clone());
             }
@@ -612,8 +608,7 @@ impl<'a> LifterContext<'a> {
                         upvalues_passed.push(local);
                     }
 
-                    let (mut body, parameters, upvalues_in) =
-                        Self::lift(closure, self.function.local_allocator.clone());
+                    let (mut body, parameters, upvalues_in) = Self::lift(closure);
                     let mut local_map =
                         FxHashMap::with_capacity_and_hasher(upvalues_in.len(), Default::default());
                     for (old, new) in upvalues_in.into_iter().zip(&upvalues_passed) {
@@ -886,17 +881,14 @@ impl<'a> LifterContext<'a> {
     }
 
     // TODO: STYLE: REFACTOR: rename to decompile and move to decompile.rs
-    pub fn lift(
-        bytecode: &'a BytecodeFunction,
-        local_allocator: Rc<RefCell<LocalAllocator>>,
-    ) -> (ast::Block, Vec<RcLocal>, Vec<RcLocal>) {
+    pub fn lift(bytecode: &'a BytecodeFunction) -> (ast::Block, Vec<RcLocal>, Vec<RcLocal>) {
         let context = Self {
             bytecode,
             nodes: FxHashMap::default(),
             insert_between: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
-            function: Function::with_allocator(local_allocator),
+            function: Function::new(),
             upvalues: Vec::new(),
         };
 
@@ -972,7 +964,7 @@ impl<'a> LifterContext<'a> {
                 .chain(
                     upvalue_passed_groups
                         .into_iter()
-                        .map(|m| (function.local_allocator.borrow_mut().allocate(), m)),
+                        .map(|m| (ast::RcLocal::default(), m)),
                 )
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
                 .collect::<IndexMap<_, _>>();
@@ -1099,11 +1091,10 @@ impl<'a> LifterContext<'a> {
                             .map(|s| ast::Comment::new(s.to_string()).into())
                             .collect::<Vec<_>>()
                             .into();
-                        let mut local_allocator = LocalAllocator::default();
                         (
                             block,
                             (0..bytecode.number_of_parameters)
-                                .map(|_| local_allocator.allocate())
+                                .map(|_| ast::RcLocal::default())
                                 .collect(),
                             Vec::new(),
                         )

@@ -12,7 +12,3 @@ enum_dispatch = "0.3.8"
 by_address = "1.1.0"
 rustc-hash = "1.1.0"
 indexmap = "1.9.1"
-
-
-[features]
-no_local_debug = []

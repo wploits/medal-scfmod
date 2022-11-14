@@ -10,7 +10,7 @@ use std::{
     rc::Rc,
 };
 
-#[derive(Debug, From, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
+#[derive(Debug, Default, From, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Local(pub Option<String>);
 
 impl Local {
@@ -28,7 +28,7 @@ impl fmt::Display for Local {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RcLocal(pub ByAddress<Rc<RefCell<Local>>>);
 
 impl Infer for RcLocal {

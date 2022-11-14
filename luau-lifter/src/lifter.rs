@@ -18,18 +18,13 @@ use super::{
     instruction::Instruction,
     op_code::OpCode,
 };
-use ast::{
-    self, local_allocator::LocalAllocator, local_declarations::declare_locals,
-    replace_locals::replace_locals,
-};
+use ast::{self, local_declarations::declare_locals, replace_locals::replace_locals};
 use cfg::{
     block::{BlockEdge, BranchType},
     function::Function,
     ssa::{
         self,
-        structuring::{
-            structure_conditionals, structure_for_loops, structure_jumps, structure_method_calls,
-        },
+        structuring::{structure_conditionals, structure_for_loops, structure_jumps},
     },
 };
 
@@ -50,14 +45,13 @@ impl<'a> Lifter<'a> {
         f_list: &'a Vec<BytecodeFunction>,
         str_list: &'a Vec<String>,
         function_id: usize,
-        local_allocator: Rc<RefCell<LocalAllocator>>,
     ) -> (ast::Block, Vec<ast::RcLocal>, Vec<ast::RcLocal>) {
         let context = Self {
             function: function_id,
             function_list: f_list,
             string_table: str_list,
             blocks: FxHashMap::default(),
-            lifted_function: Function::with_allocator(local_allocator),
+            lifted_function: Function::new(),
             register_map: FxHashMap::default(),
             constant_map: FxHashMap::default(),
             current_node: None,
@@ -85,7 +79,7 @@ impl<'a> Lifter<'a> {
                 .chain(
                     upvalue_passed_groups
                         .into_iter()
-                        .map(|m| (function.local_allocator.borrow_mut().allocate(), m)),
+                        .map(|m| (ast::RcLocal::default(), m)),
                 )
                 .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
                 .collect::<IndexMap<_, _>>();
@@ -212,11 +206,10 @@ impl<'a> Lifter<'a> {
                             .map(|s| ast::Comment::new(s.to_string()).into())
                             .collect::<Vec<_>>()
                             .into();
-                        let mut local_allocator = LocalAllocator::default();
                         (
                             block,
                             (0..f_list[function_id].num_parameters)
-                                .map(|_| local_allocator.allocate())
+                                .map(|_| ast::RcLocal::default())
                                 .collect(),
                             Vec::new(),
                         )
@@ -260,12 +253,11 @@ impl<'a> Lifter<'a> {
             .1;
 
         for _ in 0..self.function_list[self.function].num_upvalues {
-            self.upvalues
-                .push(self.lifted_function.local_allocator.borrow_mut().allocate());
+            self.upvalues.push(ast::RcLocal::default());
         }
 
         for i in 0..self.function_list[self.function].num_parameters {
-            let parameter = self.lifted_function.local_allocator.borrow_mut().allocate();
+            let parameter = ast::RcLocal::default();
             self.lifted_function.parameters.push(parameter.clone());
             self.register_map.insert(i as usize, parameter);
         }
@@ -1382,12 +1374,8 @@ impl<'a> Lifter<'a> {
                             upvalues_passed.push(local);
                         }
 
-                        let (mut body, parameters, upvalues_in) = Self::lift(
-                            self.function_list,
-                            self.string_table,
-                            func_index,
-                            self.lifted_function.local_allocator.clone(),
-                        );
+                        let (mut body, parameters, upvalues_in) =
+                            Self::lift(self.function_list, self.string_table, func_index);
                         let mut local_map = FxHashMap::with_capacity_and_hasher(
                             upvalues_in.len(),
                             Default::default(),
@@ -1438,7 +1426,7 @@ impl<'a> Lifter<'a> {
     fn register(&mut self, index: usize) -> ast::RcLocal {
         self.register_map
             .entry(index)
-            .or_insert_with(|| self.lifted_function.local_allocator.borrow_mut().allocate())
+            .or_insert_with(ast::RcLocal::default)
             .clone()
     }
 

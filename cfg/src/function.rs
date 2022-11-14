@@ -1,4 +1,4 @@
-use ast::{local_allocator::LocalAllocator, LocalRw, RcLocal};
+use ast::{LocalRw, RcLocal};
 use contracts::requires;
 use itertools::Itertools;
 use petgraph::{
@@ -13,16 +13,14 @@ use crate::block::{BlockEdge, BranchType};
 
 #[derive(Debug, Clone, Default)]
 pub struct Function {
-    pub local_allocator: Rc<RefCell<LocalAllocator>>,
     pub parameters: Vec<RcLocal>,
     graph: StableDiGraph<ast::Block, BlockEdge>,
     entry: Option<NodeIndex>,
 }
 
 impl Function {
-    pub fn with_allocator(local_allocator: Rc<RefCell<LocalAllocator>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            local_allocator,
             parameters: Vec::new(),
             graph: StableDiGraph::new(),
             entry: None,

@@ -141,7 +141,6 @@ impl<'a> Destructor<'a> {
     }
 
     fn sequentialize(&mut self) {
-        let local_allocator = self.function.local_allocator.clone();
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let mut replace_map = Vec::new();
             for (stat_index, stat) in self
@@ -211,9 +210,7 @@ impl<'a> Destructor<'a> {
                                 }
 
                                 if local_b != loc[&pred[&local_b]] {
-                                    let spill = spill.get_or_insert_with(|| {
-                                        local_allocator.borrow_mut().allocate()
-                                    });
+                                    let spill = spill.get_or_insert_with(RcLocal::default);
                                     result.push(ast::Assign::new(
                                         vec![spill.clone().into()],
                                         vec![local_b.clone().into()],
@@ -834,12 +831,10 @@ impl<'a> Destructor<'a> {
     // Note that the phi-functions do not have a circular dependency and are ordered accordingly (we have to do this before),
     // i.e., no variable that is defined by a Phi-function is used in a 'later' phi-function.
     fn lift_block_params(&mut self, node: NodeIndex) {
-        let local_allocator = self.function.local_allocator.clone();
-
         let mut param_map = FxHashMap::default();
         if let Some((_, BlockEdge { arguments, .. })) = self.function.edges_to_block(node).next() {
             for param in arguments.iter().map(|(p, _)| p) {
-                let temp_param = local_allocator.borrow_mut().allocate();
+                let temp_param = RcLocal::default();
                 if let Some(group) = self.upvalue_to_group.get(param) {
                     self.upvalue_to_group
                         .insert(temp_param.clone(), group.clone());
@@ -899,7 +894,7 @@ impl<'a> Destructor<'a> {
                 };
 
                 for (param, arg) in args {
-                    let temp_local = local_allocator.borrow_mut().allocate();
+                    let temp_local = RcLocal::default();
                     if let ast::RValue::Local(arg) = arg && let Some(group) = self.upvalue_to_group.get(arg) {
                         self.upvalue_to_group
                             .insert(temp_local.clone(), group.clone());

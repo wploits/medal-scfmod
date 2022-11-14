@@ -54,12 +54,7 @@ fn main() -> anyhow::Result<()> {
         }
         Bytecode::Chunk(chunk) => {
             let start = Instant::now();
-            let (mut main, _, _) = Lifter::lift(
-                &chunk.functions,
-                &chunk.string_table,
-                chunk.main,
-                Default::default(),
-            );
+            let (mut main, _, _) = Lifter::lift(&chunk.functions, &chunk.string_table, chunk.main);
             name_locals(&mut main, true);
 
             let res = main.to_string();

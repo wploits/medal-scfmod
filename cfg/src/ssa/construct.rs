@@ -361,7 +361,7 @@ impl<'a> SsaConstructor<'a> {
             // search globally
             if !self.sealed_blocks.contains(&node) {
                 // TODO: this code is repeated multiple times, create new_local function
-                let param_local = self.function.local_allocator.borrow_mut().allocate();
+                let param_local = RcLocal::default();
                 self.old_locals.insert(param_local.clone(), local.clone());
                 if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
                     upvalues.insert(param_local.clone());
@@ -375,7 +375,7 @@ impl<'a> SsaConstructor<'a> {
             } else if let Ok(pred) = self.function.predecessor_blocks(node).exactly_one() {
                 self.find_local(pred, local)
             } else {
-                let param_local = self.function.local_allocator.borrow_mut().allocate();
+                let param_local = RcLocal::default();
                 self.old_locals.insert(param_local.clone(), local.clone());
                 if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
                     upvalues.insert(param_local.clone());
@@ -518,7 +518,7 @@ impl<'a> SsaConstructor<'a> {
                     && let Some(local) = assign.left[0].as_local().cloned()
                     && assign.right[0].as_closure().is_some()
                 {
-                    let new_local = self.function.local_allocator.borrow_mut().allocate();
+                    let new_local = RcLocal::default();
                     self.old_locals.insert(new_local.clone(), local.clone());
                     if let Some(upvalues) = self.new_upvalues_in.get_mut(&local) {
                         upvalues.insert(new_local.clone());
@@ -544,7 +544,7 @@ impl<'a> SsaConstructor<'a> {
                     self.read(&mut map, node, stat_index);
                     // write
                     for (local_index, local) in written.iter().enumerate() {
-                        let new_local = self.function.local_allocator.borrow_mut().allocate();
+                        let new_local = RcLocal::default();
                         self.old_locals.insert(new_local.clone(), local.clone());
                         if let Some(upvalues) = self.new_upvalues_in.get_mut(local) {
                             upvalues.insert(new_local.clone());
@@ -603,7 +603,7 @@ impl<'a> SsaConstructor<'a> {
             for param in &mut self.function.parameters {
                 *param = incomplete_params
                     .remove(param)
-                    .unwrap_or_else(|| self.function.local_allocator.borrow_mut().allocate());
+                    .unwrap_or_else(|| RcLocal::default());
             }
         }
         //println!("{:#?}", self.incomplete_params);

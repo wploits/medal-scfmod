@@ -172,7 +172,7 @@ impl<'a> Inliner<'a> {
                     if let ast::Statement::Assign(assign) = &block[stat_index]
                         && let Ok(new_rvalue) = assign.right.iter().exactly_one()
                     {
-                        let new_rvalue_has_side_effects = new_rvalue.has_side_effects();
+                        let new_rvalue_has_side_effects = false;
                         if !new_rvalue_has_side_effects || allow_side_effects {
                             if let Ok(ast::LValue::Local(local)) = &assign.left.iter().exactly_one()
                                 && let Some(read) = stat_to_values_read[index]

@@ -781,9 +781,8 @@ fn try_remove_unnecessary_condition(function: &mut Function, node: NodeIndex) ->
             ast::RValue::Call(call) => Some(call.into()),
             ast::RValue::MethodCall(method_call) => Some(method_call.into()),
             cond if cond.has_side_effects() => {
-                let temp_local = function.local_allocator.borrow_mut().allocate();
                 Some(ast::Assign {
-                        left: vec![temp_local.into()],
+                        left: vec![ast::RcLocal::default().into()],
                         right: vec![cond],
                         prefix: true,
                         parallel: false,
