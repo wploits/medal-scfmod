@@ -357,19 +357,21 @@ pub fn structure_conditionals(function: &mut Function) -> bool {
 }
 
 // TODO: REFACTOR: move to ast
-fn is_truthy(rvalue: ast::RValue) -> bool {
+// None = unknown
+fn is_truthy(rvalue: ast::RValue) -> Option<bool> {
     match rvalue.reduce() {
         // __len has to return number, but __unm can return any value
         ast::RValue::Unary(ast::Unary {
             operation: ast::UnaryOperation::Length,
             ..
-        }) => true,
+        }) => Some(true),
         ast::RValue::Literal(
             ast::Literal::Boolean(true) | ast::Literal::Number(_) | ast::Literal::String(_),
         )
         | ast::RValue::Table(_)
-        | ast::RValue::Closure(_) => true,
-        _ => false,
+        | ast::RValue::Closure(_) => Some(true),
+        ast::RValue::Literal(ast::Literal::Nil | ast::Literal::Boolean(_)) => Some(false),
+        _ => None,
     }
 }
 
@@ -399,8 +401,17 @@ fn make_bool_conditional(
         };
         Some(cond.reduce())
     } else {
-        let then_truthy = is_truthy(then_value.clone());
-        let else_truthy = is_truthy(else_value.clone());
+        let then_truthy = match is_truthy(then_value.clone()) {
+            Some(truthy) => truthy,
+            None if
+                let ast::RValue::Binary(ast::Binary { right, operation: ast::BinaryOperation::And, .. }) = &r#if.condition
+                && !right.has_side_effects() && !then_value.has_side_effects()
+                && right.as_ref() == &then_value
+            => true,
+            None => false,
+        };
+        // TODO: if condition is `and not else_value` then truthy?
+        let else_truthy = is_truthy(else_value.clone()).is_some_and(|v| v);
         let cond = if !then_truthy && !else_truthy {
             return None
         } else if !then_truthy {
