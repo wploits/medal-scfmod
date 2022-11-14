@@ -95,6 +95,7 @@ impl SideEffects for Binary {
 impl<'a: 'b, 'b> Reduce for Binary {
     fn reduce(self) -> RValue {
         // TODO: true == true, true == false, etc.
+        // really anything without side effects should be true if l == r
         match (self.left.reduce(), self.right.reduce(), self.operation) {
             (
                 RValue::Unary(Unary {
@@ -143,6 +144,12 @@ impl<'a: 'b, 'b> Reduce for Binary {
                 BinaryOperation::Or => right.reduce(),
                 _ => unreachable!(),
             },
+            (left, right, BinaryOperation::And)
+                if !left.has_side_effects() && !right.has_side_effects() && left == right =>
+            {
+                left
+            }
+            (left, right, BinaryOperation::Or) if left == right => left,
             // TODO: concat numbers
             (
                 RValue::Literal(Literal::String(left)),

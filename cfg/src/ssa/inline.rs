@@ -1,5 +1,5 @@
 use crate::function::Function;
-use ast::{LocalRw, SideEffects, Traverse};
+use ast::{LocalRw, Reduce, SideEffects, Traverse};
 use indexmap::IndexMap;
 use itertools::{Either, Itertools};
 use petgraph::visit::EdgeRef;
@@ -194,6 +194,12 @@ impl<'a> Inliner<'a> {
                                     new_rvalue_has_side_effects,
                                 ) {
                                     assert!(new_rvalue.is_none());
+
+                                    // TODO: PERF: this is probably inefficient
+                                    for rvalue in block[index].rvalues_mut() {
+                                        *rvalue = std::mem::replace(rvalue, ast::Literal::Nil.into()).reduce();
+                                    }
+
                                     // TODO: PERF: remove `local_usages[l] == 1` filter in stat_to_values_read
                                     // and use stat_to_values_read here
                                     for local in block[stat_index].values_read() {
