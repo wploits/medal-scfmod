@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use ast::{LocalRw, RcLocal, SideEffects};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
@@ -19,7 +19,7 @@ use crate::{
 
 mod liveness;
 
-use self::liveness::Liveness;
+use self::liveness::{Liveness, LiveSets};
 
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug)]
 enum ParamOrStatIndex {
@@ -45,7 +45,6 @@ pub struct Destructor<'a> {
     function: &'a mut Function,
     upvalue_to_group: IndexMap<RcLocal, RcLocal>,
     upvalues_in: FxHashSet<RcLocal>,
-    local_count: usize,
     values: FxHashMap<RcLocal, Rc<RefCell<FxHashSet<RcLocal>>>>,
     // map( local -> rc_map( local -> (pre-order block index, param index) ) )
     // TODO: hash map?
@@ -55,8 +54,9 @@ pub struct Destructor<'a> {
     local_defs: FxHashMap<RcLocal, (usize, NodeIndex, ParamOrStatIndex)>,
     local_last_use: FxHashMap<RcLocal, FxHashMap<NodeIndex, (usize, ParamOrStatIndex)>>,
     dominator_tree: DiGraphMap<NodeIndex, ()>,
-    dominators: Option<Dominators<NodeIndex>>,
-    liveness: Option<Liveness>,
+    // does not include the node itself, use the `dominates` function
+    dominators: FxHashMap<NodeIndex, IndexSet<NodeIndex>>,
+    liveness: FxHashMap<NodeIndex, LiveSets>,
 }
 
 impl<'a> Destructor<'a> {
@@ -70,7 +70,6 @@ impl<'a> Destructor<'a> {
             function,
             upvalue_to_group,
             upvalues_in,
-            local_count,
             values: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
             congruence_classes: FxHashMap::with_capacity_and_hasher(
                 local_count,
@@ -81,17 +80,16 @@ impl<'a> Destructor<'a> {
             local_defs: FxHashMap::with_capacity_and_hasher(local_count, Default::default()),
             local_last_use: FxHashMap::default(),
             dominator_tree: DiGraphMap::new(),
-            dominators: None,
-            liveness: None,
+            dominators: FxHashMap::default(),
+            liveness: FxHashMap::default(),
         }
     }
 
     pub fn destruct(mut self) {
-        // TODO: remove detached blocks first
         self.lift_params();
         self.sort_params();
 
-        self.liveness = Some(Liveness::new(self.function, true));
+        self.liveness = Liveness::calculate(self.function);
         // this is for debugging :)
         //self.add_liveness_comments();
         //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
@@ -114,7 +112,7 @@ impl<'a> Destructor<'a> {
 
     fn add_liveness_comments(&mut self) {
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
-            let liveness = &self.liveness.as_ref().unwrap().block_liveness[&node];
+            let liveness = &self.liveness[&node];
             let block = self.function.block_mut(node).unwrap();
             block.insert(
                 0,
@@ -259,7 +257,16 @@ impl<'a> Destructor<'a> {
                 self.dominator_tree.add_edge(dominator, node, ());
             }
         }
-        self.dominators = Some(dominators);
+        self.dominators.reserve(self.dominator_tree.node_count());
+        for node in self.dominator_tree.nodes() {
+            let mut dominators = IndexSet::new();
+            let mut parent_node = node;
+            while let Ok(next_parent_node) = self.dominator_tree.neighbors_directed(parent_node, Direction::Incoming).exactly_one() {
+                parent_node = next_parent_node;
+                dominators.insert(parent_node);
+            }
+            self.dominators.insert(node, dominators);
+        }
 
         let mut dominator_index = 0;
         let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
@@ -584,12 +591,12 @@ impl<'a> Destructor<'a> {
 
         let (_, block_a, _) = self.local_defs[local_a];
         let (_, block_b, _) = self.local_defs[local_b];
-        if self.liveness.as_ref().unwrap().block_liveness[&block_a]
+        if self.liveness[&block_a]
             .live_out
             .contains(local_b)
         {
             true
-        } else if !self.liveness.as_ref().unwrap().block_liveness[&block_a]
+        } else if !self.liveness[&block_a]
             .live_in
             .contains(local_b)
             && block_a != block_b
@@ -613,11 +620,7 @@ impl<'a> Destructor<'a> {
         if block_a == block_b {
             self.check_pre_dom_order(local_a, local_b)
         } else {
-            self.dominators
-                .as_ref()
-                .unwrap()
-                .dominators(block_b)
-                .unwrap()
+            self.dominators[&block_b]
                 .contains(&block_a)
         }
     }
