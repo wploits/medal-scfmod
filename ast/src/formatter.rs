@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt::{self, write}};
 
 use itertools::Itertools;
 
@@ -168,9 +168,44 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         }
     }
 
+    fn are_table_keys_sequential(table: &Table) -> bool {
+        if table.0.is_empty() {
+            return false
+        }
+        let keys_vec = table
+            .0
+            .iter()
+            .filter(|(k, _)| !k.is_none())
+            .map(|(k, _),| k)
+            .collect_vec();
+        if keys_vec.len() == 0 {
+            false
+        } else {
+            keys_vec
+                .iter()
+                .enumerate()
+                .all(|(i, k)| {
+                    matches!(k, Some(RValue::Literal(Literal::Number(x))) 
+                        if (x - 1f64) as usize == i)
+                })
+        }
+    }
+
     pub(crate) fn format_table(&mut self, table: &Table) -> fmt::Result {
+        let sequential_keys = Self::are_table_keys_sequential(table);
+        let should_space = !table.0.is_empty();
+        let should_format = !table.0.is_empty() && (!sequential_keys || table.0.len() > 3);
         write!(self.output, "{{")?;
+        if should_format {
+            write!(self.output, "\n")?;
+        } else if should_space {
+            write!(self.output, " ")?;
+        }
+        self.indentation_level += 1;
         for (index, (key, value)) in table.0.iter().enumerate() {
+            if should_format {
+                self.indent()?;
+            }
             let is_last = index + 1 == table.0.len();
             if is_last && key.is_none() {
                 let wrap = matches!(value, RValue::Select(_));
@@ -182,16 +217,28 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                     write!(self.output, ")")?;
                 }
             } else {
-                if let Some(key) = key {
-                    write!(self.output, "[")?;
-                    self.format_rvalue(key)?;
-                    write!(self.output, "] = ")?;
+                if !sequential_keys {
+                    if let Some(key) = key {
+                        write!(self.output, "[")?;
+                        self.format_rvalue(key)?;
+                        write!(self.output, "] = ")?;
+                    }
                 }
                 self.format_rvalue(value)?;
                 if !is_last {
                     write!(self.output, ", ")?;
+                    if should_format {
+                        write!(self.output, "\n")?
+                    }
                 }
             }
+        }
+        self.indentation_level -= 1;
+        if should_format {
+            write!(self.output, "\n")?;
+            self.indent()?;
+        } else if should_space {
+            write!(self.output, " ")?;
         }
         write!(self.output, "}}")
     }
