@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use ast::{LocalRw, RcLocal, SideEffects};
-use indexmap::{IndexMap, IndexSet};
+use indexmap::{IndexMap};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
@@ -55,7 +55,7 @@ pub struct Destructor<'a> {
     local_last_use: FxHashMap<RcLocal, FxHashMap<NodeIndex, (usize, ParamOrStatIndex)>>,
     dominator_tree: DiGraphMap<NodeIndex, ()>,
     // does not include the node itself, use the `dominates` function
-    dominators: FxHashMap<NodeIndex, IndexSet<NodeIndex>>,
+    dominators: FxHashMap<NodeIndex, FxHashSet<NodeIndex>>,
     liveness: FxHashMap<NodeIndex, LiveSets>,
 }
 
@@ -259,7 +259,7 @@ impl<'a> Destructor<'a> {
         }
         self.dominators.reserve(self.dominator_tree.node_count());
         for node in self.dominator_tree.nodes() {
-            let mut dominators = IndexSet::new();
+            let mut dominators = FxHashSet::default();
             let mut parent_node = node;
             while let Ok(next_parent_node) = self.dominator_tree.neighbors_directed(parent_node, Direction::Incoming).exactly_one() {
                 parent_node = next_parent_node;
