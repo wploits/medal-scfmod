@@ -16,6 +16,8 @@ pub enum Upvalue {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Closure {
+    pub name: Option<String>,
+    pub line_defined: Option<usize>,
     pub parameters: Vec<RcLocal>,
     pub upvalues: Vec<Upvalue>,
     pub body: Block,

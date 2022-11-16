@@ -169,9 +169,10 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     fn are_table_keys_sequential(table: &Table) -> bool {
-        if table.0.is_empty() {
-            return false
+        if table.0.is_empty() || table.0.iter().all(|(k, _)| k.is_none()) {
+            return true
         }
+
         let keys_vec = table
             .0
             .iter()
@@ -191,10 +192,15 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         }
     }
 
+    fn contains_table(table: &Table) -> bool {
+        table.0.iter().any(|(_, v)| matches!(v, RValue::Table(x)))
+    }
+
     pub(crate) fn format_table(&mut self, table: &Table) -> fmt::Result {
         let sequential_keys = Self::are_table_keys_sequential(table);
         let should_space = !table.0.is_empty();
-        let should_format = !table.0.is_empty() && (!sequential_keys || table.0.len() > 3);
+        let should_format = !table.0.is_empty() && 
+            (!sequential_keys || table.0.len() > 3) || Self::contains_table(table);
         write!(self.output, "{{")?;
         if should_format {
             write!(self.output, "\n")?;
@@ -294,6 +300,36 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     fn format_closure_body(&mut self, closure: &Closure) -> fmt::Result {
         if !closure.body.is_empty() {
             writeln!(self.output)?;
+            self.indentation_level += 1;
+            if closure.name.is_some() {
+                self.indent()?;
+                writeln!(self.output, "-- function name: {}", closure.name.as_ref().unwrap());
+            }
+            if closure.line_defined.is_some() {
+                self.indent()?;
+                writeln!(self.output, "-- line defined: {}", closure.line_defined.as_ref().unwrap());
+            }
+            if !closure.upvalues.is_empty() {
+                self.indent()?;
+                write!(self.output, "-- upvalues: ")?;
+                let mut it = closure.upvalues.iter().peekable();
+                while let Some(uv) = it.next()  {
+                    match uv {
+                        crate::Upvalue::Copy(copy) => {
+                            write!(self.output, "(copy) {}", copy)?;
+                        }
+                        crate::Upvalue::Ref(lref) => {
+                            write!(self.output, "(ref) {}", lref)?;
+                        }
+                    }
+                    if !it.peek().is_none() {
+                        write!(self.output, ", ")?;
+                    }
+                }
+                writeln!(self.output);
+            }
+            self.indentation_level -= 1;
+
             self.format_block(&closure.body)?;
             writeln!(self.output)?;
             self.indent()

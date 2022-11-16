@@ -43,8 +43,20 @@ impl Namer {
             });
             match statement {
                 Statement::Assign(assign) if assign.prefix => {
-                    for lvalue in &assign.left {
-                        self.name_local("v", lvalue.as_local().unwrap());
+                    if assign.left.len() == 1 && assign.right.len() == 1 {
+                        match assign.right.first() {
+                            Some(RValue::Closure(closure)) => if closure.name.is_some() {
+                                self.name_local(format!("f_{}_", closure.name.as_ref().unwrap()).as_str(), 
+                                    assign.left.first().unwrap().as_local().unwrap());
+                            }
+                            _ => {
+                                self.name_local("v", assign.left.first().unwrap().as_local().unwrap());
+                            }
+                        }
+                    } else {
+                        for lvalue in &assign.left {
+                            self.name_local("v", lvalue.as_local().unwrap());
+                        }
                     }
                 }
                 Statement::If(r#if) => {
