@@ -620,6 +620,8 @@ impl<'a> LifterContext<'a> {
                         ast::Assign::new(
                             vec![self.locals[destination].clone().into()],
                             vec![ast::Closure {
+                                name: None,
+                                line_defined: Some(closure.line_defined as usize),
                                 parameters,
                                 body,
                                 upvalues: upvalues_passed
