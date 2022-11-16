@@ -57,7 +57,10 @@ impl fmt::Display for Literal {
         match self {
             Literal::Nil => write!(f, "nil"),
             Literal::Boolean(value) => write!(f, "{}", value),
-            Literal::Number(value) => write!(f, "{}", value),
+            &Literal::Number(value) => {
+                debug_assert!(value.is_finite());
+                write!(f, "{}", ryu::Buffer::new().format_finite(value))
+            },
             Literal::String(value) => {
                 write!(
                     f,

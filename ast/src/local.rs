@@ -2,9 +2,9 @@ use crate::{type_system::Infer, SideEffects, Traverse, Type, TypeSystem};
 use by_address::ByAddress;
 use derive_more::From;
 use enum_dispatch::enum_dispatch;
+use nohash_hasher::NoHashHasher;
 use std::{
     cell::RefCell,
-    collections::hash_map::DefaultHasher,
     fmt::{self, Display},
     hash::{Hash, Hasher},
     rc::Rc,
@@ -42,7 +42,7 @@ impl Display for RcLocal {
         match &self.0 .0.borrow().0 {
             Some(name) => write!(f, "{}", name),
             None => {
-                let mut hasher = DefaultHasher::new();
+                let mut hasher = NoHashHasher::<u8>::default();
                 self.hash(&mut hasher);
                 write!(f, "UNNAMED_{}", hasher.finish())
             }

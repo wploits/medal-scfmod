@@ -15,3 +15,5 @@ indexmap = "1.9.1"
 petgraph = { git = "https://github.com/jujhar16/petgraph.git", branch = "ensure_len_resize_with" }
 array_tool = "1.0.3"
 itoa = "1.0.4"
+ryu = "1.0.11"
+nohash-hasher = "0.2.0"
