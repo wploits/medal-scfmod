@@ -65,7 +65,7 @@ impl fmt::Display for Literal {
                 let mut buffer = ryu::Buffer::new();
                 let printed = buffer.format_finite(value);
                 write!(f, "{}", printed.strip_suffix(".0").unwrap_or(printed))
-            },
+            }
             Literal::String(value) => {
                 write!(
                     f,

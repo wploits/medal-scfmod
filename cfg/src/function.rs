@@ -1,13 +1,11 @@
 use ast::{LocalRw, RcLocal};
 use contracts::requires;
-use itertools::Itertools;
+
 use petgraph::{
     stable_graph::{EdgeReference, Neighbors, NodeIndex, StableDiGraph},
     visit::{EdgeRef, IntoEdgesDirected},
     Direction,
 };
-use rustc_hash::FxHashMap;
-use std::{cell::RefCell, rc::Rc};
 
 use crate::block::{BlockEdge, BranchType};
 

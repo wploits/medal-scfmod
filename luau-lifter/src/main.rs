@@ -6,20 +6,12 @@ mod lifter;
 mod op_code;
 
 use ast::name_locals::name_locals;
-use cfg::ssa::{
-    self,
-    structuring::{
-        structure_conditionals, structure_for_loops, structure_jumps, structure_method_calls,
-    },
-};
-use indexmap::IndexMap;
+
 use lifter::Lifter;
 
 //use cfg_ir::{dot, function::Function, ssa};
 use clap::Parser;
-use petgraph::algo::dominators::simple_fast;
-use restructure::post_dominators;
-use rustc_hash::FxHashMap;
+
 use std::{
     fs::File,
     io::{Read, Write},
@@ -60,6 +52,7 @@ fn main() -> anyhow::Result<()> {
             let res = main.to_string();
             let duration = start.elapsed();
 
+            // TODO: use BufWriter?
             let mut out = File::create(path.with_extension("dec.lua"))?;
             writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
             writeln!(out, "{}", res)?;

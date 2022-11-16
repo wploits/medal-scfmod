@@ -1,10 +1,10 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
-use ast::{LocalRw, RcLocal, SideEffects};
+use ast::{LocalRw, RcLocal};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{
-    algo::dominators::{simple_fast, Dominators},
+    algo::dominators::simple_fast,
     prelude::DiGraphMap,
     stable_graph::NodeIndex,
     visit::{Dfs, DfsPostOrder, EdgeRef},

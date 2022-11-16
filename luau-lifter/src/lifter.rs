@@ -1,7 +1,4 @@
-use std::backtrace::Backtrace;
-use std::fmt::Write;
-use std::panic;
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use anyhow::Result;
 
@@ -9,7 +6,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
 use restructure::post_dominators;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use super::{
     deserializer::{
@@ -173,6 +170,8 @@ impl<'a> Lifter<'a> {
         match () {
             #[cfg(feature = "panic_handled")]
             () => {
+                use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic};
+
                 thread_local! {
                     static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
                 }
@@ -645,7 +644,7 @@ impl<'a> Lifter<'a> {
                     }
                     OpCode::LOP_RETURN => {
                         let values = if b != 0 {
-                            (a..a + (b - 1) as u8)
+                            (a..a + (b - 1))
                                 .map(|r| self.register(r as _).into())
                                 .collect()
                         } else {
@@ -1395,7 +1394,7 @@ impl<'a> Lifter<'a> {
                         }
                         replace_locals(&mut body, &local_map);
 
-                        let name = if func.function_name != 0 { 
+                        let name = if func.function_name != 0 {
                             let raw_string = &self.string_table[func.function_name - 1];
                             std::str::from_utf8(raw_string).ok().map(|s| s.to_string())
                         } else {

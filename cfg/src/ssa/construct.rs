@@ -1,4 +1,4 @@
-use std::{iter, time::Instant};
+use std::iter;
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use indexmap::{IndexMap, IndexSet};

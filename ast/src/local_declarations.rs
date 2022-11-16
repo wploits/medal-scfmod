@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
-    ops::Sub,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use array_tool::vec::Intersect;
 use by_address::ByAddress;
@@ -11,12 +6,12 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::simple_fast,
-    prelude::{DiGraph, DiGraphMap, NodeIndex},
+    prelude::{DiGraph, NodeIndex},
     Direction,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::{Assign, Block, Literal, LocalRw, NumericFor, RcLocal, Statement};
+use crate::{Assign, Block, LocalRw, RcLocal, Statement};
 
 #[derive(Default)]
 pub struct LocalDeclarer {

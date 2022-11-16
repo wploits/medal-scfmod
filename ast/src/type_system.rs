@@ -1,4 +1,4 @@
-use crate::{Block, RcLocal, Statement};
+use crate::{Block, RcLocal};
 use itertools::Itertools;
 use std::{
     borrow::Cow,
@@ -140,7 +140,7 @@ impl<'a> TypeSystem<'a> {
         system.analyze_block(block);
     }
 
-    pub fn analyze_block(&mut self, block: &'a mut Block) -> Vec<Type> {
+    pub fn analyze_block(&mut self, _block: &'a mut Block) -> Vec<Type> {
         todo!()
         // let mut return_values = Vec::new();
 

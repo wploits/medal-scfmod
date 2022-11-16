@@ -44,7 +44,7 @@ impl UpvaluesOpen {
                     {
                         let open_ranges = block_opened.entry(opened).or_default();
                         let mut open_locations = Vec::new();
-                        if let Some((prev_range, prev_locations)) =
+                        if let Some((_prev_range, prev_locations)) =
                             open_ranges.get_key_value(&stat_index)
                         {
                             // TODO: this assert fails in Luau with the below code,

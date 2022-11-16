@@ -1,7 +1,7 @@
 use ast::{LocalRw, RcLocal};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use petgraph::{stable_graph::NodeIndex, visit::{Dfs, Reversed, Walker}};
+use petgraph::{stable_graph::NodeIndex, visit::Walker};
 
 use crate::function::Function;
 
@@ -96,9 +96,18 @@ impl<'a> Liveness<'a> {
         }
         for node in function.graph().node_indices() {
             let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-            block_liveness.live_sets.live_in.reserve(block_liveness.params.len() + block_liveness.uses.len().saturating_sub(block_liveness.defs.len()));
+            block_liveness.live_sets.live_in.reserve(
+                block_liveness.params.len()
+                    + block_liveness
+                        .uses
+                        .len()
+                        .saturating_sub(block_liveness.defs.len()),
+            );
             let arg_out_uses = std::mem::take(&mut block_liveness.arg_out_uses);
-            block_liveness.live_sets.live_out.reserve(arg_out_uses.len());
+            block_liveness
+                .live_sets
+                .live_out
+                .reserve(arg_out_uses.len());
             for variable in arg_out_uses {
                 let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
                 block_liveness.live_sets.live_out.insert(variable.clone());

@@ -4,7 +4,7 @@ use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
 
-use crate::{post_dominators, GraphStructurer};
+use crate::GraphStructurer;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::EdgeRef};
 
 impl GraphStructurer {
@@ -172,7 +172,7 @@ impl GraphStructurer {
             {
                 if let Some((then_edge, else_edge)) = self.function.conditional_edges(node) {
                     changed |= self.refine_virtual_edge_conditional(
-                        &post_dom,
+                        post_dom,
                         node,
                         then_edge.target(),
                         else_edge.target(),
@@ -181,7 +181,7 @@ impl GraphStructurer {
                     );
                 } else if let Some(edge) = self.function.unconditional_edge(node) {
                     changed |=
-                        self.refine_virtual_edge_jump(&post_dom, node, edge.target(), header, next);
+                        self.refine_virtual_edge_jump(post_dom, node, edge.target(), header, next);
                 } else {
                     unreachable!();
                 }

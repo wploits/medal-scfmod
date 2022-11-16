@@ -1,4 +1,3 @@
-use array_tool::vec::Intersect;
 use ast::{LocalRw, Reduce, SideEffects, Traverse, UnaryOperation};
 
 use itertools::Itertools;
@@ -8,7 +7,7 @@ use petgraph::{
     visit::{DfsPostOrder, EdgeRef},
     Direction,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use tuple::Map;
 
 use crate::{

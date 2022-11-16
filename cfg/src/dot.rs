@@ -9,7 +9,6 @@ use dot::{GraphWalk, LabelText, Labeller};
 
 use itertools::Itertools;
 use petgraph::stable_graph::{EdgeIndex, NodeIndex};
-use rustc_hash::FxHashMap;
 
 use crate::function::Function;
 

@@ -1,4 +1,4 @@
-use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic, rc::Rc};
+use std::rc::Rc;
 
 use cfg::{
     block::{BlockEdge, BranchType},
@@ -7,7 +7,7 @@ use cfg::{
 use either::Either;
 use indexmap::IndexMap;
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use ast::{local_declarations::LocalDeclarer, replace_locals::replace_locals, RcLocal, Statement};
 use cfg::{
@@ -1061,6 +1061,8 @@ impl<'a> LifterContext<'a> {
         match () {
             #[cfg(feature = "panic_handled")]
             () => {
+                use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic};
+
                 thread_local! {
                     static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
                 }

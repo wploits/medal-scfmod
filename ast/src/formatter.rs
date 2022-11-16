@@ -2,7 +2,7 @@ use std::fmt::Write;
 use std::iter;
 use std::{
     borrow::Cow,
-    fmt::{self, write},
+    fmt::{self},
 };
 
 use itertools::Itertools;
@@ -184,7 +184,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             .filter(|(k, _)| !k.is_none())
             .map(|(k, _)| k)
             .collect_vec();
-        if keys_vec.len() == 0 {
+        if keys_vec.is_empty() {
             false
         } else {
             keys_vec.iter().enumerate().all(|(i, k)| {
@@ -195,17 +195,17 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     fn contains_table(table: &Table) -> bool {
-        table.0.iter().any(|(_, v)| matches!(v, RValue::Table(x)))
+        table.0.iter().any(|(_, v)| matches!(v, RValue::Table(_x)))
     }
 
     pub(crate) fn format_table(&mut self, table: &Table) -> fmt::Result {
         let sequential_keys = Self::are_table_keys_sequential(table);
         let should_space = !table.0.is_empty();
-        let should_format = !table.0.is_empty() && 
-            (!sequential_keys || table.0.len() > 3) || Self::contains_table(table);
+        let should_format = !table.0.is_empty() && (!sequential_keys || table.0.len() > 3)
+            || Self::contains_table(table);
         write!(self.output, "{{")?;
         if should_format {
-            write!(self.output, "\n")?;
+            writeln!(self.output)?;
         } else if should_space {
             write!(self.output, " ")?;
         }
@@ -236,14 +236,14 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 if !is_last {
                     write!(self.output, ", ")?;
                     if should_format {
-                        write!(self.output, "\n")?
+                        writeln!(self.output)?
                     }
                 }
             }
         }
         self.indentation_level -= 1;
         if should_format {
-            write!(self.output, "\n")?;
+            writeln!(self.output)?;
             self.indent()?;
         } else if should_space {
             write!(self.output, " ")?;
@@ -452,7 +452,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                             owned.extend(iter::repeat('0').take(3 - printed.len()));
                         }
                         owned.push_str(printed);
-                    },
+                    }
                 };
             }
         }
