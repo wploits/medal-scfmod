@@ -1395,10 +1395,17 @@ impl<'a> Lifter<'a> {
                         }
                         replace_locals(&mut body, &local_map);
 
+                        let name = if func.function_name != 0 { 
+                            Some(self.string_table[func.function_name - 1].clone())
+                        } else {
+                            None
+                        };
                         statements.push(
                             ast::Assign::new(
                                 vec![dest_local.into()],
                                 vec![ast::Closure {
+                                    name,
+                                    line_defined: Some(func.line_defined),
                                     parameters,
                                     body,
                                     upvalues: upvalues_passed,
