@@ -1,7 +1,7 @@
 use ast::{LocalRw, RcLocal};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use petgraph::stable_graph::NodeIndex;
+use petgraph::{stable_graph::NodeIndex, visit::{Dfs, Reversed, Walker}};
 
 use crate::function::Function;
 
@@ -20,9 +20,9 @@ struct BlockLiveness<'a> {
 
 #[derive(Debug, Default)]
 pub struct LiveSets {
-    // the set LiveIn(B) = PhiDefs(B) ⋃ ( [Uses(B) ⋃ LiveOut(B)] ∖ Defs(B))
+    // the set LiveIn(B) = params(B) ⋃ ( [uses(B) ⋃ live_out(B)] ∖ defs(B))
     pub live_in: FxHashSet<RcLocal>,
-    // the set LiveOut(B) = ( ⋃_{S ∊ Succ(B)} [LiveIn(S)∖PhiDefs(S)] ) ⋃ PhiUses(B)
+    // the set LiveOut(B) = ( ⋃_{S ∊ successor(B)} [live_in(S)∖params(S)] ) ⋃ arg_out_uses(B)
     pub live_out: FxHashSet<RcLocal>,
 }
 
@@ -38,25 +38,29 @@ impl<'a> Liveness<'a> {
         node: NodeIndex,
         variable: &'a RcLocal,
     ) {
-        let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-        if block_liveness.defs.contains(variable)
-            || block_liveness.live_sets.live_in.contains(variable)
-        {
-            return;
-        }
-        block_liveness.live_sets.live_in.insert(variable.clone());
-        if block_liveness.params.contains(variable) {
-            return;
-        }
-        for predecessor in function.predecessor_blocks(node) {
-            liveness
-                .block_liveness
-                .get_mut(&predecessor)
-                .unwrap()
-                .live_sets
-                .live_out
-                .insert(variable.clone());
-            Self::explore_all_paths(liveness, function, predecessor, variable);
+        let mut stack = vec![node];
+        while let Some(node) = stack.pop() {
+            let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
+            if block_liveness.defs.contains(variable)
+                // block already visited
+                || block_liveness.live_sets.live_in.contains(variable)
+            {
+                continue;
+            }
+            block_liveness.live_sets.live_in.insert(variable.clone());
+            if block_liveness.params.contains(variable) {
+                continue;
+            }
+            for pred in function.predecessor_blocks(node) {
+                liveness
+                    .block_liveness
+                    .get_mut(&pred)
+                    .unwrap()
+                    .live_sets
+                    .live_out
+                    .insert(variable.clone());
+                stack.push(pred);
+            }
         }
     }
 
@@ -92,14 +96,17 @@ impl<'a> Liveness<'a> {
         }
         for node in function.graph().node_indices() {
             let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-            for variable in block_liveness.arg_out_uses.clone() {
+            block_liveness.live_sets.live_in.reserve(block_liveness.params.len() + block_liveness.uses.len().saturating_sub(block_liveness.defs.len()));
+            let arg_out_uses = std::mem::take(&mut block_liveness.arg_out_uses);
+            block_liveness.live_sets.live_out.reserve(arg_out_uses.len());
+            for variable in arg_out_uses {
                 let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
                 block_liveness.live_sets.live_out.insert(variable.clone());
-                Self::explore_all_paths(&mut liveness, function, node, &variable);
+                Self::explore_all_paths(&mut liveness, function, node, variable);
             }
             let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
             for variable in block_liveness.uses.clone() {
-                Self::explore_all_paths(&mut liveness, function, node, &variable);
+                Self::explore_all_paths(&mut liveness, function, node, variable);
             }
         }
         liveness

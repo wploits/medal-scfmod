@@ -228,6 +228,7 @@ impl<'a> Destructor<'a> {
             for (stat_index, assigns) in replace_map.into_iter().rev() {
                 block.splice(
                     stat_index..stat_index + 1,
+                    // TODO: pad with ast::Empty and then use retain
                     assigns.into_iter().map(|a| a.into()),
                 );
             }
@@ -251,7 +252,7 @@ impl<'a> Destructor<'a> {
     // TODO: combine with compute value interference
     fn build_def_use(&mut self) {
         let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
-        for node in self.function.graph().node_indices().collect::<Vec<_>>() {
+        for node in self.function.graph().node_indices() {
             if let Some(dominator) = dominators.immediate_dominator(node) {
                 self.dominator_tree.add_edge(dominator, node, ());
             }
@@ -326,6 +327,7 @@ impl<'a> Destructor<'a> {
     }
 
     // a dominates b?
+    // same as dominates if a == b
     fn check_pre_dom_order(&self, a: &RcLocal, b: &RcLocal) -> bool {
         let (a_dom_index, _, a_stat_index) = self.local_defs[a];
         let (b_dom_index, _, b_stat_index) = self.local_defs[b];
@@ -544,10 +546,11 @@ impl<'a> Destructor<'a> {
     }
 
     fn dominates(&self, local_a: &RcLocal, local_b: &RcLocal) -> bool {
-        let (_, block_a, _) = self.local_defs[local_a];
-        let (_, block_b, _) = self.local_defs[local_b];
+        let (a_dom_index, block_a, a_stat_index) = self.local_defs[local_a];
+        let (b_dom_index, block_b, b_stat_index) = self.local_defs[local_b];
         if block_a == block_b {
-            self.check_pre_dom_order(local_a, local_b)
+            // same as check_pre_dom_order
+            (a_dom_index, a_stat_index) < (b_dom_index, b_stat_index)
         } else {
             self.dominators[&block_b].contains(&block_a)
         }

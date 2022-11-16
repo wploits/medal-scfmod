@@ -1451,6 +1451,7 @@ impl<'a> Lifter<'a> {
             BytecodeConstant::Boolean(v) => ast::Literal::Boolean(*v),
             BytecodeConstant::Number(v) => ast::Literal::Number(*v),
             BytecodeConstant::String(v) => {
+                // TODO: what does the official deserializer do if v == 0?
                 ast::Literal::String(self.string_table[*v - 1].chars().map(|x| x as _).collect())
             }
             _ => unimplemented!(),
