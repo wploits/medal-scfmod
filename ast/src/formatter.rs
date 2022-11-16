@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::{
     borrow::Cow,
     fmt::{self, write},
@@ -441,9 +442,9 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                     b'\\' => owned.push_str(r"\\"),
                     12 => owned.push_str(r"\f"),
                     _ => if let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
-                            owned.push_str(&format!(r"\{:0>3}", c))
+                            write!(owned, r"\{:03}", c).unwrap()
                         } else {
-                            owned.push_str(&format!(r"\{}", c))
+                            write!(owned, r"\{}", c).unwrap()
                         },
                 };
             }
