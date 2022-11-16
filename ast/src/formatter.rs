@@ -431,6 +431,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 if owned.is_none() {
                     // TODO: PERF: unchecked?
                     owned = Some(std::str::from_utf8(&string[..i]).unwrap().to_string());
+                    // TODO: do we want to be multiplying by 2 here?
+                    // TODO: PERF: String::with_capacity + push_str to avoid an allocation
                     owned.as_mut().unwrap().reserve((string.len() - i) * 2);
                 }
                 let owned = owned.as_mut().unwrap();
@@ -445,12 +447,11 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                     _ => {
                         let mut buffer = itoa::Buffer::new();
                         let printed = buffer.format(c);
-                        if let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
-                            owned.extend(iter::repeat('0').take(3 - printed.len()).chain(printed.chars()))
-                        } else {
-                            owned.push('\\');
-                            owned.push_str(printed);
+                        owned.push('\\');
+                        if printed.len() != 3 && let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
+                            owned.extend(iter::repeat('0').take(3 - printed.len()));
                         }
+                        owned.push_str(printed);
                     },
                 };
             }
