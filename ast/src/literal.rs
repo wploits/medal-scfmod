@@ -58,8 +58,13 @@ impl fmt::Display for Literal {
             Literal::Nil => write!(f, "nil"),
             Literal::Boolean(value) => write!(f, "{}", value),
             &Literal::Number(value) => {
+                // TODO: this is a bit messy, just use `buffer.format` here and format_finite
+                // in formatter.rs
                 debug_assert!(value.is_finite());
-                write!(f, "{}", ryu::Buffer::new().format_finite(value))
+                // TODO: fork ryu to remove ".0"
+                let mut buffer = ryu::Buffer::new();
+                let printed = buffer.format_finite(value);
+                write!(f, "{}", printed.strip_suffix(".0").unwrap_or(printed))
             },
             Literal::String(value) => {
                 write!(
