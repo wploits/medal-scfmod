@@ -7,11 +7,10 @@ pub mod constant;
 pub mod function;
 mod list;
 
-fn parse_string(input: &[u8]) -> IResult<&[u8], String> {
+fn parse_string(input: &[u8]) -> IResult<&[u8], Vec<u8>> {
     let (input, length) = leb128_usize(input)?;
     let (input, bytes) = take(length)(input)?;
-    let string = String::from_utf8_lossy(bytes).to_string();
-    Ok((input, string))
+    Ok((input, bytes.to_owned()))
 }
 
 pub fn deserialize(bytecode: &[u8], use_rbx_encoding: bool) -> Result<bytecode::Bytecode, String> {

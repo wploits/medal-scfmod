@@ -4,7 +4,7 @@ use nom_leb128::leb128_usize;
 
 #[derive(Debug)]
 pub struct Chunk {
-    pub string_table: Vec<String>,
+    pub string_table: Vec<Vec<u8>>,
     pub functions: Vec<Function>,
     pub main: usize,
 }

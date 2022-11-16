@@ -31,7 +31,7 @@ use cfg::{
 pub struct Lifter<'a> {
     function: usize,
     function_list: &'a Vec<BytecodeFunction>,
-    string_table: &'a Vec<String>,
+    string_table: &'a Vec<Vec<u8>>,
     blocks: FxHashMap<usize, NodeIndex>,
     lifted_function: Function,
     register_map: FxHashMap<usize, ast::RcLocal>,
@@ -43,7 +43,7 @@ pub struct Lifter<'a> {
 impl<'a> Lifter<'a> {
     pub fn lift(
         f_list: &'a Vec<BytecodeFunction>,
-        str_list: &'a Vec<String>,
+        str_list: &'a Vec<Vec<u8>>,
         function_id: usize,
     ) -> (ast::Block, Vec<ast::RcLocal>, Vec<ast::RcLocal>) {
         let context = Self {
@@ -1396,7 +1396,8 @@ impl<'a> Lifter<'a> {
                         replace_locals(&mut body, &local_map);
 
                         let name = if func.function_name != 0 { 
-                            Some(self.string_table[func.function_name - 1].clone())
+                            let raw_string = &self.string_table[func.function_name - 1];
+                            std::str::from_utf8(raw_string).ok().map(|s| s.to_string())
                         } else {
                             None
                         };
@@ -1452,7 +1453,7 @@ impl<'a> Lifter<'a> {
             BytecodeConstant::Number(v) => ast::Literal::Number(*v),
             BytecodeConstant::String(v) => {
                 // TODO: what does the official deserializer do if v == 0?
-                ast::Literal::String(self.string_table[*v - 1].chars().map(|x| x as _).collect())
+                ast::Literal::String(self.string_table[*v - 1].clone())
             }
             _ => unimplemented!(),
         };

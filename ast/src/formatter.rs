@@ -303,11 +303,11 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.indentation_level += 1;
             if closure.name.is_some() {
                 self.indent()?;
-                writeln!(self.output, "-- function name: {}", closure.name.as_ref().unwrap());
+                writeln!(self.output, "-- function name: {}", closure.name.as_ref().unwrap())?;
             }
             if closure.line_defined.is_some() {
                 self.indent()?;
-                writeln!(self.output, "-- line defined: {}", closure.line_defined.as_ref().unwrap());
+                writeln!(self.output, "-- line defined: {}", closure.line_defined.as_ref().unwrap())?;
             }
             if !closure.upvalues.is_empty() {
                 self.indent()?;
@@ -322,11 +322,11 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                             write!(self.output, "(ref) {}", lref)?;
                         }
                     }
-                    if !it.peek().is_none() {
+                    if it.peek().is_some() {
                         write!(self.output, ", ")?;
                     }
                 }
-                writeln!(self.output);
+                writeln!(self.output)?;
             }
             self.indentation_level -= 1;
 
