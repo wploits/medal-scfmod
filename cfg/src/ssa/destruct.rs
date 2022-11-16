@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 use ast::{LocalRw, RcLocal, SideEffects};
-use indexmap::{IndexMap};
+use indexmap::IndexMap;
 use itertools::Itertools;
 use petgraph::{
     algo::dominators::{simple_fast, Dominators},
@@ -19,7 +19,7 @@ use crate::{
 
 mod liveness;
 
-use self::liveness::{Liveness, LiveSets};
+use self::liveness::{LiveSets, Liveness};
 
 #[derive(PartialOrd, Ord, PartialEq, Eq, Clone, Copy, Debug)]
 enum ParamOrStatIndex {
@@ -101,7 +101,6 @@ impl<'a> Destructor<'a> {
         self.coalesce_upvalues();
         self.coalesce_params();
         self.coalesce_copies();
-        //self.coalesce_copies_into_upvalues();
 
         super::construct::apply_local_map(self.function, self.build_local_map());
 
@@ -261,7 +260,11 @@ impl<'a> Destructor<'a> {
         for node in self.dominator_tree.nodes() {
             let mut dominators = FxHashSet::default();
             let mut parent_node = node;
-            while let Ok(next_parent_node) = self.dominator_tree.neighbors_directed(parent_node, Direction::Incoming).exactly_one() {
+            while let Ok(next_parent_node) = self
+                .dominator_tree
+                .neighbors_directed(parent_node, Direction::Incoming)
+                .exactly_one()
+            {
                 parent_node = next_parent_node;
                 dominators.insert(parent_node);
             }
@@ -376,7 +379,6 @@ impl<'a> Destructor<'a> {
     fn coalesce_copies(&mut self) {
         let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
         while let Some(node) = dominator_dfs.next(self.function.graph()) {
-            let mut to_remove = Vec::new();
             for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
                 let should_remove = if let ast::Statement::Assign(assign) =
                     &self.function.block(node).unwrap()[stat_index]
@@ -426,81 +428,15 @@ impl<'a> Destructor<'a> {
                 };
 
                 if should_remove {
-                    to_remove.push(stat_index)
+                    let block = self.function.block_mut(node).unwrap();
+                    block[stat_index] = ast::Empty {}.into();
                 }
             }
 
+            // we check block.ast.len() elsewhere and do `i - ` elsewhere so we need to get rid of empty statements
+            // TODO: fix here and elsewhere, see inline.rs
             let block = self.function.block_mut(node).unwrap();
-            for i in to_remove.into_iter().rev() {
-                block.remove(i);
-            }
-        }
-    }
-
-    fn coalesce_copies_into_upvalues(&mut self) {
-        let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
-        while let Some(node) = dominator_dfs.next(self.function.graph()) {
-            let mut to_remove = Vec::new();
-            for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
-                let should_remove = if let ast::Statement::Assign(assign) =
-                    &self.function.block(node).unwrap()[stat_index]
-                {
-                    let mut to_remove = Vec::new();
-                    let left = assign
-                        .left
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
-                        .collect::<Vec<_>>();
-                    for (i, left, right) in left
-                        .into_iter()
-                        .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
-                        .collect::<Vec<_>>()
-                    {
-                        // upvalues in and parameters cannot be coalesced
-                        debug_assert!(
-                            !(self.function.parameters.contains(&left)
-                                && self.upvalues_in.contains(&right))
-                                || self.function.parameters.contains(&right)
-                                    && self.upvalues_in.contains(&left)
-                        );
-
-                        if let Some(group) = self.upvalue_to_group.get(&left).cloned() && !self.upvalue_to_group.contains_key(&right) {
-                            let left_con_class = self.get_congruence_class(left);
-                            if left_con_class.borrow().iter().filter(|&(_, l)| l != &group).exactly_one().is_ok()
-                            {
-                                let left_con_class = left_con_class.clone();
-                                let right_con_class = self.get_congruence_class(right);
-                                if right_con_class.borrow().len() == 1
-                                {
-                                    let right_con_class = right_con_class.clone();
-                                    self.merge_congruence_classes(&left_con_class, &right_con_class);
-                                    to_remove.push(i);
-                                }
-                            }
-                        }
-                    }
-                    let assign = self.function.block_mut(node).unwrap()[stat_index]
-                        .as_assign_mut()
-                        .unwrap();
-                    for i in to_remove.into_iter().rev() {
-                        assign.left.remove(i);
-                        assign.right.remove(i);
-                    }
-                    assign.left.is_empty()
-                } else {
-                    false
-                };
-
-                if should_remove {
-                    to_remove.push(stat_index)
-                }
-            }
-
-            let block = self.function.block_mut(node).unwrap();
-            for i in to_remove.into_iter().rev() {
-                block.remove(i);
-            }
+            block.retain(|s| s.as_empty().is_none());
         }
     }
 
@@ -591,16 +527,9 @@ impl<'a> Destructor<'a> {
 
         let (_, block_a, _) = self.local_defs[local_a];
         let (_, block_b, _) = self.local_defs[local_b];
-        if self.liveness[&block_a]
-            .live_out
-            .contains(local_b)
-        {
+        if self.liveness[&block_a].live_out.contains(local_b) {
             true
-        } else if !self.liveness[&block_a]
-            .live_in
-            .contains(local_b)
-            && block_a != block_b
-        {
+        } else if !self.liveness[&block_a].live_in.contains(local_b) && block_a != block_b {
             false
         } else if let Some(dom_use_index) = self
             .local_last_use
@@ -620,8 +549,7 @@ impl<'a> Destructor<'a> {
         if block_a == block_b {
             self.check_pre_dom_order(local_a, local_b)
         } else {
-            self.dominators[&block_b]
-                .contains(&block_a)
+            self.dominators[&block_b].contains(&block_a)
         }
     }
 

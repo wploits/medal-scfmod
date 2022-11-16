@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, time::Instant};
 
 use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
 use indexmap::{IndexMap, IndexSet};
@@ -394,7 +394,6 @@ impl<'a> SsaConstructor<'a> {
         // TODO: blocks_mut
         for node in self.function.graph().node_indices().collect::<Vec<_>>() {
             let block = self.function.block_mut(node).unwrap();
-            let mut indices_to_remove = Vec::new();
             for index in block
                 .iter()
                 .enumerate()
@@ -417,14 +416,14 @@ impl<'a> SsaConstructor<'a> {
                     let to_old = &self.old_locals[to];
                     if !self.new_upvalues_in.contains_key(to_old) && !self.upvalues_passed.contains_key(to_old) {
                         self.local_map.insert(from.clone(), to.clone());
-                        indices_to_remove.push(index)
+                        block[index] = ast::Empty {}.into();
                     }
                 }
             }
+            // we check block.ast.len() elsewhere and do `i - ` elsewhere so we need to get rid of empty statements
+            // TODO: fix here and elsewhere, see inline.rs
             let block = self.function.block_mut(node).unwrap();
-            for index in indices_to_remove.into_iter().rev() {
-                block.remove(index);
-            }
+            block.retain(|s| s.as_empty().is_none());
         }
     }
 
@@ -603,32 +602,22 @@ impl<'a> SsaConstructor<'a> {
         // TODO: this is a bit meh, maybe we should have an argument rvalue
         if let Some(mut incomplete_params) = self.incomplete_params.remove(&entry) {
             for param in &mut self.function.parameters {
-                *param = incomplete_params
-                    .remove(param)
-                    .unwrap_or_else(|| RcLocal::default());
+                *param = incomplete_params.remove(param).unwrap_or_default();
             }
         }
-        //println!("{:#?}", self.incomplete_params);
-        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
         assert!(self.incomplete_params.is_empty());
 
         // TODO: irreducible control flow (see the paper this algorithm is from)
         // TODO: apply_local_map unnecessary number of calls
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
 
-        // println!("before copy propagation");
-        // crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
-
         self.mark_upvalues();
         self.propagate_copies();
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
 
-        //crate::dot::render_to(self.function, &mut std::io::stdout()).unwrap();
-
         // TODO: loop until returns false?
         remove_unnecessary_params(self.function, &mut self.local_map);
         apply_local_map(self.function, std::mem::take(&mut self.local_map));
-        //println!("{:#?}", self.old_locals);
 
         (
             self.local_count,
@@ -673,7 +662,6 @@ pub fn construct(
             function.remove_block(node);
         }
     }
-
     let node_count = function.graph().node_count();
     SsaConstructor {
         function,

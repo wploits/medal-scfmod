@@ -524,7 +524,7 @@ pub fn inline(
                         && assign.left == [object_local.into()]
                     {
                         let set_list =
-                            std::mem::replace(block.get_mut(i).unwrap(), ast::Empty {}.into())
+                            std::mem::replace(&mut block[i], ast::Empty {}.into())
                                 .into_set_list()
                                 .unwrap();
                         *local_usages.get_mut(&set_list.object_local).unwrap() -= 1;

@@ -39,7 +39,9 @@ impl<'a> Liveness<'a> {
         variable: &'a RcLocal,
     ) {
         let block_liveness = liveness.block_liveness.get_mut(&node).unwrap();
-        if block_liveness.defs.contains(variable) || block_liveness.live_sets.live_in.contains(variable) {
+        if block_liveness.defs.contains(variable)
+            || block_liveness.live_sets.live_in.contains(variable)
+        {
             return;
         }
         block_liveness.live_sets.live_in.insert(variable.clone());
@@ -83,11 +85,9 @@ impl<'a> Liveness<'a> {
                     .params
                     .extend(edge.arguments.iter().map(|(k, _)| k));
                 let block_liveness = liveness.block_liveness.entry(pred).or_default();
-                block_liveness.arg_out_uses.extend(
-                    edge.arguments
-                        .iter()
-                        .flat_map(|(_, v)| v.values_read()),
-                );
+                block_liveness
+                    .arg_out_uses
+                    .extend(edge.arguments.iter().flat_map(|(_, v)| v.values_read()));
             }
         }
         for node in function.graph().node_indices() {
@@ -102,6 +102,10 @@ impl<'a> Liveness<'a> {
                 Self::explore_all_paths(&mut liveness, function, node, &variable);
             }
         }
-        liveness.block_liveness.into_iter().map(|(n, l)| (n, l.live_sets)).collect()
+        liveness
+            .block_liveness
+            .into_iter()
+            .map(|(n, l)| (n, l.live_sets))
+            .collect()
     }
 }

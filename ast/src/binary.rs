@@ -151,15 +151,16 @@ impl<'a: 'b, 'b> Reduce for Binary {
             }
             (
                 RValue::Binary(Binary {
-                    left: box value @ RValue::Unary(Unary {
-                        operation: UnaryOperation::Not,
-                        ..
-                    }),
+                    left:
+                        box value @ RValue::Unary(Unary {
+                            operation: UnaryOperation::Not,
+                            ..
+                        }),
                     right: box RValue::Literal(Literal::Boolean(true)),
                     operation: BinaryOperation::And,
-                }), 
-                RValue::Literal(Literal::Boolean(false)), 
-                BinaryOperation::Or
+                }),
+                RValue::Literal(Literal::Boolean(false)),
+                BinaryOperation::Or,
             ) => value,
             (left, right, BinaryOperation::Or) if left == right => left,
             // TODO: concat numbers

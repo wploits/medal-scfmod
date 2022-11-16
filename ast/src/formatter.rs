@@ -1,4 +1,7 @@
-use std::{borrow::Cow, fmt::{self, write}};
+use std::{
+    borrow::Cow,
+    fmt::{self, write},
+};
 
 use itertools::Itertools;
 
@@ -170,24 +173,21 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
     fn are_table_keys_sequential(table: &Table) -> bool {
         if table.0.is_empty() {
-            return false
+            return false;
         }
         let keys_vec = table
             .0
             .iter()
             .filter(|(k, _)| !k.is_none())
-            .map(|(k, _),| k)
+            .map(|(k, _)| k)
             .collect_vec();
         if keys_vec.len() == 0 {
             false
         } else {
-            keys_vec
-                .iter()
-                .enumerate()
-                .all(|(i, k)| {
-                    matches!(k, Some(RValue::Literal(Literal::Number(x))) 
+            keys_vec.iter().enumerate().all(|(i, k)| {
+                matches!(k, Some(RValue::Literal(Literal::Number(x))) 
                         if (x - 1f64) as usize == i)
-                })
+            })
         }
     }
 
