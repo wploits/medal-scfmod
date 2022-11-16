@@ -1,4 +1,5 @@
 use std::fmt::Write;
+use std::iter;
 use std::{
     borrow::Cow,
     fmt::{self, write},
@@ -441,11 +442,16 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                     b'\'' => owned.push_str(r"\'"),
                     b'\\' => owned.push_str(r"\\"),
                     12 => owned.push_str(r"\f"),
-                    _ => if let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
-                            write!(owned, r"\{:03}", c).unwrap()
+                    _ => {
+                        let mut buffer = itoa::Buffer::new();
+                        let printed = buffer.format(c);
+                        if let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
+                            owned.extend(iter::repeat('0').take(3 - printed.len()).chain(printed.chars()))
                         } else {
-                            write!(owned, r"\{}", c).unwrap()
-                        },
+                            owned.push('\\');
+                            owned.push_str(printed);
+                        }
+                    },
                 };
             }
         }
