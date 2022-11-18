@@ -21,6 +21,9 @@ either = "1.8.0"
 restructure = { path = "../restructure" }
 enum-as-inner = "0.5.1"
 itertools = "0.10.5"
+by_address = "1.1.0"
+rayon = "1.5.3"
+triomphe = "0.1.8"
 rpmalloc = { version="0.2.2" } # features = ["unlimited_cache"]
 
 [features]

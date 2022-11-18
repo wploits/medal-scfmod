@@ -120,10 +120,11 @@ fn main() -> anyhow::Result<()> {
 
                         ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
 
-                        if structure_conditionals(&mut function) || {
-                            let post_dominators = post_dominators(function.graph_mut());
-                            structure_for_loops(&mut function, &dominators, &post_dominators)
-                        }
+                        if structure_conditionals(&mut function)
+                        // || {
+                        //     let post_dominators = post_dominators(function.graph_mut());
+                        //     structure_for_loops(&mut function, &dominators, &post_dominators)
+                        // }
                         // we can't structure method calls like this because of __namecall
                         // || structure_method_calls(&mut function)
                         {
@@ -180,7 +181,7 @@ fn main() -> anyhow::Result<()> {
             let duration = start.elapsed();
 
             // TODO: use BufWriter?
-            let mut out = File::create(path.with_extension("dec.lua"))?;
+            let mut out = File::create(path.with_extension("dec.u.lua").file_name().unwrap())?;
             writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
             writeln!(out, "{}", res)?;
         }
