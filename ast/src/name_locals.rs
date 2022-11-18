@@ -1,6 +1,7 @@
-use std::rc::Rc;
+
 
 use rustc_hash::FxHashSet;
+use triomphe::Arc;
 
 use crate::{Block, RValue, RcLocal, Statement, Traverse, Upvalue};
 
@@ -12,10 +13,11 @@ struct Namer {
 
 impl Namer {
     fn name_local(&mut self, prefix: &str, local: &RcLocal) {
-        if self.rename || local.0 .0.borrow().0.is_none() {
+        let mut lock = local.0 .0.lock().unwrap();
+        if self.rename || lock.0.is_none() {
             // TODO: hacky and slow
-            if Rc::strong_count(&local.0 .0) == 1 {
-                local.0 .0.borrow_mut().0 = Some("_".to_string());
+            if Arc::count(&local.0 .0) == 1 {
+                lock.0 = Some("_".to_string());
             } else {
                 let prefix = prefix.to_string()
                     + if self.upvalues.contains(local) {
@@ -23,7 +25,7 @@ impl Namer {
                     } else {
                         ""
                     };
-                local.0 .0.borrow_mut().0 = Some(format!("{}{}", prefix, self.counter));
+                lock.0 = Some(format!("{}{}", prefix, self.counter));
                 self.counter += 1;
             }
         }
@@ -31,53 +33,42 @@ impl Namer {
 
     fn name_locals(&mut self, block: &mut Block) {
         for statement in &mut block.0 {
-            // TODO: traverse_values
+            // TODO: traverse_rvalues
             statement.post_traverse_values(&mut |value| -> Option<()> {
                 if let itertools::Either::Right(RValue::Closure(closure)) = value {
-                    for param in &closure.parameters {
+                    let mut function = closure.function.lock().unwrap();
+                    for param in &function.parameters {
                         self.name_local("p", param);
                     }
-                    self.name_locals(&mut closure.body);
+                    self.name_locals(&mut function.body);
                 };
                 None
             });
             match statement {
                 Statement::Assign(assign) if assign.prefix => {
-                    if assign.left.len() == 1 && assign.right.len() == 1 {
-                        match assign.right.first() {
-                            Some(RValue::Closure(closure)) => if closure.name.is_some() {
-                                self.name_local(format!("f_{}_", closure.name.as_ref().unwrap()).as_str(), 
-                                    assign.left.first().unwrap().as_local().unwrap());
-                            }
-                            _ => {
-                                self.name_local("v", assign.left.first().unwrap().as_local().unwrap());
-                            }
-                        }
-                    } else {
-                        for lvalue in &assign.left {
-                            self.name_local("v", lvalue.as_local().unwrap());
-                        }
+                    for lvalue in &assign.left {
+                        self.name_local("v", lvalue.as_local().unwrap());
                     }
                 }
                 Statement::If(r#if) => {
-                    self.name_locals(&mut r#if.then_block.borrow_mut());
-                    self.name_locals(&mut r#if.else_block.borrow_mut());
+                    self.name_locals(&mut r#if.then_block.lock().unwrap());
+                    self.name_locals(&mut r#if.else_block.lock().unwrap());
                 }
                 Statement::While(r#while) => {
-                    self.name_locals(&mut r#while.block.borrow_mut());
+                    self.name_locals(&mut r#while.block.lock().unwrap());
                 }
                 Statement::Repeat(repeat) => {
-                    self.name_locals(&mut repeat.block.borrow_mut());
+                    self.name_locals(&mut repeat.block.lock().unwrap());
                 }
                 Statement::NumericFor(numeric_for) => {
                     self.name_local("v", &numeric_for.counter);
-                    self.name_locals(&mut numeric_for.block.borrow_mut());
+                    self.name_locals(&mut numeric_for.block.lock().unwrap());
                 }
                 Statement::GenericFor(generic_for) => {
                     for res_local in &generic_for.res_locals {
                         self.name_local("v", res_local);
                     }
-                    self.name_locals(&mut generic_for.block.borrow_mut());
+                    self.name_locals(&mut generic_for.block.lock().unwrap());
                 }
                 _ => {}
             }
@@ -88,6 +79,7 @@ impl Namer {
     fn find_upvalues(&mut self, block: &mut Block) {
         for statement in &mut block.0 {
             // TODO: traverse_values
+            // TODO: doesnt need to be mut
             statement.post_traverse_values(&mut |value| -> Option<()> {
                 if let itertools::Either::Right(RValue::Closure(closure)) = value {
                     self.upvalues.extend(
@@ -99,26 +91,26 @@ impl Namer {
                             })
                             .cloned(),
                     );
-                    self.find_upvalues(&mut closure.body);
+                    self.find_upvalues(&mut closure.function.lock().unwrap().body);
                 };
                 None
             });
             match statement {
                 Statement::If(r#if) => {
-                    self.find_upvalues(&mut r#if.then_block.borrow_mut());
-                    self.find_upvalues(&mut r#if.else_block.borrow_mut());
+                    self.find_upvalues(&mut r#if.then_block.lock().unwrap());
+                    self.find_upvalues(&mut r#if.else_block.lock().unwrap());
                 }
                 Statement::While(r#while) => {
-                    self.find_upvalues(&mut r#while.block.borrow_mut());
+                    self.find_upvalues(&mut r#while.block.lock().unwrap());
                 }
                 Statement::Repeat(repeat) => {
-                    self.find_upvalues(&mut repeat.block.borrow_mut());
+                    self.find_upvalues(&mut repeat.block.lock().unwrap());
                 }
                 Statement::NumericFor(numeric_for) => {
-                    self.find_upvalues(&mut numeric_for.block.borrow_mut());
+                    self.find_upvalues(&mut numeric_for.block.lock().unwrap());
                 }
                 Statement::GenericFor(generic_for) => {
-                    self.find_upvalues(&mut generic_for.block.borrow_mut());
+                    self.find_upvalues(&mut generic_for.block.lock().unwrap());
                 }
                 _ => {}
             }

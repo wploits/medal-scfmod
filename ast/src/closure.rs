@@ -1,6 +1,8 @@
-use std::fmt;
+use std::{fmt, sync::{Mutex}};
 
-use itertools::Itertools;
+use by_address::ByAddress;
+use triomphe::Arc;
+
 
 use crate::{
     formatter::Formatter,
@@ -14,14 +16,17 @@ pub enum Upvalue {
     Ref(RcLocal),
 }
 
+#[derive(Default, Debug, PartialEq, Clone)]
+pub struct Function {
+    pub parameters: Vec<RcLocal>,
+    pub is_variadic: bool,
+    pub body: Block,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Closure {
-    pub name: Option<String>,
-    pub line_defined: Option<usize>,
-    pub parameters: Vec<RcLocal>,
+    pub function: ByAddress<Arc<Mutex<Function>>>,
     pub upvalues: Vec<Upvalue>,
-    pub body: Block,
-    pub is_variadic: bool,
 }
 
 impl Reduce for Closure {
@@ -35,15 +40,16 @@ impl Reduce for Closure {
 }
 
 impl Infer for Closure {
-    fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
-        let return_values = system.analyze_block(&mut self.body);
-        let parameters = self
-            .parameters
-            .iter_mut()
-            .map(|l| l.infer(system))
-            .collect_vec();
+    fn infer<'a: 'b, 'b>(&'a mut self, _system: &mut TypeSystem<'b>) -> Type {
+        todo!()
+        // let return_values = system.analyze_block(&mut self.body);
+        // let parameters = self
+        //     .parameters
+        //     .iter_mut()
+        //     .map(|l| l.infer(system))
+        //     .collect_vec();
 
-        Type::Function(parameters, return_values)
+        // Type::Function(parameters, return_values)
     }
 }
 

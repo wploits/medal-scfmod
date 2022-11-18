@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, sync::{Mutex}};
 
 use array_tool::vec::Intersect;
 use by_address::ByAddress;
@@ -10,22 +10,23 @@ use petgraph::{
     Direction,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
+use triomphe::Arc;
 
 use crate::{Assign, Block, LocalRw, RcLocal, Statement};
 
 #[derive(Default)]
 pub struct LocalDeclarer {
-    block_to_node: FxHashMap<ByAddress<Rc<RefCell<Block>>>, NodeIndex>,
-    graph: DiGraph<(Option<Rc<RefCell<Block>>>, usize), ()>,
+    block_to_node: FxHashMap<ByAddress<Arc<Mutex<Block>>>, NodeIndex>,
+    graph: DiGraph<(Option<Arc<Mutex<Block>>>, usize), ()>,
     local_usages: IndexMap<RcLocal, FxHashMap<NodeIndex, usize>>,
-    declarations: FxHashMap<ByAddress<Rc<RefCell<Block>>>, BTreeMap<usize, IndexSet<RcLocal>>>,
+    declarations: FxHashMap<ByAddress<Arc<Mutex<Block>>>, BTreeMap<usize, IndexSet<RcLocal>>>,
 }
 
 impl LocalDeclarer {
-    fn visit(&mut self, block: Rc<RefCell<Block>>, stat_index: usize) -> NodeIndex {
+    fn visit(&mut self, block: Arc<Mutex<Block>>, stat_index: usize) -> NodeIndex {
         let node = self.graph.add_node((Some(block.clone()), stat_index));
         self.block_to_node.insert(block.clone().into(), node);
-        for (stat_index, stat) in block.borrow().iter().enumerate() {
+        for (stat_index, stat) in block.lock().unwrap().iter().enumerate() {
             // for loops already declare their own locals :)
             if !matches!(stat, Statement::GenericFor(_) | Statement::NumericFor(_)) {
                 // we only visit locals written because locals are guaranteed to be written
@@ -72,7 +73,7 @@ impl LocalDeclarer {
 
     pub fn declare_locals(
         mut self,
-        root_block: Rc<RefCell<Block>>,
+        root_block: Arc<Mutex<Block>>,
         locals_to_ignore: &FxHashSet<RcLocal>,
     ) {
         let root_node = self.visit(root_block, 0);
@@ -135,7 +136,7 @@ impl LocalDeclarer {
         }
 
         for (ByAddress(block), declarations) in self.declarations {
-            let mut block = block.borrow_mut();
+            let mut block = block.lock().unwrap();
             for (stat_index, mut locals) in declarations.into_iter().rev() {
                 match &mut block[stat_index] {
                     Statement::Assign(assign)

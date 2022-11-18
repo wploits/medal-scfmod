@@ -1,10 +1,19 @@
-use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
-use std::{cell::RefCell, fmt, rc::Rc};
+use triomphe::Arc;
 
-#[derive(Debug, PartialEq, Clone)]
+use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
+use std::{fmt, sync::{Mutex}};
+
+#[derive(Debug, Clone)]
 pub struct While {
     pub condition: RValue,
-    pub block: Rc<RefCell<Block>>,
+    pub block: Arc<Mutex<Block>>,
+}
+
+impl PartialEq for While {
+    fn eq(&self, _other: &Self) -> bool {
+        // TODO: compare block
+        false
+    }
 }
 
 has_side_effects!(While);
@@ -13,7 +22,7 @@ impl While {
     pub fn new(condition: RValue, block: Block) -> Self {
         Self {
             condition,
-            block: Rc::new(block.into()),
+            block: Arc::new(block.into()),
         }
     }
 }

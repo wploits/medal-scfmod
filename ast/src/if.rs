@@ -1,22 +1,31 @@
+use triomphe::Arc;
+
 use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::{Block, RValue};
 
-use std::{cell::RefCell, fmt, rc::Rc};
+use std::{fmt, sync::{Mutex}};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct If {
     pub condition: RValue,
-    pub then_block: Rc<RefCell<Block>>,
-    pub else_block: Rc<RefCell<Block>>,
+    pub then_block: Arc<Mutex<Block>>,
+    pub else_block: Arc<Mutex<Block>>,
+}
+
+impl PartialEq for If {
+    fn eq(&self, _other: &Self) -> bool {
+        // TODO: compare block
+        false
+    }
 }
 
 impl If {
     pub fn new(condition: RValue, then_block: Block, else_block: Block) -> Self {
         Self {
             condition,
-            then_block: Rc::new(then_block.into()),
-            else_block: Rc::new(else_block.into()),
+            then_block: Arc::new(then_block.into()),
+            else_block: Arc::new(else_block.into()),
         }
     }
 }

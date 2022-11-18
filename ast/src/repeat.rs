@@ -1,11 +1,20 @@
+use triomphe::Arc;
+
 use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
-use std::{cell::RefCell, fmt, rc::Rc};
+use std::{fmt, sync::{Mutex}};
 
 // TODO: move condition after block
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Repeat {
     pub condition: RValue,
-    pub block: Rc<RefCell<Block>>,
+    pub block: Arc<Mutex<Block>>,
+}
+
+impl PartialEq for Repeat {
+    fn eq(&self, _other: &Self) -> bool {
+        // TODO: compare block
+        false
+    }
 }
 
 has_side_effects!(Repeat);
@@ -14,7 +23,7 @@ impl Repeat {
     pub fn new(condition: RValue, block: Block) -> Self {
         Self {
             condition,
-            block: Rc::new(block.into()),
+            block: Arc::new(block.into()),
         }
     }
 }

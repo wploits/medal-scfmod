@@ -1,6 +1,6 @@
 use std::iter;
 
-use ast::{replace_locals::replace_locals, LocalRw, RcLocal, Traverse};
+use ast::{LocalRw, RcLocal, Traverse};
 use indexmap::{IndexMap, IndexSet};
 use itertools::{Either, Itertools};
 use petgraph::{
@@ -184,13 +184,14 @@ fn apply_local_map_to_values_referenced<T: LocalRw + Traverse>(
         map.insert(from.clone(), to.clone());
         *from = to.clone();
     }
-    uses_local.traverse_rvalues(&mut |rvalue| {
-        if let Some(closure) = rvalue.as_closure_mut() {
-            replace_locals(&mut closure.body, &map)
-        }
-    });
+    // uses_local.traverse_rvalues(&mut |rvalue| {
+    //     if let Some(closure) = rvalue.as_closure_mut() {
+    //         replace_locals(&mut closure.body, &map)
+    //     }
+    // });
 }
 
+// does not replace locals in child closures
 pub fn apply_local_map(function: &mut Function, local_map: FxHashMap<RcLocal, RcLocal>) {
     for param in &mut function.parameters {
         if let Some(mut new_param) = local_map.get(param) {
@@ -461,7 +462,7 @@ impl<'a> SsaConstructor<'a> {
         }
     }
 
-    fn read(&mut self, map: &mut FxHashMap<RcLocal, RcLocal>, node: NodeIndex, stat_index: usize) {
+    fn read(&mut self, node: NodeIndex, stat_index: usize) {
         let statement = self
             .function
             .block_mut(node)
@@ -473,8 +474,10 @@ impl<'a> SsaConstructor<'a> {
             .into_iter()
             .cloned()
             .collect::<Vec<_>>();
-        // TODO: REFACTOR: extend
+        // TODO: do we need two loops?
+        let mut map = FxHashMap::default();
         map.reserve(read.len());
+        // TODO: REFACTOR: extend
         for local in &read {
             let new_local = self.find_local(node, local);
             map.insert(local.clone(), new_local);
@@ -504,9 +507,6 @@ impl<'a> SsaConstructor<'a> {
             let node = self.dfs[i];
             visited_nodes.push(node);
             for stat_index in 0..self.function.block(node).unwrap().len() {
-                // read
-                let mut map = FxHashMap::default();
-
                 let statement = self
                     .function
                     .block_mut(node)
@@ -535,14 +535,14 @@ impl<'a> SsaConstructor<'a> {
                     let assign = statement.as_assign_mut().unwrap();
                     *assign.left[0].as_local_mut().unwrap() = new_local.clone();
                     // we do read after bc of recursive closures
-                    self.read(&mut map, node, stat_index);
+                    self.read(node, stat_index);
                 } else {
                     let written = statement
                     .values_written()
                     .into_iter()
                     .cloned()
                     .collect::<Vec<_>>();
-                    self.read(&mut map, node, stat_index);
+                    self.read(node, stat_index);
                     // write
                     for (local_index, local) in written.iter().enumerate() {
                         let new_local = RcLocal::default();
@@ -562,19 +562,19 @@ impl<'a> SsaConstructor<'a> {
                     }
                 }
 
-                if !map.is_empty() {
-                    let statement = self
-                        .function
-                        .block_mut(node)
-                        .unwrap()
-                        .get_mut(stat_index)
-                        .unwrap();
-                    statement.traverse_rvalues(&mut |rvalue| {
-                        if let Some(closure) = rvalue.as_closure_mut() {
-                            replace_locals(&mut closure.body, &map)
-                        }
-                    });
-                }
+                // if !map.is_empty() {
+                //     let statement = self
+                //         .function
+                //         .block_mut(node)
+                //         .unwrap()
+                //         .get_mut(stat_index)
+                //         .unwrap();
+                //     statement.traverse_rvalues(&mut |rvalue| {
+                //         if let Some(closure) = rvalue.as_closure_mut() {
+                //             replace_locals(&mut closure.body, &map)
+                //         }
+                //     });
+                // }
             }
             self.filled_blocks.insert(node);
 

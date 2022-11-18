@@ -283,34 +283,36 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     fn format_closure_parameters(&mut self, closure: &Closure) -> fmt::Result {
+        let function = closure.function.lock().unwrap();
         write!(
             self.output,
             "{}",
-            if closure.is_variadic {
-                closure
+            if function.is_variadic {
+                function
                     .parameters
                     .iter()
                     .map(|x| x.to_string())
                     .chain(std::iter::once("...".into()))
                     .join(", ")
             } else {
-                closure.parameters.iter().join(", ")
+                function.parameters.iter().join(", ")
             }
         )
     }
 
     fn format_closure_body(&mut self, closure: &Closure) -> fmt::Result {
-        if !closure.body.is_empty() {
+        let function = closure.function.lock().unwrap();
+        if !function.body.is_empty() {
             writeln!(self.output)?;
             self.indentation_level += 1;
-            if closure.name.is_some() {
-                self.indent()?;
-                writeln!(self.output, "-- function name: {}", closure.name.as_ref().unwrap())?;
-            }
-            if closure.line_defined.is_some() {
-                self.indent()?;
-                writeln!(self.output, "-- line defined: {}", closure.line_defined.as_ref().unwrap())?;
-            }
+            // if closure.name.is_some() {
+            //     self.indent()?;
+            //     writeln!(self.output, "-- function name: {}", closure.name.as_ref().unwrap())?;
+            // }
+            // if closure.line_defined.is_some() {
+            //     self.indent()?;
+            //     writeln!(self.output, "-- line defined: {}", closure.line_defined.as_ref().unwrap())?;
+            // }
             if !closure.upvalues.is_empty() {
                 self.indent()?;
                 write!(self.output, "-- upvalues: ")?;
@@ -332,7 +334,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             }
             self.indentation_level -= 1;
 
-            self.format_block(&closure.body)?;
+            self.format_block(&function.body)?;
             writeln!(self.output)?;
             self.indent()
         } else {
@@ -348,7 +350,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         write!(self.output, "end")
     }
 
-    fn format_named_closure(&mut self, name: &LValue, closure: &Closure) -> fmt::Result {
+    fn format_named_function(&mut self, name: &LValue, closure: &Closure) -> fmt::Result {
         write!(self.output, "function {}(", name)?;
         self.format_closure_parameters(closure)?;
         write!(self.output, ")")?;
@@ -525,13 +527,13 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " then")?;
 
-        let then_block = r#if.then_block.borrow();
+        let then_block = r#if.then_block.lock().unwrap();
         if !then_block.is_empty() {
             self.format_block(&then_block)?;
             writeln!(self.output)?;
         }
 
-        let else_block = r#if.else_block.borrow();
+        let else_block = r#if.else_block.lock().unwrap();
         if !else_block.is_empty() {
             self.indent()?;
             if let Some(else_if) = else_block.iter().exactly_one().ok().and_then(|s| s.as_if()) {
@@ -557,8 +559,9 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         {
             let left = &assign.left[0];
             // TODO: check if index string is a valid name
+            // also `function (nil).a() end`, it must be valid named locals/globals/indices throughout
             if assign.prefix || left.as_global().is_some() || left.as_index().is_some_and(|i| i.right.as_literal().is_some_and(|l| l.as_string().is_some())) {
-                return self.format_named_closure(left, closure);
+                return self.format_named_function(left, closure);
             }
         }
 
@@ -597,7 +600,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " do")?;
 
-        self.format_block(&r#while.block.borrow())?;
+        self.format_block(&r#while.block.lock().unwrap())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")
@@ -605,7 +608,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
     pub(crate) fn format_repeat(&mut self, r#repeat: &Repeat) -> fmt::Result {
         writeln!(self.output, "repeat")?;
-        self.format_block(&repeat.block.borrow())?;
+        self.format_block(&repeat.block.lock().unwrap())?;
         writeln!(self.output)?;
         self.indent()?;
 
@@ -629,7 +632,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(&numeric_for.step)?;
         }
         writeln!(self.output, " do")?;
-        self.format_block(&numeric_for.block.borrow())?;
+        self.format_block(&numeric_for.block.lock().unwrap())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")
@@ -648,7 +651,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(rvalue)?;
         }
         writeln!(self.output, " do")?;
-        self.format_block(&generic_for.block.borrow())?;
+        self.format_block(&generic_for.block.lock().unwrap())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")

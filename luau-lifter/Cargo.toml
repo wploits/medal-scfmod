@@ -9,7 +9,7 @@ edition = "2021"
 num_enum = "0.5.6"
 nom = "7.1.0"
 nom-leb128 = "0.2.0"
-clap = { version = "3.1.0", features = ["derive"] }
+clap = { version = "4.0.26", features = ["derive"] }
 anyhow = { version = "1.0.53", features = ["backtrace"] }
 cfg = { path = "../cfg" }
 ast = { path = "../ast" }
@@ -20,6 +20,10 @@ restructure = { path = "../restructure" }
 lazy_static = "1.4.0"
 itertools = "0.10.5"
 indexmap = "1.9.1"
+by_address = "1.1.0"
+rayon = "1.5.3"
+triomphe = "0.1.8"
+rpmalloc = { version="0.2.2" } # features = ["unlimited_cache"]
 
 [features]
 panic_handled = []

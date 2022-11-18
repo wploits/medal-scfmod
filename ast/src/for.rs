@@ -2,7 +2,8 @@ use crate::{
     has_side_effects, Assign, Block, LValue, LocalRw, RValue, RcLocal, SideEffects, Traverse,
 };
 use itertools::Itertools;
-use std::{cell::RefCell, fmt, rc::Rc};
+use triomphe::Arc;
+use std::{fmt, sync::{Mutex}};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumForInit {
@@ -171,14 +172,21 @@ impl fmt::Display for NumForNext {
 }
 
 // TODO: STYLE: this should probably be named "NumFor"
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct NumericFor {
     pub initial: RValue,
     pub limit: RValue,
     pub step: RValue,
     // TODO: STYLE: rename to `control`? (thats what lua calls it)
     pub counter: RcLocal,
-    pub block: Rc<RefCell<Block>>,
+    pub block: Arc<Mutex<Block>>,
+}
+
+impl PartialEq for NumericFor {
+    fn eq(&self, _other: &Self) -> bool {
+        // TODO: compare block
+        false
+    }
 }
 
 has_side_effects!(NumericFor);
@@ -196,7 +204,7 @@ impl NumericFor {
             limit,
             step,
             counter,
-            block: Rc::new(block.into()),
+            block: Arc::new(block.into()),
         }
     }
 }
@@ -249,7 +257,8 @@ impl fmt::Display for NumericFor {
             self.limit,
             self.step,
             self.block
-                .borrow()
+                .lock()
+                .unwrap()
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")
@@ -406,11 +415,18 @@ impl fmt::Display for GenericForNext {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct GenericFor {
     pub res_locals: Vec<RcLocal>,
     pub right: Vec<RValue>,
-    pub block: Rc<RefCell<Block>>,
+    pub block: Arc<Mutex<Block>>,
+}
+
+impl PartialEq for GenericFor {
+    fn eq(&self, _other: &Self) -> bool {
+        // TODO: compare block
+        false
+    }
 }
 
 impl GenericFor {
@@ -418,7 +434,7 @@ impl GenericFor {
         Self {
             res_locals,
             right,
-            block: Rc::new(block.into()),
+            block: Arc::new(block.into()),
         }
     }
 }
@@ -464,7 +480,8 @@ impl fmt::Display for GenericFor {
             self.res_locals.iter().join(", "),
             self.right.iter().join(", "),
             self.block
-                .borrow()
+                .lock()
+                .unwrap()
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")

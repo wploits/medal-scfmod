@@ -1,8 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{sync::{Mutex}};
 
 use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
+use triomphe::Arc;
 
 use crate::GraphStructurer;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
@@ -18,8 +19,8 @@ impl GraphStructurer {
     }
 
     fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
-        let mut then_block = if_stat.then_block.borrow_mut();
-        let mut else_block = if_stat.else_block.borrow_mut();
+        let mut then_block = if_stat.then_block.lock().unwrap();
+        let mut else_block = if_stat.else_block.lock().unwrap();
         let then_return = then_block.last().and_then(|x| x.as_return());
         let else_return = else_block.last().and_then(|x| x.as_return());
         if let Some(then_return) = then_return && let Some(else_return) = else_return {
@@ -82,12 +83,12 @@ impl GraphStructurer {
         let block = self.function.block_mut(entry).unwrap();
         // TODO: STYLE: rename to r#if?
         let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-        if_stat.then_block = Rc::new(then_block.into());
-        if_stat.else_block = Rc::new(else_block.into());
+        if_stat.then_block = Arc::new(then_block.into());
+        if_stat.else_block = Arc::new(else_block.into());
         Self::simplify_if(if_stat);
 
         let after = Self::expand_if(if_stat);
-        if if_stat.then_block.borrow().is_empty() {
+        if if_stat.then_block.lock().unwrap().is_empty() {
             // TODO: unnecessary clone
             if_stat.condition =
                 ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
@@ -140,7 +141,7 @@ impl GraphStructurer {
 
             let block = self.function.block_mut(entry).unwrap();
             let if_stat = block.last_mut().unwrap().as_if_mut().unwrap();
-            if_stat.then_block = Rc::new(then_block.into());
+            if_stat.then_block = Arc::new(then_block.into());
 
             if inverted {
                 if_stat.condition =
@@ -231,27 +232,27 @@ impl GraphStructurer {
         let block = self.function.block_mut(entry).unwrap();
         if let Some(if_stat) = block.last_mut().unwrap().as_if_mut() {
             if then_node == header && !header_successors.contains(&entry) && then_main_cont {
-                if_stat.then_block = Rc::new(RefCell::new(vec![ast::Continue {}.into()].into()));
+                if_stat.then_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
                 changed = true;
             } else if then_node == next {
-                if_stat.then_block = Rc::new(RefCell::new(vec![ast::Break {}.into()].into()));
+                if_stat.then_block = Arc::new(Mutex::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
             if else_node == header && !header_successors.contains(&entry) && else_main_cont {
-                if_stat.else_block = Rc::new(RefCell::new(vec![ast::Continue {}.into()].into()));
+                if_stat.else_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
                 changed = true;
             } else if else_node == next {
-                if_stat.else_block = Rc::new(RefCell::new(vec![ast::Break {}.into()].into()));
+                if_stat.else_block = Arc::new(Mutex::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
-            if !if_stat.then_block.borrow().is_empty() && if_stat.else_block.borrow().is_empty() {
+            if !if_stat.then_block.lock().unwrap().is_empty() && if_stat.else_block.lock().unwrap().is_empty() {
                 self.function.set_edges(
                     entry,
                     vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if if_stat.then_block.borrow().is_empty()
-                && !if_stat.else_block.borrow().is_empty()
+            } else if if_stat.then_block.lock().unwrap().is_empty()
+                && !if_stat.else_block.lock().unwrap().is_empty()
             {
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
@@ -262,8 +263,8 @@ impl GraphStructurer {
                     vec![(then_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if !if_stat.then_block.borrow().is_empty()
-                && !if_stat.else_block.borrow().is_empty()
+            } else if !if_stat.then_block.lock().unwrap().is_empty()
+                && !if_stat.else_block.lock().unwrap().is_empty()
             {
                 self.function.remove_edges(entry);
                 changed = true;

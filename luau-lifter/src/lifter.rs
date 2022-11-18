@@ -1,12 +1,14 @@
-use std::rc::Rc;
+use std::{sync::{Mutex}};
 
 use anyhow::Result;
 
-use indexmap::IndexMap;
+use by_address::ByAddress;
+
 use itertools::Itertools;
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex};
-use restructure::post_dominators;
+use petgraph::{stable_graph::NodeIndex};
+
 use rustc_hash::FxHashMap;
+use triomphe::Arc;
 
 use super::{
     deserializer::{
@@ -15,14 +17,10 @@ use super::{
     instruction::Instruction,
     op_code::OpCode,
 };
-use ast::{self, local_declarations::LocalDeclarer, replace_locals::replace_locals};
+use ast::{self};
 use cfg::{
     block::{BlockEdge, BranchType},
     function::Function,
-    ssa::{
-        self,
-        structuring::{structure_conditionals, structure_for_loops, structure_jumps},
-    },
 };
 
 pub struct Lifter<'a> {
@@ -31,6 +29,7 @@ pub struct Lifter<'a> {
     string_table: &'a Vec<Vec<u8>>,
     blocks: FxHashMap<usize, NodeIndex>,
     lifted_function: Function,
+    child_functions: FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, usize>,
     register_map: FxHashMap<usize, ast::RcLocal>,
     constant_map: FxHashMap<usize, ast::Literal>,
     current_node: Option<NodeIndex>,
@@ -42,186 +41,22 @@ impl<'a> Lifter<'a> {
         f_list: &'a Vec<BytecodeFunction>,
         str_list: &'a Vec<Vec<u8>>,
         function_id: usize,
-    ) -> (ast::Block, Vec<ast::RcLocal>, Vec<ast::RcLocal>) {
-        let context = Self {
+    ) -> (Function, Vec<ast::RcLocal>, FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, usize>) {
+        let mut context = Self {
             function: function_id,
             function_list: f_list,
             string_table: str_list,
             blocks: FxHashMap::default(),
             lifted_function: Function::new(),
+            child_functions: FxHashMap::default(),
             register_map: FxHashMap::default(),
             constant_map: FxHashMap::default(),
             current_node: None,
             upvalues: Vec::new(),
         };
 
-        let func = |mut context: Lifter| {
-            context.lift_function();
-
-            let mut function = context.lifted_function;
-            let upvalues_in = context.upvalues;
-
-            // println!("before ssa construction");
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-            // println!("line defined: {:?}", context.function_list[context.function].line_defined);
-
-            let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
-                cfg::ssa::construct(&mut function, &upvalues_in);
-
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-
-            let upvalue_to_group = upvalue_in_groups
-                .into_iter()
-                .chain(
-                    upvalue_passed_groups
-                        .into_iter()
-                        .map(|m| (ast::RcLocal::default(), m)),
-                )
-                .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
-                .collect::<IndexMap<_, _>>();
-
-            let local_to_group = local_groups
-                .iter()
-                .cloned()
-                .enumerate()
-                .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
-                .collect::<FxHashMap<_, _>>();
-            // TODO: REFACTOR: some way to write a macro that states
-            // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
-            // structure_for_loops and remove_unnecessary_params must run again.
-            // if structure_compound_conditionals results in change then dominators and post dominators
-            // must be recalculated.
-            // etc.
-            // the macro could also maybe generate an optimal ordering?
-            let mut changed = true;
-            while changed {
-                changed = false;
-
-                let dominators = simple_fast(function.graph(), function.entry().unwrap());
-                changed |= structure_jumps(&mut function, &dominators);
-
-                ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
-
-                if structure_conditionals(&mut function) || {
-                    let post_dominators = post_dominators(function.graph_mut());
-                    structure_for_loops(&mut function, &dominators, &post_dominators)
-                }
-                // we can't structure method calls like this because of __namecall
-                // || structure_method_calls(&mut function)
-                {
-                    changed = true;
-                }
-
-                // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-
-                let mut local_map = FxHashMap::default();
-
-                // TODO: loop until returns false?
-                if ssa::construct::remove_unnecessary_params(&mut function, &mut local_map) {
-                    changed = true;
-                }
-                ssa::construct::apply_local_map(&mut function, local_map);
-            }
-
-            // let mut triangle_pattern_graph = PatternGraph::new();
-            // let entry = triangle_pattern_graph.add_node(PatternNode::new(true));
-            // let body = triangle_pattern_graph.add_node(PatternNode::new(false));
-            // let exit = triangle_pattern_graph.add_node(PatternNode::new(true));
-
-            // triangle_pattern_graph.add_edge(entry, body, BlockEdge::new(BranchType::Then));
-            // triangle_pattern_graph.add_edge(entry, exit, BlockEdge::new(BranchType::Else));
-            // triangle_pattern_graph.add_edge(body, exit, BlockEdge::new(BranchType::Unconditional));
-
-            // println!(
-            //     "triangle pattern: {}",
-            //     Dot::with_config(&triangle_pattern_graph, &[])
-            // );
-
-            // panic!();
-
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-            //let dataflow = cfg::ssa::dataflow::DataFlow::new(&function);
-            //println!("dataflow: {:#?}", dataflow);
-
-            // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
-
-            cfg::ssa::Destructor::new(
-                &mut function,
-                upvalue_to_group,
-                upvalues_in.iter().cloned().collect(),
-                local_count,
-            )
-            .destruct();
-
-            let params = std::mem::take(&mut function.parameters);
-            let block = Rc::new(restructure::lift(function).into());
-            LocalDeclarer::default().declare_locals(
-                // TODO: why does block.clone() not work?
-                Rc::clone(&block),
-                &upvalues_in.iter().chain(params.iter()).cloned().collect(),
-            );
-            (
-                Rc::try_unwrap(block).unwrap().into_inner(),
-                params,
-                upvalues_in,
-            )
-        };
-
-        match () {
-            #[cfg(feature = "panic_handled")]
-            () => {
-                use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic};
-
-                thread_local! {
-                    static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
-                }
-
-                let mut context = std::panic::AssertUnwindSafe(Some(context));
-
-                let prev_hook = panic::take_hook();
-                panic::set_hook(Box::new(|_| {
-                    let trace = Backtrace::capture();
-                    BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
-                }));
-                let result = panic::catch_unwind(move || func(context.take().unwrap()));
-                panic::set_hook(prev_hook);
-
-                match result {
-                    Ok(r) => r,
-                    Err(e) => {
-                        let panic_information = match e.downcast::<String>() {
-                            Ok(v) => *v,
-                            Err(e) => match e.downcast::<&str>() {
-                                Ok(v) => v.to_string(),
-                                _ => "Unknown Source of Error".to_owned(),
-                            },
-                        };
-
-                        let mut message = String::new();
-                        writeln!(message, "panicked at '{}'", panic_information).unwrap();
-                        if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
-                            write!(message, "stack backtrace:\n{}", backtrace).unwrap();
-                        }
-
-                        let block = message
-                            .trim_end()
-                            .split('\n')
-                            .map(|s| ast::Comment::new(s.to_string()).into())
-                            .collect::<Vec<_>>()
-                            .into();
-                        (
-                            block,
-                            (0..f_list[function_id].num_parameters)
-                                .map(|_| ast::RcLocal::default())
-                                .collect(),
-                            Vec::new(),
-                        )
-                    }
-                }
-            }
-            #[cfg(not(feature = "panic_handled"))]
-            () => func(context),
-        }
+        context.lift_function();
+        (context.lifted_function, context.upvalues, context.child_functions)
     }
 
     fn lift_function(&mut self) {
@@ -264,6 +99,8 @@ impl<'a> Lifter<'a> {
             self.lifted_function.parameters.push(parameter.clone());
             self.register_map.insert(i as usize, parameter);
         }
+
+        self.lifted_function.is_variadic = self.function_list[self.function].is_vararg;
 
         for (start_pc, end_pc) in block_ranges {
             self.current_node = Some(self.block_to_node(start_pc));
@@ -412,7 +249,7 @@ impl<'a> Lifter<'a> {
         block_start: usize,
         block_end: usize,
     ) -> (Vec<ast::Statement>, Vec<(NodeIndex, BlockEdge)>) {
-        let mut statements = Vec::new();
+        let mut statements = Vec::with_capacity((block_start..=block_end).count());
         let mut edges = Vec::new();
 
         let mut top: Option<(ast::RValue, u8)> = None;
@@ -1376,45 +1213,21 @@ impl<'a> Lifter<'a> {
                             };
                             upvalues_passed.push(local);
                         }
-
-                        let (mut body, parameters, upvalues_in) =
-                            Self::lift(self.function_list, self.string_table, func_index);
-                        let mut local_map = FxHashMap::with_capacity_and_hasher(
-                            upvalues_in.len(),
-                            Default::default(),
-                        );
-                        for (old, new) in
-                            upvalues_in
-                                .into_iter()
-                                .zip(upvalues_passed.iter().map(|u| match u {
-                                    ast::Upvalue::Copy(l) | ast::Upvalue::Ref(l) => l,
-                                }))
-                        {
-                            local_map.insert(old, new.clone());
-                        }
-                        replace_locals(&mut body, &local_map);
-
-                        let name = if func.function_name != 0 {
-                            let raw_string = &self.string_table[func.function_name - 1];
-                            std::str::from_utf8(raw_string).ok().map(|s| s.to_string())
-                        } else {
-                            None
-                        };
+                        
+                        let function = Arc::<Mutex<_>>::default();
+                        self.child_functions.insert(ByAddress(function.clone()), func_index);
                         statements.push(
                             ast::Assign::new(
                                 vec![dest_local.into()],
                                 vec![ast::Closure {
-                                    name,
-                                    line_defined: Some(func.line_defined),
-                                    parameters,
-                                    body,
+                                    function: ByAddress(function),
                                     upvalues: upvalues_passed,
-                                    is_variadic: func.is_vararg,
                                 }
                                 .into()],
                             )
                             .into(),
                         );
+                        
                     }
                     _ => unimplemented!("{:?}", instruction),
                 },

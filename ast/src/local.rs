@@ -3,11 +3,11 @@ use by_address::ByAddress;
 use derive_more::From;
 use enum_dispatch::enum_dispatch;
 use nohash_hasher::NoHashHasher;
+use triomphe::Arc;
 use std::{
-    cell::RefCell,
     fmt::{self, Display},
     hash::{Hash, Hasher},
-    rc::Rc,
+    sync::Mutex,
 };
 
 #[derive(Debug, Default, From, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
@@ -29,7 +29,7 @@ impl fmt::Display for Local {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RcLocal(pub ByAddress<Rc<RefCell<Local>>>);
+pub struct RcLocal(pub ByAddress<Arc<Mutex<Local>>>);
 
 impl Infer for RcLocal {
     fn infer<'a: 'b, 'b>(&'a mut self, system: &mut TypeSystem<'b>) -> Type {
@@ -39,7 +39,7 @@ impl Infer for RcLocal {
 
 impl Display for RcLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 .0.borrow().0 {
+        match &self.0 .0.lock().unwrap().0 {
             Some(name) => write!(f, "{}", name),
             None => {
                 let mut hasher = NoHashHasher::<u8>::default();
@@ -56,7 +56,7 @@ impl Traverse for RcLocal {}
 
 impl RcLocal {
     pub fn new(local: Local) -> Self {
-        Self(ByAddress(Rc::new(RefCell::new(local))))
+        Self(ByAddress(Arc::new(Mutex::new(local))))
     }
 }
 

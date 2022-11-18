@@ -14,3 +14,4 @@ itertools = "0.10.5"
 array_tool = "1.0.3"
 tuple = "0.5.1"
 cfg = { path = "../cfg" }
+triomphe = "0.1.8"

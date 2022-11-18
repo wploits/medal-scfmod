@@ -12,6 +12,7 @@ use crate::block::{BlockEdge, BranchType};
 #[derive(Debug, Clone, Default)]
 pub struct Function {
     pub parameters: Vec<RcLocal>,
+    pub is_variadic: bool,
     graph: StableDiGraph<ast::Block, BlockEdge>,
     entry: Option<NodeIndex>,
 }
@@ -20,6 +21,7 @@ impl Function {
     pub fn new() -> Self {
         Self {
             parameters: Vec::new(),
+            is_variadic: false,
             graph: StableDiGraph::new(),
             entry: None,
         }
