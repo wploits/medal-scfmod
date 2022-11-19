@@ -1,11 +1,10 @@
-use std::{sync::{Mutex}};
-
 use anyhow::Result;
 
 use by_address::ByAddress;
 
 use itertools::Itertools;
-use petgraph::{stable_graph::NodeIndex};
+use parking_lot::Mutex;
+use petgraph::stable_graph::NodeIndex;
 
 use rustc_hash::FxHashMap;
 use triomphe::Arc;
@@ -41,7 +40,11 @@ impl<'a> Lifter<'a> {
         f_list: &'a Vec<BytecodeFunction>,
         str_list: &'a Vec<Vec<u8>>,
         function_id: usize,
-    ) -> (Function, Vec<ast::RcLocal>, FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, usize>) {
+    ) -> (
+        Function,
+        Vec<ast::RcLocal>,
+        FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, usize>,
+    ) {
         let mut context = Self {
             function: function_id,
             function_list: f_list,
@@ -56,7 +59,11 @@ impl<'a> Lifter<'a> {
         };
 
         context.lift_function();
-        (context.lifted_function, context.upvalues, context.child_functions)
+        (
+            context.lifted_function,
+            context.upvalues,
+            context.child_functions,
+        )
     }
 
     fn lift_function(&mut self) {
@@ -1213,9 +1220,10 @@ impl<'a> Lifter<'a> {
                             };
                             upvalues_passed.push(local);
                         }
-                        
+
                         let function = Arc::<Mutex<_>>::default();
-                        self.child_functions.insert(ByAddress(function.clone()), func_index);
+                        self.child_functions
+                            .insert(ByAddress(function.clone()), func_index);
                         statements.push(
                             ast::Assign::new(
                                 vec![dest_local.into()],
@@ -1227,7 +1235,6 @@ impl<'a> Lifter<'a> {
                             )
                             .into(),
                         );
-                        
                     }
                     _ => unimplemented!("{:?}", instruction),
                 },

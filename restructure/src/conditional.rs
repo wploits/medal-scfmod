@@ -1,8 +1,7 @@
-use std::{sync::{Mutex}};
-
 use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
+use parking_lot::Mutex;
 use triomphe::Arc;
 
 use crate::GraphStructurer;
@@ -19,8 +18,8 @@ impl GraphStructurer {
     }
 
     fn expand_if(if_stat: &mut ast::If) -> Option<ast::Block> {
-        let mut then_block = if_stat.then_block.lock().unwrap();
-        let mut else_block = if_stat.else_block.lock().unwrap();
+        let mut then_block = if_stat.then_block.lock();
+        let mut else_block = if_stat.else_block.lock();
         let then_return = then_block.last().and_then(|x| x.as_return());
         let else_return = else_block.last().and_then(|x| x.as_return());
         if let Some(then_return) = then_return && let Some(else_return) = else_return {
@@ -88,7 +87,7 @@ impl GraphStructurer {
         Self::simplify_if(if_stat);
 
         let after = Self::expand_if(if_stat);
-        if if_stat.then_block.lock().unwrap().is_empty() {
+        if if_stat.then_block.lock().is_empty() {
             // TODO: unnecessary clone
             if_stat.condition =
                 ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
@@ -245,14 +244,13 @@ impl GraphStructurer {
                 if_stat.else_block = Arc::new(Mutex::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
-            if !if_stat.then_block.lock().unwrap().is_empty() && if_stat.else_block.lock().unwrap().is_empty() {
+            if !if_stat.then_block.lock().is_empty() && if_stat.else_block.lock().is_empty() {
                 self.function.set_edges(
                     entry,
                     vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if if_stat.then_block.lock().unwrap().is_empty()
-                && !if_stat.else_block.lock().unwrap().is_empty()
+            } else if if_stat.then_block.lock().is_empty() && !if_stat.else_block.lock().is_empty()
             {
                 if_stat.condition =
                     ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
@@ -263,8 +261,7 @@ impl GraphStructurer {
                     vec![(then_node, BlockEdge::new(BranchType::Unconditional))],
                 );
                 changed = true;
-            } else if !if_stat.then_block.lock().unwrap().is_empty()
-                && !if_stat.else_block.lock().unwrap().is_empty()
+            } else if !if_stat.then_block.lock().is_empty() && !if_stat.else_block.lock().is_empty()
             {
                 self.function.remove_edges(entry);
                 changed = true;

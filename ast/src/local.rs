@@ -3,12 +3,12 @@ use by_address::ByAddress;
 use derive_more::From;
 use enum_dispatch::enum_dispatch;
 use nohash_hasher::NoHashHasher;
-use triomphe::Arc;
+use parking_lot::Mutex;
 use std::{
     fmt::{self, Display},
     hash::{Hash, Hasher},
-    sync::Mutex,
 };
+use triomphe::Arc;
 
 #[derive(Debug, Default, From, Clone, PartialEq, PartialOrd, Ord, Eq, Hash)]
 pub struct Local(pub Option<String>);
@@ -39,7 +39,7 @@ impl Infer for RcLocal {
 
 impl Display for RcLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 .0.lock().unwrap().0 {
+        match &self.0 .0.lock().0 {
             Some(name) => write!(f, "{}", name),
             None => {
                 let mut hasher = NoHashHasher::<u8>::default();

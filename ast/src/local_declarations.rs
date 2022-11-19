@@ -1,9 +1,10 @@
-use std::{collections::BTreeMap, sync::{Mutex}};
+use std::collections::BTreeMap;
 
 use array_tool::vec::Intersect;
 use by_address::ByAddress;
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
+use parking_lot::Mutex;
 use petgraph::{
     algo::dominators::simple_fast,
     prelude::{DiGraph, NodeIndex},
@@ -26,7 +27,7 @@ impl LocalDeclarer {
     fn visit(&mut self, block: Arc<Mutex<Block>>, stat_index: usize) -> NodeIndex {
         let node = self.graph.add_node((Some(block.clone()), stat_index));
         self.block_to_node.insert(block.clone().into(), node);
-        for (stat_index, stat) in block.lock().unwrap().iter().enumerate() {
+        for (stat_index, stat) in block.lock().iter().enumerate() {
             // for loops already declare their own locals :)
             if !matches!(stat, Statement::GenericFor(_) | Statement::NumericFor(_)) {
                 // we only visit locals written because locals are guaranteed to be written
@@ -136,7 +137,7 @@ impl LocalDeclarer {
         }
 
         for (ByAddress(block), declarations) in self.declarations {
-            let mut block = block.lock().unwrap();
+            let mut block = block.lock();
             for (stat_index, mut locals) in declarations.into_iter().rev() {
                 match &mut block[stat_index] {
                     Statement::Assign(assign)

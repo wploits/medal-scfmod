@@ -286,20 +286,20 @@ impl GraphStructurer {
                                 gotos.insert(goto.0.clone());
                             }
                             ast::Statement::If(r#if) => {
-                                collect_gotos(&r#if.then_block.lock().unwrap(), gotos);
-                                collect_gotos(&r#if.else_block.lock().unwrap(), gotos);
+                                collect_gotos(&r#if.then_block.lock(), gotos);
+                                collect_gotos(&r#if.else_block.lock(), gotos);
                             }
                             ast::Statement::While(r#while) => {
-                                collect_gotos(&r#while.block.lock().unwrap(), gotos);
+                                collect_gotos(&r#while.block.lock(), gotos);
                             }
                             ast::Statement::Repeat(repeat) => {
-                                collect_gotos(&repeat.block.lock().unwrap(), gotos);
+                                collect_gotos(&repeat.block.lock(), gotos);
                             }
                             ast::Statement::NumericFor(numeric_for) => {
-                                collect_gotos(&numeric_for.block.lock().unwrap(), gotos);
+                                collect_gotos(&numeric_for.block.lock(), gotos);
                             }
                             ast::Statement::GenericFor(generic_for) => {
-                                collect_gotos(&generic_for.block.lock().unwrap(), gotos);
+                                collect_gotos(&generic_for.block.lock(), gotos);
                             }
                             _ => {}
                         }

@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Mutex};
+use std::rc::Rc;
 
 use by_address::ByAddress;
 use cfg::{
@@ -8,6 +8,7 @@ use cfg::{
 use either::Either;
 use indexmap::IndexMap;
 use itertools::Itertools;
+use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
 use ast::{local_declarations::LocalDeclarer, replace_locals::replace_locals, RcLocal, Statement};
@@ -614,7 +615,8 @@ impl<'a, 'b> Lifter<'a, 'b> {
                     let ast_function = Arc::<Mutex<_>>::default();
 
                     let (function, upvalues) = Lifter::lift(closure, self.lifted_functions);
-                    self.lifted_functions.push((ast_function.clone(), function, upvalues));
+                    self.lifted_functions
+                        .push((ast_function.clone(), function, upvalues));
 
                     statements.push(
                         ast::Assign::new(
@@ -878,7 +880,10 @@ impl<'a, 'b> Lifter<'a, 'b> {
         }
     }
 
-    pub fn lift(bytecode: &'a BytecodeFunction, lifted_functions: &'b mut Vec<(Arc<Mutex<ast::Function>>, Function, Vec<RcLocal>)>) -> (Function, Vec<RcLocal>) {
+    pub fn lift(
+        bytecode: &'a BytecodeFunction,
+        lifted_functions: &'b mut Vec<(Arc<Mutex<ast::Function>>, Function, Vec<RcLocal>)>,
+    ) -> (Function, Vec<RcLocal>) {
         let mut context = Self {
             bytecode,
             nodes: FxHashMap::default(),

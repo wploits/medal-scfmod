@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use itertools::Either;
 
-use crate::{Block, RValue, RcLocal, Statement, Traverse, LocalRw};
+use crate::{Block, LocalRw, RValue, RcLocal, Statement, Traverse};
 
 pub fn replace_locals<H: std::hash::BuildHasher>(
     block: &mut Block,
@@ -22,26 +22,26 @@ pub fn replace_locals<H: std::hash::BuildHasher>(
         // TODO: traverse_values
         statement.post_traverse_values(&mut |value| -> Option<()> {
             if let Either::Right(RValue::Closure(closure)) = value {
-                replace_locals(&mut closure.function.lock().unwrap().body, map)
+                replace_locals(&mut closure.function.lock().body, map)
             };
             None
         });
         match statement {
             Statement::If(r#if) => {
-                replace_locals(&mut r#if.then_block.lock().unwrap(), map);
-                replace_locals(&mut r#if.else_block.lock().unwrap(), map);
+                replace_locals(&mut r#if.then_block.lock(), map);
+                replace_locals(&mut r#if.else_block.lock(), map);
             }
             Statement::While(r#while) => {
-                replace_locals(&mut r#while.block.lock().unwrap(), map);
+                replace_locals(&mut r#while.block.lock(), map);
             }
             Statement::Repeat(repeat) => {
-                replace_locals(&mut repeat.block.lock().unwrap(), map);
+                replace_locals(&mut repeat.block.lock(), map);
             }
             Statement::NumericFor(numeric_for) => {
-                replace_locals(&mut numeric_for.block.lock().unwrap(), map);
+                replace_locals(&mut numeric_for.block.lock(), map);
             }
             Statement::GenericFor(generic_for) => {
-                replace_locals(&mut generic_for.block.lock().unwrap(), map);
+                replace_locals(&mut generic_for.block.lock(), map);
             }
             _ => {}
         }

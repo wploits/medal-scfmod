@@ -1,10 +1,11 @@
+use parking_lot::Mutex;
 use triomphe::Arc;
 
 use crate::{formatter::Formatter, LocalRw, RcLocal, SideEffects, Traverse};
 
 use super::{Block, RValue};
 
-use std::{fmt, sync::{Mutex}};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct If {

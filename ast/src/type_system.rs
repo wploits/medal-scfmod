@@ -177,7 +177,7 @@ impl<'a> TypeSystem<'a> {
         //         }
         //         // TODO: repeat and for loops
         //         Statement::While(r#while) => {
-        //             self.analyze_block(&mut r#while.block.lock().unwrap());
+        //             self.analyze_block(&mut r#while.block.lock());
         //         }
         //         Statement::Return(r#return) => {
         //             return_values.extend(r#return.values.iter_mut().map(|v| v.infer(self)));

@@ -1,5 +1,3 @@
-
-
 use rustc_hash::FxHashSet;
 use triomphe::Arc;
 
@@ -13,7 +11,7 @@ struct Namer {
 
 impl Namer {
     fn name_local(&mut self, prefix: &str, local: &RcLocal) {
-        let mut lock = local.0 .0.lock().unwrap();
+        let mut lock = local.0 .0.lock();
         if self.rename || lock.0.is_none() {
             // TODO: hacky and slow
             if Arc::count(&local.0 .0) == 1 {
@@ -36,7 +34,7 @@ impl Namer {
             // TODO: traverse_rvalues
             statement.post_traverse_values(&mut |value| -> Option<()> {
                 if let itertools::Either::Right(RValue::Closure(closure)) = value {
-                    let mut function = closure.function.lock().unwrap();
+                    let mut function = closure.function.lock();
                     for param in &function.parameters {
                         self.name_local("p", param);
                     }
@@ -51,24 +49,24 @@ impl Namer {
                     }
                 }
                 Statement::If(r#if) => {
-                    self.name_locals(&mut r#if.then_block.lock().unwrap());
-                    self.name_locals(&mut r#if.else_block.lock().unwrap());
+                    self.name_locals(&mut r#if.then_block.lock());
+                    self.name_locals(&mut r#if.else_block.lock());
                 }
                 Statement::While(r#while) => {
-                    self.name_locals(&mut r#while.block.lock().unwrap());
+                    self.name_locals(&mut r#while.block.lock());
                 }
                 Statement::Repeat(repeat) => {
-                    self.name_locals(&mut repeat.block.lock().unwrap());
+                    self.name_locals(&mut repeat.block.lock());
                 }
                 Statement::NumericFor(numeric_for) => {
                     self.name_local("v", &numeric_for.counter);
-                    self.name_locals(&mut numeric_for.block.lock().unwrap());
+                    self.name_locals(&mut numeric_for.block.lock());
                 }
                 Statement::GenericFor(generic_for) => {
                     for res_local in &generic_for.res_locals {
                         self.name_local("v", res_local);
                     }
-                    self.name_locals(&mut generic_for.block.lock().unwrap());
+                    self.name_locals(&mut generic_for.block.lock());
                 }
                 _ => {}
             }
@@ -91,26 +89,26 @@ impl Namer {
                             })
                             .cloned(),
                     );
-                    self.find_upvalues(&mut closure.function.lock().unwrap().body);
+                    self.find_upvalues(&mut closure.function.lock().body);
                 };
                 None
             });
             match statement {
                 Statement::If(r#if) => {
-                    self.find_upvalues(&mut r#if.then_block.lock().unwrap());
-                    self.find_upvalues(&mut r#if.else_block.lock().unwrap());
+                    self.find_upvalues(&mut r#if.then_block.lock());
+                    self.find_upvalues(&mut r#if.else_block.lock());
                 }
                 Statement::While(r#while) => {
-                    self.find_upvalues(&mut r#while.block.lock().unwrap());
+                    self.find_upvalues(&mut r#while.block.lock());
                 }
                 Statement::Repeat(repeat) => {
-                    self.find_upvalues(&mut repeat.block.lock().unwrap());
+                    self.find_upvalues(&mut repeat.block.lock());
                 }
                 Statement::NumericFor(numeric_for) => {
-                    self.find_upvalues(&mut numeric_for.block.lock().unwrap());
+                    self.find_upvalues(&mut numeric_for.block.lock());
                 }
                 Statement::GenericFor(generic_for) => {
-                    self.find_upvalues(&mut generic_for.block.lock().unwrap());
+                    self.find_upvalues(&mut generic_for.block.lock());
                 }
                 _ => {}
             }

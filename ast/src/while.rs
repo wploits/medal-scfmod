@@ -1,7 +1,8 @@
+use parking_lot::Mutex;
 use triomphe::Arc;
 
 use crate::{formatter::Formatter, has_side_effects, Block, LocalRw, RValue, RcLocal, Traverse};
-use std::{fmt, sync::{Mutex}};
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct While {

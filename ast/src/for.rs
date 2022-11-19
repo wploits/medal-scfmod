@@ -2,8 +2,9 @@ use crate::{
     has_side_effects, Assign, Block, LValue, LocalRw, RValue, RcLocal, SideEffects, Traverse,
 };
 use itertools::Itertools;
+use parking_lot::Mutex;
+use std::fmt;
 use triomphe::Arc;
-use std::{fmt, sync::{Mutex}};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct NumForInit {
@@ -258,7 +259,6 @@ impl fmt::Display for NumericFor {
             self.step,
             self.block
                 .lock()
-                .unwrap()
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")
@@ -481,7 +481,6 @@ impl fmt::Display for GenericFor {
             self.right.iter().join(", "),
             self.block
                 .lock()
-                .unwrap()
                 .iter()
                 .map(|n| n.to_string().replace('\n', "\n\t"))
                 .join("\n\t")

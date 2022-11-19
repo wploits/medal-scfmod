@@ -2,20 +2,27 @@
 #![feature(let_chains)]
 #![feature(mixed_integer_ops)]
 
-use rayon::iter::ParallelIterator;
-use ast::{name_locals::name_locals, local_declarations::LocalDeclarer, Traverse, replace_locals::replace_locals};
+use ast::{
+    local_declarations::LocalDeclarer, name_locals::name_locals, replace_locals::replace_locals,
+    Traverse,
+};
 use by_address::ByAddress;
-use cfg::ssa::{structuring::{structure_method_calls, structure_conditionals, structure_jumps}, self};
+use cfg::ssa::{
+    self,
+    structuring::{structure_conditionals, structure_jumps, structure_method_calls},
+};
 use indexmap::IndexMap;
 use lifter::Lifter;
+use parking_lot::Mutex;
 use petgraph::algo::dominators::simple_fast;
+use rayon::iter::ParallelIterator;
 use rayon::prelude::IntoParallelIterator;
 use rustc_hash::FxHashMap;
 use std::{
     fs::File,
     io::{Read, Write},
-    sync::Mutex,
-    time::Instant, path::Path,
+    path::Path,
+    time::Instant,
 };
 use triomphe::Arc;
 
@@ -128,8 +135,8 @@ fn main() -> anyhow::Result<()> {
             );
 
             {
-                let mut ast_function = ast_function.lock().unwrap();
-                ast_function.body = Arc::try_unwrap(block).unwrap().into_inner().unwrap();
+                let mut ast_function = ast_function.lock();
+                ast_function.body = Arc::try_unwrap(block).unwrap().into_inner();
                 ast_function.parameters = params;
                 ast_function.is_variadic = is_variadic;
             }
@@ -139,7 +146,7 @@ fn main() -> anyhow::Result<()> {
 
     let main = ByAddress(main);
     upvalues.remove(&main);
-    let mut body = Arc::try_unwrap(main.0).unwrap().into_inner().unwrap().body;
+    let mut body = Arc::try_unwrap(main.0).unwrap().into_inner().body;
     link_upvalues(&mut body, &mut upvalues);
     name_locals(&mut body, true);
     let res = body.to_string();
@@ -155,22 +162,17 @@ fn main() -> anyhow::Result<()> {
 
 fn link_upvalues(
     body: &mut ast::Block,
-    upvalues: &mut FxHashMap<
-        ByAddress<Arc<Mutex<ast::Function>>>,
-        Vec<ast::RcLocal>,
-    >,
+    upvalues: &mut FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, Vec<ast::RcLocal>>,
 ) {
     for stat in &mut body.0 {
         stat.traverse_rvalues(&mut |rvalue| {
             if let ast::RValue::Closure(closure) = rvalue {
                 let old_upvalues = upvalues.remove(&closure.function).unwrap();
-                let mut function = closure.function.lock().unwrap();
+                let mut function = closure.function.lock();
                 // TODO: inefficient, try constructing a map of all up -> new up first
                 // and then call replace_locals on main body
-                let mut local_map = FxHashMap::with_capacity_and_hasher(
-                    old_upvalues.len(),
-                    Default::default(),
-                );
+                let mut local_map =
+                    FxHashMap::with_capacity_and_hasher(old_upvalues.len(), Default::default());
                 for (old, new) in
                     old_upvalues
                         .iter()
@@ -187,20 +189,20 @@ fn link_upvalues(
         });
         match stat {
             ast::Statement::If(r#if) => {
-                link_upvalues(&mut r#if.then_block.lock().unwrap(), upvalues);
-                link_upvalues(&mut r#if.else_block.lock().unwrap(), upvalues);
+                link_upvalues(&mut r#if.then_block.lock(), upvalues);
+                link_upvalues(&mut r#if.else_block.lock(), upvalues);
             }
             ast::Statement::While(r#while) => {
-                link_upvalues(&mut r#while.block.lock().unwrap(), upvalues);
+                link_upvalues(&mut r#while.block.lock(), upvalues);
             }
             ast::Statement::Repeat(repeat) => {
-                link_upvalues(&mut repeat.block.lock().unwrap(), upvalues);
+                link_upvalues(&mut repeat.block.lock(), upvalues);
             }
             ast::Statement::NumericFor(numeric_for) => {
-                link_upvalues(&mut numeric_for.block.lock().unwrap(), upvalues);
+                link_upvalues(&mut numeric_for.block.lock(), upvalues);
             }
             ast::Statement::GenericFor(generic_for) => {
-                link_upvalues(&mut generic_for.block.lock().unwrap(), upvalues);
+                link_upvalues(&mut generic_for.block.lock(), upvalues);
             }
             _ => {}
         }

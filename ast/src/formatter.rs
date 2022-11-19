@@ -283,7 +283,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     fn format_closure_parameters(&mut self, closure: &Closure) -> fmt::Result {
-        let function = closure.function.lock().unwrap();
+        let function = closure.function.lock();
         write!(
             self.output,
             "{}",
@@ -301,7 +301,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     fn format_closure_body(&mut self, closure: &Closure) -> fmt::Result {
-        let function = closure.function.lock().unwrap();
+        let function = closure.function.lock();
         if !function.body.is_empty() {
             writeln!(self.output)?;
             self.indentation_level += 1;
@@ -317,7 +317,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 self.indent()?;
                 write!(self.output, "-- upvalues: ")?;
                 let mut it = closure.upvalues.iter().peekable();
-                while let Some(uv) = it.next()  {
+                while let Some(uv) = it.next() {
                     match uv {
                         crate::Upvalue::Copy(copy) => {
                             write!(self.output, "(copy) {}", copy)?;
@@ -527,13 +527,13 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " then")?;
 
-        let then_block = r#if.then_block.lock().unwrap();
+        let then_block = r#if.then_block.lock();
         if !then_block.is_empty() {
             self.format_block(&then_block)?;
             writeln!(self.output)?;
         }
 
-        let else_block = r#if.else_block.lock().unwrap();
+        let else_block = r#if.else_block.lock();
         if !else_block.is_empty() {
             self.indent()?;
             if let Some(else_if) = else_block.iter().exactly_one().ok().and_then(|s| s.as_if()) {
@@ -600,7 +600,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         writeln!(self.output, " do")?;
 
-        self.format_block(&r#while.block.lock().unwrap())?;
+        self.format_block(&r#while.block.lock())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")
@@ -608,7 +608,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
     pub(crate) fn format_repeat(&mut self, r#repeat: &Repeat) -> fmt::Result {
         writeln!(self.output, "repeat")?;
-        self.format_block(&repeat.block.lock().unwrap())?;
+        self.format_block(&repeat.block.lock())?;
         writeln!(self.output)?;
         self.indent()?;
 
@@ -632,7 +632,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(&numeric_for.step)?;
         }
         writeln!(self.output, " do")?;
-        self.format_block(&numeric_for.block.lock().unwrap())?;
+        self.format_block(&numeric_for.block.lock())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")
@@ -651,7 +651,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             self.format_rvalue(rvalue)?;
         }
         writeln!(self.output, " do")?;
-        self.format_block(&generic_for.block.lock().unwrap())?;
+        self.format_block(&generic_for.block.lock())?;
         writeln!(self.output)?;
         self.indent()?;
         write!(self.output, "end")

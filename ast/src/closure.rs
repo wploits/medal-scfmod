@@ -1,8 +1,8 @@
-use std::{fmt, sync::{Mutex}};
+use std::fmt;
 
 use by_address::ByAddress;
+use parking_lot::Mutex;
 use triomphe::Arc;
-
 
 use crate::{
     formatter::Formatter,
