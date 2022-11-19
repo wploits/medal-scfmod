@@ -13,7 +13,7 @@ use ast::{
 use by_address::ByAddress;
 use cfg::ssa::{
     self,
-    structuring::{structure_conditionals, structure_for_loops, structure_jumps},
+    structuring::{structure_conditionals, structure_jumps},
 };
 use indexmap::IndexMap;
 
@@ -24,7 +24,7 @@ use clap::Parser;
 use parking_lot::Mutex;
 use petgraph::algo::dominators::simple_fast;
 use rayon::prelude::*;
-use restructure::post_dominators;
+
 use rustc_hash::FxHashMap;
 use triomphe::Arc;
 

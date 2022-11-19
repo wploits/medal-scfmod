@@ -1,31 +1,21 @@
-use std::rc::Rc;
-
 use by_address::ByAddress;
-use cfg::{
-    block::{BlockEdge, BranchType},
-    ssa,
-};
+use cfg::block::{BlockEdge, BranchType};
 use either::Either;
-use indexmap::IndexMap;
+
 use itertools::Itertools;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 
-use ast::{local_declarations::LocalDeclarer, replace_locals::replace_locals, RcLocal, Statement};
-use cfg::{
-    function::Function,
-    ssa::structuring::{
-        structure_conditionals, structure_for_loops, structure_jumps, structure_method_calls,
-    },
-};
+use ast::{RcLocal, Statement};
+use cfg::function::Function;
 
 use lua51_deserializer::{
     argument::{Constant, Register, RegisterOrConstant},
     Function as BytecodeFunction, Instruction, Value,
 };
 
-use petgraph::{algo::dominators::simple_fast, stable_graph::NodeIndex, visit::EdgeRef, Direction};
-use restructure::post_dominators;
+use petgraph::{stable_graph::NodeIndex, visit::EdgeRef, Direction};
+
 use triomphe::Arc;
 
 pub struct Lifter<'a, 'b> {
