@@ -380,7 +380,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 write!(self.output, ")")
             }
             RValue::Literal(Literal::Number(n)) if n.is_nan() => {
-                assert_eq!(n.to_bits(), 0x7ff8000000000000);
+                // TODO: check that nan is appropriate for platform
+                // assert_eq!(n.to_bits(), 0x7ff8000000000000);
                 // TODO: only insert parentheses when necessary
                 write!(self.output, "(")?;
                 self.format_binary(&Binary::new(
