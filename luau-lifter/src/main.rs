@@ -11,9 +11,12 @@ use ast::{
 };
 
 use by_address::ByAddress;
-use cfg::ssa::{
-    self,
-    structuring::{structure_conditionals, structure_jumps},
+use cfg::{
+    function::Function,
+    ssa::{
+        self,
+        structuring::{structure_conditionals, structure_jumps},
+    },
 };
 use indexmap::IndexMap;
 
@@ -25,8 +28,10 @@ use parking_lot::Mutex;
 use petgraph::algo::dominators::simple_fast;
 use rayon::prelude::*;
 
+use anyhow::anyhow;
 use rustc_hash::FxHashMap;
 use triomphe::Arc;
+use walkdir::WalkDir;
 
 use std::{
     fs::File,
@@ -37,43 +42,103 @@ use std::{
 
 use deserializer::bytecode::Bytecode;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
+#[cfg(not(feature = "dhat-heap"))]
 #[global_allocator]
 static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Args {
-    // File path
-    #[clap(short, long)]
-    file: String,
-    // Number of threads to use (0 = use Rayon default)
+    paths: Vec<String>,
+    /// Number of threads to use (0 = automatic)
     #[clap(short, long, default_value_t = 0)]
     threads: usize,
+    /// op = op * key % 256
+    /// For Roblox client bytecode, use 203
+    #[clap(short, long, default_value_t = 1)]
+    key: u8,
+    #[clap(short, long)]
+    recursive: bool,
+    #[clap(short, long)]
+    verbose: bool,
 }
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
     let args = Args::parse();
     rayon::ThreadPoolBuilder::new()
         .num_threads(args.threads)
         .build_global()
         .unwrap();
 
-    let path = Path::new(&args.file);
+    args.paths
+        .into_par_iter()
+        .find_map_any(|path| -> Option<anyhow::Error> {
+            let path = Path::new(&path);
+            if path.is_dir() {
+                if args.recursive {
+                    WalkDir::new(path)
+                        .into_iter()
+                        .map(|f| f.unwrap())
+                        .filter(|e| !e.file_type().is_dir())
+                        .par_bridge()
+                        .find_map_any(|file| {
+                            let path = file.into_path();
+                            if args.verbose {
+                                println!("decompiling {}...", path.display());
+                            }
+                            if let Err(err) = decompile_file(&path, args.key) {
+                                return Some(err);
+                            }
+                            println!("decompiled {}", path.display());
+                            None
+                        })
+                } else {
+                    Some(anyhow!(
+                        "recursive flag must be passed to decompile directory"
+                    ))
+                }
+            } else if path.is_file() {
+                if args.verbose {
+                    println!("decompiling {}...", path.display());
+                }
+                if let Err(err) = decompile_file(path, args.key) {
+                    return Some(err);
+                }
+                println!("decompiled {}", path.display());
+                None
+            } else {
+                Some(anyhow!("path is not a valid file or directory"))
+            }
+        })
+        .map(Err)
+        .unwrap_or(Ok(()))
+}
+
+fn decompile_file(path: &Path, encode_key: u8) -> anyhow::Result<()> {
     let mut input = File::open(path)?;
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
-    let now = time::Instant::now();
-    let chunk = deserializer::deserialize(&buffer, false).unwrap();
-    let parsed = now.elapsed();
-    println!("parsing: {:?}", parsed);
-
+    let start = Instant::now();
+    let chunk = deserializer::deserialize(&buffer, encode_key).unwrap();
     match chunk {
-        Bytecode::Error(_msg) => {
-            println!("code did not compile");
+        Bytecode::Error(msg) => {
+            let duration = start.elapsed();
+            Err(anyhow!(
+                "script {} was compiled with an error (parsing took {:?}): {}",
+                path.display(),
+                duration,
+                msg
+            ))
         }
         Bytecode::Chunk(chunk) => {
-            let start = Instant::now();
             let mut lifted = Vec::new();
             let mut stack = vec![(Arc::<Mutex<ast::Function>>::default(), chunk.main)];
             while let Some((ast_func, func_id)) = stack.pop() {
@@ -86,82 +151,61 @@ fn main() -> anyhow::Result<()> {
             let (main, ..) = lifted.first().unwrap().clone();
             let mut upvalues = lifted
                 .into_par_iter()
-                .map(|(ast_function, mut function, upvalues_in)| {
-                    let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
-                        cfg::ssa::construct(&mut function, &upvalues_in);
-                    let upvalue_to_group = upvalue_in_groups
-                        .into_iter()
-                        .chain(
-                            upvalue_passed_groups
-                                .into_iter()
-                                .map(|m| (ast::RcLocal::default(), m)),
-                        )
-                        .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
-                        .collect::<IndexMap<_, _>>();
-                    // TODO: do we even need this?
-                    let local_to_group = local_groups
-                        .into_iter()
-                        .enumerate()
-                        .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
-                        .collect::<FxHashMap<_, _>>();
-                    // TODO: REFACTOR: some way to write a macro that states
-                    // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
-                    // structure_for_loops and remove_unnecessary_params must run again.
-                    // if structure_compound_conditionals results in change then dominators and post dominators
-                    // must be recalculated.
-                    // etc.
-                    // the macro could also maybe generate an optimal ordering?
-                    let mut changed = true;
-                    while changed {
-                        changed = false;
+                .map(|(ast_function, function, upvalues_in)| match () {
+                    #[cfg(feature = "panic-handled")]
+                    () => {
+                        use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic};
 
-                        let dominators = simple_fast(function.graph(), function.entry().unwrap());
-                        changed |= structure_jumps(&mut function, &dominators);
-
-                        ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
-
-                        if structure_conditionals(&mut function)
-                        // || {
-                        //     let post_dominators = post_dominators(function.graph_mut());
-                        //     structure_for_loops(&mut function, &dominators, &post_dominators)
-                        // }
-                        // we can't structure method calls like this because of __namecall
-                        // || structure_method_calls(&mut function)
-                        {
-                            changed = true;
+                        thread_local! {
+                            static BACKTRACE: RefCell<Option<Backtrace>> = RefCell::new(None);
                         }
-                        let mut local_map = FxHashMap::default();
-                        // TODO: loop until returns false?
-                        if ssa::construct::remove_unnecessary_params(&mut function, &mut local_map)
-                        {
-                            changed = true;
+
+                        let mut args = std::panic::AssertUnwindSafe(Some((
+                            ast_function.clone(),
+                            function,
+                            upvalues_in,
+                        )));
+
+                        let prev_hook = panic::take_hook();
+                        panic::set_hook(Box::new(|_| {
+                            let trace = Backtrace::capture();
+                            BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
+                        }));
+                        let result = panic::catch_unwind(move || {
+                            let (ast_function, function, upvalues_in) = args.take().unwrap();
+                            decompile_function(ast_function, function, upvalues_in)
+                        });
+                        panic::set_hook(prev_hook);
+
+                        match result {
+                            Ok(r) => r,
+                            Err(e) => {
+                                let panic_information = match e.downcast::<String>() {
+                                    Ok(v) => *v,
+                                    Err(e) => match e.downcast::<&str>() {
+                                        Ok(v) => v.to_string(),
+                                        _ => "Unknown Source of Error".to_owned(),
+                                    },
+                                };
+
+                                let mut message = String::new();
+                                writeln!(message, "panicked at '{}'", panic_information).unwrap();
+                                if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
+                                    write!(message, "stack backtrace:\n{}", backtrace).unwrap();
+                                }
+
+                                ast_function.lock().body.extend(
+                                    message
+                                        .trim_end()
+                                        .split('\n')
+                                        .map(|s| ast::Comment::new(s.to_string()).into()),
+                                );
+                                (ByAddress(ast_function), Vec::new())
+                            }
                         }
-                        ssa::construct::apply_local_map(&mut function, local_map);
                     }
-                    ssa::Destructor::new(
-                        &mut function,
-                        upvalue_to_group,
-                        upvalues_in.iter().cloned().collect(),
-                        local_count,
-                    )
-                    .destruct();
-
-                    let params = std::mem::take(&mut function.parameters);
-                    let is_variadic = function.is_variadic;
-                    let block = Arc::new(restructure::lift(function).into());
-                    LocalDeclarer::default().declare_locals(
-                        // TODO: why does block.clone() not work?
-                        Arc::clone(&block),
-                        &upvalues_in.iter().chain(params.iter()).cloned().collect(),
-                    );
-
-                    {
-                        let mut ast_function = ast_function.lock();
-                        ast_function.body = Arc::try_unwrap(block).unwrap().into_inner();
-                        ast_function.parameters = params;
-                        ast_function.is_variadic = is_variadic;
-                    }
-                    (ByAddress(ast_function), upvalues_in)
+                    #[cfg(not(feature = "panic-handled"))]
+                    () => decompile_function(ast_function, function, upvalues_in),
                 })
                 .collect::<FxHashMap<_, _>>();
 
@@ -177,10 +221,90 @@ fn main() -> anyhow::Result<()> {
             let mut out = File::create(path.with_extension("dec.u.lua").file_name().unwrap())?;
             writeln!(out, "-- decompiled by Sentinel (took {:?})", duration)?;
             writeln!(out, "{}", res)?;
+            Ok(())
         }
     }
+}
 
-    Ok(())
+fn decompile_function(
+    ast_function: Arc<Mutex<ast::Function>>,
+    mut function: Function,
+    upvalues_in: Vec<ast::RcLocal>,
+) -> (ByAddress<Arc<Mutex<ast::Function>>>, Vec<ast::RcLocal>) {
+    let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
+        cfg::ssa::construct(&mut function, &upvalues_in);
+    let upvalue_to_group = upvalue_in_groups
+        .into_iter()
+        .chain(
+            upvalue_passed_groups
+                .into_iter()
+                .map(|m| (ast::RcLocal::default(), m)),
+        )
+        .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
+        .collect::<IndexMap<_, _>>();
+    // TODO: do we even need this?
+    let local_to_group = local_groups
+        .into_iter()
+        .enumerate()
+        .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
+        .collect::<FxHashMap<_, _>>();
+    // TODO: REFACTOR: some way to write a macro that states
+    // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
+    // structure_for_loops and remove_unnecessary_params must run again.
+    // if structure_compound_conditionals results in change then dominators and post dominators
+    // must be recalculated.
+    // etc.
+    // the macro could also maybe generate an optimal ordering?
+    let mut changed = true;
+    while changed {
+        changed = false;
+
+        let dominators = simple_fast(function.graph(), function.entry().unwrap());
+        changed |= structure_jumps(&mut function, &dominators);
+
+        ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
+
+        if structure_conditionals(&mut function)
+        // || {
+        //     let post_dominators = post_dominators(function.graph_mut());
+        //     structure_for_loops(&mut function, &dominators, &post_dominators)
+        // }
+        // we can't structure method calls like this because of __namecall
+        // || structure_method_calls(&mut function)
+        {
+            changed = true;
+        }
+        let mut local_map = FxHashMap::default();
+        // TODO: loop until returns false?
+        if ssa::construct::remove_unnecessary_params(&mut function, &mut local_map) {
+            changed = true;
+        }
+        ssa::construct::apply_local_map(&mut function, local_map);
+    }
+    ssa::Destructor::new(
+        &mut function,
+        upvalue_to_group,
+        upvalues_in.iter().cloned().collect(),
+        local_count,
+    )
+    .destruct();
+
+    let params = std::mem::take(&mut function.parameters);
+    let is_variadic = function.is_variadic;
+    let block = Arc::new(restructure::lift(function).into());
+    LocalDeclarer::default().declare_locals(
+        // TODO: why does block.clone() not work?
+        Arc::clone(&block),
+        &upvalues_in.iter().chain(params.iter()).cloned().collect(),
+    );
+
+    {
+        let mut ast_function = ast_function.lock();
+        ast_function.body = Arc::try_unwrap(block).unwrap().into_inner();
+        ast_function.parameters = params;
+        ast_function.is_variadic = is_variadic;
+    }
+    (ByAddress(ast_function), upvalues_in)
 }
 
 fn link_upvalues(
@@ -190,7 +314,7 @@ fn link_upvalues(
     for stat in &mut body.0 {
         stat.traverse_rvalues(&mut |rvalue| {
             if let ast::RValue::Closure(closure) = rvalue {
-                let old_upvalues = upvalues.remove(&closure.function).unwrap();
+                let old_upvalues = &upvalues[&closure.function];
                 let mut function = closure.function.lock();
                 // TODO: inefficient, try constructing a map of all up -> new up first
                 // and then call replace_locals on main body

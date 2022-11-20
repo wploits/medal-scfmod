@@ -29,4 +29,4 @@ parking_lot = "0.12.1"
 
 [features]
 dhat-heap = []
-panic_handled = []
+panic-handled = []

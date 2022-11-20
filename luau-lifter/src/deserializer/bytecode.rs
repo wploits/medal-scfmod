@@ -9,7 +9,7 @@ pub enum Bytecode {
 }
 
 impl Bytecode {
-    pub fn parse(input: &[u8], use_rbx_encoding: bool) -> IResult<&[u8], Bytecode> {
+    pub fn parse(input: &[u8], encode_key: u8) -> IResult<&[u8], Bytecode> {
         let (input, status_code) = le_u8(input)?;
         match status_code {
             0 => {
@@ -20,7 +20,7 @@ impl Bytecode {
                 ))
             }
             3 => {
-                let (input, chunk) = Chunk::parse(input, use_rbx_encoding)?;
+                let (input, chunk) = Chunk::parse(input, encode_key)?;
                 Ok((input, Bytecode::Chunk(chunk)))
             }
             _ => panic!("Unsupported bytecode version"),

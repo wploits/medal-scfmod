@@ -13,8 +13,8 @@ fn parse_string(input: &[u8]) -> IResult<&[u8], Vec<u8>> {
     Ok((input, bytes.to_owned()))
 }
 
-pub fn deserialize(bytecode: &[u8], use_rbx_encoding: bool) -> Result<bytecode::Bytecode, String> {
-    match bytecode::Bytecode::parse(bytecode, use_rbx_encoding) {
+pub fn deserialize(bytecode: &[u8], encode_key: u8) -> Result<bytecode::Bytecode, String> {
+    match bytecode::Bytecode::parse(bytecode, encode_key) {
         Ok((_, deserialized_bytecode)) => Ok(deserialized_bytecode),
         Err(err) => Err(err.to_string()),
     }
