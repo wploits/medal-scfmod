@@ -873,8 +873,10 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
                     .dominators(jump_target)
                     .map(|mut d| d.contains(&node))
                     .unwrap_or(false)
+                // TODO: remove args or smthn idk
+                && function.graph().edge_weight(jump_edge).unwrap().arguments.is_empty()
             {
-                assert!(function.graph().edge_weight(jump_edge).unwrap().arguments.is_empty());
+                // assert!(function.graph().edge_weight(jump_edge).unwrap().arguments.is_empty());
                 let edges = function.remove_edges(jump_target);
                 let body = function.remove_block(jump_target).unwrap();
                 if &Some(jump_target) == function.entry() {
