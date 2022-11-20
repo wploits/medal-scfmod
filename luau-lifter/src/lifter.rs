@@ -1242,13 +1242,22 @@ impl<'a> Lifter<'a> {
             }
         }
 
+        let last_index = iter
+            .next()
+            .map(|(i, _)| block_start + i - 1)
+            .unwrap_or(block_end);
         if edges.is_empty()
-            && !Self::is_terminator(self.function_list[self.function].instructions[block_end])
+            && !Self::is_terminator(self.function_list[self.function].instructions[last_index])
         {
-            edges.push((
-                self.block_to_node(block_end + 1),
-                BlockEdge::new(BranchType::Unconditional),
-            ));
+            if last_index + 1 == self.function_list[self.function].instructions.len() {
+                statements
+                    .push(ast::Comment::new("warning: block does not return".to_string()).into());
+            } else {
+                edges.push((
+                    self.block_to_node(last_index + 1),
+                    BlockEdge::new(BranchType::Unconditional),
+                ));
+            }
         }
 
         (statements, edges)
