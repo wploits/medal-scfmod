@@ -561,7 +561,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             let left = &assign.left[0];
             // TODO: check if index string is a valid name
             // also `function (nil).a() end`, it must be valid named locals/globals/indices throughout
-            if assign.prefix || left.as_global().is_some() || left.as_index().is_some_and(|i| i.right.as_literal().is_some_and(|l| l.as_string().is_some())) {
+            if assign.prefix || left.as_global().is_some() || left.as_index().is_some_and(|i| (i.left.as_index().is_some() || i.left.as_global().is_some() || i.left.as_local().is_some()) && i.right.as_literal().is_some_and(|l| l.as_string().is_some())) {
                 return self.format_named_function(left, closure);
             }
         }
