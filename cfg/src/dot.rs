@@ -36,6 +36,11 @@ impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for FunctionLabeller<'a> {
 
     fn node_label<'b>(&'b self, n: &NodeIndex) -> dot::LabelText<'b> {
         let block = self.function.block(*n).unwrap();
+        let prefix = if self.function.entry() == &Some(*n) {
+            "entry"
+        } else {
+            ""
+        };
         dot::LabelText::LabelStr(
             block
                 .iter()
@@ -53,7 +58,9 @@ impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for FunctionLabeller<'a> {
                 .join("\n")
                 .into(),
         )
-        .prefix_line(dot::LabelText::LabelStr(n.index().to_string().into()))
+        .prefix_line(dot::LabelText::LabelStr(
+            format!("{} {}", n.index(), prefix).into(),
+        ))
     }
 
     fn edge_label<'b>(&'b self, e: &EdgeIndex) -> dot::LabelText<'b> {
