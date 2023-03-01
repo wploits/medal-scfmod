@@ -37,7 +37,7 @@ use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
-    time::{self, Instant},
+    time::{Instant},
 };
 
 use deserializer::bytecode::Bytecode;
@@ -96,7 +96,9 @@ fn main() -> anyhow::Result<()> {
                             if let Err(err) = decompile_file(&path, args.key) {
                                 return Some(err);
                             }
-                            println!("decompiled {}", path.display());
+                            if args.verbose {
+                                println!("decompiled {}", path.display());
+                            }
                             None
                         })
                 } else {
@@ -111,7 +113,9 @@ fn main() -> anyhow::Result<()> {
                 if let Err(err) = decompile_file(path, args.key) {
                     return Some(err);
                 }
-                println!("decompiled {}", path.display());
+                if args.verbose {
+                    println!("decompiled {}", path.display());
+                }
                 None
             } else {
                 Some(anyhow!("path is not a valid file or directory"))

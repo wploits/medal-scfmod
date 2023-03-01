@@ -559,9 +559,29 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             && let RValue::Closure(closure) = &assign.right[0]
         {
             let left = &assign.left[0];
-            // TODO: check if index string is a valid name
-            // also `function (nil).a() end`, it must be valid named locals/globals/indices throughout
-            if assign.prefix || left.as_global().is_some() || left.as_index().is_some_and(|i| (i.left.as_index().is_some() || i.left.as_global().is_some() || i.left.as_local().is_some()) && i.right.as_literal().is_some_and(|l| l.as_string().is_some())) {
+            if assign.prefix || left.as_global().is_some() || {
+                if let LValue::Index(ref index) = left {
+                    let mut index = index;
+                    let mut valid = true;
+                    loop {
+                        if let box RValue::Literal(Literal::String(ref key)) = &index.right
+                            && Self::is_valid_name(key)
+                        {
+                            match index.left {
+                                box RValue::Index(ref i) => { index = i; continue },
+                                box RValue::Global(_) | box RValue::Local(_) => {},
+                                _ => valid = false,
+                            }
+                        } else {
+                            valid = false;
+                        }
+                        break;
+                    }
+                    valid
+                } else {
+                    false
+                }
+            } {
                 return self.format_named_function(left, closure);
             }
         }
