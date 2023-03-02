@@ -37,7 +37,7 @@ use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
-    time::{Instant},
+    time::Instant,
 };
 
 use deserializer::bytecode::Bytecode;
