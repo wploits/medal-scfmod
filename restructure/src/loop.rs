@@ -86,7 +86,16 @@ impl GraphStructurer {
                 .count()
                 != 1
             {
-                return false;
+                std::mem::swap(&mut next, &mut body);
+                if self
+                    .function
+                    .predecessor_blocks(body)
+                    .filter(|&p| p != body)
+                    .count()
+                    != 1
+                {
+                    return false;
+                }
             }
 
             let continues = self
