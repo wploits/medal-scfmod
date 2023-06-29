@@ -145,8 +145,7 @@ impl<'a> Inliner<'a> {
                     for value_written in block[stat_index].values_written() {
                         if self.upvalue_to_group.contains_key(value_written) {
                             // TODO: set allow_side_effects to false instead
-                            index += 1;
-                            continue 'w;
+                            allow_side_effects = false;
                         }
                     }
 
@@ -172,7 +171,7 @@ impl<'a> Inliner<'a> {
                     if let ast::Statement::Assign(assign) = &block[stat_index]
                         && let Ok(new_rvalue) = assign.right.iter().exactly_one()
                     {
-                        let new_rvalue_has_side_effects = new_rvalue.has_side_effects();
+                        let new_rvalue_has_side_effects = new_rvalue.has_side_effects() || new_rvalue.values_read().iter().any(|v| self.upvalue_to_group.contains_key(*v));
                         if !new_rvalue_has_side_effects || allow_side_effects {
                             if let Ok(ast::LValue::Local(local)) = &assign.left.iter().exactly_one()
                                 && let Some(read) = stat_to_values_read[index]
@@ -348,7 +347,7 @@ impl<'a> Inliner<'a> {
                         if let ast::Statement::Assign(assign) = &block[stat_index]
                             && let Ok(new_rvalue) = assign.right.iter().exactly_one()
                         {
-                            let new_rvalue_has_side_effects = new_rvalue.has_side_effects();
+                            let new_rvalue_has_side_effects = new_rvalue.has_side_effects() || new_rvalue.values_read().iter().any(|v| self.upvalue_to_group.contains_key(*v));
                             if !new_rvalue_has_side_effects && let Ok(ast::LValue::Local(local)) = &assign.left.iter().exactly_one() && let Some(read) = arg_to_values_read[index]
                                     .iter_mut()
                                     .find(|l| l.as_ref() == Some(local)) {
