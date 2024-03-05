@@ -1,6 +1,7 @@
+use core::num;
+
 use nom::{
-    number::complete::{le_u32, le_u8},
-    IResult,
+    complete::take, number::complete::{le_u32, le_u8}, IResult
 };
 use nom_leb128::leb128_usize;
 
@@ -111,6 +112,11 @@ impl Function {
         let (input, num_parameters) = le_u8(input)?;
         let (input, num_upvalues) = le_u8(input)?;
         let (input, is_vararg) = le_u8(input)?;
+
+
+        let (input, flags) = le_u8(input)?;
+        let (input, _) = parse_list(input, le_u8)?;
+        
         let (input, u32_instructions) = parse_list(input, le_u32)?;
         //let (input, instructions) = parse_list(input, Function::parse_instrution)?;
         let instructions = Self::parse_instructions(&u32_instructions, encode_key);
@@ -145,10 +151,23 @@ impl Function {
                 (input, Some(abs_line_info_delta))
             }
         };
-        let (input, has_debug_info) = le_u8(input)?;
-        if has_debug_info != 0 {
-            unimplemented!();
-        }
+        let input = match le_u8(input)? {
+            (input, 0) => input,
+            (input, _) => {
+                let (mut input, num_locvars) = leb128_usize(input)?;
+                for _ in 0..num_locvars {
+                    (input, _) = leb128_usize(input)?;
+                    (input, _) = leb128_usize(input)?;
+                    (input, _) = leb128_usize(input)?;
+                    (input, _) = le_u8(input)?;
+                }
+                let (mut input, num_upvalues) = leb128_usize(input)?;
+                for _ in 0..num_upvalues {
+                    (input, _) = leb128_usize(input)?;
+                }
+                input
+            }
+        };
         Ok((
             input,
             Self {

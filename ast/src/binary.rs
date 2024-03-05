@@ -21,6 +21,7 @@ pub enum BinaryOperation {
     GreaterThan,
     And,
     Or,
+    IDiv,
 }
 
 impl BinaryOperation {
@@ -58,6 +59,7 @@ impl fmt::Display for BinaryOperation {
                 BinaryOperation::GreaterThan => ">",
                 BinaryOperation::And => "and",
                 BinaryOperation::Or => "or",
+                BinaryOperation::IDiv => "//",
             }
         )
     }
@@ -287,6 +289,7 @@ impl Binary {
             | BinaryOperation::NotEqual => 3,
             BinaryOperation::And => 2,
             BinaryOperation::Or => 1,
+            BinaryOperation::IDiv => 6,
         }
     }
 }

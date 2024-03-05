@@ -422,7 +422,8 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_MUL
                     | OpCode::LOP_DIV
                     | OpCode::LOP_MOD
-                    | OpCode::LOP_POW => {
+                    | OpCode::LOP_POW
+                    | OpCode::LOP_IDIV => {
                         let op = match op_code {
                             OpCode::LOP_ADD => ast::BinaryOperation::Add,
                             OpCode::LOP_SUB => ast::BinaryOperation::Sub,
@@ -430,6 +431,7 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_DIV => ast::BinaryOperation::Div,
                             OpCode::LOP_MOD => ast::BinaryOperation::Mod,
                             OpCode::LOP_POW => ast::BinaryOperation::Pow,
+                            OpCode::LOP_IDIV => ast::BinaryOperation::IDiv,
                             _ => unreachable!(),
                         };
                         let target = self.register(a as _);
@@ -448,7 +450,8 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_MULK
                     | OpCode::LOP_DIVK
                     | OpCode::LOP_MODK
-                    | OpCode::LOP_POWK => {
+                    | OpCode::LOP_POWK
+                    | OpCode::LOP_IDIVK => {
                         let op = match op_code {
                             OpCode::LOP_ADDK => ast::BinaryOperation::Add,
                             OpCode::LOP_SUBK => ast::BinaryOperation::Sub,
@@ -456,6 +459,7 @@ impl<'a> Lifter<'a> {
                             OpCode::LOP_DIVK => ast::BinaryOperation::Div,
                             OpCode::LOP_MODK => ast::BinaryOperation::Mod,
                             OpCode::LOP_POWK => ast::BinaryOperation::Pow,
+                            OpCode::LOP_IDIVK => ast::BinaryOperation::IDiv,
                             _ => unreachable!(),
                         };
                         let target = self.register(a as _);

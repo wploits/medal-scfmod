@@ -85,6 +85,10 @@ LOP_FASTCALL2, abc aux
 LOP_FASTCALL2K, abc aux
 LOP_FORGPREP, ad
 
+LOP_IDIV, abc
+
+store aud mh
+
 */
 
 #[derive(Debug, Clone, Copy)]
@@ -127,7 +131,9 @@ impl Instruction {
             | 66
             | 68
             | 70
-            | 73..=75 => {
+            | 73..=75
+            | 81
+            | 82  => {
                 let (a, b, c) = Self::parse_abc(insn);
 
                 Ok(Self::BC {
@@ -156,7 +162,14 @@ impl Instruction {
                     e,
                 })
             }
-            _ => unreachable!(),
+            97 => Ok(Self::BC {
+                op_code: OpCode::try_from(0).unwrap(),
+                a: 0,
+                b: 0,
+                c: 0,
+                aux: 0,
+            }),
+            _ => unreachable!("{}", op_code),
         }
     }
 

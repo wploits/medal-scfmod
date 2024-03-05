@@ -25,7 +25,7 @@ pub enum OpCode {
     // D: value (-32768..32767)
     LOP_LOADN,
 
-    // LOADK: sets register to an entry from the constant table from the proto (number/string)
+    // LOADK: sets register to an entry from the constant table from the proto (number/vector/string)
     // A: target register
     // D: constant table index (0..32767)
     LOP_LOADK,
@@ -49,12 +49,12 @@ pub enum OpCode {
 
     // GETUPVAL: load upvalue from the upvalue table for the current function
     // A: target register
-    // B: upvalue index (0..255)
+    // B: upvalue index
     LOP_GETUPVAL,
 
     // SETUPVAL: store value into the upvalue table for the current function
     // A: target register
-    // B: upvalue index (0..255)
+    // B: upvalue index
     LOP_SETUPVAL,
 
     // CLOSEUPVALS: close (migrate to heap) all upvalues that were captured for registers >= target
@@ -150,7 +150,7 @@ pub enum OpCode {
 
     // JUMPIFEQ, JUMPIFLE, JUMPIFLT, JUMPIFNOTEQ, JUMPIFNOTLE, JUMPIFNOTLT: jumps to target offset if the comparison is true (or false, for NOT variants)
     // A: source register 1
-    // D: jump offset (-32768..32767; 0 means "next instruction" aka "don't jump")
+    // D: jump offset (-32768..32767; 1 means "next instruction" aka "don't jump")
     // AUX: source register 2
     LOP_JUMPIFEQ,
     LOP_JUMPIFLE,
@@ -173,7 +173,7 @@ pub enum OpCode {
     // ADDK, SUBK, MULK, DIVK, MODK, POWK: compute arithmetic operation between the source register and a constant and put the result into target register
     // A: target register
     // B: source register
-    // C: constant table index (0..255)
+    // C: constant table index (0..255); must refer to a number
     LOP_ADDK,
     LOP_SUBK,
     LOP_MULK,
@@ -256,8 +256,9 @@ pub enum OpCode {
     // A: target register (see FORGLOOP for register layout)
     LOP_FORGPREP_NEXT,
 
-    // removed in v3
-    LOP_DEP_FORGLOOP_NEXT,
+    // NATIVECALL: start executing new function in native code
+    // this is a pseudo-instruction that is never emitted by bytecode compiler, but can be constructed at runtime to accelerate native code dispatch
+    LOP_NATIVECALL,
 
     // GETVARARGS: copy variables into the target register from vararg storage for current function
     // A: target register
@@ -301,9 +302,12 @@ pub enum OpCode {
     // B: source register (for VAL/REF) or upvalue index (for UPVAL/UPREF)
     LOP_CAPTURE,
 
-    // removed in v3
-    LOP_DEP_JUMPIFEQK,
-    LOP_DEP_JUMPIFNOTEQK,
+    // SUBRK, DIVRK: compute arithmetic operation between the constant and a source register and put the result into target register
+    // A: target register
+    // B: source register
+    // C: constant table index (0..255); must refer to a number
+    LOP_SUBRK,
+    LOP_DIVRK,
 
     // FASTCALL1: perform a fast call of a built-in function using 1 register argument
     // A: builtin function id (see LuauBuiltinFunction)
@@ -332,15 +336,30 @@ pub enum OpCode {
 
     // JUMPXEQKNIL, JUMPXEQKB: jumps to target offset if the comparison with constant is true (or false, see AUX)
     // A: source register 1
-    // D: jump offset (-32768..32767; 0 means "next instruction" aka "don't jump")
+    // D: jump offset (-32768..32767; 1 means "next instruction" aka "don't jump")
     // AUX: constant value (for boolean) in low bit, NOT flag (that flips comparison result) in high bit
     LOP_JUMPXEQKNIL,
     LOP_JUMPXEQKB,
 
     // JUMPXEQKN, JUMPXEQKS: jumps to target offset if the comparison with constant is true (or false, see AUX)
     // A: source register 1
-    // D: jump offset (-32768..32767; 0 means "next instruction" aka "don't jump")
+    // D: jump offset (-32768..32767; 1 means "next instruction" aka "don't jump")
     // AUX: constant table index in low 24 bits, NOT flag (that flips comparison result) in high bit
     LOP_JUMPXEQKN,
     LOP_JUMPXEQKS,
+
+    // IDIV: compute floor division between two source registers and put the result into target register
+    // A: target register
+    // B: source register 1
+    // C: source register 2
+    LOP_IDIV,
+
+    // IDIVK compute floor division between the source register and a constant and put the result into target register
+    // A: target register
+    // B: source register
+    // C: constant table index (0..255)
+    LOP_IDIVK,
+
+    // Enum entry for number of opcodes, not a valid opcode by itself!
+    LOP__COUNT
 }
