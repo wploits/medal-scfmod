@@ -722,6 +722,23 @@ impl<'a> Lifter<'a> {
                         }
                     }
                     OpCode::LOP_NOP => {}
+                    OpCode::LOP_SUBRK | OpCode::LOP_DIVRK => {
+                        let op = match op_code {
+                            OpCode::LOP_SUBRK => ast::BinaryOperation::Sub,
+                            OpCode::LOP_DIVRK => ast::BinaryOperation::Div,
+                            _ => unreachable!(),
+                        };
+                        let target = self.register(a as _);
+                        let left = self.constant(b as _);
+                        let right = self.register(c as _);
+                        statements.push(
+                            ast::Assign::new(
+                                vec![target.into()],
+                                vec![ast::Binary::new(left.into(), right.into(), op).into()],
+                            )
+                            .into(),
+                        );
+                    }
                     _ => unimplemented!("{:?}", instruction),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
