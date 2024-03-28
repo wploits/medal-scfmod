@@ -1,6 +1,6 @@
 use super::list::parse_list;
 use nom::{
-    number::complete::{le_f64, le_u32, le_u8},
+    number::complete::{le_f32, le_f64, le_u32, le_u8},
     IResult,
 };
 use nom_leb128::leb128_usize;
@@ -12,6 +12,7 @@ const CONSTANT_STRING: u8 = 3;
 const CONSTANT_IMPORT: u8 = 4;
 const CONSTANT_TABLE: u8 = 5;
 const CONSTANT_CLOSURE: u8 = 6;
+const CONSTANT_VECTOR: u8 = 7;
 
 #[derive(Debug)]
 pub enum Constant {
@@ -22,6 +23,7 @@ pub enum Constant {
     Import(usize),
     Table(Vec<usize>),
     Closure(usize),
+    Vector(f32, f32, f32, f32),
 }
 
 impl Constant {
@@ -53,7 +55,14 @@ impl Constant {
                 let (input, f_id) = leb128_usize(input)?;
                 Ok((input, Constant::Closure(f_id)))
             }
-            _ => panic!(),
+            CONSTANT_VECTOR => {
+                let (input, x) = le_f32(input)?;
+                let (input, y) = le_f32(input)?;
+                let (input, z) = le_f32(input)?;
+                let (input, w) = le_f32(input)?;
+                Ok((input, Constant::Vector(x, y, z, w)))
+            }
+            _ => panic!("{}", tag),
         }
     }
 }

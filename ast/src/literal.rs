@@ -13,6 +13,7 @@ pub enum Literal {
     Boolean(bool),
     Number(f64),
     String(Vec<u8>),
+    Vector(f32, f32, f32),
 }
 
 impl Reduce for Literal {
@@ -23,7 +24,7 @@ impl Reduce for Literal {
     fn reduce_condition(self) -> crate::RValue {
         Literal::Boolean(match self {
             Literal::Boolean(false) | Literal::Nil => false,
-            Literal::Boolean(true) | Literal::Number(_) | Literal::String(_) => true,
+            Literal::Boolean(true) | Literal::Number(_) | Literal::String(_) | Literal::Vector(..) => true,
         })
         .into()
     }
@@ -36,6 +37,7 @@ impl Infer for Literal {
             Literal::Boolean(_) => Type::Boolean,
             Literal::Number(_) => Type::Number,
             Literal::String(_) => Type::String,
+            Literal::Vector(..) => Type::Vector,
         }
     }
 }
@@ -73,6 +75,7 @@ impl fmt::Display for Literal {
                     Formatter::<fmt::Formatter>::escape_string(value)
                 )
             }
+            Literal::Vector(x, y, z) => write!(f, "Vector3.new({}, {}, {})", x, y, z),
         }
     }
 }

@@ -132,7 +132,7 @@ impl<'a> Lifter<'a> {
         self.lifted_function.set_entry(entry_node);
     }
 
-    fn discover_blocks(&mut self) -> Result<()> {
+    fn discover_blocks(&mut self) -> Result<()> {   
         self.blocks.insert(0, self.lifted_function.new_block());
         for (insn_index, insn) in self.function_list[self.function]
             .instructions
@@ -1304,6 +1304,7 @@ impl<'a> Lifter<'a> {
                 // TODO: what does the official deserializer do if v == 0?
                 ast::Literal::String(self.string_table[*v - 1].clone())
             }
+            BytecodeConstant::Vector(x, y , z , _) => ast::Literal::Vector(*x, *y, *z),
             _ => unimplemented!(),
         };
         self.constant_map

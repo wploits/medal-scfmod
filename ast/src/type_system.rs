@@ -22,6 +22,7 @@ pub enum Type {
     Union(BTreeSet<Type>),
     Intersection(BTreeSet<Type>),
     VarArg,
+    Vector
 }
 
 impl Type {
@@ -70,6 +71,7 @@ impl Type {
             Self::Union(_) => 2,
             Self::Intersection(_) => 2,
             Self::VarArg => 0,
+            Self::Vector => 0,
         }
     }
 }
@@ -121,6 +123,7 @@ impl Display for Type {
                     Cow::Owned(types.iter().join(" & "))
                 }
                 Type::VarArg => Cow::Borrowed("..."),
+                Type::Vector => Cow::Borrowed("vector"),
             }
         )
     }
