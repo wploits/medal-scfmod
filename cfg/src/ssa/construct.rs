@@ -403,7 +403,8 @@ impl<'a> SsaConstructor<'a> {
             {
                 let block = self.function.block_mut(node).unwrap();
                 let assign = block[index].as_assign().unwrap();
-                if assign.left.len() == 1 && assign.right.len() == 1
+                if assign.left.len() == 1
+                    && assign.right.len() == 1
                     && let Some(from) = assign.left[0].as_local()
                     && let from_old = &self.old_locals[from]
                     && !self.new_upvalues_in.contains_key(from_old)
@@ -415,7 +416,9 @@ impl<'a> SsaConstructor<'a> {
                         to = to_to;
                     }
                     let to_old = &self.old_locals[to];
-                    if !self.new_upvalues_in.contains_key(to_old) && !self.upvalues_passed.contains_key(to_old) {
+                    if !self.new_upvalues_in.contains_key(to_old)
+                        && !self.upvalues_passed.contains_key(to_old)
+                    {
                         self.local_map.insert(from.clone(), to.clone());
                         block[index] = ast::Empty {}.into();
                     }
@@ -538,10 +541,10 @@ impl<'a> SsaConstructor<'a> {
                     self.read(node, stat_index);
                 } else {
                     let written = statement
-                    .values_written()
-                    .into_iter()
-                    .cloned()
-                    .collect::<Vec<_>>();
+                        .values_written()
+                        .into_iter()
+                        .cloned()
+                        .collect::<Vec<_>>();
                     self.read(node, stat_index);
                     // write
                     for (local_index, local) in written.iter().enumerate() {

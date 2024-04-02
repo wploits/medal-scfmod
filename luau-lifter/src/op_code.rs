@@ -361,5 +361,5 @@ pub enum OpCode {
     LOP_IDIVK,
 
     // Enum entry for number of opcodes, not a valid opcode by itself!
-    LOP__COUNT
+    LOP__COUNT,
 }

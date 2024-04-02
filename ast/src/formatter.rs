@@ -451,7 +451,10 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                         let mut buffer = itoa::Buffer::new();
                         let printed = buffer.format(c);
                         owned.push('\\');
-                        if printed.len() != 3 && let Some((_, next)) = iter.peek() && next.is_ascii_digit() {
+                        if printed.len() != 3
+                            && let Some((_, next)) = iter.peek()
+                            && next.is_ascii_digit()
+                        {
                             owned.extend(iter::repeat('0').take(3 - printed.len()));
                         }
                         owned.push_str(printed);
@@ -555,7 +558,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             write!(self.output, "local ")?;
         }
 
-        if assign.left.len() == 1 && assign.right.len() == 1
+        if assign.left.len() == 1
+            && assign.right.len() == 1
             && let RValue::Closure(closure) = &assign.right[0]
         {
             let left = &assign.left[0];
@@ -568,8 +572,11 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                             && Self::is_valid_name(key)
                         {
                             match index.left {
-                                box RValue::Index(ref i) => { index = i; continue },
-                                box RValue::Global(_) | box RValue::Local(_) => {},
+                                box RValue::Index(ref i) => {
+                                    index = i;
+                                    continue;
+                                }
+                                box RValue::Global(_) | box RValue::Local(_) => {}
                                 _ => valid = false,
                             }
                         } else {

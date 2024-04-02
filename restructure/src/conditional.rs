@@ -22,7 +22,9 @@ impl GraphStructurer {
         let mut else_block = if_stat.else_block.lock();
         let then_return = then_block.last().and_then(|x| x.as_return());
         let else_return = else_block.last().and_then(|x| x.as_return());
-        if let Some(then_return) = then_return && let Some(else_return) = else_return {
+        if let Some(then_return) = then_return
+            && let Some(else_return) = else_return
+        {
             if then_return.values.is_empty() && else_return.values.is_empty() {
                 then_block.pop();
                 else_block.pop();
@@ -30,16 +32,23 @@ impl GraphStructurer {
             } else if !then_return.values.is_empty() && else_return.values.is_empty() {
                 Some(std::mem::take(&mut else_block))
             } else if then_return.values.is_empty() && !else_return.values.is_empty() {
-                let then_block = std::mem::replace::<ast::Block>(&mut then_block, std::mem::take(&mut else_block));
+                let then_block = std::mem::replace::<ast::Block>(
+                    &mut then_block,
+                    std::mem::take(&mut else_block),
+                );
                 // TODO: unnecessary clone (also other cases)
                 if_stat.condition =
-                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not).reduce_condition();
+                    ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
+                        .reduce_condition();
                 Some(then_block)
             } else {
                 match then_block.len().cmp(&else_block.len()) {
                     std::cmp::Ordering::Less => Some(std::mem::take(&mut else_block)),
                     std::cmp::Ordering::Greater => {
-                        let then_block = std::mem::replace::<ast::Block>(&mut then_block, std::mem::take(&mut else_block));
+                        let then_block = std::mem::replace::<ast::Block>(
+                            &mut then_block,
+                            std::mem::take(&mut else_block),
+                        );
                         if_stat.condition =
                             ast::Unary::new(if_stat.condition.clone(), ast::UnaryOperation::Not)
                                 .reduce_condition();

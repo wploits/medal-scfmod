@@ -22,7 +22,7 @@ pub enum Type {
     Union(BTreeSet<Type>),
     Intersection(BTreeSet<Type>),
     VarArg,
-    Vector
+    Vector,
 }
 
 impl Type {

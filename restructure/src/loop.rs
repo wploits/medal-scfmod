@@ -124,15 +124,26 @@ impl GraphStructurer {
                 );
             if let Some(new_next) = common_post_doms.into_iter().find(|&p| {
                 self.function.has_block(p)
-                && continues.iter().all(|&n| post_dom.dominators(n).unwrap().contains(&p))
-            }) && new_next != next {
+                    && continues
+                        .iter()
+                        .all(|&n| post_dom.dominators(n).unwrap().contains(&p))
+            }) && new_next != next
+            {
                 // TODO: this is uh, yeah
                 next = new_next;
                 let condition_block = self.function.new_block();
                 body = condition_block;
                 let mut new_header_block = ast::Block::default();
-                new_header_block.push(ast::If::new(ast::Literal::Boolean(true).into(), ast::Block::default(), ast::Block::default()).into());
-                *self.function.block_mut(condition_block).unwrap() = std::mem::replace(self.function.block_mut(header).unwrap(), new_header_block);
+                new_header_block.push(
+                    ast::If::new(
+                        ast::Literal::Boolean(true).into(),
+                        ast::Block::default(),
+                        ast::Block::default(),
+                    )
+                    .into(),
+                );
+                *self.function.block_mut(condition_block).unwrap() =
+                    std::mem::replace(self.function.block_mut(header).unwrap(), new_header_block);
                 let edges = self.function.remove_edges(header);
                 self.function.set_edges(condition_block, edges);
                 self.function.set_edges(

@@ -71,8 +71,8 @@ fn main() -> anyhow::Result<()> {
     decompile_file(Path::new(&args.paths[0]), args.key)
 }
 
-pub fn decompile_bytecode(bytecode: &str, encode_key: u8) -> String {
-    let chunk = deserializer::deserialize(bytecode.as_bytes(), encode_key).unwrap();
+pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
+    let chunk = deserializer::deserialize(bytecode, encode_key).unwrap();
     match chunk {
         Bytecode::Error(msg) => return msg,
         Bytecode::Chunk(chunk) => {
@@ -88,9 +88,9 @@ pub fn decompile_bytecode(bytecode: &str, encode_key: u8) -> String {
             let (main, ..) = lifted.first().unwrap().clone();
             let mut upvalues = lifted
                 .into_par_iter()
-                .map(|(ast_function, function, upvalues_in)|
+                .map(|(ast_function, function, upvalues_in)| {
                     decompile_function(ast_function, function, upvalues_in)
-                )
+                })
                 .collect::<FxHashMap<_, _>>();
 
             let main = ByAddress(main);
@@ -109,7 +109,10 @@ fn decompile_file(path: &Path, encode_key: u8) -> anyhow::Result<()> {
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
-    println!("{}", decompile_bytecode(unsafe { &String::from_utf8_unchecked(buffer) }, encode_key));
+    println!(
+        "{}",
+        decompile_bytecode(&buffer , encode_key)
+    );
     Ok(())
 }
 

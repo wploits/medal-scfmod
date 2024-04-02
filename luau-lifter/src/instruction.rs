@@ -133,7 +133,7 @@ impl Instruction {
             | 70
             | 71..=75
             | 81
-            | 82  => {
+            | 82 => {
                 let (a, b, c) = Self::parse_abc(insn);
 
                 Ok(Self::BC {

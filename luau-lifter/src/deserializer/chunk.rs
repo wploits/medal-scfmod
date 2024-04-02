@@ -1,7 +1,7 @@
 use super::{function::Function, list::parse_list, parse_string};
+use nom::number::complete::le_u8;
 use nom::IResult;
 use nom_leb128::leb128_usize;
-use nom::number::complete::le_u8;
 
 #[derive(Debug)]
 pub struct Chunk {

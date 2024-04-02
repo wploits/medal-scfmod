@@ -6,7 +6,7 @@ members = [
     "lua51-deserializer",
     "luau-lifter",
     "restructure",
-    "pattern", "luau-worker",
+    "pattern", "luau-worker", "luau-webserver",
 ]
 
 [workspace.package]

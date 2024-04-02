@@ -107,7 +107,11 @@ fn pattern_internal(input: TokenStream) -> TokenStream {
                         && punct.as_char() == '&'
                     {
                         iter.next();
-                        Some(as_token!(iter.next().unwrap(), TokenTree::Ident).unwrap().to_string())
+                        Some(
+                            as_token!(iter.next().unwrap(), TokenTree::Ident)
+                                .unwrap()
+                                .to_string(),
+                        )
                     } else {
                         None
                     };

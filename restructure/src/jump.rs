@@ -28,16 +28,15 @@ impl super::GraphStructurer {
             let new_stat = match cond {
                 ast::RValue::Call(call) => Some(call.into()),
                 ast::RValue::MethodCall(method_call) => Some(method_call.into()),
-                cond if cond.has_side_effects() => {
-                    Some(ast::Assign {
-                            left: vec![ast::RcLocal::default().into()],
-                            right: vec![cond],
-                            prefix: true,
-                            parallel: false,
-                        }
-                        .into(),
-                    )
-                },
+                cond if cond.has_side_effects() => Some(
+                    ast::Assign {
+                        left: vec![ast::RcLocal::default().into()],
+                        right: vec![cond],
+                        prefix: true,
+                        parallel: false,
+                    }
+                    .into(),
+                ),
                 _ => None,
             };
             self.function.block_mut(node).unwrap().extend(new_stat);
