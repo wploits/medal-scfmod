@@ -109,10 +109,7 @@ fn decompile_file(path: &Path, encode_key: u8) -> anyhow::Result<()> {
     let mut buffer = vec![0; input.metadata()?.len() as usize];
     input.read_exact(&mut buffer)?;
 
-    println!(
-        "{}",
-        decompile_bytecode(&buffer , encode_key)
-    );
+    println!("{}", decompile_bytecode(&buffer, encode_key));
     Ok(())
 }
 
