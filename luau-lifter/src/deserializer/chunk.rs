@@ -1,5 +1,7 @@
 use super::{function::Function, list::parse_list, parse_string};
+use nom::multi::many_till;
 use nom::number::complete::le_u8;
+use nom::character::complete::char;
 use nom::IResult;
 use nom_leb128::leb128_usize;
 
@@ -13,7 +15,13 @@ pub struct Chunk {
 impl Chunk {
     pub(crate) fn parse(input: &[u8], encode_key: u8, version: u8) -> IResult<&[u8], Self> {
         let (input, types_version) = le_u8(input)?;
+        if types_version > 3 {
+            panic!("unsupported types version");
+        }
         let (input, string_table) = parse_list(input, parse_string)?;
+        let input = if types_version == 3 {
+            many_till(leb128_usize, char('\0'))(input)?.0
+        } else { input };
         let (input, functions) = parse_list(input, |i| Function::parse(i, encode_key))?;
         let (input, main) = leb128_usize(input)?;
 
