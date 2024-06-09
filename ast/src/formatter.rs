@@ -675,8 +675,10 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         for (i, rvalue) in generic_for
             .right
             .iter()
+            .enumerate()
             .rev()
-            .skip_while(|v| matches!(v, RValue::Literal(Literal::Nil)))
+            .skip_while(|(i, v)| *i != 0 && matches!(v, RValue::Literal(Literal::Nil)))
+            .map(|(_, x)| x)
             .collect_vec()
             .iter()
             .rev()
