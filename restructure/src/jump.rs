@@ -56,11 +56,8 @@ impl super::GraphStructurer {
         target: Option<NodeIndex>,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
-        if let Some(target) = target {
+        if let Some(target) = target && node != target && !self.is_for_next(target) {
             assert!(self.function.unconditional_edge(node).is_some());
-            if node == target {
-                return false;
-            }
             if Self::block_is_no_op(self.function.block(node).unwrap())
                 && self.function.entry() != &Some(node)
                 && !self.is_loop_header(node)
@@ -116,6 +113,7 @@ impl super::GraphStructurer {
         } else if Self::block_is_no_op(self.function.block(node).unwrap())
             && self.function.entry() != &Some(node)
             && !self.is_loop_header(node)
+            && !self.is_for_next(node)
         {
             let preds = self.function.predecessor_blocks(node).collect_vec();
             let mut invalid = false;

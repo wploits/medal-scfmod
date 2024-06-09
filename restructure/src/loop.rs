@@ -12,6 +12,20 @@ impl GraphStructurer {
         self.loop_headers.contains(&node)
     }
 
+    pub(crate) fn is_for_next(&self, node: NodeIndex) -> bool {
+        self.function
+            .block(node)
+            .unwrap()
+            .first()
+            .map(|s| {
+                matches!(
+                    s,
+                    ast::Statement::GenericForNext(_) | ast::Statement::NumForNext(_)
+                )
+            })
+            .unwrap_or(false)
+    }
+
     pub(crate) fn try_collapse_loop(
         &mut self,
         header: NodeIndex,
@@ -19,6 +33,12 @@ impl GraphStructurer {
         post_dom: &Dominators<NodeIndex>,
     ) -> bool {
         if !self.is_loop_header(header) {
+            if self.is_for_next(header) {
+                // https://github.com/luau-lang/luau/issues/679
+                // we cant get rid of the for loop cuz it's feature not a bug
+                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+                todo!();
+            }
             return false;
         }
 
@@ -61,12 +81,19 @@ impl GraphStructurer {
                     .into()]
                     .into();
                     self.function.remove_edges(header);
+                    self.match_jump(header, None, dominators);
                 }
             } else {
-                assert!(successors.len() == 2);
-                let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
-                assert!(then_edge.target() == header);
-                let next = else_edge.target();
+                let next = match successors.len() {
+                    1 => None,
+                    2 => {
+                        let (then_edge, else_edge) =
+                            self.function.conditional_edges(header).unwrap();
+                        assert!(then_edge.target() == header);
+                        Some(else_edge.target())
+                    }
+                    _ => unreachable!(),
+                };
                 let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
 
                 let predecessors = self
@@ -74,6 +101,8 @@ impl GraphStructurer {
                     .predecessor_blocks(header)
                     .filter(|&p| p != header)
                     .collect_vec();
+                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+
                 let init_blocks = predecessors.into_iter().filter_map(|p| {
                     self.function
                         .block_mut(p)
@@ -97,8 +126,7 @@ impl GraphStructurer {
                 });
                 let (init_block, init_index) = init_blocks.exactly_one().unwrap();
 
-                let body_ast: ast::Block =
-                    statements.to_vec().into();
+                let body_ast: ast::Block = statements.to_vec().into();
                 let init_ast = &mut self.function.block_mut(init_block).unwrap();
                 init_ast.extend(statements);
                 let new_stat = match statement {
@@ -135,11 +163,16 @@ impl GraphStructurer {
 
                 // TODO: REFACTOR: make a seperate function that set_edges unconditional
                 // and calls match_jump
-                self.function.set_edges(
-                    init_block,
-                    vec![(next, BlockEdge::new(BranchType::Unconditional))],
-                );
-                self.match_jump(init_block, Some(next), dominators);
+                // remove edges do the same
+                if let Some(next) = next {
+                    self.function.set_edges(
+                        init_block,
+                        vec![(next, BlockEdge::new(BranchType::Unconditional))],
+                    );
+                } else {
+                    self.function.remove_edges(init_block);
+                }
+                self.match_jump(init_block, next, dominators);
             }
 
             true

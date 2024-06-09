@@ -72,9 +72,10 @@ fn main() -> anyhow::Result<()> {
 }
 
 pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
+    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
     let chunk = deserializer::deserialize(bytecode, encode_key).unwrap();
     match chunk {
-        Bytecode::Error(msg) => return msg,
+        Bytecode::Error(msg) => msg,
         Bytecode::Chunk(chunk) => {
             let mut lifted = Vec::new();
             let mut stack = vec![(Arc::<Mutex<ast::Function>>::default(), chunk.main)];
@@ -87,7 +88,7 @@ pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
 
             let (main, ..) = lifted.first().unwrap().clone();
             let mut upvalues = lifted
-                .into_par_iter()
+                .into_iter()
                 .map(|(ast_function, function, upvalues_in)| {
                     decompile_function(ast_function, function, upvalues_in)
                 })
@@ -98,8 +99,7 @@ pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
             let mut body = Arc::try_unwrap(main.0).unwrap().into_inner().body;
             link_upvalues(&mut body, &mut upvalues);
             name_locals(&mut body, true);
-            let res = body.to_string();
-            return res;
+            body.to_string()
         }
     }
 }

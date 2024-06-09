@@ -1062,6 +1062,21 @@ fn try_remove_unnecessary_condition(function: &mut Function, node: NodeIndex) ->
     }
 }
 
+// TODO: same as in structurer
+fn is_for_next(function: &Function, node: NodeIndex) -> bool {
+    function
+        .block(node)
+        .unwrap()
+        .first()
+        .map(|s| {
+            matches!(
+                s,
+                ast::Statement::GenericForNext(_) | ast::Statement::NumForNext(_)
+            )
+        })
+        .unwrap_or(false)
+}
+
 // TODO: REFACTOR: same as match_jump in restructure, maybe can use some common code?
 // TODO: STYLE: rename to merge_blocks or something
 pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeIndex>) -> bool {
@@ -1070,9 +1085,10 @@ pub fn structure_jumps(function: &mut Function, dominators: &Dominators<NodeInde
         // we call function.remove_block, that might've resulted in node being removed
         if function.block(node).is_some()
             && let Some(jump) = function.unconditional_edge(node)
-            && jump.target() != node
+            && let jump_target = jump.target()
+            && jump_target != node
+            && !is_for_next(function, jump_target)
         {
-            let jump_target = jump.target();
             let jump_edge = jump.id();
             let block = function.block(node).unwrap();
             // TODO: block_is_no_op?
