@@ -188,7 +188,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             false
         } else {
             keys_vec.iter().enumerate().all(|(i, k)| {
-                matches!(k, Some(RValue::Literal(Literal::Number(x))) 
+                matches!(k, Some(RValue::Literal(Literal::Number(x)))
                         if (x - 1f64) as usize == i)
             })
         }
@@ -672,7 +672,16 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             "for {} in ",
             generic_for.res_locals.iter().join(", ")
         )?;
-        for (i, rvalue) in generic_for.right.iter().enumerate() {
+        for (i, rvalue) in generic_for
+            .right
+            .iter()
+            .rev()
+            .skip_while(|v| matches!(v, RValue::Literal(Literal::Nil)))
+            .collect_vec()
+            .iter()
+            .rev()
+            .enumerate()
+        {
             if i != 0 {
                 write!(self.output, ", ")?;
             }

@@ -11,6 +11,7 @@ use crate::block::{BlockEdge, BranchType};
 
 #[derive(Debug, Clone, Default)]
 pub struct Function {
+    pub name: Option<String>,
     pub parameters: Vec<RcLocal>,
     pub is_variadic: bool,
     graph: StableDiGraph<ast::Block, BlockEdge>,
@@ -20,11 +21,16 @@ pub struct Function {
 impl Function {
     pub fn new() -> Self {
         Self {
+            name: None,
             parameters: Vec::new(),
             is_variadic: false,
             graph: StableDiGraph::new(),
             entry: None,
         }
+    }
+
+    pub fn name_mut(&mut self) -> &mut Option<String> {
+        &mut self.name
     }
 
     pub fn entry(&self) -> &Option<NodeIndex> {
