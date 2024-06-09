@@ -5,7 +5,7 @@ use luau_lifter::decompile_bytecode;
 use serde::{Deserialize, Serialize};
 use worker::*;
 
-const SELLIX_SECRET: &str = "G0WWbMPy4cMo8XJjQ0D237PiT7SUNwOzOPIxT4ju2qFUwqwCwas1233333332bUzB§80JIbpuTG";
+const SELLIX_SECRET: &str = "G0WWbMPy4cMo8XJjQ0D237PiT7SUNwOzOPIxT4ju2qFUwqwCwasbUzB80JIbpuTG";
 const SELLIX_PRODUCT_ID: &str = "6650c83ce5125";
 
 #[derive(Serialize)]
@@ -22,7 +22,6 @@ struct LicenseResponse {
     data: Option<LicenseData>,
 }
 
-
 #[event(fetch, respond_with_errors)]
 pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Response> {
     console_error_panic_hook::set_once();
@@ -30,6 +29,20 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
     let router = Router::new();
     router
         .post_async("/decompile", |mut req, _ctx| async move {
+            let hardcoded_keys: Vec<String> = vec![
+                "MEDAL-JYPKXEDJGRHSTUMC".to_string(),
+                "MEDAL-JVPTRXQQCWRXSKQY".to_string(),
+                "MEDAL-ZGGZKVTHRLICJBWK".to_string(),
+                "MEDAL-YRBAOLITKPFXKMRI".to_string(),
+                "MEDAL-KJIVWRDEEDCCSMNI".to_string(),
+                "MEDAL-YEGQGDZJKHZRPOSD".to_string(),
+                "MEDAL-JHIFZJQDNJQCHVAE".to_string(),
+                "MEDAL-AQXGCADHAHAWSPGS".to_string(),
+                "MEDAL-JXWYLQLWYNBLALYN".to_string(),
+                "MEDAL-AHSLAOKYLXONYCXO".to_string(),
+                "MEDAL-SOLARA-TEST-QUI".to_string(),
+            ];
+
             let license = req
                 .headers()
                 .get("Authorization")
@@ -38,7 +51,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
 
             let body = LicensingCheck {
                 product_id: SELLIX_PRODUCT_ID.to_string(),
-                key: license,
+                key: license.clone(),
             };
 
             let json_body = serde_json::to_string(&body).unwrap();
@@ -58,7 +71,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
 
             let license_response: LicenseResponse =
                 Fetch::Request(request).send().await?.json().await?;
-            if license_response.data.is_none() {
+            if license_response.data.is_none() && !hardcoded_keys.contains(&license) {
                 return Response::error("invalid license", 403);
             }
 
