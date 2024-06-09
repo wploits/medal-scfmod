@@ -23,52 +23,125 @@ impl GraphStructurer {
         }
 
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
-        if successors.contains(&header)
-            && !self
-                .function
-                .block(header)
-                .unwrap()
-                .last()
-                .map(|s| s.as_num_for_next().is_some() || s.as_generic_for_next().is_some())
-                .unwrap_or(false)
-        {
-            if successors.len() == 2 {
-                let header_block = self.function.block_mut(header).unwrap();
-                let if_stat = header_block.pop().unwrap().into_if().unwrap();
-                let mut condition = if_stat.condition;
-                let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
-                let next = if then_edge.target() == header {
-                    condition =
-                        ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition();
-                    else_edge.target()
+        if successors.contains(&header) {
+            let statement = self.function.block_mut(header).unwrap().pop().unwrap();
+            if let ast::Statement::If(if_stat) = statement {
+                if successors.len() == 2 {
+                    let mut condition = if_stat.condition;
+                    let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
+                    let next = if then_edge.target() == header {
+                        condition =
+                            ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition();
+                        else_edge.target()
+                    } else {
+                        then_edge.target()
+                    };
+                    let header_block = self.function.block_mut(header).unwrap();
+                    *header_block = if header_block.is_empty() {
+                        vec![ast::While::new(
+                            ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition(),
+                            header_block.clone(),
+                        )
+                        .into()]
+                        .into()
+                    } else {
+                        vec![ast::Repeat::new(condition, header_block.clone()).into()].into()
+                    };
+                    self.function.set_edges(
+                        header,
+                        vec![(next, BlockEdge::new(BranchType::Unconditional))],
+                    );
+                    self.match_jump(header, Some(next), dominators);
                 } else {
-                    then_edge.target()
-                };
-                let header_block = self.function.block_mut(header).unwrap();
-                *header_block = if header_block.is_empty() {
-                    vec![ast::While::new(
-                        ast::Unary::new(condition, ast::UnaryOperation::Not).reduce_condition(),
+                    let header_block = self.function.block_mut(header).unwrap();
+                    *header_block = vec![ast::While::new(
+                        ast::Literal::Boolean(true).into(),
                         header_block.clone(),
                     )
                     .into()]
-                    .into()
-                } else {
-                    vec![ast::Repeat::new(condition, header_block.clone()).into()].into()
+                    .into();
+                    self.function.remove_edges(header);
+                }
+            } else {
+                assert!(successors.len() == 2);
+                let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
+                assert!(then_edge.target() == header);
+                let next = else_edge.target();
+                let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
+
+                let predecessors = self
+                    .function
+                    .predecessor_blocks(header)
+                    .filter(|&p| p != header)
+                    .collect_vec();
+                let init_blocks = predecessors.into_iter().filter_map(|p| {
+                    self.function
+                        .block_mut(p)
+                        .unwrap()
+                        .iter_mut()
+                        .enumerate()
+                        .rev()
+                        // TODO: REFACTOR: this is confusing
+                        .find(|(_, s)| {
+                            s.has_side_effects()
+                                || s.as_num_for_init().is_some()
+                                || s.as_generic_for_init().is_some()
+                        })
+                        .and_then(|(i, s)| {
+                            if s.as_num_for_init().is_some() || s.as_generic_for_init().is_some() {
+                                Some((p, i))
+                            } else {
+                                None
+                            }
+                        })
+                });
+                let (init_block, init_index) = init_blocks.exactly_one().unwrap();
+
+                let body_ast: ast::Block =
+                    statements.to_vec().into();
+                let init_ast = &mut self.function.block_mut(init_block).unwrap();
+                init_ast.extend(statements);
+                let new_stat = match statement {
+                    ast::Statement::NumForNext(num_for_next) => {
+                        let for_init = init_ast.remove(init_index).into_num_for_init().unwrap();
+                        ast::NumericFor::new(
+                            for_init.counter.1,
+                            for_init.limit.1,
+                            for_init.step.1,
+                            num_for_next.counter.0.as_local().unwrap().clone(),
+                            body_ast,
+                        )
+                        .into()
+                    }
+                    ast::Statement::GenericForNext(generic_for_next) => {
+                        let for_init = init_ast.remove(init_index).into_generic_for_init().unwrap();
+                        ast::GenericFor::new(
+                            generic_for_next
+                                .res_locals
+                                .iter()
+                                .map(|l| l.as_local().unwrap().clone())
+                                .collect(),
+                            for_init.0.right,
+                            body_ast,
+                        )
+                        .into()
+                    }
+                    _ => {
+                        unreachable!();
+                    }
                 };
+                init_ast.push(new_stat);
+                self.function.remove_block(header);
+
+                // TODO: REFACTOR: make a seperate function that set_edges unconditional
+                // and calls match_jump
                 self.function.set_edges(
-                    header,
+                    init_block,
                     vec![(next, BlockEdge::new(BranchType::Unconditional))],
                 );
-            } else {
-                let header_block = self.function.block_mut(header).unwrap();
-                *header_block =
-                    vec![
-                        ast::While::new(ast::Literal::Boolean(true).into(), header_block.clone())
-                            .into(),
-                    ]
-                    .into();
-                self.function.remove_edges(header);
+                self.match_jump(init_block, Some(next), dominators);
             }
+
             true
         } else if successors.len() == 2 {
             //if successors.iter().find(|s| self.function.successor_blocks(s).exactly_one() == Ok())
@@ -76,7 +149,6 @@ impl GraphStructurer {
             if post_dom.immediate_dominator(header) == Some(body) {
                 std::mem::swap(&mut next, &mut body);
             }
-            // println!("{:?} {:?} {:?}", header, body, next);
             assert!(body != header);
 
             if self
@@ -232,7 +304,7 @@ impl GraphStructurer {
                             )
                             .into(),
                         );
-                        body_block.extend(block.0.into_iter());
+                        body_block.extend(block.0);
 
                         ast::While::new(ast::Literal::Boolean(true).into(), body_block)
                     } else {
@@ -291,7 +363,7 @@ impl GraphStructurer {
                     let mut body_ast = self.function.remove_block(body).unwrap();
                     body_ast.extend(statements.iter().cloned());
                     let init_ast = &mut self.function.block_mut(init_block).unwrap();
-                    init_ast.extend(statements.iter().cloned());
+                    init_ast.extend(statements);
                     let new_stat = match statement {
                         ast::Statement::NumForNext(num_for_next) => {
                             let for_init = init_ast.remove(init_index).into_num_for_init().unwrap();

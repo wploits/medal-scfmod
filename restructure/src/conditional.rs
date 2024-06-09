@@ -107,7 +107,7 @@ impl GraphStructurer {
             block.extend(after.0);
         }
 
-        let exit = then_successors.get(0).cloned();
+        let exit = then_successors.first().cloned();
         if let Some(exit) = exit {
             self.function.set_edges(
                 entry,
