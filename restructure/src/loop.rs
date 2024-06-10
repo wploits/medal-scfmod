@@ -3,6 +3,8 @@ use ast::{Reduce, SideEffects};
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
+use triomphe::Arc;
+use tuple::Map;
 
 use crate::GraphStructurer;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::EdgeRef};
@@ -26,6 +28,37 @@ impl GraphStructurer {
             .unwrap_or(false)
     }
 
+    // TODO: for init should always be at the end of a block?
+    fn find_for_init(&mut self, for_loop: NodeIndex) -> (NodeIndex, usize) {
+        let predecessors = self
+            .function
+            .predecessor_blocks(for_loop)
+            .filter(|&p| p != for_loop)
+            .collect_vec();
+        let init_blocks = predecessors.into_iter().filter_map(|p| {
+            self.function
+                .block_mut(p)
+                .unwrap()
+                .iter_mut()
+                .enumerate()
+                .rev()
+                // TODO: REFACTOR: this is confusing
+                .find(|(_, s)| {
+                    s.has_side_effects()
+                        || s.as_num_for_init().is_some()
+                        || s.as_generic_for_init().is_some()
+                })
+                .and_then(|(i, s)| {
+                    if s.as_num_for_init().is_some() || s.as_generic_for_init().is_some() {
+                        Some((p, i))
+                    } else {
+                        None
+                    }
+                })
+        });
+        init_blocks.exactly_one().unwrap()
+    }
+
     pub(crate) fn try_collapse_loop(
         &mut self,
         header: NodeIndex,
@@ -36,8 +69,73 @@ impl GraphStructurer {
             if self.is_for_next(header) {
                 // https://github.com/luau-lang/luau/issues/679
                 // we cant get rid of the for loop cuz it's feature not a bug
-                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
-                todo!();
+                let statement = self.function.block_mut(header).unwrap().pop().unwrap();
+
+                let (then_node, else_node) = self
+                    .function
+                    .conditional_edges(header)
+                    .unwrap()
+                    .map(|e| e.target());
+                let then_successors = self.function.successor_blocks(then_node).collect_vec();
+
+                if then_successors.len() > 1 {
+                    return false;
+                }
+
+                if self.function.predecessor_blocks(then_node).count() != 1 {
+                    return false;
+                }
+
+                if !then_successors.is_empty() && then_successors[0] != else_node {
+                    return false;
+                }
+
+                let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
+                let mut body_ast = self.function.remove_block(then_node).unwrap();
+                body_ast.extend(statements.iter().cloned());
+                body_ast.push(ast::Break {}.into());
+                let (init_block, init_index) = self.find_for_init(header);
+                let init_ast = &mut self.function.block_mut(init_block).unwrap();
+                init_ast.extend(statements);
+                let new_stat = match statement {
+                    ast::Statement::NumForNext(num_for_next) => {
+                        let for_init = init_ast.remove(init_index).into_num_for_init().unwrap();
+                        ast::NumericFor::new(
+                            for_init.counter.1,
+                            for_init.limit.1,
+                            for_init.step.1,
+                            num_for_next.counter.0.as_local().unwrap().clone(),
+                            body_ast,
+                        )
+                        .into()
+                    }
+                    ast::Statement::GenericForNext(generic_for_next) => {
+                        let for_init = init_ast.remove(init_index).into_generic_for_init().unwrap();
+                        ast::GenericFor::new(
+                            generic_for_next
+                                .res_locals
+                                .iter()
+                                .map(|l| l.as_local().unwrap().clone())
+                                .collect(),
+                            for_init.0.right,
+                            body_ast,
+                        )
+                        .into()
+                    }
+                    _ => {
+                        unreachable!();
+                    }
+                };
+                init_ast.push(new_stat);
+                self.function.remove_block(header);
+
+                self.function.set_edges(
+                    init_block,
+                    vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
+                );
+
+                self.match_jump(init_block, Some(else_node), dominators);
+                return true;
             }
             return false;
         }
@@ -96,35 +194,7 @@ impl GraphStructurer {
                 };
                 let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
 
-                let predecessors = self
-                    .function
-                    .predecessor_blocks(header)
-                    .filter(|&p| p != header)
-                    .collect_vec();
-                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
-
-                let init_blocks = predecessors.into_iter().filter_map(|p| {
-                    self.function
-                        .block_mut(p)
-                        .unwrap()
-                        .iter_mut()
-                        .enumerate()
-                        .rev()
-                        // TODO: REFACTOR: this is confusing
-                        .find(|(_, s)| {
-                            s.has_side_effects()
-                                || s.as_num_for_init().is_some()
-                                || s.as_generic_for_init().is_some()
-                        })
-                        .and_then(|(i, s)| {
-                            if s.as_num_for_init().is_some() || s.as_generic_for_init().is_some() {
-                                Some((p, i))
-                            } else {
-                                None
-                            }
-                        })
-                });
-                let (init_block, init_index) = init_blocks.exactly_one().unwrap();
+                let (init_block, init_index) = self.find_for_init(header);
 
                 let body_ast: ast::Block = statements.to_vec().into();
                 let init_ast = &mut self.function.block_mut(init_block).unwrap();
@@ -362,36 +432,7 @@ impl GraphStructurer {
                 } else {
                     let statements =
                         std::mem::take(&mut self.function.block_mut(header).unwrap().0);
-
-                    let predecessors = self
-                        .function
-                        .predecessor_blocks(header)
-                        .filter(|&p| p != header)
-                        .collect_vec();
-                    let init_blocks = predecessors.into_iter().filter_map(|p| {
-                        self.function
-                            .block_mut(p)
-                            .unwrap()
-                            .iter_mut()
-                            .enumerate()
-                            .rev()
-                            // TODO: REFACTOR: this is confusing
-                            .find(|(_, s)| {
-                                s.has_side_effects()
-                                    || s.as_num_for_init().is_some()
-                                    || s.as_generic_for_init().is_some()
-                            })
-                            .and_then(|(i, s)| {
-                                if s.as_num_for_init().is_some()
-                                    || s.as_generic_for_init().is_some()
-                                {
-                                    Some((p, i))
-                                } else {
-                                    None
-                                }
-                            })
-                    });
-                    let (init_block, init_index) = init_blocks.exactly_one().unwrap();
+                    let (init_block, init_index) = self.find_for_init(header);
 
                     let mut body_ast = self.function.remove_block(body).unwrap();
                     body_ast.extend(statements.iter().cloned());
