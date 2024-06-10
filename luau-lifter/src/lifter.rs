@@ -1219,6 +1219,9 @@ impl<'a> Lifter<'a> {
                             },
                             _ => unreachable!(),
                         };
+                        let func_name_index = self.function_list[func_index].function_name;
+                        let func_name = if func_name_index == 0 { None } else { Some(String::from_utf8_lossy(&self.string_table[func_name_index - 1]).into_owned()) };
+                        
                         let func = &self.function_list[func_index];
                         let mut upvalues_passed = Vec::with_capacity(func.num_upvalues.into());
                         for _ in 0..func.num_upvalues {
@@ -1245,6 +1248,7 @@ impl<'a> Lifter<'a> {
                         let function = Arc::<Mutex<_>>::default();
                         self.child_functions
                             .insert(ByAddress(function.clone()), func_index);
+                        function.lock().name = func_name;
                         statements.push(
                             ast::Assign::new(
                                 vec![dest_local.into()],
