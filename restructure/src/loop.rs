@@ -82,9 +82,7 @@ impl GraphStructurer {
                 }
 
                 let (init_block, init_index) = self.find_for_init(header);
-                let pred_count = if then_node == init_block { 2 } else { 1 };
-                let pred_count = if else_node == init_block { pred_count + 1 } else { pred_count };
-                if self.function.predecessor_blocks(then_node).count() != pred_count {
+                if then_node != else_node && self.function.predecessor_blocks(then_node).count() != 1 {
                     return false;
                 }
 
@@ -101,7 +99,9 @@ impl GraphStructurer {
                 else {
                     let mut body_ast = self.function.remove_block(then_node).unwrap();
                     body_ast.extend(statements.iter().cloned());
-                    body_ast.push(ast::Break {}.into());
+                    if !matches!(body_ast.last(), Some(ast::Statement::Return(_))) {
+                        body_ast.push(ast::Break {}.into());
+                    }
                     body_ast
                 };
                 let init_ast = &mut self.function.block_mut(init_block).unwrap();
