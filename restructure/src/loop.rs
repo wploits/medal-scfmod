@@ -69,7 +69,6 @@ impl GraphStructurer {
             if self.is_for_next(header) {
                 // https://github.com/luau-lang/luau/issues/679
                 // we cant get rid of the for loop cuz it's feature not a bug
-                let statement = self.function.block_mut(header).unwrap().pop().unwrap();
 
                 let (then_node, else_node) = self
                     .function
@@ -82,19 +81,29 @@ impl GraphStructurer {
                     return false;
                 }
 
-                if self.function.predecessor_blocks(then_node).count() != 1 {
-                    return false;
-                }
-
-                if !then_successors.is_empty() && then_successors[0] != else_node {
-                    return false;
-                }
-
-                let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
-                let mut body_ast = self.function.remove_block(then_node).unwrap();
-                body_ast.extend(statements.iter().cloned());
-                body_ast.push(ast::Break {}.into());
                 let (init_block, init_index) = self.find_for_init(header);
+                let pred_count = if then_node == init_block { 2 } else { 1 };
+                let pred_count = if else_node == init_block { pred_count + 1 } else { pred_count };
+                if self.function.predecessor_blocks(then_node).count() != pred_count {
+                    return false;
+                }
+
+                if !then_successors.is_empty() && then_successors[0] != else_node && !(then_successors[0] == header && else_node == init_block) {
+                    return false;
+                }
+
+                let statement = self.function.block_mut(header).unwrap().pop().unwrap();
+                let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
+
+                let body_ast = if then_node == init_block {
+                    vec![ast::Break {}.into()].into()
+                }
+                else {
+                    let mut body_ast = self.function.remove_block(then_node).unwrap();
+                    body_ast.extend(statements.iter().cloned());
+                    body_ast.push(ast::Break {}.into());
+                    body_ast
+                };
                 let init_ast = &mut self.function.block_mut(init_block).unwrap();
                 init_ast.extend(statements);
                 let new_stat = match statement {
@@ -142,9 +151,9 @@ impl GraphStructurer {
 
         let successors = self.function.successor_blocks(header).collect::<Vec<_>>();
         if successors.contains(&header) {
-            let statement = self.function.block_mut(header).unwrap().pop().unwrap();
-            if let ast::Statement::If(if_stat) = statement {
+            if !self.is_for_next(header) {
                 if successors.len() == 2 {
+                    let if_stat = self.function.block_mut(header).unwrap().pop().unwrap().into_if().unwrap();
                     let mut condition = if_stat.condition;
                     let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
                     let next = if then_edge.target() == header {
@@ -192,6 +201,7 @@ impl GraphStructurer {
                     }
                     _ => unreachable!(),
                 };
+                let statement = self.function.block_mut(header).unwrap().pop().unwrap();
                 let statements = std::mem::take(&mut self.function.block_mut(header).unwrap().0);
 
                 let (init_block, init_index) = self.find_for_init(header);
