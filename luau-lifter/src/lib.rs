@@ -63,14 +63,6 @@ struct Args {
     verbose: bool,
 }
 
-fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    if args.paths.len() != 1 {
-        panic!("expected exactly one file");
-    }
-    decompile_file(Path::new(&args.paths[0]), args.key)
-}
-
 pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
     rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
     let chunk = deserializer::deserialize(bytecode, encode_key).unwrap();
@@ -102,15 +94,6 @@ pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
             body.to_string()
         }
     }
-}
-
-fn decompile_file(path: &Path, encode_key: u8) -> anyhow::Result<()> {
-    let mut input = File::open(path)?;
-    let mut buffer = vec![0; input.metadata()?.len() as usize];
-    input.read_exact(&mut buffer)?;
-
-    println!("{}", decompile_bytecode(&buffer, encode_key));
-    Ok(())
 }
 
 fn decompile_function(
