@@ -11,6 +11,7 @@ use crate::block::{BlockEdge, BranchType};
 
 #[derive(Debug, Clone, Default)]
 pub struct Function {
+    pub id: usize,
     pub name: Option<String>,
     pub parameters: Vec<RcLocal>,
     pub is_variadic: bool,
@@ -19,8 +20,9 @@ pub struct Function {
 }
 
 impl Function {
-    pub fn new() -> Self {
+    pub fn new(id: usize) -> Self {
         Self {
+            id,
             name: None,
             parameters: Vec::new(),
             is_variadic: false,

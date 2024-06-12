@@ -23,11 +23,10 @@ use cfg::{
 };
 
 pub struct Lifter<'a> {
-    function: usize,
     function_list: &'a Vec<BytecodeFunction>,
     string_table: &'a Vec<Vec<u8>>,
     blocks: FxHashMap<usize, NodeIndex>,
-    lifted_function: Function,
+    function: Function,
     child_functions: FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, usize>,
     register_map: FxHashMap<usize, ast::RcLocal>,
     constant_map: FxHashMap<usize, ast::Literal>,
@@ -46,11 +45,10 @@ impl<'a> Lifter<'a> {
         FxHashMap<ByAddress<Arc<Mutex<ast::Function>>>, usize>,
     ) {
         let mut context = Self {
-            function: function_id,
             function_list: f_list,
             string_table: str_list,
             blocks: FxHashMap::default(),
-            lifted_function: Function::new(),
+            function: Function::new(function_id),
             child_functions: FxHashMap::default(),
             register_map: FxHashMap::default(),
             constant_map: FxHashMap::default(),
@@ -59,11 +57,7 @@ impl<'a> Lifter<'a> {
         };
 
         context.lift_function();
-        (
-            context.lifted_function,
-            context.upvalues,
-            context.child_functions,
-        )
+        (context.function, context.upvalues, context.child_functions)
     }
 
     fn lift_function(&mut self) {
@@ -79,7 +73,7 @@ impl<'a> Lifter<'a> {
             .rev()
             .fold(
                 (
-                    self.function_list[self.function].instructions.len(),
+                    self.function_list[self.function.id].instructions.len(),
                     Vec::new(),
                 ),
                 |(block_end, mut accumulator), &block_start| {
@@ -97,44 +91,40 @@ impl<'a> Lifter<'a> {
             )
             .1;
 
-        for _ in 0..self.function_list[self.function].num_upvalues {
+        for _ in 0..self.function_list[self.function.id].num_upvalues {
             self.upvalues.push(ast::RcLocal::default());
         }
 
-        for i in 0..self.function_list[self.function].num_parameters {
+        for i in 0..self.function_list[self.function.id].num_parameters {
             let parameter = ast::RcLocal::default();
-            self.lifted_function.parameters.push(parameter.clone());
+            self.function.parameters.push(parameter.clone());
             self.register_map.insert(i as usize, parameter);
         }
 
-        self.lifted_function.is_variadic = self.function_list[self.function].is_vararg;
+        self.function.is_variadic = self.function_list[self.function.id].is_vararg;
 
         for (start_pc, end_pc) in block_ranges {
             self.current_node = Some(self.block_to_node(start_pc));
             let (statements, edges) = self.lift_block(start_pc, end_pc);
-            let block = self
-                .lifted_function
-                .block_mut(self.current_node.unwrap())
-                .unwrap();
+            let block = self.function.block_mut(self.current_node.unwrap()).unwrap();
             block.0.extend(statements);
-            self.lifted_function
-                .set_edges(self.current_node.unwrap(), edges);
+            self.function.set_edges(self.current_node.unwrap(), edges);
         }
 
-        let entry_node = self.lifted_function.new_block();
-        self.lifted_function.set_edges(
+        let entry_node = self.function.new_block();
+        self.function.set_edges(
             entry_node,
             vec![(
                 self.block_to_node(0),
                 BlockEdge::new(BranchType::Unconditional),
             )],
         );
-        self.lifted_function.set_entry(entry_node);
+        self.function.set_entry(entry_node);
     }
 
     fn discover_blocks(&mut self) -> Result<()> {
-        self.blocks.insert(0, self.lifted_function.new_block());
-        for (insn_index, insn) in self.function_list[self.function]
+        self.blocks.insert(0, self.function.new_block());
+        for (insn_index, insn) in self.function_list[self.function.id]
             .instructions
             .iter()
             .enumerate()
@@ -142,12 +132,10 @@ impl<'a> Lifter<'a> {
             match insn {
                 Instruction::BC { op_code, c, .. } => match op_code {
                     OpCode::LOP_LOADB if *c != 0 => {
-                        let dest_index = (insn_index + 1)
-                            .checked_add_signed((*c).try_into().unwrap())
-                            .unwrap();
+                        let dest_index = (insn_index + 1).checked_add_signed((*c).into()).unwrap();
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     _ => {}
                 },
@@ -162,15 +150,13 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_JUMPBACK
                     | OpCode::LOP_JUMPIF
                     | OpCode::LOP_JUMPIFNOT => {
-                        let dest_index = (insn_index + 1)
-                            .checked_add_signed((*d).try_into().unwrap())
-                            .unwrap();
+                        let dest_index = (insn_index + 1).checked_add_signed((*d).into()).unwrap();
                         self.blocks
                             .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     OpCode::LOP_JUMPIFEQ
                     | OpCode::LOP_JUMPIFLE
@@ -182,53 +168,45 @@ impl<'a> Lifter<'a> {
                     | OpCode::LOP_JUMPXEQKB
                     | OpCode::LOP_JUMPXEQKN
                     | OpCode::LOP_JUMPXEQKS => {
-                        let dest_index = (insn_index + 1)
-                            .checked_add_signed((*d).try_into().unwrap())
-                            .unwrap();
+                        let dest_index = (insn_index + 1).checked_add_signed((*d).into()).unwrap();
                         self.blocks
                             .entry(insn_index + 2)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     OpCode::LOP_FORNPREP => {
-                        let dest_index = (insn_index + 1)
-                            .checked_add_signed((*d).try_into().unwrap())
-                            .unwrap();
+                        let dest_index = (insn_index + 1).checked_add_signed((*d).into()).unwrap();
                         self.blocks
                             .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     OpCode::LOP_FORGPREP
                     | OpCode::LOP_FORGPREP_NEXT
                     | OpCode::LOP_FORGPREP_INEXT => {
-                        let dest_index = (insn_index + 1)
-                            .checked_add_signed((*d).try_into().unwrap())
-                            .unwrap();
+                        let dest_index = (insn_index + 1).checked_add_signed((*d).into()).unwrap();
                         self.blocks
                             .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     OpCode::LOP_FORNLOOP => {
-                        let dest_index = (insn_index + 1)
-                            .checked_add_signed((*d).try_into().unwrap())
-                            .unwrap();
+                        let dest_index = (insn_index + 1).checked_add_signed((*d).into()).unwrap();
                         self.blocks
                             .entry(insn_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     OpCode::LOP_FORGLOOP => {
                         let dest_index = (insn_index + 1)
@@ -236,15 +214,27 @@ impl<'a> Lifter<'a> {
                             .unwrap();
                         self.blocks
                             .entry(insn_index + 1)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                         self.blocks
                             .entry(dest_index)
-                            .or_insert_with(|| self.lifted_function.new_block());
+                            .or_insert_with(|| self.function.new_block());
                     }
                     _ => {}
                 },
 
-                Instruction::E { .. } => {}
+                Instruction::E { op_code, e } => {
+                    if *op_code == OpCode::LOP_JUMPX {
+                        let dest_index = (insn_index + 1)
+                            .checked_add_signed((*e).try_into().unwrap())
+                            .unwrap();
+                        self.blocks
+                            .entry(insn_index + 1)
+                            .or_insert_with(|| self.function.new_block());
+                        self.blocks
+                            .entry(dest_index)
+                            .or_insert_with(|| self.function.new_block());
+                    }
+                }
             }
         }
 
@@ -261,7 +251,7 @@ impl<'a> Lifter<'a> {
 
         let mut top: Option<(ast::RValue, u8)> = None;
 
-        let mut iter = self.function_list[self.function].instructions[block_start..=block_end]
+        let mut iter = self.function_list[self.function.id].instructions[block_start..=block_end]
             .iter()
             .enumerate();
 
@@ -514,7 +504,7 @@ impl<'a> Lifter<'a> {
                         let namecall_object = self.register(b as _);
                         let namecall_method = match self.constant(aux as usize) {
                             ast::Literal::String(string) => String::from_utf8(string).unwrap(),
-                            _ => unimplemented!(),
+                            _ => unreachable!(),
                         };
                         assert!(matches!(
                             iter.next().unwrap().1,
@@ -570,7 +560,7 @@ impl<'a> Lifter<'a> {
                                     top = Some((call.into(), a));
                                 }
                             }
-                            instruction => unimplemented!("{:?}", instruction),
+                            instruction => unreachable!("{:?}", instruction),
                         }
                     }
                     OpCode::LOP_CALL => {
@@ -607,7 +597,7 @@ impl<'a> Lifter<'a> {
                         }
                     }
                     OpCode::LOP_CLOSEUPVALS => {
-                        let locals = (a..self.function_list[self.function].max_stack_size)
+                        let locals = (a..self.function_list[self.function.id].max_stack_size)
                             .map(|i| self.register(i as _))
                             .collect();
                         statements.push(ast::Close { locals }.into());
@@ -739,7 +729,7 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                     }
-                    _ => unimplemented!("{:?}", instruction),
+                    _ => unreachable!("{:?}", instruction),
                 },
                 Instruction::AD { op_code, a, d, aux } => match op_code {
                     OpCode::LOP_LOADK => {
@@ -1115,10 +1105,10 @@ impl<'a> Lifter<'a> {
                         statements.push(ast::NumForInit::new(counter, limit, step).into());
 
                         let loop_node = self
-                            .lifted_function
+                            .function
                             .predecessor_blocks(self.block_to_node(block_start + index + 1))
                             .filter(|&p| {
-                                self.lifted_function
+                                self.function
                                     .block(p)
                                     .unwrap()
                                     .last()
@@ -1154,7 +1144,7 @@ impl<'a> Lifter<'a> {
                         statements.push(ast::GenericForInit::new(generator, state, counter).into());
                         let loop_index = ((block_start + index + 1) as isize + d as isize) as usize;
                         assert!(matches!(
-                            self.function_list[self.function].instructions[loop_index],
+                            self.function_list[self.function.id].instructions[loop_index],
                             Instruction::AD {
                                 op_code: OpCode::LOP_FORGLOOP,
                                 ..
@@ -1207,21 +1197,28 @@ impl<'a> Lifter<'a> {
                         let dest_local = self.register(a as _);
                         let func_index = match op_code {
                             OpCode::LOP_NEWCLOSURE => {
-                                self.function_list[self.function].functions[d as usize]
+                                self.function_list[self.function.id].functions[d as usize]
                             }
-                            OpCode::LOP_DUPCLOSURE => match self.function_list[self.function]
+                            OpCode::LOP_DUPCLOSURE => match self.function_list[self.function.id]
                                 .constants
                                 .get(d as usize)
                                 .unwrap()
                             {
                                 &BytecodeConstant::Closure(func_index) => func_index,
-                                _ => unimplemented!(),
+                                _ => unreachable!(),
                             },
                             _ => unreachable!(),
                         };
                         let func_name_index = self.function_list[func_index].function_name;
-                        let func_name = if func_name_index == 0 { None } else { Some(String::from_utf8_lossy(&self.string_table[func_name_index - 1]).into_owned()) };
-                        
+                        let func_name = if func_name_index == 0 {
+                            None
+                        } else {
+                            Some(
+                                String::from_utf8_lossy(&self.string_table[func_name_index - 1])
+                                    .into_owned(),
+                            )
+                        };
+
                         let func = &self.function_list[func_index];
                         let mut upvalues_passed = Vec::with_capacity(func.num_upvalues.into());
                         for _ in 0..func.num_upvalues {
@@ -1238,9 +1235,9 @@ impl<'a> Lifter<'a> {
                                     1 => ast::Upvalue::Ref(self.register(source as _)),
                                     // capture upval
                                     2 => ast::Upvalue::Ref(self.upvalues[source as usize].clone()),
-                                    _ => unimplemented!(),
+                                    _ => unreachable!(),
                                 },
-                                _ => unimplemented!(),
+                                _ => unreachable!(),
                             };
                             upvalues_passed.push(local);
                         }
@@ -1261,7 +1258,18 @@ impl<'a> Lifter<'a> {
                             .into(),
                         );
                     }
-                    _ => unimplemented!("{:?}", instruction),
+                    _ => unreachable!("{:?}", instruction),
+                },
+                Instruction::E { op_code, e } => match op_code {
+                    OpCode::LOP_JUMPX => {
+                        edges.push((
+                            self.block_to_node(
+                                ((block_start + index + 1) as isize + e as isize) as usize,
+                            ),
+                            BlockEdge::new(BranchType::Unconditional),
+                        ));
+                    }
+                    _ => unreachable!("{:?}", instruction),
                 },
                 _ => unimplemented!("{:?}", instruction),
             }
@@ -1272,9 +1280,9 @@ impl<'a> Lifter<'a> {
             .map(|(i, _)| block_start + i - 1)
             .unwrap_or(block_end);
         if edges.is_empty()
-            && !Self::is_terminator(self.function_list[self.function].instructions[last_index])
+            && !Self::is_terminator(self.function_list[self.function.id].instructions[last_index])
         {
-            if last_index + 1 == self.function_list[self.function].instructions.len() {
+            if last_index + 1 == self.function_list[self.function.id].instructions.len() {
                 statements
                     .push(ast::Comment::new("warning: block does not return".to_string()).into());
             } else {
@@ -1289,14 +1297,11 @@ impl<'a> Lifter<'a> {
     }
 
     fn register(&mut self, index: usize) -> ast::RcLocal {
-        self.register_map
-            .entry(index)
-            .or_insert_with(ast::RcLocal::default)
-            .clone()
+        self.register_map.entry(index).or_default().clone()
     }
 
     fn constant(&mut self, index: usize) -> ast::Literal {
-        let converted_constant = match self.function_list[self.function]
+        let converted_constant = match self.function_list[self.function.id]
             .constants
             .get(index)
             .unwrap()
