@@ -40,6 +40,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
                 "MEDAL-AQXGCADHAHAWSPGS".to_string(),
                 "MEDAL-JXWYLQLWYNBLALYN".to_string(),
                 "MEDAL-AHSLAOKYLXONYCXO".to_string(),
+                "MEDAL-LOFRLWCHVOZHQPRP".to_string(),
                 "MEDAL-SOLARA-TEST-QUI".to_string(),
             ];
 
