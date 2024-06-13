@@ -122,7 +122,6 @@ impl GraphStructurer {
                 if t && e {
                     assert!(then_changed && else_changed)
                 }
-                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
             } else {
                 return false;
             }
