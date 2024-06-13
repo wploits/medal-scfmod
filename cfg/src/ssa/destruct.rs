@@ -36,7 +36,7 @@ enum RedOrBlue {
 type CongruenceClass = BTreeMap<(usize, ParamOrStatIndex), RcLocal>;
 
 // Benoit Boissinot, Alain Darte, Fabrice Rastello, Benoît Dupont de Dinechin, Christophe Guillon.
-// Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Eﬀiciency. [Research Report]
+// Revisiting Out-of-SSA Translation for Correctness, Code Quality, and Efficiency. [Research Report]
 // 2008, pp.14. inria-00349925v3
 // https://hal.inria.fr/inria-00349925/file/RR.pdf
 // Slides: https://compilers.cs.uni-saarland.de/ssasem/talks/Alain.Darte.pdf
@@ -57,6 +57,7 @@ pub struct Destructor<'a> {
     // does not include the node itself, use the `dominates` function
     dominators: FxHashMap<NodeIndex, FxHashSet<NodeIndex>>,
     liveness: FxHashMap<NodeIndex, LiveSets>,
+    undesirable_blocks: FxHashSet<NodeIndex>,
 }
 
 impl<'a> Destructor<'a> {
@@ -82,6 +83,7 @@ impl<'a> Destructor<'a> {
             dominator_tree: DiGraphMap::new(),
             dominators: FxHashMap::default(),
             liveness: FxHashMap::default(),
+            undesirable_blocks: FxHashSet::default(),
         }
     }
 
@@ -185,7 +187,7 @@ impl<'a> Destructor<'a> {
 
                             for i in 0..assign.left.len() {
                                 let dst = assign.left[i].as_local().unwrap();
-                                if loc.get(dst).is_none() && assign.right[i].as_local().is_some() {
+                                if !loc.contains_key(dst) && assign.right[i].as_local().is_some() {
                                     ready.push(dst.clone());
                                 }
                             }
@@ -200,7 +202,7 @@ impl<'a> Destructor<'a> {
                                         vec![local_b.clone().into()],
                                         vec![local_c.clone().into()],
                                     ));
-                                    if local_a == local_c && pred.get(&local_a).is_some() {
+                                    if local_a == local_c && pred.contains_key(&local_a) {
                                         ready.push(local_a.clone());
                                     }
                                     loc.insert(local_a, local_b);
@@ -378,67 +380,92 @@ impl<'a> Destructor<'a> {
             })
     }
 
+    fn is_for_next(&self, node: NodeIndex) -> bool {
+        self.function
+            .block(node)
+            .unwrap()
+            .last()
+            .map(|s| {
+                matches!(
+                    s,
+                    ast::Statement::GenericForNext(_) | ast::Statement::NumForNext(_)
+                )
+            })
+            .unwrap_or(false)
+    }
+
+    fn coalesce_copies_for_block(&mut self, node: NodeIndex) {
+        for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
+            let should_remove = if let ast::Statement::Assign(assign) =
+                &self.function.block(node).unwrap()[stat_index]
+            {
+                let mut to_remove = Vec::new();
+                let left = assign
+                    .left
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
+                    .collect::<Vec<_>>();
+                for (i, left, right) in left
+                    .into_iter()
+                    .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
+                    .collect::<Vec<_>>()
+                {
+                    // upvalues in and parameters cannot be coalesced
+                    debug_assert!(
+                        !(self.function.parameters.contains(&left)
+                            && self.upvalues_in.contains(&right))
+                            || self.function.parameters.contains(&right)
+                                && self.upvalues_in.contains(&left)
+                    );
+
+                    if self.upvalue_to_group.contains_key(&left)
+                        || self.upvalue_to_group.contains_key(&right)
+                    {
+                        continue;
+                    }
+
+                    if self.try_coalesce_copy_by_value(right.clone(), left.clone())
+                        || self.try_coalesce_copy_by_sharing(&right, &left)
+                    {
+                        to_remove.push(i);
+                    }
+                }
+                let assign = self.function.block_mut(node).unwrap()[stat_index]
+                    .as_assign_mut()
+                    .unwrap();
+                for i in to_remove.into_iter().rev() {
+                    assign.left.remove(i);
+                    assign.right.remove(i);
+                }
+                assign.left.is_empty()
+            } else {
+                false
+            };
+
+            if should_remove {
+                let block = self.function.block_mut(node).unwrap();
+                block[stat_index] = ast::Empty {}.into();
+            }
+        }
+
+        // we check block.ast.len() elsewhere and do `i - ` elsewhere so we need to get rid of empty statements
+        // TODO: fix here and elsewhere, see inline.rs
+        let block = self.function.block_mut(node).unwrap();
+        block.retain(|s| s.as_empty().is_none());
+    }
+
     fn coalesce_copies(&mut self) {
         let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
         while let Some(node) = dominator_dfs.next(self.function.graph()) {
-            for stat_index in 0..self.function.block_mut(node).unwrap().0.len() {
-                let should_remove = if let ast::Statement::Assign(assign) =
-                    &self.function.block(node).unwrap()[stat_index]
-                {
-                    let mut to_remove = Vec::new();
-                    let left = assign
-                        .left
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(i, l)| Some((i, l.as_local()?.clone())))
-                        .collect::<Vec<_>>();
-                    for (i, left, right) in left
-                        .into_iter()
-                        .filter_map(|(i, l)| Some((i, l, assign.right.get(i)?.as_local()?.clone())))
-                        .collect::<Vec<_>>()
-                    {
-                        // upvalues in and parameters cannot be coalesced
-                        debug_assert!(
-                            !(self.function.parameters.contains(&left)
-                                && self.upvalues_in.contains(&right))
-                                || self.function.parameters.contains(&right)
-                                    && self.upvalues_in.contains(&left)
-                        );
-
-                        if self.upvalue_to_group.contains_key(&left)
-                            || self.upvalue_to_group.contains_key(&right)
-                        {
-                            continue;
-                        }
-
-                        if self.try_coalesce_copy_by_value(left.clone(), right.clone())
-                            || self.try_coalesce_copy_by_sharing(&left, &right)
-                        {
-                            to_remove.push(i);
-                        }
-                    }
-                    let assign = self.function.block_mut(node).unwrap()[stat_index]
-                        .as_assign_mut()
-                        .unwrap();
-                    for i in to_remove.into_iter().rev() {
-                        assign.left.remove(i);
-                        assign.right.remove(i);
-                    }
-                    assign.left.is_empty()
-                } else {
-                    false
-                };
-
-                if should_remove {
-                    let block = self.function.block_mut(node).unwrap();
-                    block[stat_index] = ast::Empty {}.into();
-                }
+            if self.undesirable_blocks.contains(&node) {
+                self.coalesce_copies_for_block(node);
             }
+        }
 
-            // we check block.ast.len() elsewhere and do `i - ` elsewhere so we need to get rid of empty statements
-            // TODO: fix here and elsewhere, see inline.rs
-            let block = self.function.block_mut(node).unwrap();
-            block.retain(|s| s.as_empty().is_none());
+        let mut dominator_dfs = Dfs::new(&self.dominator_tree, self.function.entry().unwrap());
+        while let Some(node) = dominator_dfs.next(self.function.graph()) {
+            self.coalesce_copies_for_block(node);
         }
     }
 
@@ -867,6 +894,9 @@ impl<'a> Destructor<'a> {
                     */
                     if !is_unconditional {
                         assign_block = self.function.new_block();
+                        if self.is_for_next(self.function.graph().edge_endpoints(edge).unwrap().0) {
+                            self.undesirable_blocks.insert(assign_block);
+                        }
                         let edge = self.function.graph_mut().remove_edge(edge).unwrap();
                         self.function.set_edges(
                             assign_block,
