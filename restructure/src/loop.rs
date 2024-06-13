@@ -3,7 +3,6 @@ use ast::{Reduce, SideEffects};
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 use rustc_hash::FxHashSet;
-use triomphe::Arc;
 use tuple::Map;
 
 use crate::GraphStructurer;

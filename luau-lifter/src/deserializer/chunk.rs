@@ -1,7 +1,7 @@
 use super::{function::Function, list::parse_list, parse_string};
+use nom::character::complete::char;
 use nom::multi::many_till;
 use nom::number::complete::le_u8;
-use nom::character::complete::char;
 use nom::IResult;
 use nom_leb128::leb128_usize;
 
@@ -21,7 +21,9 @@ impl Chunk {
         let (input, string_table) = parse_list(input, parse_string)?;
         let input = if types_version == 3 {
             many_till(leb128_usize, char('\0'))(input)?.0
-        } else { input };
+        } else {
+            input
+        };
         let (input, functions) = parse_list(input, |i| Function::parse(i, encode_key))?;
         let (input, main) = leb128_usize(input)?;
 
