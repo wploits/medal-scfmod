@@ -370,6 +370,7 @@ impl GraphStructurer {
                 return changed;
             }
 
+            let next = if post_dom.dominators(header).is_some_and(|mut p| p.contains(&next)) { Some(next) } else { None };
             for node in breaks
                 .into_iter()
                 .chain(continues)
@@ -393,7 +394,8 @@ impl GraphStructurer {
             }
             //println!("changed: {:?}", changed);
 
-            if self.function.successor_blocks(body).exactly_one().ok() == Some(header) {
+            if self.function.successor_blocks(body).exactly_one().ok() == Some(header) 
+                && let Some(next) = next {
                 let statement = self.function.block_mut(header).unwrap().pop().unwrap();
                 if let ast::Statement::If(if_stat) = statement {
                     let mut if_condition = if_stat.condition;

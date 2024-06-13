@@ -1,8 +1,10 @@
+use petgraph::visit::EdgeRef;
 use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 use parking_lot::Mutex;
 use triomphe::Arc;
+use tuple::Map;
 
 use crate::GraphStructurer;
 use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex};
@@ -72,10 +74,59 @@ impl GraphStructurer {
         else_node: NodeIndex,
         dominators: &Dominators<NodeIndex>,
     ) -> bool {
-        let then_successors = self.function.successor_blocks(then_node).collect_vec();
-        let else_successors = self.function.successor_blocks(else_node).collect_vec();
+        let mut then_successors = self.function.successor_blocks(then_node).collect_vec();
+        let mut else_successors = self.function.successor_blocks(else_node).collect_vec();
 
-        if then_successors.len() > 1 || then_successors != else_successors {
+        if then_successors.len() > 1 || else_successors.len() > 1 {
+            if self.is_loop_header(entry) {
+                // TODO: ugly
+                let t = if let Some(index) = then_successors.iter().position(|n| *n == entry) {
+                    then_successors.swap_remove(index);
+                    true
+                } else { false };
+                let e = if let Some(index) = else_successors.iter().position(|n| *n == entry) {
+                    else_successors.swap_remove(index);
+                    true
+                } else { false };
+                if (!t && then_successors.len() != 1) || (!e && else_successors.len() != 1) {
+                    return false;
+                }
+
+                if then_successors != else_successors {
+                    return false;
+                }
+
+                let mut refine = |n| {
+                    let (then_target, else_target) = self.function.conditional_edges(n).unwrap().map(|e| e.target());
+                    let block = self.function.block_mut(n).unwrap();
+                    if let Some(if_stat) = block.last_mut().unwrap().as_if_mut() {
+                        if then_target == entry {
+                            if_stat.then_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
+                            true
+                        } else if else_target == entry  {
+                            if_stat.else_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
+                            true
+                        } else { false }
+                    } else { false }
+                };
+
+                let then_changed = if t {
+                    refine(then_node)
+                } else { false };
+                let else_changed = if e {
+                    refine(else_node)
+                } else { false };
+                if !then_changed && !else_changed {
+                    return false;
+                }
+                if t && e {
+                    assert!(then_changed && else_changed)
+                }
+                cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
+            } else {
+                return false;
+            }
+        } else if then_successors != else_successors {
             return false;
         }
 
@@ -180,7 +231,7 @@ impl GraphStructurer {
         entry: NodeIndex,
         node: NodeIndex,
         header: NodeIndex,
-        next: NodeIndex,
+        next: Option<NodeIndex>,
     ) -> bool {
         if node == header {
             // TODO: only check back edges?
@@ -198,7 +249,7 @@ impl GraphStructurer {
             }
             let block = &mut self.function.block_mut(entry).unwrap();
             block.push(ast::Continue {}.into());
-        } else if node == next {
+        } else if Some(node) == next {
             let block = &mut self.function.block_mut(entry).unwrap();
             block.push(ast::Break {}.into());
         }
@@ -213,7 +264,7 @@ impl GraphStructurer {
         then_node: NodeIndex,
         else_node: NodeIndex,
         header: NodeIndex,
-        next: NodeIndex,
+        next: Option<NodeIndex>,
     ) -> bool {
         let then_main_cont = self
             .function
@@ -242,14 +293,14 @@ impl GraphStructurer {
             if then_node == header && !header_successors.contains(&entry) && then_main_cont {
                 if_stat.then_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
                 changed = true;
-            } else if then_node == next {
+            } else if Some(then_node) == next {
                 if_stat.then_block = Arc::new(Mutex::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
             if else_node == header && !header_successors.contains(&entry) && else_main_cont {
                 if_stat.else_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
                 changed = true;
-            } else if else_node == next {
+            } else if Some(else_node) == next {
                 if_stat.else_block = Arc::new(Mutex::new(vec![ast::Break {}.into()].into()));
                 changed = true;
             }
