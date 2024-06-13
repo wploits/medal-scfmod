@@ -189,6 +189,6 @@ impl Instruction {
     }
 
     fn parse_e(insn: u32) -> i32 {
-        ((insn >> 8) & 0xFFFFFF) as i32
+        (insn as i32) >> 8
     }
 }
