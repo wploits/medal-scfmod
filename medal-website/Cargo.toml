@@ -1,0 +1,12 @@
+[package]
+name = "medal-website"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+worker = { version = "0.3.0", features = ["d1"] }
+
+[lib]
+crate-type = ["cdylib"]
