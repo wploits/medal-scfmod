@@ -28,7 +28,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
 
     let router = Router::new();
     router
-        .post_async("/", |mut req, _ctx| async move {
+        .post_async("/decompile", |mut req, _ctx| async move {
             let hardcoded_keys: Vec<String> = vec![
                 "MEDAL-JYPKXEDJGRHSTUMC".to_string(),
                 "MEDAL-JVPTRXQQCWRXSKQY".to_string(),
