@@ -234,10 +234,8 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 }
                 self.format_rvalue(value)?;
                 if !is_last {
-                    write!(self.output, ", ")?;
-                    if should_format {
-                        writeln!(self.output)?
-                    }
+                    write!(self.output, ",")?;
+                    write!(self.output, "{}", if should_format { "\n" } else { " " })?;
                 }
             }
         }
