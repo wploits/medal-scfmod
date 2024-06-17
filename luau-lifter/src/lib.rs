@@ -64,7 +64,6 @@ struct Args {
 }
 
 pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
-    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
     let chunk = deserializer::deserialize(bytecode, encode_key).unwrap();
     match chunk {
         Bytecode::Error(msg) => msg,

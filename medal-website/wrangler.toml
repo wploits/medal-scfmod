@@ -1,0 +1,35 @@
+name = "medal-website"
+type = "rust"
+workers_dev = true
+compatibility_date = "2022-01-20"
+
+[vars]
+WORKERS_RS_VERSION = "0.3.0"
+
+[[d1_databases]]
+binding = "medal-d1"
+database_name = "medal"
+database_id = "3fa56362-0ef7-47ed-8136-36a5c0bfd543"
+
+[[kv_namespaces]]
+id = "06227c0495524a25bb8ffd33afb02e1d"
+binding = "medal-kv"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release" # required
+
+[build.upload]
+dir = "build/worker"
+format = "modules"
+main = "./shim.mjs"
+
+[[build.upload.rules]]
+globs = ["**/*.wasm"]
+type = "CompiledWasm"
+
+[[routes]]
+pattern = "medal.sh/*"
+zone_name = "medal.sh"
+
+# read more about configuring your Worker via wrangler.toml at:
+# https://developers.cloudflare.com/workers/cli-wrangler/configuration
