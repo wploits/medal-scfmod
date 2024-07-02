@@ -1,7 +1,7 @@
 use ast::SideEffects;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
-use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::EdgeRef, Direction};
+use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::{EdgeRef, IntoEdgeReferences}, Direction};
 
 impl super::GraphStructurer {
     // TODO: STYLE: better name
@@ -54,10 +54,12 @@ impl super::GraphStructurer {
         &mut self,
         node: NodeIndex,
         target: Option<NodeIndex>,
-        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         if let Some(target) = target {
-            if node != target && !self.is_for_next(target) {
+            if node == target {
+                return false;
+            }
+            if !self.is_for_next(node) {
                 assert!(self.function.unconditional_edge(node).is_some());
                 if Self::block_is_no_op(self.function.block(node).unwrap())
                     && self.function.entry() != &Some(node)
@@ -77,12 +79,10 @@ impl super::GraphStructurer {
                     self.function.remove_block(node);
                     true
                 } else if self.function.predecessor_blocks(target).count() == 1
-                // TODO: isnt this implied by their only being one predecessor, target?
-                // there might be a back edge, but we should still be able to merge
-                // as long as the back edge isnt from target -> node?
-                && dominators.dominators(target).unwrap().contains(&node)
+                && !self.function.edges_to_block(node).any(|(t, _)| t == target)
+                && !self.function.edges_to_block(target).any(|(t, _)| t == target)
                 {
-                    if self.function.entry() != &Some(target) && !self.is_loop_header(target) {
+                    if self.function.entry() != &Some(target) && !self.is_loop_header(target) && !self.is_for_next(target) {
                         let edges = self.function.remove_edges(target);
                         let block = self.function.remove_block(target).unwrap();
                         self.function.block_mut(node).unwrap().extend(block.0);
@@ -114,14 +114,16 @@ impl super::GraphStructurer {
             } else {
                 false
             }
-        } else if Self::block_is_no_op(self.function.block(node).unwrap())
+        } 
+        // node is terminating
+        // TODO: block_is_no_op returns true for blocks with comments, do we wanna remove the block if it has comments?
+        else if Self::block_is_no_op(self.function.block(node).unwrap())
             && self.function.entry() != &Some(node)
             && !self.is_loop_header(node)
             && !self.is_for_next(node)
         {
-            let preds = self.function.predecessor_blocks(node).collect_vec();
             let mut invalid = false;
-            for &pred in &preds {
+            for pred in self.function.predecessor_blocks(node).collect_vec() {
                 if self.function.successor_blocks(pred).collect_vec().len() != 1 {
                     invalid = true;
                     break;
@@ -145,7 +147,6 @@ impl super::GraphStructurer {
                     );
                 }
                 self.function.remove_block(node);
-                println!("d");
                 true
             } else {
                 false

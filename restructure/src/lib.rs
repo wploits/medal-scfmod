@@ -74,9 +74,7 @@ impl GraphStructurer {
     ) -> bool {
         let successors = self.function.successor_blocks(node).collect_vec();
 
-        //println!("before");
-        //cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
-
+        // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
         if self.try_collapse_loop(node, dominators, post_dom) {
             self.find_loop_headers();
             // println!("matched loop");
@@ -91,7 +89,7 @@ impl GraphStructurer {
             0 => false,
             1 => {
                 // remove unnecessary jumps to allow pattern matching
-                self.match_jump(node, Some(successors[0]), dominators)
+                self.match_jump(node, Some(successors[0]))
             }
             2 => {
                 let (then_target, else_target) = self
@@ -99,7 +97,7 @@ impl GraphStructurer {
                     .conditional_edges(node)
                     .unwrap()
                     .map(|e| e.target());
-                self.match_conditional(node, then_target, else_target, dominators)
+                self.match_conditional(node, then_target, else_target)
             }
 
             _ => unreachable!(),

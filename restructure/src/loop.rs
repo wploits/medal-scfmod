@@ -85,10 +85,10 @@ impl GraphStructurer {
                     return false;
                 }
 
-                let else_successors = self.function.successor_blocks(then_node).collect_vec();
-                if !then_successors.is_empty() && then_successors[0] != else_node 
-                    && !(else_successors.len() == 1 && then_successors[0] == else_successors[0])
-                    && !(then_successors[0] == header && else_node == init_block) {
+                let else_successors = self.function.successor_blocks(else_node).collect_vec();
+                if !(!then_successors.is_empty() && then_successors[0] == else_node)
+                    && !(else_successors.len() == 1 && then_successors[0] == else_successors[0]) 
+                    && !(then_successors[0] == header && else_node == init_block){
                     return false;
                 }
 
@@ -145,7 +145,7 @@ impl GraphStructurer {
                     vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
                 );
 
-                self.match_jump(init_block, Some(else_node), dominators);
+                self.match_jump(init_block, Some(else_node));
                 return true;
             }
             return false;
@@ -180,7 +180,7 @@ impl GraphStructurer {
                         header,
                         vec![(next, BlockEdge::new(BranchType::Unconditional))],
                     );
-                    self.match_jump(header, Some(next), dominators);
+                    self.match_jump(header, Some(next));
                 } else {
                     let header_block = self.function.block_mut(header).unwrap();
                     *header_block = vec![ast::While::new(
@@ -190,7 +190,7 @@ impl GraphStructurer {
                     .into()]
                     .into();
                     self.function.remove_edges(header);
-                    self.match_jump(header, None, dominators);
+                    self.match_jump(header, None);
                 }
             } else {
                 let next = match successors.len() {
@@ -254,7 +254,7 @@ impl GraphStructurer {
                 } else {
                     self.function.remove_edges(init_block);
                 }
-                self.match_jump(init_block, next, dominators);
+                self.match_jump(init_block, next);
             }
 
             true
@@ -309,7 +309,10 @@ impl GraphStructurer {
                         .map(|d| d.collect_vec())
                         .unwrap_or_default(),
                 );
-            if let Some(new_next) = common_post_doms.into_iter().find(|&p| {
+                // TODO: add for next support?
+            if !self.is_for_next(header)
+                &&
+             let Some(new_next) = common_post_doms.into_iter().find(|&p| {
                 self.function.has_block(p)
                     && continues
                         .iter()
@@ -441,7 +444,7 @@ impl GraphStructurer {
                         header,
                         vec![(next, BlockEdge::new(BranchType::Unconditional))],
                     );
-                    self.match_jump(header, Some(next), dominators);
+                    self.match_jump(header, Some(next));
                     return true;
                 } else {
                     let statements =
@@ -491,7 +494,7 @@ impl GraphStructurer {
                         init_block,
                         vec![(next, BlockEdge::new(BranchType::Unconditional))],
                     );
-                    self.match_jump(init_block, Some(next), dominators);
+                    self.match_jump(init_block, Some(next));
                     return true;
                 }
             }

@@ -72,7 +72,6 @@ impl GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
-        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let mut then_successors = self.function.successor_blocks(then_node).collect_vec();
         let mut else_successors = self.function.successor_blocks(else_node).collect_vec();
@@ -166,7 +165,7 @@ impl GraphStructurer {
         } else {
             self.function.remove_edges(entry);
         }
-        self.match_jump(entry, exit, dominators);
+        self.match_jump(entry, exit);
 
         true
     }
@@ -178,7 +177,6 @@ impl GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
-        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let mut _match_triangle_conditional = |then_node, else_node, inverted| {
             let then_successors = self.function.successor_blocks(then_node).collect_vec();
@@ -214,7 +212,7 @@ impl GraphStructurer {
                 vec![(else_node, BlockEdge::new(BranchType::Unconditional))],
             );
 
-            self.match_jump(entry, Some(else_node), dominators);
+            self.match_jump(entry, Some(else_node));
 
             true
         };
@@ -334,7 +332,6 @@ impl GraphStructurer {
         entry: NodeIndex,
         then_node: NodeIndex,
         else_node: NodeIndex,
-        dominators: &Dominators<NodeIndex>,
     ) -> bool {
         let block = self.function.block_mut(entry).unwrap();
         if block.last_mut().unwrap().as_if_mut().is_none() {
@@ -342,7 +339,7 @@ impl GraphStructurer {
             return false;
         }
 
-        self.match_diamond_conditional(entry, then_node, else_node, dominators)
-            || self.match_triangle_conditional(entry, then_node, else_node, dominators)
+        self.match_diamond_conditional(entry, then_node, else_node)
+            || self.match_triangle_conditional(entry, then_node, else_node)
     }
 }
