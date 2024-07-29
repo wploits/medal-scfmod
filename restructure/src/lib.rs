@@ -115,8 +115,8 @@ impl GraphStructurer {
             .collect::<FxHashSet<_>>();
         let mut dfs_postorder =
             DfsPostOrder::new(self.function.graph(), self.function.entry().unwrap());
-        let dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
-        let post_dom = post_dominators(self.function.graph_mut());
+        let mut dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
+        let mut post_dom = post_dominators(self.function.graph_mut());
 
         // cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();
 
@@ -124,6 +124,10 @@ impl GraphStructurer {
         while let Some(node) = dfs_postorder.next(self.function.graph()) {
             // println!("matching {:?}", node);
             let matched = self.try_match_pattern(node, &dominators, &post_dom);
+            if matched {
+                dominators = simple_fast(self.function.graph(), self.function.entry().unwrap());
+                post_dom = post_dominators(self.function.graph_mut());
+            }
             changed |= matched;
             // if matched {
             //     cfg::dot::render_to(&self.function, &mut std::io::stdout()).unwrap();

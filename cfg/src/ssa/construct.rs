@@ -272,8 +272,9 @@ impl<'a> SsaConstructor<'a> {
                 .arguments
                 .push((param_local.clone(), argument_local.into()));
         }
-
-        self.try_remove_trivial_param(node, param_local)
+        // TODO: fix lol
+        // self.try_remove_trivial_param(node, param_local)
+        param_local
     }
 
     fn try_remove_trivial_param(&mut self, node: NodeIndex, param_local: RcLocal) -> RcLocal {

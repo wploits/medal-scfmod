@@ -81,7 +81,57 @@ pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
             let mut upvalues = lifted
                 .into_iter()
                 .map(|(ast_function, function, upvalues_in)| {
-                    decompile_function(ast_function, function, upvalues_in)
+                    use std::{backtrace::Backtrace, cell::RefCell, fmt::Write, panic};
+
+                        thread_local! {
+                            static BACKTRACE: RefCell<Option<Backtrace>> = const { RefCell::new(None) };
+                        }
+
+                        let function_id = function.id;
+                        let mut args = std::panic::AssertUnwindSafe(Some((
+                            ast_function.clone(),
+                            function,
+                            upvalues_in,
+                        )));
+
+                        let prev_hook = panic::take_hook();
+                        panic::set_hook(Box::new(|_| {
+                            let trace = Backtrace::capture();
+                            BACKTRACE.with(move |b| b.borrow_mut().replace(trace));
+                        }));
+                        let result = panic::catch_unwind(move || {
+                            let (ast_function, function, upvalues_in) = args.take().unwrap();
+                            decompile_function(ast_function, function, upvalues_in)
+                        });
+                        panic::set_hook(prev_hook);
+
+                        match result {
+                            Ok(r) => r,
+                            Err(e) => {
+                                let panic_information = match e.downcast::<String>() {
+                                    Ok(v) => *v,
+                                    Err(e) => match e.downcast::<&str>() {
+                                        Ok(v) => v.to_string(),
+                                        _ => "Unknown Source of Error".to_owned(),
+                                    },
+                                };
+
+                                let mut message = String::new();
+                                writeln!(message, "failed to decompile").unwrap();
+                                writeln!(message, "function {} panicked at '{}'", function_id, panic_information).unwrap();
+                                if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
+                                    write!(message, "stack backtrace:\n{}", backtrace).unwrap();
+                                }
+
+                                ast_function.lock().body.extend(
+                                    message
+                                        .trim_end()
+                                        .split('\n')
+                                        .map(|s| ast::Comment::new(s.to_string()).into()),
+                                );
+                                (ByAddress(ast_function), Vec::new())
+                            }
+                        }
                 })
                 .collect::<FxHashMap<_, _>>();
 
@@ -150,6 +200,7 @@ fn decompile_function(
         }
         ssa::construct::apply_local_map(&mut function, local_map);
     }
+    // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
     ssa::Destructor::new(
         &mut function,
         upvalue_to_group,

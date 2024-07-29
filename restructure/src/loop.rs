@@ -81,14 +81,17 @@ impl GraphStructurer {
                 }
 
                 let (init_block, init_index) = self.find_for_init(header);
-                if then_node != else_node && self.function.predecessor_blocks(then_node).count() != 1 {
+                if then_node != else_node
+                    && self.function.predecessor_blocks(then_node).count() != 1
+                {
                     return false;
                 }
 
                 let else_successors = self.function.successor_blocks(else_node).collect_vec();
                 if !(!then_successors.is_empty() && then_successors[0] == else_node)
-                    && !(else_successors.len() == 1 && then_successors[0] == else_successors[0]) 
-                    && !(then_successors[0] == header && else_node == init_block){
+                    && !(else_successors.len() == 1 && then_successors[0] == else_successors[0])
+                    && !(then_successors[0] == header && else_node == init_block)
+                {
                     return false;
                 }
 
@@ -97,8 +100,7 @@ impl GraphStructurer {
 
                 let body_ast = if then_node == init_block {
                     vec![ast::Break {}.into()].into()
-                }
-                else {
+                } else {
                     let mut body_ast = self.function.remove_block(then_node).unwrap();
                     body_ast.extend(statements.iter().cloned());
                     if !matches!(body_ast.last(), Some(ast::Statement::Return(_))) {
@@ -155,7 +157,14 @@ impl GraphStructurer {
         if successors.contains(&header) {
             if !self.is_for_next(header) {
                 if successors.len() == 2 {
-                    let if_stat = self.function.block_mut(header).unwrap().pop().unwrap().into_if().unwrap();
+                    let if_stat = self
+                        .function
+                        .block_mut(header)
+                        .unwrap()
+                        .pop()
+                        .unwrap()
+                        .into_if()
+                        .unwrap();
                     let mut condition = if_stat.condition;
                     let (then_edge, else_edge) = self.function.conditional_edges(header).unwrap();
                     let next = if then_edge.target() == header {
@@ -284,7 +293,6 @@ impl GraphStructurer {
                     return false;
                 }
             }
-
             let continues = self
                 .function
                 .predecessor_blocks(header)
@@ -309,15 +317,15 @@ impl GraphStructurer {
                         .map(|d| d.collect_vec())
                         .unwrap_or_default(),
                 );
-                // TODO: add for next support?
+            // TODO: add for next support?
             if !self.is_for_next(header)
-                &&
-             let Some(new_next) = common_post_doms.into_iter().find(|&p| {
-                self.function.has_block(p)
-                    && continues
-                        .iter()
-                        .all(|&n| post_dom.dominators(n).unwrap().contains(&p))
-            }) && new_next != next
+                && let Some(new_next) = common_post_doms.into_iter().find(|&p| {
+                    self.function.has_block(p)
+                        && continues
+                            .iter()
+                            .all(|&n| post_dom.dominators(n).unwrap().contains(&p))
+                })
+                && new_next != next
             {
                 // TODO: this is uh, yeah
                 next = new_next;
@@ -375,7 +383,15 @@ impl GraphStructurer {
                 return changed;
             }
 
-            let next = if post_dom.dominators(header).is_some_and(|mut p| p.contains(&next)) { Some(next) } else { None };
+            let next = if self.function.successor_blocks(body).exactly_one().ok() == Some(header)
+                || post_dom
+                    .dominators(header)
+                    .is_some_and(|mut p| p.contains(&next))
+            {
+                Some(next)
+            } else {
+                None
+            };
             for node in breaks
                 .into_iter()
                 .chain(continues)
@@ -397,10 +413,10 @@ impl GraphStructurer {
                     unreachable!();
                 }
             }
-            //println!("changed: {:?}", changed);
 
-            if self.function.successor_blocks(body).exactly_one().ok() == Some(header) 
-                && let Some(next) = next {
+            if self.function.successor_blocks(body).exactly_one().ok() == Some(header)
+                && let Some(next) = next
+            {
                 let statement = self.function.block_mut(header).unwrap().pop().unwrap();
                 if let ast::Statement::If(if_stat) = statement {
                     let mut if_condition = if_stat.condition;
@@ -499,6 +515,24 @@ impl GraphStructurer {
                 }
             }
             changed
+        } else if let Ok(&body) = successors.iter().exactly_one()
+            && self
+                .function
+                .successor_blocks(body)
+                .exactly_one()
+                .is_ok_and(|s| s == header)
+        {
+            let block = self.function.remove_block(body).unwrap();
+
+            let mut body_block = std::mem::take(self.function.block_mut(header).unwrap());
+            body_block.extend(block.0);
+
+            self.function
+                .block_mut(header)
+                .unwrap()
+                .push(ast::While::new(ast::Literal::Boolean(true).into(), body_block).into());
+            self.function.set_edges(header, Vec::new());
+            true
         } else {
             false
         }
