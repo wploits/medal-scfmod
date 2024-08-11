@@ -1,3 +1,4 @@
+use futures_util::StreamExt;
 extern crate console_error_panic_hook;
 
 use base64::prelude::*;
@@ -5,21 +6,18 @@ use luau_lifter::decompile_bytecode;
 use serde::{Deserialize, Serialize};
 use worker::*;
 
-const SELLIX_SECRET: &str = "G0WWbMPy4cMo8XJjQ0D237PiT7SUNwOzOPIxT4ju2qFUwqwCwasbUzB80JIbpuTG";
-const SELLIX_PRODUCT_ID: &str = "6650c83ce5125";
+const AUTH_SECRET: &str = "ymjKH2O3BbO3bDSsKmpo3ek3vHxIWYLQfj0";
 
-#[derive(Serialize)]
-struct LicensingCheck {
-    product_id: String,
-    key: String,
+#[derive(Deserialize)]
+struct DecompileMessage {
+    id: String,
+    encoded_bytecode: String,
 }
 
-#[derive(Deserialize)]
-struct LicenseData {}
-
-#[derive(Deserialize)]
-struct LicenseResponse {
-    data: Option<LicenseData>,
+#[derive(Serialize)]
+struct DecompileResponse {
+    id: String,
+    decompilation: String,
 }
 
 #[event(fetch, respond_with_errors)]
@@ -28,51 +26,54 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
 
     let router = Router::new();
     router
-        .post_async("/decompile", |mut req, _ctx| async move {
-            let hardcoded_keys: Vec<String> = vec![
-                "MEDAL-JYPKXEDJGRHSTUMC".to_string(),
-                "MEDAL-JVPTRXQQCWRXSKQY".to_string(),
-                "MEDAL-ZGGZKVTHRLICJBWK".to_string(),
-                "MEDAL-YRBAOLITKPFXKMRI".to_string(),
-                "MEDAL-KJIVWRDEEDCCSMNI".to_string(),
-                "MEDAL-YEGQGDZJKHZRPOSD".to_string(),
-                "MEDAL-JHIFZJQDNJQCHVAE".to_string(),
-                "MEDAL-AQXGCADHAHAWSPGS".to_string(),
-                "MEDAL-JXWYLQLWYNBLALYN".to_string(),
-                "MEDAL-AHSLAOKYLXONYCXO".to_string(),
-                "MEDAL-LOFRLWCHVOZHQPRP".to_string(),
-                "MEDAL-SOLARA-TEST-QUI".to_string(),
-            ];
-
+        .get_async("/decompile_ws", |req, _ctx| async move {
             let license = req
                 .headers()
                 .get("Authorization")
                 .unwrap_or_default()
                 .expect("authorization header is required");
 
-            let body = LicensingCheck {
-                product_id: SELLIX_PRODUCT_ID.to_string(),
-                key: license.clone(),
-            };
+            if license != AUTH_SECRET {
+                return Response::error("invalid license", 403);
+            }
 
-            let json_body = serde_json::to_string(&body).unwrap();
+            let pair = WebSocketPair::new()?;
+            let server = pair.server;
+            server.accept()?;
 
-            let mut headers = Headers::new();
-            headers.set("Authorization", SELLIX_SECRET).unwrap();
+            wasm_bindgen_futures::spawn_local(async move {
+                let mut event_stream = server.events().expect("could not open stream");
+                while let Some(event) = event_stream.next().await {
+                    if let WebsocketEvent::Message(msg) =
+                        event.expect("received error in websocket")
+                    {
+                        let msg = msg
+                            .json::<DecompileMessage>()
+                            .expect("malformed decompile message");
+                        let bytecode = BASE64_STANDARD
+                            .decode(msg.encoded_bytecode)
+                            .expect("bytecode must be base64 encoded");
+                        let resp = DecompileResponse {
+                            id: msg.id,
+                            decompilation: decompile_bytecode(&bytecode, 1),
+                        };
+                        server
+                            .send_with_str(serde_json::to_string(&resp).unwrap())
+                            .unwrap();
+                    }
+                }
+            });
 
-            let request = Request::new_with_init(
-                "https://dev.sellix.io/v1/products/licensing/check",
-                &RequestInit {
-                    method: Method::Post,
-                    headers,
-                    body: Some(json_body.into()),
-                    ..RequestInit::default()
-                },
-            )?;
+            Response::from_websocket(pair.client)
+        })
+        .post_async("/decompile", |mut req, _ctx| async move {
+            let license = req
+                .headers()
+                .get("Authorization")
+                .unwrap_or_default()
+                .expect("authorization header is required");
 
-            let license_response: LicenseResponse =
-                Fetch::Request(request).send().await?.json().await?;
-            if license_response.data.is_none() && !hardcoded_keys.contains(&license) {
+            if license != AUTH_SECRET {
                 return Response::error("invalid license", 403);
             }
 

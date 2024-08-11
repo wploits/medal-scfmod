@@ -6,7 +6,8 @@ authors.workspace = true
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-worker = "0.0.23"
+worker = "0.3.2"
+futures-util = "0.3.30"
 luau-lifter = { path = "../luau-lifter" }
 base64 = "0.22.1"
 chrono = "0.4.38"
