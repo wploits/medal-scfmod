@@ -1,6 +1,5 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
-#![feature(mixed_integer_ops)]
 
 use ast::{
     local_declarations::LocalDeclarer, name_locals::name_locals, replace_locals::replace_locals,
@@ -62,7 +61,7 @@ fn main() -> anyhow::Result<()> {
 
     let (main, ..) = lifted.first().unwrap().clone();
     let mut upvalues = lifted
-        .into_par_iter()
+        .into_iter()
         .map(|(ast_function, mut function, upvalues_in)| {
             let (local_count, local_groups, upvalue_in_groups, upvalue_passed_groups) =
                 cfg::ssa::construct(&mut function, &upvalues_in);
