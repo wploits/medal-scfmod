@@ -249,8 +249,13 @@ pub enum OpCode {
     // A: target register (see FORGLOOP for register layout)
     LOP_FORGPREP_INEXT,
 
-    // removed in v3
-    LOP_DEP_FORGLOOP_INEXT,
+    // FASTCALL3: perform a fast call of a built-in function using 3 register arguments
+    // A: builtin function id (see LuauBuiltinFunction)
+    // B: source argument register
+    // C: jump offset to get to following CALL
+    // AUX: source register 2 in least-significant byte
+    // AUX: source register 3 in second least-significant byte
+    LOP_FASTCALL3,
 
     // FORGPREP_NEXT: prepare FORGLOOP with 2 output variables (no AUX encoding), assuming generator is luaB_next, and jump to FORGLOOP
     // A: target register (see FORGLOOP for register layout)

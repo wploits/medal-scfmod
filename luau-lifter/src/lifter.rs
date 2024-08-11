@@ -498,7 +498,8 @@ impl<'a> Lifter<'a> {
                     OpCode::LOP_FASTCALL
                     | OpCode::LOP_FASTCALL1
                     | OpCode::LOP_FASTCALL2
-                    | OpCode::LOP_FASTCALL2K => {}
+                    | OpCode::LOP_FASTCALL2K
+                    | OpCode::LOP_FASTCALL3 => {}
                     OpCode::LOP_NAMECALL => {
                         let namecall_base = a;
                         let namecall_object = self.register(b as _);

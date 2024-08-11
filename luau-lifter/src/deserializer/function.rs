@@ -64,6 +64,7 @@ impl Function {
                 | OpCode::LOP_LOADKX
                 | OpCode::LOP_FASTCALL2
                 | OpCode::LOP_FASTCALL2K
+                | OpCode::LOP_FASTCALL3
                 | OpCode::LOP_JUMPXEQKNIL
                 | OpCode::LOP_JUMPXEQKB
                 | OpCode::LOP_JUMPXEQKN
