@@ -1,1 +1,0 @@
-This folder contains the built output assets for the worker "medal-dec" generated at 2024-06-15T22:10:36.657Z.
