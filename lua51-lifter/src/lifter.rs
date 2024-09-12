@@ -880,7 +880,7 @@ impl<'a, 'b> Lifter<'a, 'b> {
             insert_between: FxHashMap::default(),
             locals: FxHashMap::default(),
             constants: FxHashMap::default(),
-            function: Function::new(),
+            function: Function::new(0),
             upvalues: Vec::new(),
             lifted_functions,
         };

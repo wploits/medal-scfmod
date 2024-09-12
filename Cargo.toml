@@ -6,8 +6,6 @@ members = [
     "lua51-deserializer",
     "luau-lifter",
     "restructure",
-    "medal-dec",
-    "medal-website",
     "luau-worker",
 ]
 
