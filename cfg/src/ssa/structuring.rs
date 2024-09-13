@@ -66,9 +66,10 @@ pub struct GenericForNextPattern {
 
 fn simplify_condition(function: &mut Function, node: NodeIndex) -> bool {
     let block = function.block_mut(node).unwrap();
-    if let Some(if_stat) = block.last_mut().and_then(|s| s.as_if_mut())
-    {
-        if let Some(unary) = if_stat.condition.as_unary() && unary.operation == UnaryOperation::Not {
+    if let Some(if_stat) = block.last_mut().and_then(|s| s.as_if_mut()) {
+        if let Some(unary) = if_stat.condition.as_unary()
+            && unary.operation == UnaryOperation::Not
+        {
             if_stat.condition = *unary.value.clone();
             let (then_edge, else_edge) = function.conditional_edges(node).unwrap().map(|e| e.id());
             let (then_edge, else_edge) = function.graph_mut().index_twice_mut(then_edge, else_edge);
@@ -84,9 +85,13 @@ fn simplify_condition(function: &mut Function, node: NodeIndex) -> bool {
                         ast::BinaryOperation::Equal => ast::BinaryOperation::Equal,
                         ast::BinaryOperation::NotEqual => ast::BinaryOperation::NotEqual,
                         ast::BinaryOperation::LessThan => ast::BinaryOperation::GreaterThan,
-                        ast::BinaryOperation::LessThanOrEqual => ast::BinaryOperation::GreaterThanOrEqual,
+                        ast::BinaryOperation::LessThanOrEqual => {
+                            ast::BinaryOperation::GreaterThanOrEqual
+                        }
                         ast::BinaryOperation::GreaterThan => ast::BinaryOperation::LessThan,
-                        ast::BinaryOperation::GreaterThanOrEqual => ast::BinaryOperation::LessThanOrEqual,
+                        ast::BinaryOperation::GreaterThanOrEqual => {
+                            ast::BinaryOperation::LessThanOrEqual
+                        }
                         _ => return false,
                     },
                 )
@@ -159,7 +164,11 @@ fn match_conditional_sequence(
                         }
                         return None;
                     } else if second_block.len() == 1
-                        && edge_to_other.weight().arguments.iter().all(|(k, v)| { other_args.get(k).is_some_and(|rv| rv == v) })
+                        && edge_to_other
+                            .weight()
+                            .arguments
+                            .iter()
+                            .all(|(k, v)| other_args.get(k).is_some_and(|rv| rv == v))
                     {
                         return Some((second_conditional_if.condition.clone(), false));
                     }

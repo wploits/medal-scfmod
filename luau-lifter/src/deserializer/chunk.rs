@@ -16,7 +16,9 @@ impl Chunk {
     pub(crate) fn parse(input: &[u8], encode_key: u8, version: u8) -> IResult<&[u8], Self> {
         let (input, types_version) = if version >= 4 {
             le_u8(input)?
-        } else { (input, 0) };
+        } else {
+            (input, 0)
+        };
         if types_version > 3 {
             panic!("unsupported types version");
         }

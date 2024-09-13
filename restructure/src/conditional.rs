@@ -1,8 +1,8 @@
-use petgraph::visit::EdgeRef;
 use ast::Reduce;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
 use parking_lot::Mutex;
+use petgraph::visit::EdgeRef;
 use triomphe::Arc;
 use tuple::Map;
 
@@ -82,11 +82,15 @@ impl GraphStructurer {
                 let t = if let Some(index) = then_successors.iter().position(|n| *n == entry) {
                     then_successors.swap_remove(index);
                     true
-                } else { false };
+                } else {
+                    false
+                };
                 let e = if let Some(index) = else_successors.iter().position(|n| *n == entry) {
                     else_successors.swap_remove(index);
                     true
-                } else { false };
+                } else {
+                    false
+                };
                 if (!t && then_successors.len() != 1) || (!e && else_successors.len() != 1) {
                     return false;
                 }
@@ -96,25 +100,31 @@ impl GraphStructurer {
                 }
 
                 let mut refine = |n| {
-                    let (then_target, else_target) = self.function.conditional_edges(n).unwrap().map(|e| e.target());
+                    let (then_target, else_target) = self
+                        .function
+                        .conditional_edges(n)
+                        .unwrap()
+                        .map(|e| e.target());
                     let block = self.function.block_mut(n).unwrap();
                     if let Some(if_stat) = block.last_mut().unwrap().as_if_mut() {
                         if then_target == entry {
-                            if_stat.then_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
+                            if_stat.then_block =
+                                Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
                             true
-                        } else if else_target == entry  {
-                            if_stat.else_block = Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
+                        } else if else_target == entry {
+                            if_stat.else_block =
+                                Arc::new(Mutex::new(vec![ast::Continue {}.into()].into()));
                             true
-                        } else { false }
-                    } else { false }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 };
 
-                let then_changed = if t {
-                    refine(then_node)
-                } else { false };
-                let else_changed = if e {
-                    refine(else_node)
-                } else { false };
+                let then_changed = if t { refine(then_node) } else { false };
+                let else_changed = if e { refine(else_node) } else { false };
                 if !then_changed && !else_changed {
                     return false;
                 }

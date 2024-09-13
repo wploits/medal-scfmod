@@ -8,7 +8,10 @@ use ast::LocalRw;
 use dot::{GraphWalk, LabelText, Labeller};
 
 use itertools::Itertools;
-use petgraph::{stable_graph::{EdgeIndex, NodeIndex}, visit::{Bfs, Walker}};
+use petgraph::{
+    stable_graph::{EdgeIndex, NodeIndex},
+    visit::{Bfs, Walker},
+};
 
 use crate::function::Function;
 
@@ -99,7 +102,11 @@ impl<'a> Labeller<'a, NodeIndex, EdgeIndex> for FunctionLabeller<'a> {
 
 impl<'a> GraphWalk<'a, NodeIndex, EdgeIndex> for FunctionLabeller<'a> {
     fn nodes(&'a self) -> dot::Nodes<'a, NodeIndex> {
-        Cow::Owned(Bfs::new(self.function.graph(), self.function.entry().unwrap()).iter(self.function.graph()).collect::<Vec<_>>())
+        Cow::Owned(
+            Bfs::new(self.function.graph(), self.function.entry().unwrap())
+                .iter(self.function.graph())
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn edges(&'a self) -> dot::Edges<'a, EdgeIndex> {

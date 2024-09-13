@@ -1,7 +1,12 @@
 use ast::SideEffects;
 use cfg::block::{BlockEdge, BranchType};
 use itertools::Itertools;
-use petgraph::{algo::dominators::Dominators, stable_graph::NodeIndex, visit::{EdgeRef, IntoEdgeReferences}, Direction};
+use petgraph::{
+    algo::dominators::Dominators,
+    stable_graph::NodeIndex,
+    visit::{EdgeRef, IntoEdgeReferences},
+    Direction,
+};
 
 impl super::GraphStructurer {
     // TODO: STYLE: better name
@@ -50,11 +55,7 @@ impl super::GraphStructurer {
         }
     }
 
-    pub(crate) fn match_jump(
-        &mut self,
-        node: NodeIndex,
-        target: Option<NodeIndex>,
-    ) -> bool {
+    pub(crate) fn match_jump(&mut self, node: NodeIndex, target: Option<NodeIndex>) -> bool {
         if let Some(target) = target {
             if node == target {
                 return false;
@@ -79,10 +80,16 @@ impl super::GraphStructurer {
                     self.function.remove_block(node);
                     true
                 } else if self.function.predecessor_blocks(target).count() == 1
-                && !self.function.edges_to_block(node).any(|(t, _)| t == target)
-                && !self.function.edges_to_block(target).any(|(t, _)| t == target)
+                    && !self.function.edges_to_block(node).any(|(t, _)| t == target)
+                    && !self
+                        .function
+                        .edges_to_block(target)
+                        .any(|(t, _)| t == target)
                 {
-                    if self.function.entry() != &Some(target) && !self.is_loop_header(target) && !self.is_for_next(target) {
+                    if self.function.entry() != &Some(target)
+                        && !self.is_loop_header(target)
+                        && !self.is_for_next(target)
+                    {
                         let edges = self.function.remove_edges(target);
                         let block = self.function.remove_block(target).unwrap();
                         self.function.block_mut(node).unwrap().extend(block.0);
@@ -114,7 +121,7 @@ impl super::GraphStructurer {
             } else {
                 false
             }
-        } 
+        }
         // node is terminating
         // TODO: block_is_no_op returns true for blocks with comments, do we wanna remove the block if it has comments?
         else if Self::block_is_no_op(self.function.block(node).unwrap())

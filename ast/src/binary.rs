@@ -296,14 +296,17 @@ impl Binary {
     }
 
     pub fn right_associative(&self) -> bool {
-        matches!(self.operation, BinaryOperation::Pow | BinaryOperation::Concat)
+        matches!(
+            self.operation,
+            BinaryOperation::Pow | BinaryOperation::Concat
+        )
     }
-    
+
     pub fn left_group(&self) -> bool {
         self.precedence() > self.left.precedence()
             || (self.precedence() == self.left.precedence() && self.right_associative())
     }
-    
+
     pub fn right_group(&self) -> bool {
         self.precedence() > self.right.precedence()
             || (self.precedence() == self.right.precedence() && !self.right_associative())
