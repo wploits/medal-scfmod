@@ -625,18 +625,23 @@ impl<'a> Lifter<'a> {
                         statements.push(setlist.into());
                     }
                     OpCode::LOP_CONCAT => {
-                        let operands = (b..=c).map(|r| self.register(r as _)).collect::<Vec<_>>();
+                        let operands = (b..=c)
+                            .map(|r| self.register(r as _))
+                            .rev()
+                            .collect::<Vec<_>>();
                         assert!(operands.len() >= 2);
                         let mut operands = operands.into_iter();
+                        let right = operands.next().unwrap();
+                        let left = operands.next().unwrap();
                         let mut concat = ast::Binary::new(
-                            operands.next().unwrap().into(),
-                            operands.next().unwrap().into(),
+                            left.into(),
+                            right.into(),
                             ast::BinaryOperation::Concat,
                         );
                         for r in operands {
                             concat = ast::Binary::new(
-                                concat.into(),
                                 r.into(),
+                                concat.into(),
                                 ast::BinaryOperation::Concat,
                             );
                         }

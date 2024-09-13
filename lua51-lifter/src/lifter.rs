@@ -377,15 +377,19 @@ impl<'a, 'b> Lifter<'a, 'b> {
                     operands,
                 } => {
                     assert!(operands.len() >= 2);
+                    let mut operands = operands.into_iter().rev();
+
+                    let right = operands.next().unwrap();
+                    let left = operands.next().unwrap();
                     let mut concat = ast::Binary::new(
-                        self.locals[&operands[0]].clone().into(),
-                        self.locals[&operands[1]].clone().into(),
+                        self.locals[left].clone().into(),
+                        self.locals[right].clone().into(),
                         ast::BinaryOperation::Concat,
                     );
-                    for r in operands.iter().skip(2) {
+                    for r in operands {
                         concat = ast::Binary::new(
-                            concat.into(),
                             self.locals[r].clone().into(),
+                            concat.into(),
                             ast::BinaryOperation::Concat,
                         );
                     }
