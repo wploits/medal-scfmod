@@ -251,7 +251,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
     pub(crate) fn format_unary(&mut self, unary: &Unary) -> fmt::Result {
         write!(self.output, "{}", unary.operation)?;
-        let wrap = unary.precedence() > unary.value.precedence() && unary.value.precedence() != 0;
+        let wrap = unary.group();
         if wrap {
             write!(self.output, "(")?;
         }
@@ -263,8 +263,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
     }
 
     pub(crate) fn format_binary(&mut self, binary: &Binary) -> fmt::Result {
-        let parentheses = |f: &mut Self, rvalue: &RValue| -> fmt::Result {
-            let wrap = binary.precedence() > rvalue.precedence() && rvalue.precedence() != 0;
+        let parentheses = |f: &mut Self, wrap: bool, rvalue: &RValue| -> fmt::Result {
             if wrap {
                 write!(f.output, "(")?;
             }
@@ -275,9 +274,9 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             Ok(())
         };
 
-        parentheses(self, &binary.left)?;
+        parentheses(self, binary.left_group(), &binary.left)?;
         write!(self.output, " {} ", binary.operation)?;
-        parentheses(self, &binary.right)
+        parentheses(self, binary.right_group(), &binary.right)
     }
 
     fn format_closure_parameters(&mut self, closure: &Closure) -> fmt::Result {

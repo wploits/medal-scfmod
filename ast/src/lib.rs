@@ -152,7 +152,11 @@ impl RValue {
     pub fn precedence(&self) -> usize {
         match self {
             Self::Binary(binary) => binary.precedence(),
-            _ => 0,
+            Self::Unary(unary) => unary.precedence(),
+            RValue::Literal(Literal::Number(n)) if n.is_finite() && n.is_sign_negative() => {
+                return 7;
+            }
+            _ => 9,
         }
     }
 

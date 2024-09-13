@@ -278,7 +278,10 @@ impl Binary {
     pub fn precedence(&self) -> usize {
         match self.operation {
             BinaryOperation::Pow => 8,
-            BinaryOperation::Mul | BinaryOperation::Div | BinaryOperation::Mod => 6,
+            BinaryOperation::Mul
+            | BinaryOperation::Div
+            | BinaryOperation::Mod
+            | BinaryOperation::IDiv => 6,
             BinaryOperation::Add | BinaryOperation::Sub => 5,
             BinaryOperation::Concat => 4,
             BinaryOperation::LessThan
@@ -289,8 +292,21 @@ impl Binary {
             | BinaryOperation::NotEqual => 3,
             BinaryOperation::And => 2,
             BinaryOperation::Or => 1,
-            BinaryOperation::IDiv => 6,
         }
+    }
+
+    pub fn right_associative(&self) -> bool {
+        matches!(self.operation, BinaryOperation::Pow | BinaryOperation::Concat)
+    }
+    
+    pub fn left_group(&self) -> bool {
+        self.precedence() > self.left.precedence()
+            || (self.precedence() == self.left.precedence() && self.right_associative())
+    }
+    
+    pub fn right_group(&self) -> bool {
+        self.precedence() > self.right.precedence()
+            || (self.precedence() == self.right.precedence() && !self.right_associative())
     }
 }
 
@@ -314,21 +330,20 @@ impl LocalRw for Binary {
 
 impl fmt::Display for Binary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: STYLE: rename `expression` to `rvalue`
-        let parentheses = |expression: &RValue| {
-            if self.precedence() > expression.precedence() && expression.precedence() != 0 {
-                format!("({})", expression)
+        let parentheses = |group: bool, rvalue: &RValue| {
+            if group {
+                format!("({})", rvalue)
             } else {
-                format!("{}", expression)
+                format!("{}", rvalue)
             }
         };
 
         write!(
             f,
             "{} {} {}",
-            parentheses(self.left.as_ref()),
+            parentheses(self.left_group(), self.left.as_ref()),
             self.operation,
-            parentheses(self.right.as_ref()),
+            parentheses(self.right_group(), self.right.as_ref()),
         )
     }
 }

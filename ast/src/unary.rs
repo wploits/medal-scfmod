@@ -381,10 +381,23 @@ impl Unary {
     }
 
     pub fn precedence(&self) -> usize {
-        match self.operation {
-            UnaryOperation::Not | UnaryOperation::Negate => 7,
-            _ => 0,
-        }
+        7
+    }
+
+    pub fn group(&self) -> bool {
+        (self.precedence() > self.value.precedence())
+            || (matches!(self.operation, UnaryOperation::Negate)
+                && (matches!(
+                    *self.value,
+                    RValue::Unary(Unary {
+                        operation: UnaryOperation::Negate,
+                        ..
+                    })
+                ) || matches!(
+                    *self.value,
+                    RValue::Literal(Literal::Number(value))
+                        if value.is_finite() && value.is_sign_negative()
+                )))
     }
 }
 
@@ -404,7 +417,7 @@ impl fmt::Display for Unary {
             f,
             "{}{}",
             self.operation,
-            if self.precedence() > self.value.precedence() && self.value.precedence() != 0 {
+            if self.group() {
                 format!("({})", self.value)
             } else {
                 format!("{}", self.value)
