@@ -110,14 +110,11 @@ impl Function {
         v
     }
 
-    pub(crate) fn parse(input: &[u8], encode_key: u8) -> IResult<&[u8], Self> {
+    pub(crate) fn parse(input: &[u8], encode_key: u8, version: u8) -> IResult<&[u8], Self> {
         let (input, max_stack_size) = le_u8(input)?;
         let (input, num_parameters) = le_u8(input)?;
         let (input, num_upvalues) = le_u8(input)?;
         let (input, is_vararg) = le_u8(input)?;
-
-        let (input, flags) = le_u8(input)?;
-        let (input, _) = parse_list(input, le_u8)?;
 
         let (input, u32_instructions) = parse_list(input, le_u32)?;
         //let (input, instructions) = parse_list(input, Function::parse_instrution)?;
@@ -156,7 +153,7 @@ impl Function {
         let input = match le_u8(input)? {
             (input, 0) => input,
             (input, _) => {
-                panic!("we have debug info");
+                // panic!("we have debug info");
                 let (mut input, num_locvars) = leb128_usize(input)?;
                 for _ in 0..num_locvars {
                     (input, _) = leb128_usize(input)?;

@@ -28,7 +28,7 @@ impl Chunk {
         } else {
             input
         };
-        let (input, functions) = parse_list(input, |i| Function::parse(i, encode_key))?;
+        let (input, functions) = parse_list(input, |i| Function::parse(i, encode_key, version))?;
         let (input, main) = leb128_usize(input)?;
 
         Ok((
@@ -41,3 +41,38 @@ impl Chunk {
         ))
     }
 }
+
+// impl Chunk {
+//     pub(crate) fn parse(input: &[u8], encode_key: u8, version: u8) -> IResult<&[u8], Self> {
+//         let (input, types_version) = if version >= 4 {
+//             le_u8(input)?
+//         } else {
+//             (input, 0)
+//         };
+
+//         let (input, string_table) = parse_list(input, parse_string)?;
+
+//         if version >= 4 {
+//             if  types_version > 3 {
+//                 panic!("unsupported types version");
+//             }
+//             let input = if types_version == 3 {
+//                 many_till(leb128_usize, char('\0'))(input)?.0
+//             } else {
+//                 input
+//             };
+//         }
+
+//         let (input, functions) = parse_list(input, |i| Function::parse(i, encode_key, version))?;
+//         let (input, main) = leb128_usize(input)?;
+
+//         Ok((
+//             input,
+//             Self {
+//                 string_table,
+//                 functions,
+//                 main,
+//             },
+//         ))
+//     }
+// }
