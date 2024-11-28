@@ -116,6 +116,14 @@ impl Function {
         let (input, num_upvalues) = le_u8(input)?;
         let (input, is_vararg) = le_u8(input)?;
 
+        let input = if version >= 4 {
+            let (t_input, flags) = le_u8(input)?;
+            let (t_input, _) = parse_list(t_input, le_u8)?;
+            t_input
+        } else {
+            input
+        };
+
         let (input, u32_instructions) = parse_list(input, le_u32)?;
         //let (input, instructions) = parse_list(input, Function::parse_instrution)?;
         let instructions = Self::parse_instructions(&u32_instructions, encode_key);
