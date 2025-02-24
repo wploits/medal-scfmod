@@ -23,7 +23,7 @@ impl Namer {
                     } else {
                         ""
                     };
-                lock.0 = Some(format!("{}{}", prefix, self.counter));
+                lock.0 = Some(format!("{}{}_", prefix, self.counter));
                 self.counter += 1;
             }
         }
