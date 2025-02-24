@@ -367,14 +367,14 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             RValue::Binary(binary) => self.format_binary(binary),
             RValue::Closure(closure) => self.format_closure(closure),
             RValue::Literal(Literal::Number(n)) if n.is_infinite() => {
-                // TODO: only insert parentheses when necessary
-                write!(self.output, "(")?;
-                self.format_binary(&Binary::new(
-                    Literal::Number(if n.is_sign_positive() { 1.0 } else { -1.0 }).into(),
-                    Literal::Number(0.0).into(),
-                    BinaryOperation::Div,
-                ))?;
-                write!(self.output, ")")
+                if n.is_sign_positive() {
+                    write!(self.output, "math.huge")?;
+                }
+                else {
+                    write!(self.output, "-math.huge")?;
+                }
+
+                Ok(())
             }
             RValue::Literal(Literal::Number(n)) if n.is_nan() => {
                 // TODO: check that nan is appropriate for platform
