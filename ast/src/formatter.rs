@@ -369,8 +369,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             RValue::Literal(Literal::Number(n)) if n.is_infinite() => {
                 if n.is_sign_positive() {
                     write!(self.output, "math.huge")?;
-                }
-                else {
+                } else {
                     write!(self.output, "-math.huge")?;
                 }
 
@@ -574,11 +573,11 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         {
             let left = &assign.left[0];
             if assign.prefix || left.as_global().is_some() || {
-                if let LValue::Index(ref index) = left {
+                if let LValue::Index(index) = left {
                     let mut index = index;
                     let mut valid = true;
                     loop {
-                        if let box RValue::Literal(Literal::String(ref key)) = &index.right
+                        if let box RValue::Literal(Literal::String(key)) = &index.right
                             && Self::is_valid_name(key)
                         {
                             match index.left {
