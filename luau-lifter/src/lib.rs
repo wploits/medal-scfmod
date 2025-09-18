@@ -1,13 +1,9 @@
-mod deserializer;
-mod instruction;
-mod lifter;
-mod op_code;
-
 use ast::{
     local_declarations::LocalDeclarer, name_locals::name_locals, replace_locals::replace_locals,
-    Traverse,
+    Traverse, Block, Upvalue, RcLocal, Call, MethodCall, Assign, If, While, Repeat, NumericFor,
+    GenericFor, Return, LValue, RValue,
 };
-
+use anyhow::anyhow;
 use by_address::ByAddress;
 use cfg::{
     function::Function,
@@ -16,29 +12,27 @@ use cfg::{
         structuring::{structure_conditionals, structure_jumps},
     },
 };
-use indexmap::IndexMap;
-
-use lifter::Lifter;
-
-//use cfg_ir::{dot, function::Function, ssa};
 use clap::Parser;
+use indexmap::IndexMap;
 use parking_lot::Mutex;
 use petgraph::algo::dominators::simple_fast;
 use rayon::prelude::*;
-
-use anyhow::anyhow;
 use rustc_hash::FxHashMap;
-use triomphe::Arc;
-use walkdir::WalkDir;
-
 use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
     time::Instant,
 };
+use triomphe::Arc;
+use walkdir::WalkDir;
 
 use deserializer::bytecode::Bytecode;
+
+mod deserializer;
+mod instruction;
+mod lifter;
+mod op_code;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -48,11 +42,8 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 #[clap(about, version, author)]
 struct Args {
     paths: Vec<String>,
-    /// Number of threads to use (0 = automatic)
     #[clap(short, long, default_value_t = 0)]
     threads: usize,
-    /// op = op * key % 256
-    /// For Roblox client bytecode, use 203
     #[clap(short, long, default_value_t = 1)]
     key: u8,
     #[clap(short, long)]
@@ -70,7 +61,7 @@ pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
             let mut stack = vec![(Arc::<Mutex<ast::Function>>::default(), chunk.main)];
             while let Some((ast_func, func_id)) = stack.pop() {
                 let (function, upvalues, child_functions) =
-                    Lifter::lift(&chunk.functions, &chunk.string_table, func_id);
+                    lifter::Lifter::lift(&chunk.functions, &chunk.string_table, func_id);
                 lifted.push((ast_func, function, upvalues));
                 stack.extend(child_functions.into_iter().map(|(a, f)| (a.0, f)));
             }
@@ -116,11 +107,6 @@ pub fn decompile_bytecode(bytecode: &[u8], encode_key: u8) -> String {
 
                             let mut message = String::new();
                             writeln!(message, "failed to decompile").unwrap();
-                            // writeln!(message, "function {} panicked at '{}'", function_id, panic_information).unwrap();
-                            // if let Some(backtrace) = BACKTRACE.with(|b| b.borrow_mut().take()) {
-                            //     write!(message, "stack backtrace:\n{}", backtrace).unwrap();
-                            // }
-
                             ast_function.lock().body.extend(
                                 message
                                     .trim_end()
@@ -159,19 +145,11 @@ fn decompile_function(
         )
         .flat_map(|(i, g)| g.into_iter().map(move |u| (u, i.clone())))
         .collect::<IndexMap<_, _>>();
-    // TODO: do we even need this?
     let local_to_group = local_groups
         .into_iter()
         .enumerate()
         .flat_map(|(i, g)| g.into_iter().map(move |l| (l, i)))
         .collect::<FxHashMap<_, _>>();
-    // TODO: REFACTOR: some way to write a macro that states
-    // if cfg::ssa::inline results in change then structure_jumps, structure_compound_conditionals,
-    // structure_for_loops and remove_unnecessary_params must run again.
-    // if structure_compound_conditionals results in change then dominators and post dominators
-    // must be recalculated.
-    // etc.
-    // the macro could also maybe generate an optimal ordering?
     let mut changed = true;
     while changed {
         changed = false;
@@ -181,24 +159,15 @@ fn decompile_function(
 
         ssa::inline::inline(&mut function, &local_to_group, &upvalue_to_group);
 
-        if structure_conditionals(&mut function)
-        // || {
-        //     let post_dominators = post_dominators(function.graph_mut());
-        //     structure_for_loops(&mut function, &dominators, &post_dominators)
-        // }
-        // we can't structure method calls like this because of __namecall
-        // || structure_method_calls(&mut function)
-        {
+        if structure_conditionals(&mut function) {
             changed = true;
         }
         let mut local_map = FxHashMap::default();
-        // TODO: loop until returns false?
         if ssa::construct::remove_unnecessary_params(&mut function, &mut local_map) {
             changed = true;
         }
         ssa::construct::apply_local_map(&mut function, local_map);
     }
-    // cfg::dot::render_to(&function, &mut std::io::stdout()).unwrap();
     ssa::Destructor::new(
         &mut function,
         upvalue_to_group,
@@ -211,7 +180,6 @@ fn decompile_function(
     let is_variadic = function.is_variadic;
     let block = Arc::new(restructure::lift(function).into());
     LocalDeclarer::default().declare_locals(
-        // TODO: why does block.clone() not work?
         Arc::clone(&block),
         &upvalues_in.iter().chain(params.iter()).cloned().collect(),
     );
@@ -234,18 +202,16 @@ fn link_upvalues(
             if let ast::RValue::Closure(closure) = rvalue {
                 let old_upvalues = &upvalues[&closure.function];
                 let mut function = closure.function.lock();
-                // TODO: inefficient, try constructing a map of all up -> new up first
-                // and then call replace_locals on main body
                 let mut local_map =
                     FxHashMap::with_capacity_and_hasher(old_upvalues.len(), Default::default());
-                for (old, new) in
-                    old_upvalues
+                for (old, new) in old_upvalues.iter().zip(
+                    closure
+                        .upvalues
                         .iter()
-                        .zip(closure.upvalues.iter().map(|u| match u {
+                        .map(|u| match u {
                             ast::Upvalue::Copy(l) | ast::Upvalue::Ref(l) => l,
-                        }))
-                {
-                    // println!("{} -> {}", old, new);
+                        }),
+                ) {
                     local_map.insert(old.clone(), new.clone());
                 }
                 link_upvalues(&mut function.body, upvalues);
