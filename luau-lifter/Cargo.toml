@@ -29,7 +29,7 @@ warp = "0.3"
 base64 = "0.22"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-bytes = "1" # ここを1に変更しました
+bytes = "1"
 
 [features]
 dhat-heap = []
