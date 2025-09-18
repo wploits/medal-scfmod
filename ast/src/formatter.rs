@@ -83,8 +83,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             .display(&mut self.output, self.indentation_level)
     }
 
-    // (function() end)()
-    // (function() end)[1]
     fn should_wrap_left_rvalue(value: &RValue) -> bool {
         !matches!(
             value,
@@ -302,14 +300,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         if !function.body.is_empty() {
             writeln!(self.output)?;
             self.indentation_level += 1;
-            // if closure.name.is_some() {
-            //     self.indent()?;
-            //     writeln!(self.output, "-- function name: {}", closure.name.as_ref().unwrap())?;
-            // }
-            // if closure.line_defined.is_some() {
-            //     self.indent()?;
-            //     writeln!(self.output, "-- line defined: {}", closure.line_defined.as_ref().unwrap())?;
-            // }
             if !closure.upvalues.is_empty() {
                 self.indent()?;
                 write!(self.output, "-- upvalues: ")?;
@@ -376,9 +366,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 Ok(())
             }
             RValue::Literal(Literal::Number(n)) if n.is_nan() => {
-                // TODO: check that nan is appropriate for platform
-                // assert_eq!(n.to_bits(), 0x7ff8000000000000);
-                // TODO: only insert parentheses when necessary
                 write!(self.output, "(")?;
                 self.format_binary(&Binary::new(
                     Literal::Number(0.0).into(),
@@ -417,7 +404,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         {
             return false;
         }
-        // TODO: Consider adding "goto" to reserved keywords
         const RESERVED_KEYWORDS: &[&str] = &[
             "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in",
             "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while",
@@ -430,7 +416,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         return true;
     }
 
-    // TODO: PERF: Cow like from_utf8_lossy
     pub(crate) fn escape_string(string: &[u8]) -> Cow<str> {
         let mut owned: Option<String> = None;
         let mut iter = string.iter().enumerate().peekable();
@@ -441,10 +426,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
                 }
             } else {
                 if owned.is_none() {
-                    // TODO: PERF: unchecked?
                     owned = Some(std::str::from_utf8(&string[..i]).unwrap().to_string());
-                    // TODO: do we want to be multiplying by 2 here?
-                    // TODO: PERF: String::with_capacity + push_str to avoid an allocation
                     owned.as_mut().unwrap().reserve((string.len() - i) * 2);
                 }
                 let owned = owned.as_mut().unwrap();
@@ -474,7 +456,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
         if let Some(owned) = owned {
             owned.into()
         } else {
-            // TODO: PERF: unchecked?
             std::str::from_utf8(string).unwrap().into()
         }
     }
@@ -615,7 +596,6 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
             assert!(assign.prefix);
         }
 
-        // TODO: REFACTOR: move to format_rvalue_list function
         for (i, rvalue) in assign.right.iter().enumerate() {
             if i != 0 {
                 write!(self.output, ", ")?;
@@ -651,7 +631,7 @@ impl<'a, W: fmt::Write> Formatter<'a, W> {
 
         write!(self.output, "until ")?;
 
-        self.format_rvalue(&repeat.condition)
+        self.format_rvalue(&r#repeat.condition)
     }
 
     pub(crate) fn format_numeric_for(&mut self, numeric_for: &NumericFor) -> fmt::Result {
