@@ -1,10 +1,30 @@
-fn main() {
-    let file_name = std::env::args().nth(1).expect("expected exactly one file");
-    let key = std::env::args()
-        .nth(2)
-        .or_else(|| None)
-        .map(|s| if s == "-e" { 203 } else { panic!() })
-        .unwrap_or(1);
-    let bytecode = std::fs::read(file_name).expect("failed to read file");
-    println!("{}", luau_lifter::decompile_bytecode(&bytecode, key));
+use anyhow::Result;
+use luau_lifter::decompile_bytecode;
+use warp::Filter;
+use base64::{Engine as _, engine::general_purpose};
+use bytes::Bytes;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let decompile = warp::post()
+        .and(warp::path("decompile"))
+        .and(warp::body::bytes())
+        .map(|body: Bytes| {
+            let encoded_bytecode = body.to_vec();
+            match general_purpose::STANDARD.decode(&encoded_bytecode) {
+                Ok(bytecode) => {
+                    let mut decompiled_code = String::from("-- Decompiled with wp-. engine :)\n\n");
+                    decompiled_code.push_str(&decompile_bytecode(&bytecode, 203));
+                    warp::reply::with_status(decompiled_code, warp::http::StatusCode::OK)
+                }
+                Err(_) => {
+                    warp::reply::with_status("Invalid bytecode".to_string(), warp::http::StatusCode::BAD_REQUEST)
+                }
+            }
+        });
+
+    println!("Listening on http://127.0.0.1:9002");
+    warp::serve(decompile).run(([127, 0, 0, 1], 9002)).await;
+
+    Ok(())
 }
