@@ -3,8 +3,6 @@ name = "luau-lifter"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 num_enum = "0.5.6"
 nom = "7.1.0"
@@ -26,6 +24,12 @@ rayon = "1.5.3"
 triomphe = "0.1.8"
 parking_lot = "0.12.1"
 walkdir = "2.3.2"
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bytes = "1" # ここを1に変更しました
 
 [features]
 dhat-heap = []
